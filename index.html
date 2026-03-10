@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0046)file:///C:/Users/alfon/Downloads/index_17.html -->
+<!-- saved from url=(0046)file:///C:/Users/alfon/Downloads/index_18.html -->
 <html lang="es"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -141,7 +141,7 @@ input::placeholder{color:var(--muted);}
   <nav class="sidebar">
     <div class="nav-label">Principal</div>
     <div class="nav-item active" id="nav-proveedores" onclick="showPage(&#39;proveedores&#39;,this)">
-      <span>🏢</span> Proveedores <span class="nav-count" id="cnt-prov">135</span>
+      <span>🏢</span> Proveedores <span class="nav-count" id="cnt-prov">512</span>
     </div>
     <div class="nav-item" id="nav-solicitudes" onclick="showPage(&#39;solicitudes&#39;,this)">
       <span>📥</span> Solicitudes <span class="nav-count" id="cnt-sol">0</span>
@@ -682,6 +682,11 @@ const PROVEEDORES_EXTRA = [{"id": 500, "nombre": "Aaron Zavaleta Vazquez", "banc
       PROVEEDORES_SEED.push(p);
       existingIds.add(p.cuenta);
     }
+  });
+  // Update nav counter after merge
+  document.addEventListener('DOMContentLoaded', function() {
+    const el = document.getElementById('cnt-prov');
+    if (el) el.textContent = PROVEEDORES_SEED.length;
   });
 })();
 
