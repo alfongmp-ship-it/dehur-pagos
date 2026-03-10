@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0046)file:///C:/Users/alfon/Downloads/index_22.html -->
+<!-- saved from url=(0046)file:///C:/Users/alfon/Downloads/index_23.html -->
 <html lang="es"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -2015,8 +2015,11 @@ renderProveedores();renderNomina();renderCuentaDispSelect();renderHeaderBadges()
 <script>
 // Actualizar contador de proveedores en nav (se ejecuta cuando el DOM ya existe)
 document.addEventListener('DOMContentLoaded', function() {
+  // Actualizar contador nav
   const el = document.getElementById('cnt-prov');
   if (el) el.textContent = proveedores.length;
+  // Renderizar página inicial
+  renderProveedores();
 });
 </script>
 
