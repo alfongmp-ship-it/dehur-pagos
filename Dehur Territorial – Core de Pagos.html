@@ -1,0 +1,1908 @@
+<!DOCTYPE html>
+<!-- saved from url=(0049)file:///C:/Users/alfon/Downloads/dehur_pagos.html -->
+<html lang="es"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dehur Territorial – Core de Pagos</title>
+<link href="./Dehur Territorial – Core de Pagos_files/css2" rel="stylesheet">
+<style>
+:root{--bg:#0f0f0f;--surface:#181818;--surface2:#222222;--border:#2a2a2a;--accent:#c8a96e;--accent2:#e8c990;--text:#f0ede8;--muted:#7a7570;--green:#4caf7d;--red:#e05a5a;--blue:#5a9be0;--purple:#9b7fe8;--orange:#e07a3a;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;min-height:100vh;}
+.header{display:flex;align-items:center;justify-content:space-between;padding:18px 32px;border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:100;}
+.logo{display:flex;align-items:center;gap:12px;}
+.logo-mark{width:36px;height:36px;background:var(--accent);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:16px;color:#0f0f0f;}
+.logo-text{font-family:'Syne',sans-serif;font-weight:700;font-size:15px;line-height:1.2;}
+.logo-sub{font-size:11px;color:var(--muted);}
+.header-right{display:flex;gap:8px;align-items:center;}
+.badge{padding:4px 10px;border-radius:20px;font-size:11px;font-weight:500;border:1px solid var(--border);background:var(--surface2);color:var(--muted);}
+.badge.active{border-color:var(--accent);color:var(--accent);}
+.layout{display:flex;height:calc(100vh - 61px);}
+.sidebar{width:220px;min-width:220px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:16px 0;}
+.nav-label{font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:8px 24px 4px;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;cursor:pointer;transition:all .15s;font-size:13.5px;color:var(--muted);margin:0 12px;}
+.nav-item:hover{background:var(--surface2);color:var(--text);}
+.nav-item.active{background:rgba(200,169,110,.12);color:var(--accent);font-weight:500;}
+.nav-count{margin-left:auto;background:var(--surface2);border-radius:10px;padding:1px 7px;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);}
+.main{flex:1;overflow-y:auto;padding:28px 32px;}
+.page-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;}
+.page-title{font-family:'Syne',sans-serif;font-size:22px;font-weight:700;}
+.page-subtitle{color:var(--muted);font-size:13px;margin-top:2px;}
+.btn{padding:9px 18px;border-radius:8px;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;transition:all .15s;}
+.btn-primary{background:var(--accent);color:#0f0f0f;}
+.btn-primary:hover{background:var(--accent2);}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border);}
+.btn-ghost:hover{border-color:var(--accent);color:var(--accent);}
+.btn-sm{padding:6px 12px;font-size:12px;}
+.btn-success{background:rgba(76,175,125,.15);color:var(--green);border:1px solid rgba(76,175,125,.3);}
+.btn-success:hover{background:rgba(76,175,125,.25);}
+.btn-danger{background:rgba(224,90,90,.15);color:var(--red);border:1px solid rgba(224,90,90,.3);}
+.stats-row{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:24px;}
+.stats-row-4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px;}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;}
+.stat-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:500;}
+.stat-value{font-family:'Syne',sans-serif;font-size:24px;font-weight:700;margin:5px 0 3px;}
+.stat-sub{font-size:11px;color:var(--muted);}
+.stat-accent{color:var(--accent);} .stat-green{color:var(--green);} .stat-blue{color:var(--blue);} .stat-orange{color:var(--orange);} .stat-purple{color:var(--purple);}
+.toolbar{display:flex;align-items:center;gap:10px;margin-bottom:18px;}
+.search-box{flex:1;position:relative;}
+.search-box input{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 14px 9px 36px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;transition:border-color .15s;}
+.search-box input:focus{border-color:var(--accent);}
+.search-box input::placeholder{color:var(--muted);}
+.search-icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:14px;}
+.filter-select{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 14px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;cursor:pointer;}
+.filter-select:focus{border-color:var(--accent);}
+.table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+table{width:100%;border-collapse:collapse;}
+thead{background:var(--surface2);}
+th{padding:11px 16px;text-align:left;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid var(--border);}
+td{padding:12px 16px;border-bottom:1px solid rgba(42,42,42,.5);vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:rgba(255,255,255,.02);}
+.mono{font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);}
+.name-cell{font-weight:500;font-size:13px;}
+.name-sub{font-size:11px;color:var(--muted);margin-top:2px;}
+.tag{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:500;}
+.tag-obra{background:rgba(90,155,224,.15);color:var(--blue);}
+.tag-nomina{background:rgba(76,175,125,.15);color:var(--green);}
+.tag-impuesto{background:rgba(224,90,90,.15);color:var(--red);}
+.tag-fijo{background:rgba(155,127,232,.15);color:var(--purple);}
+.tag-prestamo{background:rgba(224,122,58,.15);color:var(--orange);}
+.tag-general{background:rgba(122,117,112,.15);color:var(--muted);}
+.tag-paraiso{background:rgba(200,169,110,.15);color:var(--accent);}
+.tag-entorno{background:rgba(90,155,224,.15);color:var(--blue);}
+.tag-dt{background:rgba(76,175,125,.15);color:var(--green);}
+.tipo-badge-clabe{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;font-size:10px;font-weight:600;background:rgba(76,175,125,.12);color:var(--green);border:1px solid rgba(76,175,125,.25);}
+.tipo-badge-bbva{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;font-size:10px;font-weight:600;background:rgba(90,155,224,.12);color:var(--blue);border:1px solid rgba(90,155,224,.25);}
+.tipo-badge-corta{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;font-size:10px;font-weight:600;background:rgba(224,122,58,.12);color:var(--orange);border:1px solid rgba(224,122,58,.25);}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;align-items:center;justify-content:center;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px;width:560px;max-width:95vw;max-height:90vh;overflow-y:auto;}
+.modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px;}
+.modal-title{font-family:'Syne',sans-serif;font-size:18px;font-weight:700;}
+.modal-close{background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.field{display:flex;flex-direction:column;gap:6px;}
+.field.span2{grid-column:span 2;}
+label{font-size:12px;font-weight:500;color:var(--muted);}
+input,select{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 13px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;transition:border-color .15s;width:100%;}
+input:focus,select:focus{border-color:var(--accent);}
+input::placeholder{color:var(--muted);}
+.form-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:22px;}
+.queue-item{display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;}
+.qi-name{flex:1;font-weight:500;font-size:13px;}
+.qi-amount{font-family:'DM Mono',monospace;font-weight:500;color:var(--accent);font-size:14px;white-space:nowrap;}
+.queue-empty{text-align:center;padding:40px;color:var(--muted);font-size:13px;}
+.total-bar{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:rgba(200,169,110,.08);border:1px solid rgba(200,169,110,.2);border-radius:10px;margin-top:14px;}
+.total-amount{font-family:'Syne',sans-serif;font-size:20px;font-weight:700;color:var(--accent);}
+.notif{position:fixed;bottom:24px;right:24px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 18px;font-size:13px;z-index:300;display:flex;align-items:center;gap:10px;transform:translateY(80px);opacity:0;transition:all .3s;min-width:260px;}
+.notif.show{transform:translateY(0);opacity:1;}
+.notif.success{border-color:var(--green);}
+.notif.success .ni{color:var(--green);}
+.notif.error{border-color:var(--red);}
+.notif.error .ni{color:var(--red);}
+.alert-box{background:rgba(224,122,58,.1);border:1px solid rgba(224,122,58,.3);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--orange);margin-bottom:14px;}
+.info-box{background:rgba(90,155,224,.08);border:1px solid rgba(90,155,224,.2);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--blue);margin-bottom:14px;}
+.hist-row{display:grid;grid-template-columns:110px 1fr 130px 110px 90px;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid rgba(42,42,42,.5);}
+.hist-row:hover{background:rgba(255,255,255,.02);}
+.empty-state{text-align:center;padding:60px 20px;color:var(--muted);}
+.proyecto-pill{padding:6px 14px;border-radius:20px;border:1px solid var(--border);cursor:pointer;font-size:12px;transition:all .15s;color:var(--muted);background:var(--surface2);display:inline-block;margin:3px;}
+.proyecto-pill:hover{border-color:var(--accent);color:var(--accent);}
+.proyecto-pill.selected{border-color:var(--accent);background:rgba(200,169,110,.12);color:var(--accent);}
+.cuenta-ok{color:var(--green);font-size:11px;margin-top:3px;}
+.cuenta-err{color:var(--red);font-size:11px;margin-top:3px;}
+::-webkit-scrollbar{width:5px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.tab-bar{display:flex;gap:4px;margin-bottom:20px;background:var(--surface2);border-radius:10px;padding:4px;width:fit-content;}
+.tab{padding:7px 18px;border-radius:7px;cursor:pointer;font-size:13px;color:var(--muted);transition:all .15s;}
+.tab.active{background:var(--surface);color:var(--text);font-weight:500;}
+.quincena-badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:600;margin-left:6px;}
+.q1{background:rgba(200,169,110,.15);color:var(--accent);}
+.q2{background:rgba(90,155,224,.15);color:var(--blue);}
+</style>
+<!-- Google Identity Services -->
+<script src="./Dehur Territorial – Core de Pagos_files/client" async="" defer=""></script>
+<style id="googleidentityservice_button_styles">.qJTHM{-moz-user-select:none;-webkit-user-select:none;-ms-user-select:none;color:#202124;direction:ltr;-webkit-touch-callout:none;font-family:"Roboto-Regular",arial,sans-serif;-webkit-font-smoothing:antialiased;font-weight:400;margin:0;overflow:hidden;-webkit-text-size-adjust:100%}.ynRLnc{left:-9999px;position:absolute;top:-9999px}.L6cTce{display:none}.bltWBb{overflow-wrap:break-word;word-break:break-word}.hSRGPd{color:#1a73e8;cursor:pointer;font-weight:500;text-decoration:none}.Bz112c-W3lGp{height:16px;width:16px}.Bz112c-E3DyYd{height:20px;width:20px}.Bz112c-r9oPif{height:24px;width:24px}.Bz112c-u2z5K{height:36px;width:36px}.Bz112c-uaxL4e{border-radius:10px}.LgbsSe-Bz112c{display:block}.S9gUrf-YoZ4jf{border:none;margin:0;padding:0}.S9gUrf-YoZ4jf *{border:none;margin:0;padding:0}.fFW7wc-ibnC6b>.aZ2wEe>div{border-color:#4285f4}.P1ekSe-ZMv3u{-webkit-transition:height linear .2s;transition:height linear .2s}.P1ekSe-ZMv3u>div:nth-child(1){background-color:#1a73e8!important;-webkit-transition:width linear .3s;transition:width linear .3s}.P1ekSe-ZMv3u>div:nth-child(2){background-image:-webkit-gradient(linear,left top,right top,from(rgba(255,255,255,.7)),to(rgba(255,255,255,.7))),-webkit-gradient(linear,left top,right top,from(#1a73e8),to(#1a73e8))!important;background-image:-webkit-linear-gradient(left,rgba(255,255,255,.7),rgba(255,255,255,.7)),-webkit-linear-gradient(left,#1a73e8,#1a73e8)!important;background-image:linear-gradient(to right,rgba(255,255,255,.7),rgba(255,255,255,.7)),linear-gradient(to right,#1a73e8,#1a73e8)!important}.P1ekSe-ZMv3u>div:nth-child(3){background-image:-webkit-gradient(linear,left top,right top,from(rgba(255,255,255,.7)),to(rgba(255,255,255,.7))),-webkit-gradient(linear,left top,right top,from(#1a73e8),to(#1a73e8))!important;background-image:-webkit-linear-gradient(left,rgba(255,255,255,.7),rgba(255,255,255,.7)),-webkit-linear-gradient(left,#1a73e8,#1a73e8)!important;background-image:linear-gradient(to right,rgba(255,255,255,.7),rgba(255,255,255,.7)),linear-gradient(to right,#1a73e8,#1a73e8)!important}.haAclf{display:inline-block}.nsm7Bb-HzV7m-LgbsSe{border-radius:4px;box-sizing:border-box;-webkit-transition:background-color .218s,border-color .218s;transition:background-color .218s,border-color .218s;-moz-user-select:none;-webkit-user-select:none;-ms-user-select:none;-webkit-appearance:none;background-color:#fff;background-image:none;border:1px solid #dadce0;color:#3c4043;cursor:pointer;font-family:"Google Sans",arial,sans-serif;font-size:14px;height:40px;letter-spacing:.25px;outline:none;overflow:hidden;padding:0 12px;position:relative;text-align:center;vertical-align:middle;white-space:nowrap;width:auto}@media screen and (-ms-high-contrast:active){.nsm7Bb-HzV7m-LgbsSe{border:2px solid windowText;color:windowText}}@media screen and (preferes-contrast:more){.nsm7Bb-HzV7m-LgbsSe{color:#000}}.nsm7Bb-HzV7m-LgbsSe.pSzOP-SxQuSe{font-size:14px;height:32px;letter-spacing:.25px;padding:0 10px}.nsm7Bb-HzV7m-LgbsSe.purZT-SxQuSe{font-size:11px;height:20px;letter-spacing:.3px;padding:0 8px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe{padding:0;width:40px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe.pSzOP-SxQuSe{width:32px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe.purZT-SxQuSe{width:20px}.nsm7Bb-HzV7m-LgbsSe.JGcpL-RbRzK{border-radius:20px}.nsm7Bb-HzV7m-LgbsSe.JGcpL-RbRzK.pSzOP-SxQuSe{border-radius:16px}.nsm7Bb-HzV7m-LgbsSe.JGcpL-RbRzK.purZT-SxQuSe{border-radius:10px}.nsm7Bb-HzV7m-LgbsSe.MFS4be-Ia7Qfc{border:none;color:#fff}.nsm7Bb-HzV7m-LgbsSe.MFS4be-v3pZbf-Ia7Qfc{background-color:#1a73e8}.nsm7Bb-HzV7m-LgbsSe.MFS4be-JaPV2b-Ia7Qfc{background-color:#202124;color:#e8eaed}@media screen and (prefers-contrast:more){.nsm7Bb-HzV7m-LgbsSe.MFS4be-JaPV2b-Ia7Qfc{color:#fff}}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{height:18px;margin-right:8px;min-width:18px;width:18px}.nsm7Bb-HzV7m-LgbsSe.pSzOP-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{height:14px;min-width:14px;width:14px}.nsm7Bb-HzV7m-LgbsSe.purZT-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{height:10px;min-width:10px;width:10px}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-Bz112c{margin-left:8px;margin-right:-4px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{margin:0;padding:10px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe.pSzOP-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{padding:8px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe.purZT-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{padding:4px}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-top-left-radius:3px;border-bottom-left-radius:3px;display:-webkit-box;display:-webkit-flex;display:flex;-webkit-box-pack:center;-webkit-justify-content:center;justify-content:center;-webkit-box-align:center;-webkit-align-items:center;align-items:center;background-color:#fff;height:36px;margin-left:-10px;margin-right:12px;min-width:36px;width:36px}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf .nsm7Bb-HzV7m-LgbsSe-Bz112c,.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf .nsm7Bb-HzV7m-LgbsSe-Bz112c{margin:0;padding:0}.nsm7Bb-HzV7m-LgbsSe.pSzOP-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{height:28px;margin-left:-8px;margin-right:10px;min-width:28px;width:28px}.nsm7Bb-HzV7m-LgbsSe.purZT-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{height:16px;margin-left:-6px;margin-right:8px;min-width:16px;width:16px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-radius:3px;margin-left:2px;margin-right:0;padding:0}.nsm7Bb-HzV7m-LgbsSe.JGcpL-RbRzK .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-radius:18px}.nsm7Bb-HzV7m-LgbsSe.pSzOP-SxQuSe.JGcpL-RbRzK .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-radius:14px}.nsm7Bb-HzV7m-LgbsSe.purZT-SxQuSe.JGcpL-RbRzK .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-radius:8px}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-bN97Pc-sM5MNb{display:-webkit-box;display:-webkit-flex;display:flex;-webkit-align-items:center;-webkit-box-align:center;align-items:center;-webkit-flex-direction:row;-webkit-box-orient:horizontal;-webkit-box-direction:normal;flex-direction:row;-webkit-box-pack:justify;-webkit-justify-content:space-between;justify-content:space-between;-webkit-flex-wrap:nowrap;flex-wrap:nowrap;height:100%;position:relative;width:100%}.nsm7Bb-HzV7m-LgbsSe .oXtfBe-l4eHX{-webkit-box-pack:center;-webkit-justify-content:center;justify-content:center}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-BPrWId{-webkit-flex-grow:1;-webkit-box-flex:1;flex-grow:1;font-family:"Google Sans",arial,sans-serif;font-weight:500;overflow:hidden;text-overflow:ellipsis;vertical-align:top}.nsm7Bb-HzV7m-LgbsSe.purZT-SxQuSe .nsm7Bb-HzV7m-LgbsSe-BPrWId{font-weight:300}.nsm7Bb-HzV7m-LgbsSe .oXtfBe-l4eHX .nsm7Bb-HzV7m-LgbsSe-BPrWId{-webkit-flex-grow:0;-webkit-box-flex:0;flex-grow:0}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-MJoBVe{-webkit-transition:background-color .218s;transition:background-color .218s;bottom:0;left:0;position:absolute;right:0;top:0}.nsm7Bb-HzV7m-LgbsSe:hover,.nsm7Bb-HzV7m-LgbsSe:focus{box-shadow:none;border-color:rgb(210,227,252);outline:none}.nsm7Bb-HzV7m-LgbsSe:focus-within{outline:2px solid #00639b;border-color:transparent}.nsm7Bb-HzV7m-LgbsSe:hover .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(66,133,244,.08)}.nsm7Bb-HzV7m-LgbsSe:active .nsm7Bb-HzV7m-LgbsSe-MJoBVe,.nsm7Bb-HzV7m-LgbsSe:focus .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(66,133,244,.1)}.nsm7Bb-HzV7m-LgbsSe.MFS4be-Ia7Qfc:hover .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(255,255,255,.24)}.nsm7Bb-HzV7m-LgbsSe.MFS4be-Ia7Qfc:active .nsm7Bb-HzV7m-LgbsSe-MJoBVe,.nsm7Bb-HzV7m-LgbsSe.MFS4be-Ia7Qfc:focus .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(255,255,255,.32)}.nsm7Bb-HzV7m-LgbsSe .n1UuX-DkfjY{border-radius:50%;display:-webkit-box;display:-webkit-flex;display:flex;height:20px;margin-left:-4px;margin-right:8px;min-width:20px;width:20px}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId{font-family:"Roboto";font-size:12px;text-align:left}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId .ssJRIf,.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff .fmcmS{overflow:hidden;text-overflow:ellipsis}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff{display:-webkit-box;display:-webkit-flex;display:flex;-webkit-align-items:center;-webkit-box-align:center;align-items:center;color:#5f6368;fill:#5f6368;font-size:11px;font-weight:400}.nsm7Bb-HzV7m-LgbsSe.jVeSEe.MFS4be-Ia7Qfc .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff{color:#e8eaed;fill:#e8eaed}@media screen and (prefers-contrast:more){.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff,.nsm7Bb-HzV7m-LgbsSe.jVeSEe.MFS4be-Ia7Qfc .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff{color:#000;fill:#000}}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff .Bz112c{height:18px;margin:-3px -3px -3px 2px;min-width:18px;width:18px}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-top-left-radius:0;border-bottom-left-radius:0;border-top-right-radius:3px;border-bottom-right-radius:3px;margin-left:12px;margin-right:-10px}.nsm7Bb-HzV7m-LgbsSe.jVeSEe.JGcpL-RbRzK .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-radius:18px}.L5Fo6c-sM5MNb{border:0;display:block;left:0;position:relative;top:0}.L5Fo6c-bF1uUb{border-radius:4px;bottom:0;cursor:pointer;left:0;position:absolute;right:0;top:0}.L5Fo6c-bF1uUb:focus{border:none;outline:none}sentinel{}</style></head>
+<body>
+<header class="header">
+  <div class="logo">
+    <div class="logo-mark">DT</div>
+    <div><div class="logo-text">Dehur Territorial</div><div class="logo-sub">Core de Pagos · v1.3</div></div>
+  </div>
+  <div style="display:flex;align-items:center;gap:16px;">
+    <div id="gs-auth-status"></div>
+    <div class="header-right" id="header-badges"></div>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="sidebar">
+    <div class="nav-label">Principal</div>
+    <div class="nav-item active" id="nav-proveedores" onclick="showPage(&#39;proveedores&#39;,this)">
+      <span>🏢</span> Proveedores <span class="nav-count" id="cnt-prov">135</span>
+    </div>
+    <div class="nav-item" id="nav-solicitudes" onclick="showPage(&#39;solicitudes&#39;,this)">
+      <span>📥</span> Solicitudes <span class="nav-count" id="cnt-sol">0</span>
+    </div>
+    <div class="nav-item" id="nav-dispersion" onclick="showPage(&#39;dispersion&#39;,this)">
+      <span>⚡</span> Dispersión <span class="nav-count" id="cnt-cola">0</span>
+    </div>
+    <div class="nav-item" id="nav-historial" onclick="showPage(&#39;historial&#39;,this)">
+      <span>📋</span> Historial <span class="nav-count" id="cnt-hist">0</span>
+    </div>
+    <div class="nav-label" style="margin-top:8px;">Catálogos</div>
+    <div class="nav-item" id="nav-nomina" onclick="showPage(&#39;nomina&#39;,this)">
+      <span>👥</span> Nómina <span class="nav-count" id="cnt-nom">39</span>
+    </div>
+    <div class="nav-item" onclick="showPage(&#39;acreedores&#39;,this)"><span>💡</span> Acreedores <span class="nav-count">—</span></div>
+    <div class="nav-item" id="nav-config" onclick="showPage(&#39;config&#39;,this)"><span>⚙</span> Configuración</div>
+  </nav>
+
+  <main class="main">
+
+    <!-- ===== PROVEEDORES ===== -->
+    <div id="page-proveedores">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Base de Proveedores</div>
+          <div class="page-subtitle" id="sub-prov">135 registros · CLABE, Cuenta BBVA y Cuenta corta</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost" onclick="exportarCSV()">⬇ Exportar CSV</button>
+          <button class="btn btn-primary" onclick="abrirNuevoProveedor()">+ Nuevo</button>
+        </div>
+      </div>
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-label">Total</div><div class="stat-value stat-accent" id="st-total">135</div><div class="stat-sub">Registros</div></div>
+        <div class="stat-card"><div class="stat-label">CLABE</div><div class="stat-value stat-green" id="st-clabe">0</div><div class="stat-sub">Interbancaria 18 dígitos</div></div>
+        <div class="stat-card"><div class="stat-label">Cta. BBVA</div><div class="stat-value stat-blue" id="st-bbva">0</div><div class="stat-sub">Número de cuenta BBVA</div></div>
+        <div class="stat-card"><div class="stat-label">Cta. Corta</div><div class="stat-value stat-orange" id="st-corta">0</div><div class="stat-sub">Alias / formato especial</div></div>
+        <div class="stat-card"><div class="stat-label">En Cola</div><div class="stat-value stat-purple" id="st-cola">0</div><div class="stat-sub">Pendientes de pago</div></div>
+      </div>
+      <div class="toolbar">
+        <div class="search-box"><span class="search-icon">🔍</span><input type="text" id="buscar-prov" placeholder="Buscar nombre, cuenta, banco..." oninput="renderProveedores()"></div>
+        <select class="filter-select" id="f-tipo" onchange="renderProveedores()">
+          <option value="">Todos los tipos</option>
+          <option value="CLABE">CLABE</option>
+          <option value="Cuenta BBVA">Cuenta BBVA</option>
+          <option value="Cuenta corta">Cuenta corta</option>
+        </select>
+        <select class="filter-select" id="f-cat" onchange="renderProveedores()">
+          <option value="">Todas las categorías</option>
+          <option>Obra / Materiales</option><option>Nómina / Asimilados</option><option>Impuestos</option><option>Gastos fijos</option><option>Préstamo entre proyectos</option><option>General</option>
+        </select>
+        <select class="filter-select" id="f-proy" onchange="renderProveedores()">
+          <option value="">Todos los proyectos</option>
+          
+        </select>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Proveedor</th><th>Tipo Cuenta</th><th>Banco</th><th>Número de Cuenta / CLABE</th><th>Categoría</th><th>Proyectos</th><th style="text-align:right">Acciones</th></tr></thead>
+          <tbody id="tbody-prov"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== DISPERSION ===== -->
+    <div id="page-dispersion" style="display:none">
+      <div class="page-header">
+        <div><div class="page-title">Dispersión BBVA</div><div class="page-subtitle">Arma tu orden semanal y genera el archivo para el banco</div></div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost" onclick="abrirModalNominaDisp()">+ Nómina completa</button>
+          <button class="btn btn-primary" onclick="abrirModalPago()">+ Agregar Pago</button>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 320px;gap:20px;">
+        <div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+              <div style="font-family:&#39;Syne&#39;,sans-serif;font-size:16px;font-weight:700;">Cola de pagos</div>
+              <button class="btn btn-ghost btn-sm" onclick="limpiarCola()">Limpiar todo</button>
+            </div>
+            <div id="cola-lista"><div class="queue-empty"><div style="font-size:32px;margin-bottom:10px;opacity:.4">⚡</div><div>Sin pagos en cola</div></div></div>
+            <div id="total-bar" style="display:none" class="total-bar">
+              <div><div style="font-weight:600;font-size:13px;">Total a dispersar</div><div style="font-size:11px;color:var(--muted);margin-top:2px;" id="total-desc">—</div></div>
+              <div class="total-amount" id="total-amount">$0.00</div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:16px;">
+            <div style="font-family:&#39;Syne&#39;,sans-serif;font-size:15px;font-weight:700;margin-bottom:14px;">Generar Archivo</div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:5px;">Cuenta origen:</div>
+            <select class="filter-select" style="width:100%;margin-bottom:12px;" id="cuenta-disp"></select>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:5px;">Tipo de pago:</div>
+            <select class="filter-select" style="width:100%;margin-bottom:12px;" id="tipo-disp">
+              <option value="interbancario">Pagos Interbancarios (CLABE)</option>
+              <option value="mismo-banco">Pagos Mismo Banco (BBVA)</option>
+              <option value="nomina">Nómina</option>
+            </select>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:5px;">Fecha aplicación:</div>
+            <input type="date" id="fecha-disp" style="width:100%;margin-bottom:16px;">
+            <button class="btn btn-primary" style="width:100%;padding:12px;" onclick="generarArchivo()">⬇ Generar Archivo BBVA</button>
+            <div style="font-size:11px;color:var(--muted);margin-top:8px;text-align:center;">Compatible con SIM BBVA · CSV</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;">
+            <div style="font-family:&#39;Syne&#39;,sans-serif;font-size:14px;font-weight:700;margin-bottom:10px;">Búsqueda rápida</div>
+            <input type="text" id="buscar-rapido" placeholder="Proveedor o empleado..." oninput="buscarRapido()" style="width:100%;margin-bottom:8px;">
+            <div id="res-rapidos" style="max-height:200px;overflow-y:auto;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== HISTORIAL ===== -->
+    <div id="page-historial" style="display:none">
+      <div class="page-header">
+        <div><div class="page-title">Historial de Pagos</div><div class="page-subtitle">Registro de dispersiones generadas</div></div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost" onclick="exportarHistorial()">⬇ Exportar CSV</button>
+          <button class="btn btn-primary" id="btn-confirmar-hist" onclick="abrirModalConfirmarPagos()" style="display:none;">✅ Confirmar pagos pendientes</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <div style="display:grid;grid-template-columns:110px 1fr 130px 110px 90px;gap:12px;padding:11px 16px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;">
+          <div>Fecha</div><div>Beneficiario</div><div>Concepto</div><div style="text-align:right">Importe</div><div>Proyecto</div>
+        </div>
+        <div id="historial-lista"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">📋</div><div>Sin registros aún</div></div></div>
+      </div>
+    </div>
+
+    <!-- ===== NOMINA ===== -->
+    <div id="page-nomina" style="display:none">
+      <div class="page-header">
+        <div><div class="page-title">Nómina</div><div class="page-subtitle">39 empleados importados · Desarrollo y Control ALE · Desarrollo de Hogares Urbanos</div></div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost" onclick="exportarNomina()">⬇ Exportar CSV</button>
+          <button class="btn btn-primary" onclick="abrirNuevoEmpleado()">+ Nuevo empleado</button>
+        </div>
+      </div>
+      <div class="stats-row-4">
+        <div class="stat-card"><div class="stat-label">Total Empleados</div><div class="stat-value stat-accent" id="st-nom-total">39</div><div class="stat-sub">En base de datos</div></div>
+        <div class="stat-card"><div class="stat-label">Con CLABE</div><div class="stat-value stat-green" id="st-nom-clabe">0</div><div class="stat-sub">Transferencia interbancaria</div></div>
+        <div class="stat-card"><div class="stat-label">Cta. BBVA</div><div class="stat-value stat-blue" id="st-nom-bbva">0</div><div class="stat-sub">Misma institución</div></div>
+        <div class="stat-card"><div class="stat-label">Quincena</div><div class="stat-value stat-purple" id="st-nom-monto">$0</div><div class="stat-sub">Último monto programado</div></div>
+      </div>
+      <div class="toolbar">
+        <div class="search-box"><span class="search-icon">🔍</span><input type="text" id="buscar-nom" placeholder="Buscar empleado, banco..." oninput="renderNomina()"></div>
+        <select class="filter-select" id="f-nom-tipo" onchange="renderNomina()">
+          <option value="">Todos los tipos</option>
+          <option value="CLABE">CLABE</option>
+          <option value="Cuenta BBVA">Cuenta BBVA</option>
+        </select>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Empleado</th><th>Puesto</th><th>Tipo Cuenta</th><th>Banco</th><th>Cuenta / CLABE</th><th>Empresa</th><th style="text-align:right">Acciones</th></tr></thead>
+          <tbody id="tbody-nom"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== ACREEDORES ===== -->
+
+    <!-- ===== SOLICITUDES DE PAGO ===== -->
+    <div id="page-solicitudes" style="display:none">
+      <div class="page-header">
+        <div><div class="page-title">Solicitudes de Pago</div><div class="page-subtitle" id="sol-subtitle">Carga el Excel semanal, revisa y aprueba los pagos por proyecto</div></div>
+        <div id="sol-actions" style="display:none;gap:8px;">
+          <button class="btn btn-ghost" id="btn-nueva-sol" onclick="nuevaSolicitud()">↺ Nueva solicitud</button>
+          <button class="btn btn-primary" id="btn-enviar-disp" onclick="abrirModalDispersion()">⚡ Generar Excel BBVA</button>
+        </div>
+      </div>
+
+      <!-- DROP ZONE -->
+      <div id="sol-dropzone" style="border:2px dashed var(--border);border-radius:16px;padding:56px 32px;text-align:center;cursor:pointer;transition:all .2s;background:var(--surface);" onclick="document.getElementById(&#39;sol-file-input&#39;).click()" ondragover="event.preventDefault();this.style.borderColor=&#39;var(--accent)&#39;;this.style.background=&#39;rgba(200,169,110,.05)&#39;" ondragleave="this.style.borderColor=&#39;var(--border)&#39;;this.style.background=&#39;var(--surface)&#39;" ondrop="handleSolDrop(event)">
+        <div style="font-size:40px;margin-bottom:12px;opacity:.5">📥</div>
+        <div style="font-family:&#39;Syne&#39;,sans-serif;font-size:16px;font-weight:700;margin-bottom:6px;">Arrastra tu Excel de solicitudes aquí</div>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:16px;">o haz clic para seleccionar · Formato: Solicitud_Pagos_Sem_XX.xlsx</div>
+        <div style="display:inline-block;padding:8px 20px;border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--muted);">Seleccionar archivo</div>
+        <input type="file" id="sol-file-input" accept=".xlsx,.xls" style="display:none" onchange="handleSolFile(this.files[0])">
+      </div>
+
+      <!-- TABLA DE SOLICITUDES (oculta hasta cargar) -->
+      <div id="sol-contenido" style="display:none">
+        <!-- Barra de info del archivo -->
+        <div style="display:flex;align-items:center;gap:14px;padding:14px 18px;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:18px;">
+          <div style="font-size:22px;">📄</div>
+          <div style="flex:1;">
+            <div style="font-weight:600;font-size:13px;" id="sol-filename">—</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px;" id="sol-fileinfo">—</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:11px;color:var(--muted);">Total solicitado</div>
+            <div style="font-family:&#39;Syne&#39;,sans-serif;font-size:20px;font-weight:700;color:var(--accent);" id="sol-total">$0.00</div>
+          </div>
+          <div style="text-align:right;border-left:1px solid var(--border);padding-left:16px;">
+            <div style="font-size:11px;color:var(--muted);">Seleccionado</div>
+            <div style="font-family:&#39;Syne&#39;,sans-serif;font-size:20px;font-weight:700;color:var(--green);" id="sol-seleccionado">$0.00</div>
+          </div>
+        </div>
+
+        <!-- Filtros y acciones -->
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+          <div class="search-box" style="flex:1;"><span class="search-icon">🔍</span><input type="text" id="buscar-sol" placeholder="Buscar proveedor, concepto, partida..." oninput="renderSolicitudes()"></div>
+          <select class="filter-select" id="f-sol-partida" onchange="renderSolicitudes()"><option value="">Todas las partidas</option></select>
+          <button class="btn btn-ghost btn-sm" onclick="seleccionarTodosSol(true)">✓ Todos</button>
+          <button class="btn btn-ghost btn-sm" onclick="seleccionarTodosSol(false)">✗ Ninguno</button>
+        </div>
+
+        <!-- Alertas de cuentas no encontradas -->
+        <div id="sol-alertas" style="margin-bottom:14px;"></div>
+
+        <!-- Tabla -->
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th style="width:36px;"><input type="checkbox" id="chk-all-sol" onchange="seleccionarTodosSol(this.checked)" style="width:15px;height:15px;cursor:pointer;"></th>
+              <th>Proveedor</th>
+              <th>Partida</th>
+              <th>Clave</th>
+              <th>Concepto / Factura</th>
+              <th>Cuenta / CLABE</th>
+              <th style="text-align:right">Importe</th>
+              <th>Estado</th>
+            </tr></thead>
+            <tbody id="tbody-sol"></tbody>
+          </table>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;margin-top:16px;gap:10px;">
+          <button class="btn btn-ghost" onclick="nuevaSolicitud()">↺ Cargar otro archivo</button>
+          <button class="btn btn-primary" style="padding:10px 24px;" onclick="abrirModalDispersion()">⚡ Generar Excel BBVA</button>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ===== CONFIGURACIÓN ===== -->
+    <div id="page-config" style="display:none">
+      <div class="page-header">
+        <div><div class="page-title">Configuración</div><div class="page-subtitle">Proyectos, cuentas bancarias y preferencias</div></div>
+        <button class="btn btn-primary" onclick="abrirModalProyecto(null)">+ Nuevo Proyecto</button>
+      </div>
+
+      <div style="max-width:820px;">
+        <!-- Proyectos -->
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;margin-bottom:20px;">
+          <div style="font-family:&#39;Syne&#39;,sans-serif;font-size:15px;font-weight:700;margin-bottom:16px;">Proyectos y Cuentas Bancarias</div>
+          <div id="config-proyectos-lista"></div>
+        </div>
+
+        <!-- Info -->
+        <div style="background:rgba(90,155,224,.07);border:1px solid rgba(90,155,224,.2);border-radius:12px;padding:16px 18px;font-size:12px;color:var(--muted);line-height:1.7;">
+          <b style="color:var(--text);">Nota:</b> Al agregar un nuevo proyecto aparecerá en el selector de Dispersión, en los filtros de Proveedores y en las Solicitudes de Pago. 
+          La CLABE se calcula automáticamente a partir del número de cuenta BBVA (puede no ser exacta — verifica con tu estado de cuenta).
+        </div>
+      </div>
+    </div>
+
+    <div id="page-acreedores" style="display:none">
+      <div class="page-header"><div><div class="page-title">Acreedores Fijos</div><div class="page-subtitle">CFE, agua, renta · próximamente</div></div></div>
+      <div class="empty-state" style="margin-top:40px;"><div style="font-size:36px;margin-bottom:12px;opacity:.4">💡</div><div style="font-size:15px;font-weight:500;">Módulo en construcción</div></div>
+    </div>
+
+  </main>
+</div>
+
+
+<!-- MODAL PROYECTO -->
+<div class="modal-overlay" id="modal-proyecto">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-proy-title">Nuevo Proyecto</div>
+      <button class="modal-close" onclick="cerrar(&#39;modal-proyecto&#39;)">✕</button>
+    </div>
+    <div class="form-grid">
+      <div class="field span2">
+        <label>Nombre del Proyecto *</label>
+        <input id="proy-nombre" placeholder="Ej: Privada del Paraíso">
+      </div>
+      <div class="field span2">
+        <label>Empresa / Razón Social</label>
+        <input id="proy-empresa" placeholder="Ej: Dehur Territorial S.A. de C.V.">
+      </div>
+      <div class="field span2">
+        <label>Número de Cuenta BBVA *</label>
+        <input id="proy-cuenta" placeholder="0000000000" maxlength="12" style="font-family:&#39;DM Mono&#39;,monospace;" oninput="calcularClabeProy()">
+        <div id="proy-clabe-preview" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>
+      </div>
+      <div class="field span2">
+        <label>Color identificador</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;" id="proy-colores">
+          <span class="proy-color-opt" data-color="#c8a96e" onclick="selColor(this)" style="width:26px;height:26px;border-radius:50%;background:#c8a96e;cursor:pointer;border:2px solid transparent;"></span>
+          <span class="proy-color-opt" data-color="#5a9be0" onclick="selColor(this)" style="width:26px;height:26px;border-radius:50%;background:#5a9be0;cursor:pointer;border:2px solid transparent;"></span>
+          <span class="proy-color-opt" data-color="#4caf7d" onclick="selColor(this)" style="width:26px;height:26px;border-radius:50%;background:#4caf7d;cursor:pointer;border:2px solid transparent;"></span>
+          <span class="proy-color-opt" data-color="#e07a3a" onclick="selColor(this)" style="width:26px;height:26px;border-radius:50%;background:#e07a3a;cursor:pointer;border:2px solid transparent;"></span>
+          <span class="proy-color-opt" data-color="#a07cd0" onclick="selColor(this)" style="width:26px;height:26px;border-radius:50%;background:#a07cd0;cursor:pointer;border:2px solid transparent;"></span>
+          <span class="proy-color-opt" data-color="#e05a5a" onclick="selColor(this)" style="width:26px;height:26px;border-radius:50%;background:#e05a5a;cursor:pointer;border:2px solid transparent;"></span>
+        </div>
+        <input type="hidden" id="proy-color" value="#c8a96e">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end;">
+      <button class="btn btn-ghost" onclick="cerrar(&#39;modal-proyecto&#39;)">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarProyecto()">Guardar Proyecto</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PROVEEDOR -->
+<div class="modal-overlay" id="modal-prov">
+  <div class="modal">
+    <div class="modal-header"><div class="modal-title" id="modal-prov-title">Nuevo Proveedor</div><button class="modal-close" onclick="cerrar(&#39;modal-prov&#39;)">✕</button></div>
+    <div class="form-grid">
+      <div class="field span2"><label>Nombre / Razón Social *</label><input id="p-nombre" placeholder="NOMBRE EN MAYÚSCULAS"></div>
+      <div class="field"><label>RFC</label><input id="p-rfc" placeholder="Opcional"></div>
+      <div class="field"><label>Categoría</label><select id="p-cat"><option>Obra / Materiales</option><option>Nómina / Asimilados</option><option>Impuestos</option><option>Gastos fijos</option><option>Préstamo entre proyectos</option><option>General</option></select></div>
+      <div class="field span2"><label>Tipo de cuenta</label><select id="p-tipo" onchange="updateTipoProv()"><option value="CLABE">CLABE (18 dígitos)</option><option value="Cuenta BBVA">Número de Cuenta BBVA (10 dígitos)</option><option value="Cuenta corta">Cuenta corta</option></select></div>
+      <div class="field span2"><label id="lbl-cuenta-prov">CLABE Interbancaria *</label><input id="p-cuenta" placeholder="000000000000000000" oninput="validarCuentaProv()" style="font-family:&#39;DM Mono&#39;,monospace;"><div id="p-cuenta-status"></div></div>
+      <div class="field"><label>Banco detectado</label><input id="p-banco" readonly="" style="color:var(--muted)"></div>
+      <div class="field"><label>Estado</label><select id="p-activo"><option value="true">Activo</option><option value="false">Inactivo</option></select></div>
+      <div class="field span2"><label>Proyectos</label><div><span id="pills-placeholder" style="font-size:11px;color:var(--muted);">Cargando proyectos...</span></div></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-ghost" onclick="cerrar(&#39;modal-prov&#39;)">Cancelar</button><button class="btn btn-primary" onclick="guardarProveedor()">Guardar</button></div>
+  </div>
+</div>
+
+<!-- MODAL EMPLEADO -->
+<div class="modal-overlay" id="modal-emp">
+  <div class="modal">
+    <div class="modal-header"><div class="modal-title" id="modal-emp-title">Nuevo Empleado</div><button class="modal-close" onclick="cerrar(&#39;modal-emp&#39;)">✕</button></div>
+    <div class="form-grid">
+      <div class="field span2"><label>Nombre completo *</label><input id="e-nombre" placeholder="NOMBRE EN MAYÚSCULAS"></div>
+      <div class="field"><label>Puesto</label><input id="e-puesto" placeholder="Residente de obra..."></div>
+      <div class="field"><label>Empresa</label><select id="e-empresa"><option>DESARROLLO Y CONTROL ALE SA DE CV</option><option>DESARROLLO DE HOGARES URBANOS SA DE CV</option><option>DEHUR TERRITORIAL SA DE CV</option></select></div>
+      <div class="field span2"><label>Tipo de cuenta</label><select id="e-tipo" onchange="updateTipoEmp()"><option value="CLABE">CLABE (18 dígitos)</option><option value="Cuenta BBVA">Número de Cuenta BBVA (10 dígitos)</option></select></div>
+      <div class="field span2"><label id="lbl-cuenta-emp">CLABE Interbancaria *</label><input id="e-cuenta" placeholder="000000000000000000" oninput="validarCuentaEmp()" style="font-family:&#39;DM Mono&#39;,monospace;"><div id="e-cuenta-status"></div></div>
+      <div class="field"><label>Banco detectado</label><input id="e-banco" readonly="" style="color:var(--muted)"></div>
+      <div class="field"><label>Estado</label><select id="e-activo"><option value="true">Activo</option><option value="false">Inactivo</option></select></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-ghost" onclick="cerrar(&#39;modal-emp&#39;)">Cancelar</button><button class="btn btn-primary" onclick="guardarEmpleado()">Guardar</button></div>
+  </div>
+</div>
+
+<!-- MODAL PAGO -->
+<div class="modal-overlay" id="modal-pago">
+  <div class="modal">
+    <div class="modal-header"><div class="modal-title">Agregar Pago a Cola</div><button class="modal-close" onclick="cerrar(&#39;modal-pago&#39;)">✕</button></div>
+    <div style="margin-bottom:14px;">
+      <label style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:6px;">Buscar proveedor o empleado</label>
+      <input type="text" id="buscar-m" placeholder="Nombre, cuenta, banco..." oninput="buscarModal()" style="width:100%;">
+      <div id="res-modal" style="margin-top:6px;max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;display:none;"></div>
+    </div>
+    <div id="pago-sel" style="display:none;background:var(--surface2);border-radius:10px;padding:14px;margin-bottom:14px;border:1px solid var(--border);">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div><div style="font-weight:600;font-size:13px;" id="sel-nombre">—</div><div style="font-family:&#39;DM Mono&#39;,monospace;font-size:11px;color:var(--muted);margin-top:3px;" id="sel-cuenta">—</div><div style="font-size:11px;color:var(--muted);margin-top:2px;" id="sel-banco">—</div></div>
+        <div id="sel-tipo-badge"></div>
+      </div>
+    </div>
+    <div id="alerta-tipo" class="alert-box" style="display:none;">⚠ Cuenta corta — verifica que BBVA acepte este formato antes de procesar.</div>
+    <div class="form-grid">
+      <div class="field span2"><label>Concepto *</label><input id="pago-concepto" placeholder="Ej: MATERIALES SEM 10 FAC 12345"></div>
+      <div class="field"><label>Importe *</label><div style="position:relative;"><span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted);">$</span><input type="number" id="pago-importe" placeholder="0.00" step="0.01" min="0" style="padding-left:24px;"></div></div>
+      <div class="field"><label>Proyecto</label><select id="pago-proy"></select></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-ghost" onclick="cerrar(&#39;modal-pago&#39;)">Cancelar</button><button class="btn btn-primary" onclick="agregarACola()">Agregar ⚡</button></div>
+  </div>
+</div>
+
+<!-- MODAL GENERAR EXCEL BBVA -->
+<div class="modal-overlay" id="modal-dispersion">
+  <div class="modal" style="width:700px;max-height:90vh;overflow-y:auto;">
+    <div class="modal-header">
+      <div class="modal-title">⚡ Generar Excel BBVA</div>
+      <button class="modal-close" onclick="cerrar(&#39;modal-dispersion&#39;)">✕</button>
+    </div>
+    <div id="disp-resumen" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:18px;"></div>
+    <div style="margin-bottom:14px;">
+      <label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:6px;">CUENTA CARGO (origen del pago)</label>
+      <select id="disp-cuenta-cargo" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px;"></select>
+    </div>
+    <div id="disp-sin-cuenta-warn" style="display:none;background:rgba(255,180,0,.1);border:1px solid rgba(255,180,0,.3);border-radius:8px;padding:12px 14px;font-size:12px;color:#c8960a;margin-bottom:14px;"></div>
+    <div id="disp-tabla-wrap">
+      <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:8px;">PAGOS SELECCIONADOS</div>
+      <div class="table-wrap" style="max-height:280px;overflow-y:auto;">
+        <table>
+          <thead><tr>
+            <th style="width:32px;"><input type="checkbox" id="chk-disp-all" onchange="toggleAllDisp(this.checked)" style="width:14px;height:14px;cursor:pointer;"></th>
+            <th>Beneficiario</th>
+            <th>Concepto</th>
+            <th>Cuenta / CLABE</th>
+            <th>Banco</th>
+            <th style="text-align:right">Importe</th>
+          </tr></thead>
+          <tbody id="tbody-disp"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="form-actions" style="margin-top:18px;">
+      <button class="btn btn-ghost" onclick="cerrar(&#39;modal-dispersion&#39;)">Cancelar</button>
+      <button class="btn btn-primary" onclick="generarExcelBBVA()" style="padding:10px 28px;">📥 Descargar Excel BBVA</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CONFIRMACION DE PAGOS -->
+<div class="modal-overlay" id="modal-confirmar-pagos">
+  <div class="modal" style="width:680px;max-height:90vh;overflow-y:auto;">
+    <div class="modal-header">
+      <div class="modal-title">✅ Confirmar Pagos Realizados</div>
+      <button class="modal-close" onclick="cerrar(&#39;modal-confirmar-pagos&#39;)">✕</button>
+    </div>
+    <div class="info-box" style="margin-bottom:16px;">Marca los pagos que el banco <strong>sí procesó</strong>. Solo estos quedarán registrados en el historial.</div>
+    <div id="conf-resumen" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;"></div>
+    <div class="table-wrap" style="max-height:320px;overflow-y:auto;">
+      <table>
+        <thead><tr>
+          <th style="width:32px;"><input type="checkbox" id="chk-conf-all" onchange="toggleAllConf(this.checked)" style="width:14px;height:14px;cursor:pointer;"></th>
+          <th>Beneficiario</th>
+          <th>Concepto</th>
+          <th style="text-align:right">Importe</th>
+          <th>Proyecto</th>
+        </tr></thead>
+        <tbody id="tbody-conf"></tbody>
+      </table>
+    </div>
+    <div class="form-actions" style="margin-top:18px;">
+      <button class="btn btn-ghost" onclick="cerrar(&#39;modal-confirmar-pagos&#39;)">Cerrar sin guardar</button>
+      <button class="btn btn-primary" onclick="confirmarPagos()" style="padding:10px 28px;background:var(--green);">✅ Registrar pagos confirmados</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL NOMINA A DISPERSION -->
+<div class="modal-overlay" id="modal-nom-disp">
+  <div class="modal" style="width:640px;">
+    <div class="modal-header"><div class="modal-title">Agregar Nómina a Cola</div><button class="modal-close" onclick="cerrar(&#39;modal-nom-disp&#39;)">✕</button></div>
+    <div class="info-box">Selecciona los empleados y captura sus montos. Se agregarán todos a la cola como pagos individuales.</div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;">
+      <div class="search-box" style="flex:1;"><span class="search-icon">🔍</span><input type="text" id="buscar-nom-disp" placeholder="Filtrar empleados..." oninput="filtrarNomDisp()"></div>
+      <select class="filter-select" id="qnom-proy" style="width:180px;">
+        
+      </select>
+    </div>
+    <div id="nom-disp-lista" style="max-height:340px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;"></div>
+    <div class="form-actions" style="margin-top:16px;">
+      <button class="btn btn-ghost" onclick="cerrar(&#39;modal-nom-disp&#39;)">Cancelar</button>
+      <button class="btn btn-primary" onclick="agregarNominaACola()">Agregar seleccionados ⚡</button>
+    </div>
+  </div>
+</div>
+
+<div class="notif" id="notif"><span class="ni" id="ni">✓</span><span id="nm">—</span></div>
+// ===== PROYECTOS (data-driven) =====
+const PROYECTOS_SEED = [
+  {id:'paraiso', nombre:'Privada del Paraíso', empresa:'Desarrollo de Hogares Urbanos SA de CV',
+   cuenta:'0124913019', clabe:'012180001249130198', color:'#c8a96e', activo:true},
+  {id:'entorno',  nombre:'Entorno',             empresa:'Dehur Territorial SA de CV',
+   cuenta:'0111221051', clabe:'012180001112210514', color:'#5a9be0', activo:true},
+  {id:'dt',       nombre:'Concentradora DT',    empresa:'Dehur Territorial SA de CV',
+   cuenta:'0122903652', clabe:'012180001229036526', color:'#4caf7d', activo:true},
+];
+let proyectos = JSON.parse(localStorage.getItem('dt_proyectos')||'null') || PROYECTOS_SEED;
+function saveProy(){try{localStorage.setItem('dt_proyectos',JSON.stringify(proyectos));}catch(e){}gsSaveProyectos();}
+
+const PROVEEDORES_SEED = [{"id": 1, "nombre": "BLANCA ANGELICA CORREA RODRIGUEZ", "banco": "Banorte", "tipo_cuenta": "CLABE", "cuenta": "072180010899517972", "clabe": "072180010899517972", "num_cuenta": "", "rfc": "", "categoria": "Nómina / Asimilados", "proyectos": ["Privada del Paraíso", "Entorno"], "activo": true}, {"id": 2, "nombre": "ERICKA MENDEZ LUIS", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "1134289749", "clabe": "", "num_cuenta": "1134289749", "rfc": "", "categoria": "Nómina / Asimilados", "proyectos": ["Privada del Paraíso", "Concentradora DT", "Entorno"], "activo": true}, {"id": 3, "nombre": "ERICKA ROMERO URIBE", "banco": "Azteca", "tipo_cuenta": "CLABE", "cuenta": "127190013672911514", "clabe": "127190013672911514", "num_cuenta": "", "rfc": "", "categoria": "Nómina / Asimilados", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 4, "nombre": "ANAHI GARCIA VAZQUEZ", "banco": "Banorte", "tipo_cuenta": "CLABE", "cuenta": "072041013213525178", "clabe": "072041013213525178", "num_cuenta": "", "rfc": "", "categoria": "Nómina / Asimilados", "proyectos": ["Privada del Paraíso", "Concentradora DT"], "activo": true}, {"id": 5, "nombre": "HECTOR VAZQUEZ FRANCO", "banco": "Banamex", "tipo_cuenta": "CLABE", "cuenta": "002180038442777085", "clabe": "002180038442777085", "num_cuenta": "", "rfc": "", "categoria": "General", "proyectos": ["Privada del Paraíso", "Entorno"], "activo": true}, {"id": 6, "nombre": "NORMA ALICIA MONTAÑO LUNA", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0486526764", "clabe": "", "num_cuenta": "0486526764", "rfc": "", "categoria": "Impuestos", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 7, "nombre": "ANTONIO SANCHEZ CASTRO", "banco": "Banorte", "tipo_cuenta": "CLABE", "cuenta": "072041012744308742", "clabe": "072041012744308742", "num_cuenta": "", "rfc": "", "categoria": "General", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 8, "nombre": "HERRAJES Y MATERIALES DE LOS CABOS SA DE CV", "banco": "BBVA", "tipo_cuenta": "Cuenta corta", "cuenta": "00112166704", "clabe": "", "num_cuenta": "00112166704", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 9, "nombre": "HOME DEPOT", "banco": "Citibanamex", "tipo_cuenta": "CLABE", "cuenta": "124180702006661259", "clabe": "124180702006661259", "num_cuenta": "", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Privada del Paraíso", "Entorno"], "activo": true}, {"id": 10, "nombre": "IMPORTADORA Y DISTRIBUIDORA COMERCIAL DEL GOLFO S DE RL  DE CV", "banco": "Banorte", "tipo_cuenta": "CLABE", "cuenta": "072040006403437961", "clabe": "072040006403437961", "num_cuenta": "", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 11, "nombre": "FANOSA SA DE CV", "banco": "BBVA", "tipo_cuenta": "Cuenta corta", "cuenta": "2208156", "clabe": "", "num_cuenta": "2208156", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 12, "nombre": "SOLUCIONES EVLOK PREFABRICADOS", "banco": "BBVA", "tipo_cuenta": "Cuenta corta", "cuenta": "2215829", "clabe": "", "num_cuenta": "2215829", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 13, "nombre": "LABORATORIO DE CALIDAD Y SUPERVISION DE OBRA SA DE CV", "banco": "Banorte", "tipo_cuenta": "CLABE", "cuenta": "072041005095961764", "clabe": "072041005095961764", "num_cuenta": "", "rfc": "", "categoria": "General", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 14, "nombre": "RODRIGO LOPEZ JUAREZ", "banco": "BBVA", "tipo_cuenta": "Cuenta corta", "cuenta": "00488045380", "clabe": "", "num_cuenta": "00488045380", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 15, "nombre": "ACEROS CABOS S.A. DE C.V.", "banco": "Banamex", "tipo_cuenta": "CLABE", "cuenta": "002041047064175030", "clabe": "002041047064175030", "num_cuenta": "", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 16, "nombre": "DISTRIBUIDORA TAMEX SAPI DE CV", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0448349452", "clabe": "", "num_cuenta": "0448349452", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Privada del Paraíso", "Entorno"], "activo": true}, {"id": 17, "nombre": "DISTRIBUCION INTERCERAMIC SA DE CV", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0449865810", "clabe": "", "num_cuenta": "0449865810", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 18, "nombre": "ALE COMERCIAL S.A. DE C.V.", "banco": "HSBC", "tipo_cuenta": "CLABE", "cuenta": "021180040274000847", "clabe": "021180040274000847", "num_cuenta": "", "rfc": "", "categoria": "General", "proyectos": ["Privada del Paraíso", "Entorno"], "activo": true}, {"id": 19, "nombre": "ACYMA DEL NORESTE", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0149354735", "clabe": "", "num_cuenta": "0149354735", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 20, "nombre": "CON K MEX S DE RL DE CV", "banco": "BBVA", "tipo_cuenta": "Cuenta corta", "cuenta": "00105582970", "clabe": "", "num_cuenta": "00105582970", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 21, "nombre": "VILLAGOMEZ JURADO S.A. DE C.V.", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0163590488", "clabe": "", "num_cuenta": "0163590488", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 22, "nombre": "FORTOPLAS", "banco": "Banco (014)", "tipo_cuenta": "CLABE", "cuenta": "014040655046791415", "clabe": "014040655046791415", "num_cuenta": "", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 23, "nombre": "CI", "banco": "BBVA", "tipo_cuenta": "Cuenta corta", "cuenta": "113071650", "clabe": "", "num_cuenta": "113071650", "rfc": "", "categoria": "General", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 24, "nombre": "UBALDO SANCHEZ HERNANDEZ", "banco": "HSBC", "tipo_cuenta": "CLABE", "cuenta": "021041040666673950", "clabe": "021041040666673950", "num_cuenta": "", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 25, "nombre": "COMPAÑIA SHERWIN WILLIAMS SA DE CV", "banco": "Citibanamex", "tipo_cuenta": "CLABE", "cuenta": "124180650753000710", "clabe": "124180650753000710", "num_cuenta": "", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Privada del Paraíso", "Entorno"], "activo": true}, {"id": 26, "nombre": "ANAHI GARCIA VAZQUEZ (P)", "banco": "Banorte", "tipo_cuenta": "CLABE", "cuenta": "072180010964917232", "clabe": "072180010964917232", "num_cuenta": "", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 27, "nombre": "JOSE ALBERTO CASTRO SALAZAR", "banco": "Banorte", "tipo_cuenta": "CLABE", "cuenta": "072040012540871225", "clabe": "072040012540871225", "num_cuenta": "", "rfc": "", "categoria": "General", "proyectos": ["Privada del Paraíso", "Entorno"], "activo": true}, {"id": 28, "nombre": "VALERIA SALUD VELAZCO CHAVEZ", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "1582998330", "clabe": "", "num_cuenta": "1582998330", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 29, "nombre": "ADRIANA MONTAÑO LUNA", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0458621098", "clabe": "", "num_cuenta": "0458621098", "rfc": "", "categoria": "General", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 30, "nombre": "OSCAR HERNANDEZ LOPEZ", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0489245901", "clabe": "", "num_cuenta": "0489245901", "rfc": "", "categoria": "General", "proyectos": ["Privada del Paraíso", "Concentradora DT", "Entorno"], "activo": true}, {"id": 31, "nombre": "RUBEN GOMEZ REYES", "banco": "Banorte", "tipo_cuenta": "CLABE", "cuenta": "072180002507089632", "clabe": "072180002507089632", "num_cuenta": "", "rfc": "", "categoria": "Nómina / Asimilados", "proyectos": ["Privada del Paraíso", "Entorno"], "activo": true}, {"id": 32, "nombre": "ADRIAN VAZQUEZ HERNANDEZ", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "1540108795", "clabe": "", "num_cuenta": "1540108795", "rfc": "", "categoria": "General", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 33, "nombre": "JESUS SALVADOR BELTRAN COTA", "banco": "Banorte", "tipo_cuenta": "CLABE", "cuenta": "072041004198041032", "clabe": "072041004198041032", "num_cuenta": "", "rfc": "", "categoria": "Impuestos", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 34, "nombre": "EMILIO GUZMAN JIMENEZ", "banco": "Banamex", "tipo_cuenta": "CLABE", "cuenta": "002040700814444880", "clabe": "002040700814444880", "num_cuenta": "", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 35, "nombre": "PAPELERA HEGOR S.A. DE C.V.", "banco": "BBVA", "tipo_cuenta": "Cuenta corta", "cuenta": "145931312", "clabe": "", "num_cuenta": "145931312", "rfc": "", "categoria": "General", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 36, "nombre": "INGENIERIA EN SISTEMAS ELECTRICOS DE POTENCIA SYP, S DE RL DE CV", "banco": "Banregio", "tipo_cuenta": "CLABE", "cuenta": "058041989751600250", "clabe": "058041989751600250", "num_cuenta": "", "rfc": "", "categoria": "General", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 37, "nombre": "MARCO SERVICIOS INMOBILIARIOS S.A. DE C.V.", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0119679766", "clabe": "", "num_cuenta": "0119679766", "rfc": "", "categoria": "General", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 38, "nombre": "MARIA DE LOS ANGELES JUAREZ OVIEDO", "banco": "Scotiabank", "tipo_cuenta": "CLABE", "cuenta": "044180256011308573", "clabe": "044180256011308573", "num_cuenta": "", "rfc": "", "categoria": "Gastos fijos", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 39, "nombre": "ADRIAN VAZQUEZ HERNANDEZ (O)", "banco": "Bancoppel", "tipo_cuenta": "CLABE", "cuenta": "137180102862422494", "clabe": "137180102862422494", "num_cuenta": "", "rfc": "", "categoria": "General", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 40, "nombre": "GUSTAVO ALBERTO GAONA FRIAS", "banco": "Banorte", "tipo_cuenta": "CLABE", "cuenta": "072180002537155154", "clabe": "072180002537155154", "num_cuenta": "", "rfc": "", "categoria": "Gastos fijos", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 41, "nombre": "OSCAR HERNANDEZ LOPEZ (P)", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "1533322322", "clabe": "", "num_cuenta": "1533322322", "rfc": "", "categoria": "Impuestos", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 42, "nombre": "ALFONSO GARCIA MURIEL", "banco": "Banco (014)", "tipo_cuenta": "CLABE", "cuenta": "014180606286771515", "clabe": "014180606286771515", "num_cuenta": "", "rfc": "", "categoria": "Nómina / Asimilados", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 43, "nombre": "KS COMERCIAL SA DE CV", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0145721725", "clabe": "", "num_cuenta": "0145721725", "rfc": "", "categoria": "General", "proyectos": ["Privada del Paraíso", "Entorno"], "activo": true}, {"id": 44, "nombre": "IPACSA PANELES Y ACABADOS SA DE CV", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0123476243", "clabe": "", "num_cuenta": "0123476243", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 45, "nombre": "JORGE LUIS PIÑON LUCAS", "banco": "Banorte", "tipo_cuenta": "CLABE", "cuenta": "072041011768073656", "clabe": "072041011768073656", "num_cuenta": "", "rfc": "", "categoria": "Gastos fijos", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 46, "nombre": "MENDEZ ALVARADO-DFK, S.C.", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0162259923", "clabe": "", "num_cuenta": "0162259923", "rfc": "", "categoria": "General", "proyectos": ["Privada del Paraíso", "Entorno"], "activo": true}, {"id": 47, "nombre": "ERICK GARDUÑO GONZALEZ", "banco": "Banamex", "tipo_cuenta": "CLABE", "cuenta": "002045701049410188", "clabe": "002045701049410188", "num_cuenta": "", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 48, "nombre": "GONZALO CARDONA PALACIOS", "banco": "BBVA", "tipo_cuenta": "Cuenta corta", "cuenta": "490464236", "clabe": "", "num_cuenta": "490464236", "rfc": "", "categoria": "Impuestos", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 49, "nombre": "GONZALO CARDONA PALACIOS", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "4904964236", "clabe": "", "num_cuenta": "4904964236", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 50, "nombre": "TOKA INTERNACIONAL SAPI DE CV (DEHUR TERRITORIAL)", "banco": "STP", "tipo_cuenta": "CLABE", "cuenta": "646180138010116596", "clabe": "646180138010116596", "num_cuenta": "", "rfc": "", "categoria": "General", "proyectos": ["Privada del Paraíso", "Entorno"], "activo": true}, {"id": 51, "nombre": "GONZALO CARDONA PALACIOS", "banco": "HSBC", "tipo_cuenta": "CLABE", "cuenta": "021180064188964314", "clabe": "021180064188964314", "num_cuenta": "", "rfc": "", "categoria": "Impuestos", "proyectos": ["Privada del Paraíso", "Concentradora DT", "Entorno"], "activo": true}, {"id": 52, "nombre": "TICSA Terracerias", "banco": "Banco (014)", "tipo_cuenta": "CLABE", "cuenta": "014041655030380446", "clabe": "014041655030380446", "num_cuenta": "", "rfc": "", "categoria": "General", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 53, "nombre": "SIEST SOLUCIONES EN INGENIERIA ESTRUCTURAL Y TECNOLOGIA S.A. DE C.V.", "banco": "Bajio", "tipo_cuenta": "CLABE", "cuenta": "030180900000399002", "clabe": "030180900000399002", "num_cuenta": "", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Privada del Paraíso", "Entorno"], "activo": true}, {"id": 54, "nombre": "K S COEMRCIAL KURODA", "banco": "BBVA", "tipo_cuenta": "Cuenta corta", "cuenta": "145721725", "clabe": "", "num_cuenta": "145721725", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 55, "nombre": "GUSA", "banco": "BBVA", "tipo_cuenta": "Cuenta corta", "cuenta": "163345602", "clabe": "", "num_cuenta": "163345602", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Privada del Paraíso"], "activo": true}, {"id": 56, "nombre": "JUAN PABLO GURRIA BARCENAS", "banco": "Scotiabank", "tipo_cuenta": "CLABE", "cuenta": "044180001053581891", "clabe": "044180001053581891", "num_cuenta": "", "rfc": "", "categoria": "General", "proyectos": ["Concentradora DT", "Entorno"], "activo": true}, {"id": 57, "nombre": "MUEBLES PARA BAÑO SA DE CV", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0444699149", "clabe": "", "num_cuenta": "0444699149", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 58, "nombre": "ISIDRO DOMINGUEZ SALMERON", "banco": "Banorte", "tipo_cuenta": "CLABE", "cuenta": "072528011626292160", "clabe": "072528011626292160", "num_cuenta": "", "rfc": "", "categoria": "Impuestos", "proyectos": ["Entorno"], "activo": true}, {"id": 59, "nombre": "CANDELARIA VIVIAN PONCE", "banco": "Banco (012)", "tipo_cuenta": "CLABE", "cuenta": "012528004721006493", "clabe": "012528004721006493", "num_cuenta": "", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 60, "nombre": "JOSE ROGELIO GARCIA MADRIGAL", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0446386059", "clabe": "", "num_cuenta": "0446386059", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Entorno"], "activo": true}, {"id": 61, "nombre": "TECNOLOGIA APLICADA EN SISTEMAS", "banco": "Banco (014)", "tipo_cuenta": "CLABE", "cuenta": "014528655086733544", "clabe": "014528655086733544", "num_cuenta": "", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Entorno"], "activo": true}, {"id": 62, "nombre": "SONIA AIDEE CABALLERO PANTALEON", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0193577244", "clabe": "", "num_cuenta": "0193577244", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 63, "nombre": "MARIA AZUCENA MONTERO LOPEZ", "banco": "Banamex", "tipo_cuenta": "CLABE", "cuenta": "002528700128717657", "clabe": "002528700128717657", "num_cuenta": "", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 64, "nombre": "JOSE ARIEL MORALES CARO", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0100412570", "clabe": "", "num_cuenta": "0100412570", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Entorno"], "activo": true}, {"id": 65, "nombre": "GABRIELA RASCON QUINTANA", "banco": "Banorte", "tipo_cuenta": "CLABE", "cuenta": "072528004379421020", "clabe": "072528004379421020", "num_cuenta": "", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Entorno"], "activo": true}, {"id": 66, "nombre": "ERNESTO GUADALUPE MESA MARTINEZ", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0110116238", "clabe": "", "num_cuenta": "0110116238", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 67, "nombre": "ALEJANDRO ESPINOSA ISLAS BUSTAMANTE", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "1538389020", "clabe": "", "num_cuenta": "1538389020", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 68, "nombre": "SERVICIOS INTEGRALES DE MANTENIMIENTO ARQUITECTURA Y CONSTRUCCION, S. DE R.L. DE C.V.", "banco": "HSBC", "tipo_cuenta": "CLABE", "cuenta": "021528040523720757", "clabe": "021528040523720757", "num_cuenta": "", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 69, "nombre": "JUAN RAMIRO SOTO GARCIA", "banco": "Scotiabank", "tipo_cuenta": "CLABE", "cuenta": "044180256049460360", "clabe": "044180256049460360", "num_cuenta": "", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Entorno"], "activo": true}, {"id": 70, "nombre": "VICTOR MANUEL REYES CORONADO", "banco": "Banamex", "tipo_cuenta": "CLABE", "cuenta": "002528904006800181", "clabe": "002528904006800181", "num_cuenta": "", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 71, "nombre": "ISAAC MOTA FERNANDEZ", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "1121861123", "clabe": "", "num_cuenta": "1121861123", "rfc": "", "categoria": "Nómina / Asimilados", "proyectos": ["Entorno"], "activo": true}, {"id": 72, "nombre": "FRANCISCO MARTIN MORENO BIEHL", "banco": "Mifel", "tipo_cuenta": "CLABE", "cuenta": "042180016003306398", "clabe": "042180016003306398", "num_cuenta": "", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 73, "nombre": "ALEJANDRA AMARO BARRAGAN", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "1586483880", "clabe": "", "num_cuenta": "1586483880", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 74, "nombre": "SUHAIL CAROLINA SANDOVAL ALVAREZ", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0107198655", "clabe": "", "num_cuenta": "0107198655", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 75, "nombre": "JCC MATERIALES CONSTRUCTIVOS, S.A. DE C.V.", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0111747681", "clabe": "", "num_cuenta": "0111747681", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 76, "nombre": "WOOLFOLK DE MEXICO, S.A. DE C.V.", "banco": "Banorte", "tipo_cuenta": "CLABE", "cuenta": "072150004976771729", "clabe": "072150004976771729", "num_cuenta": "", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 77, "nombre": "FERNANDO MARTINEZ CHAVEZ", "banco": "Banamex", "tipo_cuenta": "CLABE", "cuenta": "002528095300386184", "clabe": "002528095300386184", "num_cuenta": "", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Entorno"], "activo": true}, {"id": 78, "nombre": "JAVIER PROCEL QUIÑONES", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0449099115", "clabe": "", "num_cuenta": "0449099115", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 79, "nombre": "IGNACIO ROMULO OCTAVIANO AYALA Y PADILLA", "banco": "CIBanco", "tipo_cuenta": "CLABE", "cuenta": "143180000003303882", "clabe": "143180000003303882", "num_cuenta": "", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 80, "nombre": "SILVIA EDITH ELIZABETH MARTINEZ SANDOVAL", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "1433944093", "clabe": "", "num_cuenta": "1433944093", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 81, "nombre": "A VIDRIOMEX DE MEXICO SA DE CV", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0480440310", "clabe": "", "num_cuenta": "0480440310", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 82, "nombre": "CONTROL TECNICO DE FLUIDOS ARFI, S.A. DE C.V.", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0442606984", "clabe": "", "num_cuenta": "0442606984", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Entorno"], "activo": true}, {"id": 83, "nombre": "INDUSTRIAL LA HUERTA, S.A. DE C.V.", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0193447081", "clabe": "", "num_cuenta": "0193447081", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 84, "nombre": "ELIAS DIAZ ARREOLA", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0468481229", "clabe": "", "num_cuenta": "0468481229", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Entorno"], "activo": true}, {"id": 85, "nombre": "JOSE ALBERTO SANCHEZ ARRIAGA", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0464418689", "clabe": "", "num_cuenta": "0464418689", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 86, "nombre": "ESTEBAN BRITO CHAVEZ", "banco": "Banamex", "tipo_cuenta": "CLABE", "cuenta": "002528095301264360", "clabe": "002528095301264360", "num_cuenta": "", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 87, "nombre": "CORTEZ PALMA CIA CONSTRUCTORA SA DE CV", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0160430528", "clabe": "", "num_cuenta": "0160430528", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 88, "nombre": "INDUSTRIAS NOVACERAMIC SA DE CV", "banco": "Banco (014)", "tipo_cuenta": "CLABE", "cuenta": "014832655047752072", "clabe": "014832655047752072", "num_cuenta": "", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 89, "nombre": "SERVIACERO COMERCIAL SA DE CV", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0443090906", "clabe": "", "num_cuenta": "0443090906", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 90, "nombre": "JULIO CESAR GONZALEZ LOPEZ", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "1525851149", "clabe": "", "num_cuenta": "1525851149", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 91, "nombre": "JOSE JUVENAL VARGAS BARRIGA (MADELI)", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0479915850", "clabe": "", "num_cuenta": "0479915850", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 92, "nombre": "FERRE BARNIEDO, S.A. DE C.V.", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0443487075", "clabe": "", "num_cuenta": "0443487075", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 93, "nombre": "XIMENA TAPIA LARA", "banco": "Inbursa", "tipo_cuenta": "CLABE", "cuenta": "036470500339469982", "clabe": "036470500339469982", "num_cuenta": "", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 94, "nombre": "MUNICIPIO DE LOS CABOS BCS", "banco": "BBVA", "tipo_cuenta": "Cuenta corta", "cuenta": "151509047", "clabe": "", "num_cuenta": "151509047", "rfc": "", "categoria": "Gastos fijos", "proyectos": ["Entorno"], "activo": true}, {"id": 95, "nombre": "HOGAR Y CERAMICA SA DE CV", "banco": "Banamex", "tipo_cuenta": "CLABE", "cuenta": "002528067258763845", "clabe": "002528067258763845", "num_cuenta": "", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 96, "nombre": "SERVICIOS TURISTICOS Y ARRENDAMIENTOS DE URUAPAN SA DE CV", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0110397539", "clabe": "", "num_cuenta": "0110397539", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 97, "nombre": "DIANA LIZBETH SANCHEZ HIGUERA", "banco": "Banorte", "tipo_cuenta": "CLABE", "cuenta": "072041004525503952", "clabe": "072041004525503952", "num_cuenta": "", "rfc": "", "categoria": "Impuestos", "proyectos": ["Entorno"], "activo": true}, {"id": 98, "nombre": "JAIME AGUILAR MATA", "banco": "Banamex", "tipo_cuenta": "CLABE", "cuenta": "002470700911194881", "clabe": "002470700911194881", "num_cuenta": "", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 99, "nombre": "MARTA LETICIA VARGAS SALINAS", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0156062512", "clabe": "", "num_cuenta": "0156062512", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Entorno"], "activo": true}, {"id": 100, "nombre": "CENTRO MODULAR DE POLIESTIRENO SA DE CV", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0144080068", "clabe": "", "num_cuenta": "0144080068", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 101, "nombre": "LA CASA DEL TRIPLAY SA DE CV", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0145081416", "clabe": "", "num_cuenta": "0145081416", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 102, "nombre": "GEOMEMBRANAS Y GEOSINTETICOS SA DE CV", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0147643071", "clabe": "", "num_cuenta": "0147643071", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 103, "nombre": "NEREO ALVAREZ PEREZ", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0483835154", "clabe": "", "num_cuenta": "0483835154", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 104, "nombre": "XAVIER TAPIA TORRES", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "1545981694", "clabe": "", "num_cuenta": "1545981694", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 105, "nombre": "ANA CRISTINA CHAVEZ LOPEZ", "banco": "Bajio", "tipo_cuenta": "CLABE", "cuenta": "030528900018033501", "clabe": "030528900018033501", "num_cuenta": "", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 106, "nombre": "HECTOR CENTENO MALDONADO", "banco": "Bajio", "tipo_cuenta": "CLABE", "cuenta": "030180900022237391", "clabe": "030180900022237391", "num_cuenta": "", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Entorno"], "activo": true}, {"id": 107, "nombre": "HERRAJES CASA SANTOS SA DE CV", "banco": "Banamex", "tipo_cuenta": "CLABE", "cuenta": "002180700641299197", "clabe": "002180700641299197", "num_cuenta": "", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Entorno"], "activo": true}, {"id": 108, "nombre": "ELISEO BARAJAS CHAVARRIA", "banco": "Bajio", "tipo_cuenta": "CLABE", "cuenta": "030180654965302011", "clabe": "030180654965302011", "num_cuenta": "", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Entorno"], "activo": true}, {"id": 109, "nombre": "BIERI POOLS SA DE CV", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0108641099", "clabe": "", "num_cuenta": "0108641099", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 110, "nombre": "HILARIO CORTES AYALA", "banco": "Banamex", "tipo_cuenta": "CLABE", "cuenta": "002180045752881337", "clabe": "002180045752881337", "num_cuenta": "", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 111, "nombre": "CENTRO FESTER URUAPAN, S.A. DE C.V.", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0448027064", "clabe": "", "num_cuenta": "0448027064", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 112, "nombre": "JOSE ANTONIO SANCHEZ CORZA", "banco": "Banco (014)", "tipo_cuenta": "CLABE", "cuenta": "014528605407749112", "clabe": "014528605407749112", "num_cuenta": "", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 113, "nombre": "LUCILA ERENDIRA GIL RAYA", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0102860341", "clabe": "", "num_cuenta": "0102860341", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 114, "nombre": "JOSE HURTADO MORALES", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0142103923", "clabe": "", "num_cuenta": "0142103923", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 115, "nombre": "LA FILLE SISTEMAS INTEGRADOS SA DE CV", "banco": "Banamex", "tipo_cuenta": "CLABE", "cuenta": "002180700344418372", "clabe": "002180700344418372", "num_cuenta": "", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 116, "nombre": "AVALUOS CVAL S.C.", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0119075429", "clabe": "", "num_cuenta": "0119075429", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 117, "nombre": "EQUIPOS Y SISTEMAS PARA MEDIR Y TRATAR AGUA SA DE CV", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0189909435", "clabe": "", "num_cuenta": "0189909435", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 118, "nombre": "EZEQUIEL VILLANUEVA GARCIA", "banco": "Banamex", "tipo_cuenta": "CLABE", "cuenta": "002528067259543857", "clabe": "002528067259543857", "num_cuenta": "", "rfc": "", "categoria": "Gastos fijos", "proyectos": ["Entorno"], "activo": true}, {"id": 119, "nombre": "AMANDO MASTACHI AGUARIO", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0107303513", "clabe": "", "num_cuenta": "0107303513", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 120, "nombre": "DANIEL KENNET SANDOVAL AMEZCUA", "banco": "Banco (014)", "tipo_cuenta": "CLABE", "cuenta": "014528200086843782", "clabe": "014528200086843782", "num_cuenta": "", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 121, "nombre": "SILVIA PATRICIA AGUILERA BARAJAS (MADERERIA LA INDUSTRIAL)", "banco": "Banco (014)", "tipo_cuenta": "CLABE", "cuenta": "014528605098834782", "clabe": "014528605098834782", "num_cuenta": "", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 122, "nombre": "DRAGADOS Y CONSTRUCCIONES DEL BALSAS, S. DE R.L. DE C.V.", "banco": "Bajio", "tipo_cuenta": "CLABE", "cuenta": "030528900013253315", "clabe": "030528900013253315", "num_cuenta": "", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Entorno"], "activo": true}, {"id": 123, "nombre": "MUNICIPIO DE URUAPAN MICHOACAN", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0188720827", "clabe": "", "num_cuenta": "0188720827", "rfc": "", "categoria": "Gastos fijos", "proyectos": ["Entorno"], "activo": true}, {"id": 124, "nombre": "AMBIENTES METROPOLI", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0111517686", "clabe": "", "num_cuenta": "0111517686", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 125, "nombre": "ALFONSO PASQUEL BARCENAS", "banco": "BBVA", "tipo_cuenta": "Cuenta corta", "cuenta": "444920317", "clabe": "", "num_cuenta": "444920317", "rfc": "", "categoria": "Préstamo entre proyectos", "proyectos": ["Entorno"], "activo": true}, {"id": 126, "nombre": "ARACELI MELCHOR SILVA", "banco": "Banco (014)", "tipo_cuenta": "CLABE", "cuenta": "014180655091110228", "clabe": "014180655091110228", "num_cuenta": "", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 127, "nombre": "ERDENEM SA", "banco": "Kuspit", "tipo_cuenta": "CLABE", "cuenta": "653180003810262551", "clabe": "653180003810262551", "num_cuenta": "", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 128, "nombre": "MAQUINARIA CONTINENTAL ELECTRIC, SA DE CV", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0102912171", "clabe": "", "num_cuenta": "0102912171", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 129, "nombre": "ANA KAREN ESPINOZA LOPEZ", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "1531349620", "clabe": "", "num_cuenta": "1531349620", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Entorno"], "activo": true}, {"id": 130, "nombre": "FERREARAIZA, S.A. DE C.V.", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0196919227", "clabe": "", "num_cuenta": "0196919227", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 131, "nombre": "ANTONIO ANGUIANO RINCON", "banco": "Bajio", "tipo_cuenta": "CLABE", "cuenta": "030528900024256000", "clabe": "030528900024256000", "num_cuenta": "", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 132, "nombre": "PREFABRICADOS Y MATERIALES LOS SAUCES, S.A. DE C.V.", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0160610275", "clabe": "", "num_cuenta": "0160610275", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}, {"id": 133, "nombre": "JOSE GERVACIO LEON JIMENEZ", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "2862787253", "clabe": "", "num_cuenta": "2862787253", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Entorno"], "activo": true}, {"id": 134, "nombre": "CONSTRUCCIONES DE LA CHARANDA, S.A. DE C.V.", "banco": "Bajio", "tipo_cuenta": "CLABE", "cuenta": "030528900015976580", "clabe": "030528900015976580", "num_cuenta": "", "rfc": "", "categoria": "Obra / Materiales", "proyectos": ["Entorno"], "activo": true}, {"id": 135, "nombre": "PRODUCTOS DE CONSTRUCCION LEDESMA S. DE R.L. DE C.V", "banco": "BBVA", "tipo_cuenta": "Cuenta BBVA", "cuenta": "0134282728", "clabe": "", "num_cuenta": "0134282728", "rfc": "", "categoria": "General", "proyectos": ["Entorno"], "activo": true}];
+const NOMINA_SEED = [{"nombre": "RUBEN GOMEZ REYES", "cuenta": "072180002507089632", "tipo_cuenta": "CLABE", "banco": "Banorte", "clabe": "072180002507089632", "num_cuenta": "", "puesto": "", "empresa": "DESARROLLO Y CONTROL ALE QUINCENAL", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 200}, {"nombre": "CANDELARIA VIVIAN PONCE", "cuenta": "072180002536635594", "tipo_cuenta": "CLABE", "banco": "Banorte", "clabe": "072180002536635594", "num_cuenta": "", "puesto": "", "empresa": "DESARROLLO Y CONTROL ALE QUINCENAL", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 201}, {"nombre": "ERICKA MENDEZ LUIS", "cuenta": "1134289749", "tipo_cuenta": "Cuenta BBVA", "banco": "BBVA", "clabe": "", "num_cuenta": "1134289749", "puesto": "", "empresa": "DESARROLLO Y CONTROL ALE QUINCENAL", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 202}, {"nombre": "GUSTAVO ALBERTO GAONA FRIAS", "cuenta": "072180002537155154", "tipo_cuenta": "CLABE", "banco": "Banorte", "clabe": "072180002537155154", "num_cuenta": "", "puesto": "", "empresa": "DESARROLLO Y CONTROL ALE QUINCENAL", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 203}, {"nombre": "ANAHI GARCIA VAZQUEZ", "cuenta": "072180010964917232", "tipo_cuenta": "CLABE", "banco": "Banorte", "clabe": "072180010964917232", "num_cuenta": "", "puesto": "", "empresa": "DESARROLLO Y CONTROL ALE QUINCENAL", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 204}, {"nombre": "JESUS ALBERTO CERVANTES VELAZQUEZ", "cuenta": "044528256055761424", "tipo_cuenta": "CLABE", "banco": "Scotiabank", "clabe": "044528256055761424", "num_cuenta": "", "puesto": "", "empresa": "DESARROLLO Y CONTROL ALE QUINCENAL", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 205}, {"nombre": "DIANA RIVAS CEDILLO", "cuenta": "1539283280", "tipo_cuenta": "Cuenta BBVA", "banco": "BBVA", "clabe": "", "num_cuenta": "1539283280", "puesto": "", "empresa": "DESARROLLO Y CONTROL ALE QUINCENAL", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 206}, {"nombre": "IRVING URIEL GOMEZ FACIO", "cuenta": "1502576213", "tipo_cuenta": "Cuenta BBVA", "banco": "BBVA", "clabe": "", "num_cuenta": "1502576213", "puesto": "", "empresa": "DESARROLLO Y CONTROL ALE QUINCENAL", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 207}, {"nombre": "FLOR YECENIA SANTIAHO HERNANDEZ", "cuenta": "1517386934", "tipo_cuenta": "Cuenta BBVA", "banco": "BBVA", "clabe": "", "num_cuenta": "1517386934", "puesto": "", "empresa": "DESARROLLO Y CONTROL ALE QUINCENAL", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 208}, {"nombre": "BULMARO GARCIA MERAZ", "cuenta": "072528011189958608", "tipo_cuenta": "CLABE", "banco": "Banorte", "clabe": "072528011189958608", "num_cuenta": "", "puesto": "VIGILANTE", "empresa": "", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 209}, {"nombre": "SILVIA SOBERANO VAZQUEZ", "cuenta": "072528011231545590", "tipo_cuenta": "CLABE", "banco": "Banorte", "clabe": "072528011231545590", "num_cuenta": "", "puesto": "AUXILIAR ADMINISTRATIVO", "empresa": "", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 210}, {"nombre": "ADOLFO MOLINEROS ROGRIGUEZ", "cuenta": "072528011723677044", "tipo_cuenta": "CLABE", "banco": "Banorte", "clabe": "072528011723677044", "num_cuenta": "", "puesto": "", "empresa": "DESARROLLO DE HOGARES URBANOS SA DE CV (QUINCENAL)", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 211}, {"nombre": "JUAN MATEO VARGAS CAMPOS", "cuenta": "072528011730609364", "tipo_cuenta": "CLABE", "banco": "Banorte", "clabe": "072528011730609364", "num_cuenta": "", "puesto": "ADMINISTRADOR DE ZUMP III Y ENTORNO", "empresa": "", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 212}, {"nombre": "ELIEL FONSECA ORDOÑEZ", "cuenta": "072180004053469694", "tipo_cuenta": "CLABE", "banco": "Banorte", "clabe": "072180004053469694", "num_cuenta": "", "puesto": "VELADOR CALLE 6", "empresa": "", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 213}, {"nombre": "ESTHER MARIBEL LOPEZ MENDOZA", "cuenta": "072180004053568922", "tipo_cuenta": "CLABE", "banco": "Banorte", "clabe": "072180004053568922", "num_cuenta": "", "puesto": "LIMPIEZA CALLE 6", "empresa": "", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 214}, {"nombre": "MARCOS MORALES HERNANDEZ", "cuenta": "072180002983952998", "tipo_cuenta": "CLABE", "banco": "Banorte", "clabe": "072180002983952998", "num_cuenta": "", "puesto": "", "empresa": "MARCOS MORALES HERNANDEZ", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 215}, {"nombre": "ADRIAN SANCHEZ REYES", "cuenta": "1583621769", "tipo_cuenta": "Cuenta BBVA", "banco": "BBVA", "clabe": "", "num_cuenta": "1583621769", "puesto": "", "empresa": "MARCOS MORALES HERNANDEZ", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 216}, {"nombre": "MANUELA ROCIO DIAZ HERNANDEZ", "cuenta": "021180065210909725", "tipo_cuenta": "CLABE", "banco": "HSBC", "clabe": "021180065210909725", "num_cuenta": "", "puesto": "", "empresa": "MARCOS MORALES HERNANDEZ", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 217}, {"nombre": "VERONICA ARREDULFO CALDERON", "cuenta": "072528012020273522", "tipo_cuenta": "CLABE", "banco": "Banorte", "clabe": "072528012020273522", "num_cuenta": "", "puesto": "LIMPIEZA CAMPESTRE ZUMPIMITO", "empresa": "", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 218}, {"nombre": "CHRISTIAN ESTEFANIA JUAREZ LOPEZ", "cuenta": "072180002536877158", "tipo_cuenta": "CLABE", "banco": "Banorte", "clabe": "072180002536877158", "num_cuenta": "", "puesto": "", "empresa": "MARCOS MORALES HERNANDEZ", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 219}, {"nombre": "GREGORIO LOPEZ MEDINA", "cuenta": "072180010748150008", "tipo_cuenta": "CLABE", "banco": "Banorte", "clabe": "072180010748150008", "num_cuenta": "", "puesto": "", "empresa": "MARCOS MORALES HERNANDEZ", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 220}, {"nombre": "JOSE LUIS GALVAN GARCIA", "cuenta": "072180011028580038", "tipo_cuenta": "CLABE", "banco": "Banorte", "clabe": "072180011028580038", "num_cuenta": "", "puesto": "", "empresa": "MARCOS MORALES HERNANDEZ", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 221}, {"nombre": "ALAN URIEL VIVEROS SILVA", "cuenta": "1528645841", "tipo_cuenta": "Cuenta BBVA", "banco": "BBVA", "clabe": "", "num_cuenta": "1528645841", "puesto": "", "empresa": "MARCOS MORALES HERNANDEZ", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 222}, {"nombre": "CARLOS LEONARDO MAGAÑA DIAZ", "cuenta": "1501305777", "tipo_cuenta": "Cuenta BBVA", "banco": "BBVA", "clabe": "", "num_cuenta": "1501305777", "puesto": "", "empresa": "MARCOS MORALES HERNANDEZ", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 223}, {"nombre": "TIBURCIO MAGAÑA RAMIREZ", "cuenta": "072180011216248894", "tipo_cuenta": "CLABE", "banco": "Banorte", "clabe": "072180011216248894", "num_cuenta": "", "puesto": "", "empresa": "MARCOS MORALES HERNANDEZ", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 224}, {"nombre": "SAID ORTIZ MONGE", "cuenta": "072528011492626326", "tipo_cuenta": "CLABE", "banco": "Banorte", "clabe": "072528011492626326", "num_cuenta": "", "puesto": "", "empresa": "MARCOS MORALES HERNANDEZ", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 225}, {"nombre": "PEDRO JIMENEZ VELASCO", "cuenta": "072180011331892426", "tipo_cuenta": "CLABE", "banco": "Banorte", "clabe": "072180011331892426", "num_cuenta": "", "puesto": "", "empresa": "MARCOS MORALES HERNANDEZ", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 226}, {"nombre": "ANA CRISTINA ROJAS ORNELAS", "cuenta": "072528012334908842", "tipo_cuenta": "CLABE", "banco": "Banorte", "clabe": "072528012334908842", "num_cuenta": "", "puesto": "", "empresa": "MARCOS MORALES HERNANDEZ", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 227}, {"nombre": "MA SOCORRO BAEZ GOMEZ", "cuenta": "072528012334935132", "tipo_cuenta": "CLABE", "banco": "Banorte", "clabe": "072528012334935132", "num_cuenta": "", "puesto": "", "empresa": "MARCOS MORALES HERNANDEZ", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 228}, {"nombre": "MARVIN GEOVANNY CORTEZ GALICIA", "cuenta": "072528012334897678", "tipo_cuenta": "CLABE", "banco": "Banorte", "clabe": "072528012334897678", "num_cuenta": "", "puesto": "", "empresa": "MARCOS MORALES HERNANDEZ", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 229}, {"nombre": "IRAN GUADALUPE MONGOY OSUNA", "cuenta": "137040102683305487", "tipo_cuenta": "CLABE", "banco": "Bancoppel", "clabe": "137040102683305487", "num_cuenta": "", "puesto": "", "empresa": "MARCOS MORALES HERNANDEZ", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 230}, {"nombre": "MAYRA GUADALUPE MELGOZA MEDINA", "cuenta": "072528012334897678", "tipo_cuenta": "CLABE", "banco": "Banorte", "clabe": "072528012334897678", "num_cuenta": "", "puesto": "LIMPIEZA", "empresa": "", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 231}, {"nombre": "RUBEN YEPEZ PRADO", "cuenta": "127045013704371588", "tipo_cuenta": "CLABE", "banco": "Azteca", "clabe": "127045013704371588", "num_cuenta": "", "puesto": "", "empresa": "MARCOS MORALES HERNANDEZ", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 232}, {"nombre": "JAIME RANGEL LINARES", "cuenta": "072528011637588698", "tipo_cuenta": "CLABE", "banco": "Banorte", "clabe": "072528011637588698", "num_cuenta": "", "puesto": "MANTENIMIENTO COMODIN", "empresa": "", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 233}, {"nombre": "MARCELA DIAZ GARCIA", "cuenta": "072528011529298782", "tipo_cuenta": "CLABE", "banco": "Banorte", "clabe": "072528011529298782", "num_cuenta": "", "puesto": "AUXILIAR ADMINISTRATIVO", "empresa": "", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 234}, {"nombre": "CRISTIAN GARCIA CALBARIO", "cuenta": "072180011216245444", "tipo_cuenta": "CLABE", "banco": "Banorte", "clabe": "072180011216245444", "num_cuenta": "", "puesto": "", "empresa": "", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 235}, {"nombre": "JOSE HERACLIO RAMIREZ HERNANDEZ", "cuenta": "072528012335541156", "tipo_cuenta": "CLABE", "banco": "Banorte", "clabe": "072528012335541156", "num_cuenta": "", "puesto": "", "empresa": "", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 236}, {"nombre": "HUGO ALEXIS CERVANTES ANDRADE", "cuenta": "021190065574724584", "tipo_cuenta": "CLABE", "banco": "HSBC", "clabe": "021190065574724584", "num_cuenta": "", "puesto": "", "empresa": "", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 237}, {"nombre": "GUADALUPE BORBOA RODRIGUEZ", "cuenta": "1584276498", "tipo_cuenta": "Cuenta BBVA", "banco": "BBVA", "clabe": "", "num_cuenta": "1584276498", "puesto": "", "empresa": "", "categoria": "Nómina / Asimilados", "proyectos": ["Concentradora DT"], "rfc": "", "activo": true, "id": 238}];
+<script>
+
+// ===== GOOGLE SHEETS CONFIG =====
+const GS_CLIENT_ID = '91042443802-91ho0hg4e151u5eo5l89mhabnbcnm8re.apps.googleusercontent.com';
+const GS_SPREADSHEET_ID = '1th8dyn2XtbQj5FEjT7guXpnqyG37zC_uq3c6BfEsvdE';
+const GS_SCOPES = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file';
+let gsToken = null;
+let gsUser = null;
+let gsSyncPending = false;
+
+// ===== AUTH =====
+function gsLogin() {
+  const client = google.accounts.oauth2.initTokenClient({
+    client_id: GS_CLIENT_ID,
+    scope: GS_SCOPES,
+    callback: async (resp) => {
+      if (resp.error) { notify('Error de autenticación: ' + resp.error, 'error'); return; }
+      gsToken = resp.access_token;
+      // Get user info
+      try {
+        const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: 'Bearer ' + gsToken }
+        });
+        gsUser = await r.json();
+      } catch(e) {}
+      await gsInitSheets();
+      await gsLoadAll();
+      renderAuthStatus();
+      notify('✅ Conectado a Google Sheets');
+    }
+  });
+  client.requestAccessToken();
+}
+
+function gsLogout() {
+  if (gsToken) google.accounts.oauth2.revoke(gsToken, () => {});
+  gsToken = null; gsUser = null;
+  renderAuthStatus();
+  notify('Sesión cerrada');
+}
+
+function renderAuthStatus() {
+  const el = document.getElementById('gs-auth-status');
+  if (!el) return;
+  if (gsToken && gsUser) {
+    el.innerHTML = '<div style="display:flex;align-items:center;gap:8px;">'
+      + '<div style="width:8px;height:8px;border-radius:50%;background:var(--green);"></div>'
+      + '<span style="font-size:12px;color:var(--muted);">Sincronizado · ' + (gsUser.email||'') + '</span>'
+      + '<button class="btn btn-ghost btn-sm" onclick="gsLogout()" style="font-size:11px;padding:3px 8px;">Salir</button>'
+      + '</div>';
+  } else {
+    el.innerHTML = '<div style="display:flex;align-items:center;gap:8px;">'
+      + '<div style="width:8px;height:8px;border-radius:50%;background:#e74c3c;"></div>'
+      + '<span style="font-size:12px;color:var(--muted);">Sin sincronizar</span>'
+      + '<button class="btn btn-primary btn-sm" onclick="gsLogin()" style="font-size:11px;padding:4px 12px;">🔗 Conectar Google Sheets</button>'
+      + '</div>';
+  }
+}
+
+// ===== INIT SHEETS =====
+async function gsInitSheets() {
+  const sheetsNeeded = ['proveedores','empleados','historial_pagos','proyectos'];
+  try {
+    const r = await gsFetch(`https://sheets.googleapis.com/v4/spreadsheets/${GS_SPREADSHEET_ID}`);
+    const existing = r.sheets.map(s => s.properties.title);
+    const toCreate = sheetsNeeded.filter(s => !existing.includes(s));
+    if (toCreate.length) {
+      await gsFetch(`https://sheets.googleapis.com/v4/spreadsheets/${GS_SPREADSHEET_ID}:batchUpdate`, 'POST', {
+        requests: toCreate.map(title => ({ addSheet: { properties: { title } } }))
+      });
+      // Write headers
+      const headers = {
+        proveedores: [['id','nombre','rfc','banco','tipo_cuenta','cuenta','categoria','proyectos','activo']],
+        empleados: [['id','nombre','puesto','empresa','banco','tipo_cuenta','cuenta','activo']],
+        historial_pagos: [['fecha','nombre','banco','tipo','concepto','importe','proyecto']],
+        proyectos: [['id','nombre','empresa','cuenta','clabe','color','activo']]
+      };
+      for (const sheet of toCreate) {
+        await gsWriteRange(sheet + '!A1', headers[sheet]);
+      }
+    }
+  } catch(e) { console.error('gsInitSheets error', e); }
+}
+
+// ===== LOAD ALL =====
+async function gsLoadAll() {
+  try {
+    // Load proveedores
+    const pRows = await gsReadSheet('proveedores');
+    if (pRows && pRows.length > 1) {
+      proveedores = pRows.slice(1).filter(r=>r[0]).map(r => ({
+        id: parseInt(r[0])||0,
+        nombre: r[1]||'',
+        rfc: r[2]||'',
+        banco: r[3]||'BBVA',
+        tipo_cuenta: r[4]||'',
+        cuenta: r[5]||'',
+        categoria: r[6]||'General',
+        proyectos: (r[7]||'').split('|').filter(Boolean),
+        activo: r[8]!=='false'
+      }));
+      nextId = Math.max(500, ...proveedores.map(p=>p.id)) + 1;
+    }
+    // Load empleados
+    const eRows = await gsReadSheet('empleados');
+    if (eRows && eRows.length > 1) {
+      empleados = eRows.slice(1).filter(r=>r[0]).map(r => ({
+        id: parseInt(r[0])||0,
+        nombre: r[1]||'',
+        puesto: r[2]||'',
+        empresa: r[3]||'',
+        banco: r[4]||'BBVA',
+        tipo_cuenta: r[5]||'',
+        cuenta: r[6]||'',
+        activo: r[7]!=='false'
+      }));
+    }
+    // Load historial
+    const hRows = await gsReadSheet('historial_pagos');
+    if (hRows && hRows.length > 1) {
+      historial = hRows.slice(1).filter(r=>r[0]).map(r => ({
+        fecha: r[0]||'',
+        nombre: r[1]||'',
+        banco: r[2]||'',
+        tipo: r[3]||'',
+        concepto: r[4]||'',
+        importe: parseFloat(r[5])||0,
+        proyecto: r[6]||''
+      }));
+    }
+    // Load proyectos
+    const prRows = await gsReadSheet('proyectos');
+    if (prRows && prRows.length > 1) {
+      const loaded = prRows.slice(1).filter(r=>r[0]).map(r => ({
+        id: r[0]||'',
+        nombre: r[1]||'',
+        empresa: r[2]||'',
+        cuenta: r[3]||'',
+        clabe: r[4]||'',
+        color: r[5]||'#C8A96E',
+        activo: r[6]!=='false'
+      }));
+      if (loaded.length) proyectos = loaded;
+    }
+    // Re-render everything
+    renderProveedores(); renderNomina(); renderHistorial();
+    renderConfigProyectos(); renderCuentaDispSelect();
+    renderHeaderBadges(); refreshProyectosEnSelects();
+    document.getElementById('cnt-hist').textContent = historial.length;
+  } catch(e) { console.error('gsLoadAll error', e); notify('Error cargando datos: ' + e.message, 'error'); }
+}
+
+// ===== SAVE FUNCTIONS =====
+async function saveData() {
+  if (!gsToken) return; // sin conexión, skip
+  try {
+    // Save historial (append last entry)
+    if (historial.length) {
+      const h = historial[0];
+      await gsAppendRow('historial_pagos', [h.fecha, h.nombre, h.banco, h.tipo, h.concepto, h.importe, h.proyecto]);
+    }
+  } catch(e) { console.error('saveData error', e); }
+}
+
+async function gsSaveProveedores() {
+  if (!gsToken) return;
+  try {
+    const rows = proveedores.map(p => [p.id, p.nombre, p.rfc||'', p.banco, p.tipo_cuenta, p.cuenta, p.categoria, (p.proyectos||[]).join('|'), p.activo]);
+    await gsClearAndWrite('proveedores', rows, ['id','nombre','rfc','banco','tipo_cuenta','cuenta','categoria','proyectos','activo']);
+    notify('✅ Proveedores guardados en Sheets');
+  } catch(e) { notify('Error guardando proveedores: ' + e.message, 'error'); }
+}
+
+async function gsSaveEmpleados() {
+  if (!gsToken) return;
+  try {
+    const rows = empleados.map(e => [e.id, e.nombre, e.puesto||'', e.empresa||'', e.banco, e.tipo_cuenta, e.cuenta, e.activo]);
+    await gsClearAndWrite('empleados', rows, ['id','nombre','puesto','empresa','banco','tipo_cuenta','cuenta','activo']);
+  } catch(e) { console.error('gsSaveEmpleados', e); }
+}
+
+async function gsSaveProyectos() {
+  if (!gsToken) return;
+  try {
+    const rows = proyectos.map(p => [p.id, p.nombre, p.empresa||'', p.cuenta||'', p.clabe||'', p.color||'', p.activo]);
+    await gsClearAndWrite('proyectos', rows, ['id','nombre','empresa','cuenta','clabe','color','activo']);
+  } catch(e) { console.error('gsSaveProyectos', e); }
+}
+
+// ===== API HELPERS =====
+async function gsFetch(url, method='GET', body=null) {
+  const opts = { method, headers: { Authorization: 'Bearer ' + gsToken, 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(url, opts);
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+async function gsReadSheet(sheet) {
+  try {
+    const r = await gsFetch(`https://sheets.googleapis.com/v4/spreadsheets/${GS_SPREADSHEET_ID}/values/${encodeURIComponent(sheet)}`);
+    return r.values || [];
+  } catch(e) { return []; }
+}
+
+async function gsWriteRange(range, values) {
+  return gsFetch(`https://sheets.googleapis.com/v4/spreadsheets/${GS_SPREADSHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=RAW`, 'PUT', { values });
+}
+
+async function gsAppendRow(sheet, row) {
+  return gsFetch(`https://sheets.googleapis.com/v4/spreadsheets/${GS_SPREADSHEET_ID}/values/${encodeURIComponent(sheet)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, 'POST', { values: [row] });
+}
+
+async function gsClearAndWrite(sheet, rows, headers) {
+  await gsFetch(`https://sheets.googleapis.com/v4/spreadsheets/${GS_SPREADSHEET_ID}/values/${encodeURIComponent(sheet)}:clear`, 'POST', {});
+  await gsWriteRange(sheet + '!A1', [headers, ...rows]);
+}
+
+const BANCOS={"002":"Banamex","006":"Bancomext","021":"HSBC","030":"Bajio","036":"Inbursa","042":"Mifel","044":"Scotiabank","058":"Banregio","059":"Invex","072":"Banorte","112":"Santander","124":"Citibanamex","127":"Azteca","128":"Autofin","137":"Bancoppel","143":"CIBanco","646":"STP","653":"Kuspit"};
+function getBanco(c){return c&&c.length>=3?BANCOS[c.substring(0,3)]||`Banco(${c.substring(0,3)})`:'BBVA';}
+function getTipo(c){if(c.length===18)return 'CLABE';if(c.length===10)return 'Cuenta BBVA';return 'Cuenta corta';}
+
+let proveedores=JSON.parse(JSON.stringify(PROVEEDORES_SEED));
+let empleados=JSON.parse(JSON.stringify(NOMINA_SEED));
+let cola=[],historial=[],editProvId=null,editEmpId=null,pagoP=null,nextId=500;
+
+// ---- UI helpers ----
+function tipoBadge(t){if(t==='CLABE')return'<span class="tipo-badge-clabe">✓ CLABE</span>';if(t==='Cuenta BBVA')return'<span class="tipo-badge-bbva">🏦 BBVA</span>';return'<span class="tipo-badge-corta">⚠ Corta</span>';}
+function catTag(c){const m={'Obra / Materiales':'tag-obra','Nómina / Asimilados':'tag-nomina','Impuestos':'tag-impuesto','Gastos fijos':'tag-fijo','Préstamo entre proyectos':'tag-prestamo','General':'tag-general'};return`<span class="tag ${m[c]||'tag-general'}">${c}</span>`;}
+function proyTag(p){if(p.includes('Paraíso'))return`<span class="tag tag-paraiso" style="font-size:10px;padding:2px 6px;">Paraíso</span>`;if(p.includes('Entorno'))return`<span class="tag tag-entorno" style="font-size:10px;padding:2px 6px;">Entorno</span>`;return`<span class="tag tag-dt" style="font-size:10px;padding:2px 6px;">DT</span>`;}
+function fmt(n){return'$'+n.toLocaleString('es-MX',{minimumFractionDigits:2});}
+
+function showPage(name,el){
+  document.querySelectorAll('[id^="page-"]').forEach(p=>p.style.display='none');
+  document.getElementById('page-'+name).style.display='';
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  if(el)el.classList.add('active');
+  if(name==='proveedores')renderProveedores();
+  if(name==='nomina')renderNomina();
+  if(name==='historial'){renderHistorial();const btn=document.getElementById('btn-confirmar-hist');if(btn)btn.style.display=pendientesConfirmacion&&pendientesConfirmacion.length?'inline-flex':'none';}
+  if(name==='solicitudes')renderSolicitudes();
+  if(name==='config'){renderConfigProyectos();}
+}
+
+// ---- PROVEEDORES ----
+function renderProveedores(){
+  const q=document.getElementById('buscar-prov').value.toLowerCase();
+  const ft=document.getElementById('f-tipo').value;
+  const fc=document.getElementById('f-cat').value;
+  const fp=document.getElementById('f-proy').value;
+  const fil=proveedores.filter(p=>(!q||(p.nombre.toLowerCase().includes(q)||p.cuenta.includes(q)||p.banco.toLowerCase().includes(q)))&&(!ft||p.tipo_cuenta===ft)&&(!fc||p.categoria===fc)&&(!fp||p.proyectos.includes(fp)));
+  const tb=document.getElementById('tbody-prov');
+  if(!fil.length){tb.innerHTML=`<tr><td colspan="7"><div class="empty-state" style="padding:30px;"><div style="font-size:28px;opacity:.4;margin-bottom:8px;">🔍</div><div>Sin resultados</div></div></td></tr>`;return;}
+  tb.innerHTML=fil.map(p=>`<tr><td><div class="name-cell">${p.nombre}</div>${p.rfc?`<div class="name-sub">${p.rfc}</div>`:''}</td><td>${tipoBadge(p.tipo_cuenta)}</td><td style="font-size:13px;">${p.banco}</td><td><span class="mono">${p.cuenta}</span></td><td>${catTag(p.categoria)}</td><td>${p.proyectos.map(proyTag).join(' ')}</td><td><div style="display:flex;gap:6px;justify-content:flex-end;"><button class="btn btn-success btn-sm" onclick="abrirPagoRapido('prov',${p.id})">+ Pago</button><button class="btn btn-ghost btn-sm" onclick="editarProv(${p.id})">Editar</button></div></td></tr>`).join('');
+  document.getElementById('st-total').textContent=proveedores.length;
+  document.getElementById('st-clabe').textContent=proveedores.filter(p=>p.tipo_cuenta==='CLABE').length;
+  document.getElementById('st-bbva').textContent=proveedores.filter(p=>p.tipo_cuenta==='Cuenta BBVA').length;
+  document.getElementById('st-corta').textContent=proveedores.filter(p=>p.tipo_cuenta==='Cuenta corta').length;
+  document.getElementById('st-cola').textContent=cola.length;
+  document.getElementById('sub-prov').textContent=`${fil.length} de ${proveedores.length} registros`;
+}
+
+function abrirNuevoProveedor(){editProvId=null;limpiarFormProv();document.getElementById('modal-prov-title').textContent='Nuevo Proveedor';document.getElementById('modal-prov').classList.add('open');}
+function editarProv(id){const p=proveedores.find(x=>x.id===id);if(!p)return;editProvId=id;document.getElementById('modal-prov-title').textContent='Editar Proveedor';document.getElementById('p-nombre').value=p.nombre;document.getElementById('p-rfc').value=p.rfc||'';document.getElementById('p-cuenta').value=p.cuenta;document.getElementById('p-banco').value=p.banco;document.getElementById('p-cat').value=p.categoria;document.getElementById('p-activo').value=p.activo?'true':'false';document.getElementById('p-tipo').value=p.tipo_cuenta;updateTipoProv();document.querySelectorAll('#modal-prov .proyecto-pill').forEach(pp=>pp.classList.toggle('selected',p.proyectos.includes(pp.dataset.p)));document.getElementById('modal-prov').classList.add('open');}
+function limpiarFormProv(){document.getElementById('p-nombre').value='';document.getElementById('p-rfc').value='';document.getElementById('p-cuenta').value='';document.getElementById('p-banco').value='';document.getElementById('p-cat').value='General';document.getElementById('p-activo').value='true';document.getElementById('p-tipo').value='CLABE';updateTipoProv();document.querySelectorAll('#modal-prov .proyecto-pill').forEach(pp=>pp.classList.remove('selected'));}
+
+function updateTipoProv(){const t=document.getElementById('p-tipo').value;const lbl=document.getElementById('lbl-cuenta-prov');const inp=document.getElementById('p-cuenta');if(t==='CLABE'){lbl.textContent='CLABE Interbancaria * (18 dígitos)';inp.maxLength=18;inp.placeholder='000000000000000000';}else if(t==='Cuenta BBVA'){lbl.textContent='Número de Cuenta BBVA * (10 dígitos)';inp.maxLength=10;inp.placeholder='0000000000';}else{lbl.textContent='Número de Cuenta corta *';inp.maxLength=15;inp.placeholder='0000000';}validarCuentaProv();}
+function validarCuentaProv(){const t=document.getElementById('p-tipo').value;const v=document.getElementById('p-cuenta').value.replace(/\D/g,'');document.getElementById('p-cuenta').value=v;const st=document.getElementById('p-cuenta-status');const bi=document.getElementById('p-banco');if(t==='CLABE'){if(v.length===18){bi.value=getBanco(v);st.className='cuenta-ok';st.textContent=`✓ ${getBanco(v)}`;}else if(v.length>0){st.className='cuenta-err';st.textContent=`${v.length}/18`;bi.value='';}else{st.textContent='';bi.value='';}}else{bi.value='BBVA';st.className=v.length>0?'cuenta-ok':'';st.textContent=v.length>0?`✓ ${v.length} dígitos · BBVA`:'';}};
+function guardarProveedor(){const nombre=document.getElementById('p-nombre').value.trim().toUpperCase();const cuenta=document.getElementById('p-cuenta').value.trim();const tipo=document.getElementById('p-tipo').value;if(!nombre){notify('El nombre es obligatorio','error');return;}if(!cuenta){notify('El número de cuenta es obligatorio','error');return;}if(tipo==='CLABE'&&cuenta.length!==18){notify('CLABE debe tener 18 dígitos','error');return;}const projs=[...document.querySelectorAll('#modal-prov .proyecto-pill.selected')].map(p=>p.dataset.p);const obj={id:editProvId||nextId++,nombre,rfc:document.getElementById('p-rfc').value.toUpperCase(),banco:getBanco(cuenta)||'BBVA',tipo_cuenta:tipo,cuenta,clabe:tipo==='CLABE'?cuenta:'',num_cuenta:tipo!=='CLABE'?cuenta:'',categoria:document.getElementById('p-cat').value,activo:document.getElementById('p-activo').value==='true',proyectos:projs};if(editProvId){const i=proveedores.findIndex(p=>p.id===editProvId);proveedores[i]=obj;}else proveedores.push(obj);cerrar('modal-prov');renderProveedores();notify(editProvId?'Proveedor actualizado':'Proveedor agregado');gsSaveProveedores();}
+function exportarCSV(){let csv='ID,Nombre,RFC,Banco,Tipo Cuenta,Cuenta/CLABE,Categoría,Proyectos\n';csv+=proveedores.map(p=>`${p.id},"${p.nombre}",${p.rfc||''},${p.banco},"${p.tipo_cuenta}",${p.cuenta},"${p.categoria}","${p.proyectos.join('|')}"`).join('\n');dl(csv,'proveedores_dehur.csv');notify('Exportado');}
+
+// ---- NOMINA ----
+function renderNomina(){
+  const q=document.getElementById('buscar-nom').value.toLowerCase();
+  const ft=document.getElementById('f-nom-tipo').value;
+  const fil=empleados.filter(e=>(!q||(e.nombre.toLowerCase().includes(q)||e.cuenta.includes(q)||e.banco.toLowerCase().includes(q)))&&(!ft||e.tipo_cuenta===ft));
+  const tb=document.getElementById('tbody-nom');
+  tb.innerHTML=fil.map(e=>`<tr><td><div class="name-cell">${e.nombre}</div></td><td style="font-size:12px;color:var(--muted);">${e.puesto||'—'}</td><td>${tipoBadge(e.tipo_cuenta)}</td><td style="font-size:13px;">${e.banco}</td><td><span class="mono">${e.cuenta}</span></td><td style="font-size:11px;color:var(--muted);">${(e.empresa||'').replace('DESARROLLO Y CONTROL ALE SA DE CV','D.Y C. ALE').replace('DESARROLLO DE HOGARES URBANOS SA DE CV','D.H. URBANOS')}</td><td><div style="display:flex;gap:6px;justify-content:flex-end;"><button class="btn btn-success btn-sm" onclick="abrirPagoRapido('emp',${e.id})">+ Pago</button><button class="btn btn-ghost btn-sm" onclick="editarEmp(${e.id})">Editar</button></div></td></tr>`).join('');
+  document.getElementById('st-nom-total').textContent=empleados.length;
+  document.getElementById('st-nom-clabe').textContent=empleados.filter(e=>e.tipo_cuenta==='CLABE').length;
+  document.getElementById('st-nom-bbva').textContent=empleados.filter(e=>e.tipo_cuenta==='Cuenta BBVA').length;
+  document.getElementById('cnt-nom').textContent=empleados.length;
+}
+function abrirNuevoEmpleado(){editEmpId=null;limpiarFormEmp();document.getElementById('modal-emp-title').textContent='Nuevo Empleado';document.getElementById('modal-emp').classList.add('open');}
+function editarEmp(id){const e=empleados.find(x=>x.id===id);if(!e)return;editEmpId=id;document.getElementById('modal-emp-title').textContent='Editar Empleado';document.getElementById('e-nombre').value=e.nombre;document.getElementById('e-puesto').value=e.puesto||'';document.getElementById('e-empresa').value=e.empresa||'DEHUR TERRITORIAL SA DE CV';document.getElementById('e-cuenta').value=e.cuenta;document.getElementById('e-banco').value=e.banco;document.getElementById('e-tipo').value=e.tipo_cuenta;document.getElementById('e-activo').value=e.activo?'true':'false';updateTipoEmp();document.getElementById('modal-emp').classList.add('open');}
+function limpiarFormEmp(){document.getElementById('e-nombre').value='';document.getElementById('e-puesto').value='';document.getElementById('e-cuenta').value='';document.getElementById('e-banco').value='';document.getElementById('e-tipo').value='CLABE';document.getElementById('e-activo').value='true';updateTipoEmp();}
+function updateTipoEmp(){const t=document.getElementById('e-tipo').value;const lbl=document.getElementById('lbl-cuenta-emp');const inp=document.getElementById('e-cuenta');if(t==='CLABE'){lbl.textContent='CLABE Interbancaria * (18 dígitos)';inp.maxLength=18;inp.placeholder='000000000000000000';}else{lbl.textContent='Número de Cuenta BBVA * (10 dígitos)';inp.maxLength=10;inp.placeholder='0000000000';}validarCuentaEmp();}
+function validarCuentaEmp(){const t=document.getElementById('e-tipo').value;const v=document.getElementById('e-cuenta').value.replace(/\D/g,'');document.getElementById('e-cuenta').value=v;const st=document.getElementById('e-cuenta-status');const bi=document.getElementById('e-banco');if(t==='CLABE'){if(v.length===18){bi.value=getBanco(v);st.className='cuenta-ok';st.textContent=`✓ ${getBanco(v)}`;}else if(v.length>0){st.className='cuenta-err';st.textContent=`${v.length}/18`;bi.value='';}else{st.textContent='';bi.value='';}}else{bi.value='BBVA';st.className=v.length>0?'cuenta-ok':'';st.textContent=v.length>0?`✓ ${v.length} dígitos · BBVA`:'';}};
+function guardarEmpleado(){const nombre=document.getElementById('e-nombre').value.trim().toUpperCase();const cuenta=document.getElementById('e-cuenta').value.trim();const tipo=document.getElementById('e-tipo').value;if(!nombre||!cuenta){notify('Nombre y cuenta son obligatorios','error');return;}if(tipo==='CLABE'&&cuenta.length!==18){notify('CLABE debe tener 18 dígitos','error');return;}const obj={id:editEmpId||nextId++,nombre,puesto:document.getElementById('e-puesto').value,empresa:document.getElementById('e-empresa').value,banco:getBanco(cuenta)||'BBVA',tipo_cuenta:tipo,cuenta,clabe:tipo==='CLABE'?cuenta:'',num_cuenta:tipo!=='CLABE'?cuenta:'',categoria:'Nómina / Asimilados',proyectos:['Concentradora DT'],rfc:'',activo:document.getElementById('e-activo').value==='true'};if(editEmpId){const i=empleados.findIndex(e=>e.id===editEmpId);empleados[i]=obj;}else empleados.push(obj);cerrar('modal-emp');renderNomina();notify(editEmpId?'Empleado actualizado':'Empleado agregado');gsSaveEmpleados();}
+function exportarNomina(){let csv='Nombre,Puesto,Empresa,Banco,Tipo Cuenta,Cuenta/CLABE\n';csv+=empleados.map(e=>`"${e.nombre}","${e.puesto||''}","${e.empresa||''}",${e.banco},"${e.tipo_cuenta}",${e.cuenta}`).join('\n');dl(csv,'nomina_dehur.csv');notify('Nómina exportada');}
+
+// ---- PAGO / COLA ----
+function abrirPagoRapido(src, id){
+  const rec=src==='prov'?proveedores.find(p=>p.id===id):empleados.find(e=>e.id===id);
+  if(!rec)return;
+  pagoP={...rec, _src:src};
+  document.getElementById('buscar-m').value=rec.nombre;
+  document.getElementById('res-modal').style.display='none';
+  cargarSeleccionado();
+  document.getElementById('pago-concepto').value='';
+  document.getElementById('pago-importe').value='';
+  document.getElementById('modal-pago').classList.add('open');
+  showPage('dispersion',document.getElementById('nav-dispersion'));
+}
+function abrirModalPago(){pagoP=null;document.getElementById('buscar-m').value='';document.getElementById('res-modal').style.display='none';document.getElementById('pago-sel').style.display='none';document.getElementById('alerta-tipo').style.display='none';document.getElementById('pago-concepto').value='';document.getElementById('pago-importe').value='';document.getElementById('modal-pago').classList.add('open');}
+function cargarSeleccionado(){if(!pagoP)return;document.getElementById('sel-nombre').textContent=pagoP.nombre;document.getElementById('sel-cuenta').textContent=pagoP.cuenta+' · '+pagoP.banco;document.getElementById('sel-banco').textContent=pagoP.tipo_cuenta;document.getElementById('sel-tipo-badge').innerHTML=tipoBadge(pagoP.tipo_cuenta);document.getElementById('pago-sel').style.display='';document.getElementById('alerta-tipo').style.display=pagoP.tipo_cuenta==='Cuenta corta'?'':'none';}
+function buscarModal(){const q=document.getElementById('buscar-m').value.toLowerCase();const res=document.getElementById('res-modal');if(!q){res.style.display='none';return;}const all=[...proveedores.map(p=>({...p,_src:'prov'})),...empleados.map(e=>({...e,_src:'emp'}))];const f=all.filter(p=>p.nombre.toLowerCase().includes(q)||p.cuenta.includes(q)).slice(0,8);if(!f.length){res.style.display='none';return;}res.style.display='';res.innerHTML=f.map(p=>`<div onclick="selPago('${p._src}',${p.id})" style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''"><div style="font-weight:500;font-size:12px;">${p.nombre}</div><div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;">${p.cuenta} · ${p.banco} · ${p.tipo_cuenta}</div></div>`).join('');}
+function selPago(src,id){const rec=src==='prov'?proveedores.find(p=>p.id===id):empleados.find(e=>e.id===id);pagoP={...rec,_src:src};document.getElementById('buscar-m').value=rec.nombre;document.getElementById('res-modal').style.display='none';cargarSeleccionado();}
+function agregarACola(){if(!pagoP){notify('Selecciona un destinatario','error');return;}const concepto=document.getElementById('pago-concepto').value.trim();const importe=parseFloat(document.getElementById('pago-importe').value);const proyecto=document.getElementById('pago-proy').value;if(!concepto){notify('El concepto es obligatorio','error');return;}if(!importe||importe<=0){notify('Ingresa un importe válido','error');return;}cola.push({id:Date.now(),proveedor:pagoP,concepto,importe,proyecto});cerrar('modal-pago');renderCola();document.getElementById('cnt-cola').textContent=cola.length;document.getElementById('st-cola').textContent=cola.length;notify(`${pagoP.nombre.split(' ')[0]} · ${fmt(importe)}`);}
+
+// Nómina masiva a cola
+function abrirModalNominaDisp(){renderNomDisp();document.getElementById('modal-nom-disp').classList.add('open');}
+function renderNomDisp(q=''){
+  const fil=empleados.filter(e=>e.activo&&(!q||e.nombre.toLowerCase().includes(q)));
+  document.getElementById('nom-disp-lista').innerHTML=fil.map(e=>`<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);"><input type="checkbox" id="chk-${e.id}" value="${e.id}" style="width:16px;height:16px;cursor:pointer;"><div style="flex:1;"><div style="font-weight:500;font-size:12px;">${e.nombre}</div><div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;">${e.cuenta} · ${e.banco} · ${tipoBadge(e.tipo_cuenta)}</div></div><div style="position:relative;"><span style="position:absolute;left:8px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:11px;">$</span><input type="number" id="monto-${e.id}" placeholder="0.00" step="0.01" style="width:110px;padding:6px 8px 6px 18px;font-size:12px;" onclick="this.previousElementSibling.parentElement.previousElementSibling.previousElementSibling.checked=true"></div></div>`).join('');
+}
+function filtrarNomDisp(){renderNomDisp(document.getElementById('buscar-nom-disp').value.toLowerCase());}
+function agregarNominaACola(){
+  const proyecto=document.getElementById('qnom-proy').value;
+  let count=0;
+  empleados.forEach(e=>{
+    const chk=document.getElementById('chk-'+e.id);
+    const monto=parseFloat(document.getElementById('monto-'+e.id)?.value||'0');
+    if(chk&&chk.checked&&monto>0){
+      cola.push({id:Date.now()+Math.random(),proveedor:{...e},concepto:'NOMINA QUINCENA',importe:monto,proyecto});
+      count++;
+    }
+  });
+  if(!count){notify('Selecciona empleados y captura montos','error');return;}
+  cerrar('modal-nom-disp');renderCola();document.getElementById('cnt-cola').textContent=cola.length;document.getElementById('st-cola').textContent=cola.length;notify(`${count} empleados agregados a la cola`);
+}
+
+function renderCola(){
+  const lista=document.getElementById('cola-lista');const tb=document.getElementById('total-bar');
+  if(!cola.length){lista.innerHTML=`<div class="queue-empty"><div style="font-size:32px;margin-bottom:10px;opacity:.4">⚡</div><div>Sin pagos en cola</div></div>`;tb.style.display='none';return;}
+  lista.innerHTML=cola.map(item=>`<div class="queue-item"><div style="flex:1;"><div class="qi-name">${item.proveedor.nombre}</div><div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:2px;">${item.proveedor.cuenta} · ${item.proveedor.banco} ${tipoBadge(item.proveedor.tipo_cuenta)}</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">${item.concepto} · ${item.proyecto}</div></div><div style="text-align:right;"><div class="qi-amount">${fmt(item.importe)}</div></div><button onclick="qDel(${item.id})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:4px;" title="Quitar">✕</button></div>`).join('');
+  const total=cola.reduce((s,i)=>s+i.importe,0);
+  document.getElementById('total-amount').textContent=fmt(total);
+  document.getElementById('total-desc').textContent=`${cola.length} pago${cola.length>1?'s':''}`;
+  tb.style.display='flex';
+}
+function qDel(id){cola=cola.filter(i=>i.id!==id);renderCola();document.getElementById('cnt-cola').textContent=cola.length;document.getElementById('st-cola').textContent=cola.length;}
+function limpiarCola(){if(!cola.length)return;if(confirm('¿Limpiar toda la cola?')){cola=[];renderCola();document.getElementById('cnt-cola').textContent=0;document.getElementById('st-cola').textContent=0;}}
+
+function buscarRapido(){
+  const q=document.getElementById('buscar-rapido').value.toLowerCase();
+  const res=document.getElementById('res-rapidos');
+  if(!q){res.innerHTML='';return;}
+  const all=[...proveedores.map(p=>({...p,_src:'prov'})),...empleados.map(e=>({...e,_src:'emp'}))];
+  const f=all.filter(p=>p.activo&&p.nombre.toLowerCase().includes(q)).slice(0,7);
+  res.innerHTML=f.map(p=>`<div onclick="quickAdd('${p._src}',${p.id})" style="padding:8px 10px;cursor:pointer;border-radius:6px;margin-bottom:4px;background:var(--surface2);" onmouseover="this.style.background='var(--border)'" onmouseout="this.style.background='var(--surface2)'"><div style="font-size:12px;font-weight:500;">${p.nombre.substring(0,40)}${p.nombre.length>40?'...':''}</div><div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;">${p.banco} · ${p.tipo_cuenta}</div></div>`).join('')||'<div style="font-size:12px;color:var(--muted);padding:8px;">Sin resultados</div>';
+}
+function quickAdd(src,id){const rec=src==='prov'?proveedores.find(p=>p.id===id):empleados.find(e=>e.id===id);pagoP={...rec,_src:src};document.getElementById('buscar-m').value=rec.nombre;cargarSeleccionado();document.getElementById('pago-concepto').value='';document.getElementById('pago-importe').value='';document.getElementById('res-modal').style.display='none';document.getElementById('modal-pago').classList.add('open');}
+
+// ---- GENERAR ARCHIVO ----
+function generarArchivo(){
+  if(!cola.length){notify('Cola vacía','error');return;}
+  const tipo=document.getElementById('tipo-disp').value;
+  const fecha=document.getElementById('fecha-disp').value||new Date().toISOString().split('T')[0];
+  const proyId=document.getElementById('cuenta-disp').value;
+  const proySel=proyectos.find(p=>p.id===proyId)||proyectos[0];
+  const cargo=proySel.cuenta;
+  const total=cola.reduce((s,i)=>s+i.importe,0);
+  let csv='',fn='';
+  if(tipo==='interbancario'){
+    csv=`Numero de Registros=>>,, ${cola.length}\nImporte Total=======>>,, ${total.toFixed(2)}\n\nCUENTA CARGO,CUENTA CLABE / TARJETA ABONO,IMPORTE,TITULAR,MOTIVO PAGO,REF_NUMERICA\n`;
+    csv+=cola.map(i=>`${cargo},${i.proveedor.cuenta},${i.importe.toFixed(2)},"${i.proveedor.nombre}","${i.concepto}",`).join('\n');
+    fn=`bbva_interbancario_${fecha.replace(/-/g,'')}.csv`;
+  } else if(tipo==='mismo-banco'){
+    csv=`Numero de Registros=>>,, ${cola.length}\nImporte Total ======>>,, ${total.toFixed(2)}\n\nCUENTA CARGO,CUENTA / TARJETA ABONO,MONEDA,IMPORTE,MOTIVO PAGO\n`;
+    csv+=cola.map(i=>`${cargo},${i.proveedor.cuenta},MXP,${i.importe.toFixed(2)},"${i.concepto}"`).join('\n');
+    fn=`bbva_mismo_banco_${fecha.replace(/-/g,'')}.csv`;
+  } else {
+    csv=`\n\n\n\n\n\n\nAFILIACION,,,,,,,,,,, DISPERSION\n,NO EMPLEADO,NOMBRE,CLABE,BANCO,IMPORTE,,,,,,,IMPORTE\n`;
+    csv+=cola.map((i,n)=>`,${n+1},"${i.proveedor.nombre}",${i.proveedor.cuenta},${i.proveedor.banco},${i.importe.toFixed(2)},,,,,,,${i.importe.toFixed(2)}`).join('\n');
+    fn=`bbva_nomina_${fecha.replace(/-/g,'')}.csv`;
+  }
+  dl(csv,fn);
+  const fd=new Date().toLocaleDateString('es-MX');
+  cola.forEach(item=>historial.unshift({fecha:fd,nombre:item.proveedor.nombre,concepto:item.concepto,importe:item.importe,proyecto:item.proyecto,banco:item.proveedor.banco,tipo:item.proveedor.tipo_cuenta}));
+  document.getElementById('cnt-hist').textContent=historial.length;
+  notify(`Archivo generado: ${fn}`);
+  cola=[];renderCola();document.getElementById('cnt-cola').textContent=0;document.getElementById('st-cola').textContent=0;
+}
+
+// ---- HISTORIAL ----
+function renderHistorial(){
+  const el=document.getElementById('historial-lista');
+  if(!historial.length){el.innerHTML=`<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">📋</div><div>Sin registros aún</div></div>`;return;}
+  el.innerHTML=historial.map(h=>`<div class="hist-row"><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.fecha}</div><div><div style="font-weight:500;font-size:12px;">${h.nombre}</div><div style="font-size:11px;color:var(--muted);">${h.banco} · ${h.tipo}</div></div><div style="font-size:11px;color:var(--muted);">${h.concepto.substring(0,35)}</div><div style="font-family:'DM Mono',monospace;font-weight:500;color:var(--accent);text-align:right;">${fmt(h.importe)}</div><div>${proyTag(h.proyecto)}</div></div>`).join('');
+}
+function exportarHistorial(){if(!historial.length){notify('Sin historial','error');return;}let csv='Fecha,Beneficiario,Banco,Tipo Cuenta,Concepto,Importe,Proyecto\n';csv+=historial.map(h=>`${h.fecha},"${h.nombre}",${h.banco},${h.tipo},"${h.concepto}",${h.importe},"${h.proyecto}"`).join('\n');dl(csv,'historial_pagos_dehur.csv');notify('Historial exportado');}
+
+// ---- SOLICITUDES DE PAGO ----
+// Col map (confirmado): 0=Proveedor 1=Partida 2=Clave 3=O-C 4=Importe 5=TipoOC 6=Concepto 7=Flag(NO)
+let solicitudesData=[];
+
+function getTipo(cuenta){
+  if(!cuenta)return'';
+  const c=String(cuenta).replace(/\s/g,'');
+  if(c.length===18&&/^\d+$/.test(c))return'CLABE';
+  if(c.length===10&&/^\d+$/.test(c))return'Cuenta BBVA';
+  return'Cuenta corta';
+}
+
+function handleSolDrop(e){
+  e.preventDefault();
+  const dz=document.getElementById('sol-dropzone');
+  dz.style.borderColor='var(--border)';dz.style.background='var(--surface)';
+  const f=e.dataTransfer.files[0];
+  if(f)handleSolFile(f);
+}
+
+function handleSolFile(file){
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+      parsearSolicitud(wb,file.name);
+    }catch(err){notify('Error leyendo el archivo: '+err.message,'error');}
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function parsearSolicitud(wb,filename){
+  solicitudesData=[];
+  let obraGlobal='';
+
+  wb.SheetNames.forEach(sheetName=>{
+    const ws=wb.Sheets[sheetName];
+    const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+
+    // Leer metadatos de primeras filas
+    rows.slice(0,6).forEach(r=>{
+      const v=String(r[0]||'').trim();
+      if(v.toUpperCase().includes('OBRA:'))obraGlobal=v;
+    });
+
+    // Encontrar fila de datos: buscar fila de encabezados con "Contratista"
+    let dataStart=8; // fallback basado en el formato conocido
+    rows.forEach((r,i)=>{
+      if(String(r[0]||'').toLowerCase().includes('contratista')||
+         String(r[0]||'').toLowerCase().includes('proveedor')){
+        dataStart=i+2; // saltar encabezado y fila vacía debajo
+      }
+    });
+
+    rows.slice(dataStart).forEach(r=>{
+      // Col 0: Proveedor
+      const proveedor=String(r[0]||'').trim();
+      if(!proveedor||proveedor.toLowerCase()==='total'||
+         proveedor.toLowerCase().startsWith('solicitud')||
+         proveedor.toLowerCase().startsWith('obra'))return;
+
+      // Col 1: Partida, Col 2: Clave, Col 3: O-C
+      const partida=String(r[1]||'').trim();
+      const clave=String(r[2]||'').trim();
+      const oc=String(r[3]||'').trim();
+
+      // Col 4: Importe (número)
+      const importe=parseFloat(String(r[4]||'').replace(/[$,\s]/g,''))||0;
+      if(!importe||importe<1)return;
+
+      // Col 6: Concepto completo
+      const concepto=String(r[6]||'').trim();
+      // Motivo para BBVA: clave + concepto resumido (max 40 chars)
+      const motivoRaw=(clave?clave+' ':'')+concepto;
+      const motivo=motivoRaw.substring(0,40).trim();
+
+      // Col 7: Flag (NO = no pagar esta semana)
+      const flag=String(r[7]||'').trim().toUpperCase();
+      const esNo=flag==='NO'||flag==='N/A'||flag==='PENDIENTE';
+
+      // Detectar CLABE/cuenta embebida en concepto (ej: "cta. 012297001117266090 BANCOMER")
+      let cuentaEmbebida='',bancoEmbebido='';
+      const m18=concepto.match(/(\d{18})/);
+      const mCta=concepto.match(/cta\.?\s*(\d{10,18})/i);
+      if(m18){cuentaEmbebida=m18[1];bancoEmbebido=getBanco(m18[1])||'BBVA';}
+      else if(mCta){cuentaEmbebida=mCta[1];bancoEmbebido='BBVA';}
+      // Detectar banco mencionado en concepto
+      if(!bancoEmbebido){
+        const conU=concepto.toUpperCase();
+        if(conU.includes('BANCOMER')||conU.includes('BBVA'))bancoEmbebido='BBVA';
+        else if(conU.includes('BANAMEX')||conU.includes('CITIBANAMEX'))bancoEmbebido='Banamex';
+        else if(conU.includes('BANORTE'))bancoEmbebido='Banorte';
+        else if(conU.includes('HSBC'))bancoEmbedido='HSBC';
+        else if(conU.includes('SCOTIABANK'))bancoEmbebido='Scotiabank';
+      }
+
+      // Buscar en base de proveedores
+      const matchResult=buscarProveedorSol(proveedor,cuentaEmbebida);
+      const matchProv=matchResult?matchResult.prov:null;
+      const matchMetodo=matchResult?matchResult.metodo:null;
+      const matchScore=matchResult?matchResult.score:0;
+
+      solicitudesData.push({
+        uid: Date.now()+'-'+Math.random(),
+        proveedor, partida, clave, oc, concepto, motivo, importe, flag,
+        esNo, proyecto: detectarProyecto(sheetName,obraGlobal),
+        semana: sheetName, cuentaEmbebida, bancoEmbebido,
+        match: matchProv,
+        matchMetodo: matchMetodo,
+        matchScore: matchScore,
+        vinculadoManual: false,
+        seleccionado: !esNo
+      });
+    });
+  });
+
+  if(!solicitudesData.length){notify('No se encontraron filas de pago en el archivo','error');return;}
+
+  document.getElementById('sol-filename').textContent=filename;
+  const total=solicitudesData.reduce((a,s)=>a+s.importe,0);
+  document.getElementById('sol-fileinfo').textContent=
+    `${solicitudesData.length} partidas · ${wb.SheetNames.join(', ')} · Total: ${fmt(total)}`;
+  document.getElementById('sol-dropzone').style.display='none';
+  document.getElementById('sol-contenido').style.display='';
+  document.getElementById('sol-actions').style.display='flex';
+  document.getElementById('cnt-sol').textContent=solicitudesData.length;
+
+  // Poblar filtros
+  const partidas=[...new Set(solicitudesData.map(s=>s.partida).filter(Boolean))].sort();
+  const sel=document.getElementById('f-sol-partida');
+  sel.innerHTML='<option value="">Todas las partidas</option>'+
+    partidas.map(p=>`<option value="${p}">${p}</option>`).join('');
+
+  renderSolicitudes();
+  const sinCuenta=solicitudesData.filter(s=>!s.match&&!s.cuentaEmbebida).length;
+  notify(`${solicitudesData.length} solicitudes cargadas${sinCuenta?' · ⚠ '+sinCuenta+' sin cuenta':''}`);
+}
+
+function detectarProyecto(sheetName,obra){
+  const s=(sheetName+'|'+obra).toUpperCase();
+  if(s.includes('PARAISO')||s.includes('PARAÍSO'))return'Privada del Paraíso';
+  if(s.includes('ENTORNO'))return'Entorno';
+  if(s.includes('DT')||s.includes('CONCENTRADORA'))return'Concentradora DT';
+  return'Privada del Paraíso';
+}
+
+// ---------- MATCHING INTELIGENTE DE PROVEEDORES ----------
+// matchScore: devuelve {prov, score, metodo} o null
+function normalizar(s){
+  return String(s||'').toUpperCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'') // quitar acentos
+    .replace(/[^A-Z0-9\s]/g,' ')  // solo alfanumérico
+    .replace(/\b(SA|DE|CV|SRL|SC|RL|SL|S\.A|S\.C|SAPI|SDC|SPD|MEXICO|MEX|MX|DEL|LOS|LAS|Y|E)\b/g,'') // quitar palabras genéricas
+    .replace(/\s+/g,' ').trim();
+}
+function tokenizar(s){
+  return normalizar(s).split(' ').filter(w=>w.length>=3);
+}
+function buscarProveedorSol(nombre, cuentaEmbebida){
+  const n=normalizar(nombre);
+  const tokens=tokenizar(nombre);
+
+  // ---- 1. Coincidencia por CUENTA (más confiable que el nombre) ----
+  if(cuentaEmbebida){
+    const cLimpia=String(cuentaEmbebida).replace(/\D/g,'');
+    const mCta=proveedores.find(p=>{
+      const pc=(p.cuenta||'').replace(/\D/g,'');
+      const pc2=(p.clabe||'').replace(/\D/g,'');
+      const pc3=(p.num_cuenta||'').replace(/\D/g,'');
+      return pc===cLimpia||pc2===cLimpia||pc3===cLimpia||
+             (cLimpia.length>=7&&(pc.endsWith(cLimpia)||cLimpia.endsWith(pc.slice(-7))));
+    });
+    if(mCta)return{prov:mCta,score:100,metodo:'cuenta'};
+  }
+
+  // ---- 2. Exacta (normalizada) ----
+  let m=proveedores.find(p=>normalizar(p.nombre)===n);
+  if(m)return{prov:m,score:99,metodo:'exacta'};
+
+  // ---- 3. Contención directa ----
+  m=proveedores.find(p=>{
+    const pn=normalizar(p.nombre);
+    return n.includes(pn)||pn.includes(n);
+  });
+  if(m)return{prov:m,score:90,metodo:'contencion'};
+
+  // ---- 4. Scoring por tokens ----
+  let best=null, bestScore=0;
+  proveedores.forEach(p=>{
+    const pt=tokenizar(p.nombre);
+    if(!pt.length||!tokens.length)return;
+    // Tokens del Excel que aparecen en BD
+    const hits=tokens.filter(t=>pt.some(pt2=>pt2===t||pt2.startsWith(t)||t.startsWith(pt2)));
+    // Penalizar si el match es muy corto
+    const score=(hits.length/Math.max(tokens.length,pt.length))*100;
+    if(score>bestScore){bestScore=score;best=p;}
+  });
+  // Umbral: 50% de tokens en común (ej: "HOME DEPOT MEXICO" vs "HOME DEPOT" = 66%)
+  if(bestScore>=50)return{prov:best,score:Math.round(bestScore),metodo:'tokens'};
+
+  // ---- 5. Palabra clave única larga (8+ chars) ----
+  const larga=tokens.find(t=>t.length>=8);
+  if(larga){
+    m=proveedores.find(p=>normalizar(p.nombre).includes(larga));
+    if(m)return{prov:m,score:60,metodo:'keyword'};
+  }
+
+  return null; // sin match
+}
+
+function buscarProveedorSolSimple(nombre, cuentaEmbebida){
+  const r=buscarProveedorSol(nombre,cuentaEmbebida);
+  return r?r.prov:null;
+}
+
+function renderSolicitudes(){
+  if(!solicitudesData.length)return;
+  const q=(document.getElementById('buscar-sol')?.value||'').toLowerCase();
+  const fp=document.getElementById('f-sol-partida')?.value||'';
+
+  const fil=solicitudesData.filter(s=>
+    (!q||(s.proveedor.toLowerCase().includes(q)||
+         s.concepto.toLowerCase().includes(q)||
+         s.partida.toLowerCase().includes(q)||
+         s.clave.toLowerCase().includes(q)))&&
+    (!fp||s.partida===fp)
+  );
+
+  // Totales
+  let total=0,selTotal=0,selCount=0;
+  solicitudesData.forEach(s=>{total+=s.importe;if(s.seleccionado){selTotal+=s.importe;selCount++;}});
+  document.getElementById('sol-total').textContent=fmt(total);
+  document.getElementById('sol-seleccionado').textContent=fmt(selTotal);
+  document.getElementById('sol-subtitle').textContent=
+    `${solicitudesData.length} solicitudes · ${selCount} seleccionadas · `+
+    [...new Set(solicitudesData.map(s=>s.proyecto))].join(', ');
+
+  // Alertas
+  const sinCuenta=solicitudesData.filter(s=>s.seleccionado&&!s.match&&!s.cuentaEmbebida);
+  document.getElementById('sol-alertas').innerHTML=sinCuenta.length
+    ?`<div style="background:rgba(224,90,90,.1);border:1px solid rgba(224,90,90,.3);border-radius:8px;padding:10px 14px;font-size:12px;margin-bottom:4px;">
+        ⚠ <b>${sinCuenta.length} proveedor${sinCuenta.length>1?'es':''} sin cuenta:</b> 
+        ${sinCuenta.map(s=>`<span style="font-weight:500">${s.proveedor}</span>`).join(', ')}
+        — agrégalos a la base antes de dispersar.
+      </div>`:'';
+
+  const tb=document.getElementById('tbody-sol');
+  if(!fil.length){
+    tb.innerHTML=`<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--muted);font-size:13px;">Sin resultados</td></tr>`;
+    return;
+  }
+
+  tb.innerHTML=fil.map(s=>{
+    const cuenta=s.match?s.match.cuenta:s.cuentaEmbebida;
+    const banco=s.match?s.match.banco:s.bancoEmbebido;
+    const tipo=s.match?s.match.tipo_cuenta:(cuenta?getTipo(cuenta):'');
+
+    let cuentaHtml='';
+    if(cuenta){
+      const tColor=tipo==='CLABE'?'var(--green)':tipo==='Cuenta BBVA'?'var(--blue)':'var(--yellow)';
+      cuentaHtml=`<span style="font-family:'DM Mono',monospace;font-size:11px;">${cuenta}</span>
+        <div style="font-size:10px;color:var(--muted);margin-top:1px;">
+          ${banco||''} <span style="color:${tColor};font-weight:600;">${tipo}</span>
+          ${!s.match&&s.cuentaEmbebida?' <span style="color:var(--yellow)">(del concepto)</span>':''}
+        </div>`;
+    }else{
+      cuentaHtml=`<span style="font-size:11px;color:var(--red);">⚠ Sin cuenta</span>`;
+    }
+
+    const metodoLabel={'cuenta':'Cta. coincide','exacta':'Exacto','contencion':'Contenido','tokens':'Por palabras','keyword':'Keyword'}[s.matchMetodo]||'';
+    const estadoHtml=s.esNo
+      ?`<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;background:rgba(224,90,90,.15);color:var(--red);">NO</span>`
+      :s.match
+        ?`<div>
+            <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;background:rgba(90,200,90,.12);color:#5cb85c;font-weight:600;">
+              ${s.matchMetodo==='cuenta'?'🔗':s.vinculadoManual?'✎':'✓'} ${s.vinculadoManual?'Vinculado':metodoLabel||'BD'}
+            </span>
+            ${s.matchScore<80&&!s.vinculadoManual?`<div style="font-size:9px;color:var(--muted);margin-top:2px;">${s.matchScore}% · <a href="#" onclick="abrirVincular('${s.uid}');return false;" style="color:var(--accent);">cambiar</a></div>`:''}
+          </div>`
+        :s.cuentaEmbebida
+          ?`<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;background:rgba(90,155,224,.12);color:var(--blue);">Cta.en texto</span>`
+          :`<div>
+              <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;background:rgba(224,180,90,.12);color:var(--yellow);">⚠ Sin match</span>
+              <div style="margin-top:3px;"><a href="#" onclick="abrirVincular('${s.uid}');return false;" style="font-size:10px;color:var(--accent);text-decoration:none;">🔗 Vincular / Agregar</a></div>
+            </div>`;
+
+    const rowStyle=s.esNo?'opacity:.5':'';
+    return`<tr style="${rowStyle}">
+      <td style="padding:8px 6px;"><input type="checkbox" ${s.seleccionado?'checked':''} 
+        onchange="toggleSol('${s.uid}',this.checked)" style="width:15px;height:15px;cursor:pointer;accent-color:var(--accent);"></td>
+      <td>
+        <div style="font-size:12px;font-weight:600;line-height:1.3;">${s.proveedor}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px;">${s.proyecto}</div>
+      </td>
+      <td style="font-size:11px;color:var(--muted);">${s.partida}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);">${s.clave}</td>
+      <td style="font-size:11px;color:var(--muted);max-width:240px;">
+        <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px;" title="${s.concepto}">${s.concepto}</div>
+      </td>
+      <td>${cuentaHtml}</td>
+      <td style="text-align:right;font-family:'DM Mono',monospace;font-size:13px;font-weight:600;color:var(--accent);white-space:nowrap;">${fmt(s.importe)}</td>
+      <td style="text-align:center;">${estadoHtml}</td>
+    </tr>`;
+  }).join('');
+}
+
+function toggleSol(uid,checked){
+  const s=solicitudesData.find(x=>x.uid===uid);
+  if(s){s.seleccionado=checked;}
+  renderSolicitudes();
+}
+
+function seleccionarTodosSol(val){
+  // Si es string (desde botón "Todos"/"Ninguno"), convertir
+  const v=val===true||val==='true'||val==='1';
+  solicitudesData.forEach(s=>s.seleccionado=v);
+  if(document.getElementById('chk-all-sol'))
+    document.getElementById('chk-all-sol').checked=v;
+  renderSolicitudes();
+}
+
+function nuevaSolicitud(){
+  solicitudesData=[];
+  document.getElementById('sol-dropzone').style.display='';
+  document.getElementById('sol-contenido').style.display='none';
+  document.getElementById('sol-actions').style.display='none';
+  if(document.getElementById('sol-file-input'))
+    document.getElementById('sol-file-input').value='';
+  document.getElementById('cnt-sol').textContent='0';
+}
+
+// ---- NUEVO FLUJO: GENERAR EXCEL BBVA DIRECTAMENTE ----
+let dispPagos=[]; // pagos preparados para el modal de dispersion
+
+function abrirModalDispersion(){
+  const sel=solicitudesData.filter(s=>s.seleccionado);
+  if(!sel.length){notify('Selecciona al menos un pago','error');return;}
+
+  dispPagos=[];
+  sel.forEach(s=>{
+    const prov=s.match;
+    const cuentaF=s.cuentaEmbebida||'';
+    const bancoF=s.bancoEmbebido||'';
+    const cuenta=prov?prov.cuenta:cuentaF;
+    const banco=prov?prov.banco:bancoF;
+    const tieneInfo=!!(cuenta);
+    dispPagos.push({
+      id:Date.now()+'-'+Math.random(),
+      nombre:prov?prov.nombre:(s.proveedor||'').toUpperCase(),
+      cuenta:cuenta||'',
+      banco:banco||'',
+      tipo:cuenta?getTipo(cuenta):'',
+      concepto:(s.motivo||s.concepto||'').substring(0,40),
+      importe:s.importe,
+      proyecto:s.proyecto||'',
+      tieneInfo,
+      seleccionado:tieneInfo
+    });
+  });
+
+  const sel2=document.getElementById('disp-cuenta-cargo');
+  sel2.innerHTML='';
+  proyectos.filter(p=>p.activo&&p.cuenta).forEach(p=>{
+    const o=document.createElement('option');
+    o.value=p.cuenta;
+    o.textContent=p.nombre+' — cta '+p.cuenta;
+    sel2.appendChild(o);
+  });
+  const proyFrec=dispPagos.map(d=>d.proyecto).sort((a,b)=>
+    dispPagos.filter(x=>x.proyecto===b).length-dispPagos.filter(x=>x.proyecto===a).length)[0];
+  const proy=proyectos.find(p=>p.nombre===proyFrec);
+  if(proy&&proy.cuenta) sel2.value=proy.cuenta;
+
+  renderModalDisp();
+  document.getElementById('modal-dispersion').style.display='flex';
+}
+
+function renderModalDisp(){
+  const tbody=document.getElementById('tbody-disp');
+  const total=dispPagos.reduce((s,d)=>s+d.importe,0);
+  const selTotal=dispPagos.filter(d=>d.seleccionado).reduce((s,d)=>s+d.importe,0);
+  const sinInfo=dispPagos.filter(d=>!d.tieneInfo);
+
+  document.getElementById('disp-resumen').innerHTML=
+    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;">'+
+    '<div style="font-size:11px;color:var(--muted);margin-bottom:4px;">TOTAL SOLICITUD</div>'+
+    '<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:700;">'+fmt(total)+'</div></div>'+
+    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;">'+
+    '<div style="font-size:11px;color:var(--muted);margin-bottom:4px;">A DISPERSAR</div>'+
+    '<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:700;color:var(--accent);">'+fmt(selTotal)+'</div></div>'+
+    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;">'+
+    '<div style="font-size:11px;color:var(--muted);margin-bottom:4px;">SIN CUENTA</div>'+
+    '<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:700;color:'+(sinInfo.length?'#e74c3c':'var(--green)')+';">'+sinInfo.length+'</div></div>';
+
+  const warn=document.getElementById('disp-sin-cuenta-warn');
+  if(sinInfo.length){
+    warn.style.display='block';
+    warn.textContent='⚠️ '+sinInfo.length+' pago(s) sin datos bancarios (no se incluirán en el Excel): '+sinInfo.map(x=>x.nombre).join(', ');
+  } else { warn.style.display='none'; }
+
+  tbody.innerHTML=dispPagos.map((d,i)=>
+    '<tr style="'+(d.tieneInfo?'':'opacity:.45')+'">'
+    +'<td><input type="checkbox" '+(d.seleccionado?'checked':'')+' '+(d.tieneInfo?'':'disabled')+' onchange="dispPagos['+i+'].seleccionado=this.checked;renderModalDisp()" style="width:14px;height:14px;cursor:pointer;"></td>'
+    +'<td style="font-size:12px;font-weight:500;">'+d.nombre+'</td>'
+    +'<td style="font-size:11px;color:var(--muted);">'+d.concepto+'</td>'
+    +'<td style="font-family:DM Mono,monospace;font-size:11px;">'+(d.cuenta||'<span style="color:#e74c3c">—</span>')+'</td>'
+    +'<td style="font-size:11px;">'+(d.banco||'—')+'</td>'
+    +'<td style="font-family:DM Mono,monospace;font-size:12px;font-weight:600;text-align:right;">'+fmt(d.importe)+'</td>'
+    +'</tr>').join('');
+}
+
+function toggleAllDisp(v){
+  dispPagos.forEach(d=>{if(d.tieneInfo)d.seleccionado=v;});
+  renderModalDisp();
+}
+
+function generarExcelBBVA(){
+  if(!window.XLSX){notify('Cargando librería, intenta en 2 segundos','error');return;}
+  const activos=dispPagos.filter(d=>d.seleccionado&&d.tieneInfo);
+  if(!activos.length){notify('Sin pagos con cuenta para generar','error');return;}
+
+  const cuentaCargo=document.getElementById('disp-cuenta-cargo').value;
+  const fecha=new Date().toLocaleDateString('es-MX');
+  const fechaFn=new Date().toISOString().split('T')[0].replace(/-/g,'');
+
+  const interbancarios=activos.filter(d=>getTipo(d.cuenta)==='CLABE');
+  const mismosBanco=activos.filter(d=>getTipo(d.cuenta)!=='CLABE'&&d.cuenta);
+
+  const wb=XLSX.utils.book_new();
+
+  if(interbancarios.length){
+    const dataI=[
+      ['Numero de Registros==>>','',interbancarios.length],
+      ['Importe Total========>>','',parseFloat(interbancarios.reduce((s,d)=>s+d.importe,0).toFixed(2))],
+      [],
+      ['CUENTA CARGO','CUENTA CLABE / TARJETA  ABONO','IMPORTE','TITULAR','MOTIVO PAGO','REF_NUMERICA']
+    ];
+    interbancarios.forEach(d=>{ dataI.push([cuentaCargo,d.cuenta,d.importe,d.nombre,d.concepto,'']); });
+    const wsI=XLSX.utils.aoa_to_sheet(dataI);
+    XLSX.utils.book_append_sheet(wb,wsI,'Pagos Interbancarios');
+  }
+
+  if(mismosBanco.length){
+    const dataMB=[
+      ['Numero de Registros==>>','',mismosBanco.length],
+      ['Importe Total =======>>','',parseFloat(mismosBanco.reduce((s,d)=>s+d.importe,0).toFixed(2))],
+      [],
+      ['CUENTA CARGO','CUENTA / TARJETA ABONO','MONEDA','IMPORTE','MOTIVO PAGO']
+    ];
+    mismosBanco.forEach(d=>{ dataMB.push([cuentaCargo,d.cuenta,'MXP',d.importe,d.concepto]); });
+    const wsMB=XLSX.utils.aoa_to_sheet(dataMB);
+    XLSX.utils.book_append_sheet(wb,wsMB,'Pagos Mismo Banco');
+  }
+
+  if(!wb.SheetNames.length){notify('Sin pagos para generar','error');return;}
+
+  XLSX.writeFile(wb,'Dispersion_BBVA_'+fechaFn+'.xlsx');
+  notify('✅ Excel generado: Dispersion_BBVA_'+fechaFn+'.xlsx');
+
+  pendientesConfirmacion=[...activos.map(d=>Object.assign({},d,{fechaGen:fecha}))];
+  cerrar('modal-dispersion');
+  setTimeout(()=>{ abrirModalConfirmarPagos(); },700);
+}
+
+// ---- CONFIRMACION DE PAGOS ----
+let pendientesConfirmacion=[];
+
+function abrirModalConfirmarPagos(){
+  if(!pendientesConfirmacion.length){notify('No hay pagos pendientes de confirmar','error');return;}
+  renderModalConf();
+  document.getElementById('modal-confirmar-pagos').style.display='flex';
+}
+
+function renderModalConf(){
+  const tbody=document.getElementById('tbody-conf');
+  pendientesConfirmacion.forEach(d=>{ if(d.confirmado===undefined)d.confirmado=true; });
+  const total=pendientesConfirmacion.reduce((s,d)=>s+d.importe,0);
+  const selTotal=pendientesConfirmacion.filter(d=>d.confirmado).reduce((s,d)=>s+d.importe,0);
+
+  document.getElementById('conf-resumen').innerHTML=
+    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;">'+
+    '<div style="font-size:11px;color:var(--muted);margin-bottom:4px;">TOTAL GENERADO</div>'+
+    '<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:700;">'+fmt(total)+'</div></div>'+
+    '<div style="background:rgba(39,174,96,.08);border:1px solid rgba(39,174,96,.3);border-radius:10px;padding:14px;">'+
+    '<div style="font-size:11px;color:var(--muted);margin-bottom:4px;">CONFIRMADO A REGISTRAR</div>'+
+    '<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:700;color:var(--green);">'+fmt(selTotal)+'</div></div>';
+
+  tbody.innerHTML=pendientesConfirmacion.map((d,i)=>
+    '<tr><td><input type="checkbox" '+(d.confirmado?'checked':'')+' onchange="pendientesConfirmacion['+i+'].confirmado=this.checked;renderModalConf()" style="width:14px;height:14px;cursor:pointer;"></td>'
+    +'<td style="font-size:12px;font-weight:500;">'+d.nombre+'</td>'
+    +'<td style="font-size:11px;color:var(--muted);">'+d.concepto+'</td>'
+    +'<td style="font-family:DM Mono,monospace;font-size:12px;font-weight:600;text-align:right;">'+fmt(d.importe)+'</td>'
+    +'<td>'+proyTag(d.proyecto)+'</td></tr>').join('');
+}
+
+function toggleAllConf(v){
+  pendientesConfirmacion.forEach(d=>d.confirmado=v);
+  renderModalConf();
+}
+
+function confirmarPagos(){
+  const confirmados=pendientesConfirmacion.filter(d=>d.confirmado);
+  if(!confirmados.length){notify('Selecciona al menos un pago confirmado','error');return;}
+  const fecha=new Date().toLocaleDateString('es-MX');
+  confirmados.forEach(d=>{
+    historial.unshift({fecha,nombre:d.nombre,concepto:d.concepto,importe:d.importe,proyecto:d.proyecto,banco:d.banco,tipo:d.tipo||d.cuenta});
+  });
+  document.getElementById('cnt-hist').textContent=historial.length;
+  saveData();
+  notify('✅ '+confirmados.length+' pago(s) registrados en historial');
+  pendientesConfirmacion=[];
+  cerrar('modal-confirmar-pagos');
+}
+
+function enviarADispersion(){abrirModalDispersion();}
+// Cargar SheetJS desde CDN
+(function(){
+  if(window.XLSX)return;
+  const s=document.createElement('script');
+  s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+  s.onerror=()=>notify('No se pudo cargar la librería de Excel. Verifica tu conexión.','error');
+  document.head.appendChild(s);
+})();
+
+
+
+// ---- VINCULAR PROVEEDOR (modal) ----
+let vincUid=null;
+
+function abrirVincular(uid){
+  vincUid=uid;
+  const s=solicitudesData.find(x=>x.uid===uid);
+  if(!s)return;
+  document.getElementById('vinc-nombre-sol').textContent=s.proveedor;
+  document.getElementById('vinc-cuenta-sol').textContent=
+    s.cuentaEmbebida?`Cuenta en concepto: ${s.cuentaEmbebida}`:'Sin cuenta en concepto';
+  // Pre-rellenar campos nuevo
+  document.getElementById('vinc-nuevo-nombre').value=s.proveedor.toUpperCase();
+  document.getElementById('vinc-nuevo-cuenta').value=s.cuentaEmbebida||'';
+  validarVincCuenta();
+  // Si tiene cuenta embebida, pre-seleccionar tipo correcto
+  if(s.cuentaEmbebida){
+    const t=getTipo(s.cuentaEmbebida);
+    document.getElementById('vinc-nuevo-tipo').value=t;
+    renderVincTipo();
+  }
+  // Limpiar búsqueda y mostrar todos
+  document.getElementById('vinc-buscar').value='';
+  renderVincBusqueda();
+  document.getElementById('modal-vincular').classList.add('open');
+}
+
+function renderVincBusqueda(){
+  const q=document.getElementById('vinc-buscar').value.toLowerCase();
+  const s=solicitudesData.find(x=>x.uid===vincUid);
+  // Pre-score: mostrar primero los más parecidos al nombre de la solicitud
+  let lista=[...proveedores];
+  if(s){
+    lista.sort((a,b)=>{
+      const sa=buscarProveedorSol(a.nombre,s.cuentaEmbebida);
+      const sb=buscarProveedorSol(b.nombre,s.cuentaEmbebida);
+      return (sb?.score||0)-(sa?.score||0);
+    });
+  }
+  if(q)lista=lista.filter(p=>
+    p.nombre.toLowerCase().includes(q)||
+    (p.cuenta||'').includes(q)||
+    (p.banco||'').toLowerCase().includes(q)
+  );
+  const div=document.getElementById('vinc-resultados');
+  if(!lista.length){
+    div.innerHTML=`<div style="padding:12px;text-align:center;color:var(--muted);font-size:12px;">Sin resultados</div>`;
+    return;
+  }
+  div.innerHTML=lista.slice(0,30).map(p=>{
+    const tipColor=p.tipo_cuenta==='CLABE'?'var(--green)':p.tipo_cuenta==='Cuenta BBVA'?'var(--blue)':'var(--yellow)';
+    return`<div onclick="seleccionarProvExistente(${p.id})"
+      style="padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;transition:background .15s;"
+      onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.nombre}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px;font-family:'DM Mono',monospace;">${p.cuenta||''}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;">
+        <span style="font-size:10px;color:${tipColor};font-weight:600;">${p.tipo_cuenta==='CLABE'?'CLABE':p.tipo_cuenta==='Cuenta BBVA'?'BBVA':'Corta'}</span>
+        <div style="font-size:10px;color:var(--muted);">${p.banco||''}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function seleccionarProvExistente(id){
+  const s=solicitudesData.find(x=>x.uid===vincUid);
+  const prov=proveedores.find(p=>p.id===id);
+  if(!s||!prov)return;
+  s.match=prov;
+  s.vinculadoManual=true;
+  s.matchMetodo='manual';
+  s.matchScore=100;
+  cerrar('modal-vincular');
+  renderSolicitudes();
+  notify(`Vinculado: ${s.proveedor} → ${prov.nombre}`);
+}
+
+function renderVincTipo(){
+  const tipo=document.getElementById('vinc-nuevo-tipo').value;
+  const lbl=document.getElementById('vinc-lbl-cuenta');
+  const ph=document.getElementById('vinc-nuevo-cuenta');
+  if(tipo==='CLABE'){lbl.textContent='CLABE Interbancaria (18 dígitos)';ph.placeholder='000000000000000000';}
+  else if(tipo==='Cuenta BBVA'){lbl.textContent='Número de Cuenta BBVA (10 dígitos)';ph.placeholder='0000000000';}
+  else{lbl.textContent='Cuenta corta';ph.placeholder='Número de cuenta';}
+  validarVincCuenta();
+}
+
+function validarVincCuenta(){
+  const tipo=document.getElementById('vinc-nuevo-tipo').value;
+  const val=document.getElementById('vinc-nuevo-cuenta').value.trim();
+  const st=document.getElementById('vinc-cuenta-status');
+  const bancoEl=document.getElementById('vinc-banco');
+  if(!val){bancoEl.value='';st.innerHTML='';return;}
+  if(tipo==='CLABE'){
+    if(val.length===18){
+      const b=getBanco(val)||'Banco desconocido';
+      bancoEl.value=b;
+      st.innerHTML=`<span class="cuenta-ok">✓ CLABE válida · ${b}</span>`;
+    } else {
+      bancoEl.value='';
+      st.innerHTML=`<span class="cuenta-err">${val.length}/18 dígitos</span>`;
+    }
+  } else {
+    bancoEl.value='BBVA';
+    st.innerHTML=`<span class="cuenta-ok">✓ BBVA</span>`;
+  }
+}
+
+function confirmarNuevoProv(){
+  const s=solicitudesData.find(x=>x.uid===vincUid);
+  if(!s)return;
+  const nombre=document.getElementById('vinc-nuevo-nombre').value.trim().toUpperCase();
+  const cuenta=document.getElementById('vinc-nuevo-cuenta').value.trim();
+  const tipo=document.getElementById('vinc-nuevo-tipo').value;
+  const cat=document.getElementById('vinc-cat').value;
+  if(!nombre){notify('El nombre es obligatorio','error');return;}
+  if(!cuenta){notify('La cuenta es obligatoria','error');return;}
+  if(tipo==='CLABE'&&cuenta.length!==18){notify('CLABE debe tener 18 dígitos','error');return;}
+  // Crear nuevo proveedor en la base
+  const nuevoProv={
+    id:nextId++,
+    nombre,cuenta,
+    banco:getBanco(cuenta)||'BBVA',
+    tipo_cuenta:tipo,
+    clabe:tipo==='CLABE'?cuenta:'',
+    num_cuenta:tipo!=='CLABE'?cuenta:'',
+    rfc:'',categoria:cat,
+    proyectos:[s.proyecto],
+    activo:true
+  };
+  proveedores.push(nuevoProv);
+  document.getElementById('cnt-prov').textContent=proveedores.length;
+  // Vincular en solicitud
+  s.match=nuevoProv;
+  s.vinculadoManual=true;
+  s.matchMetodo='nuevo';
+  s.matchScore=100;
+  cerrar('modal-vincular');
+  renderSolicitudes();
+  notify(`Proveedor agregado y vinculado: ${nombre}`);
+}
+
+
+// ===== CONFIGURACIÓN – Proyectos =====
+let editProyId=null;
+
+function calcularClabeProy(){
+  const cta=document.getElementById('proy-cuenta').value.trim().replace(/\D/g,'');
+  const prev=document.getElementById('proy-clabe-preview');
+  if(cta.length<7){prev.textContent='';return;}
+  // CLABE = 012 + 180 + 0 + cuenta10 + digito
+  const base='012180'+('0'+cta).slice(-11);
+  if(base.length!==17){prev.textContent='';return;}
+  const pesos=[3,7,1,3,7,1,3,7,1,3,7,1,3,7,1,3,7];
+  const d=(10-([...base].reduce((s,c,i)=>s+parseInt(c)*pesos[i],0)%10))%10;
+  const clabe=base+d;
+  prev.innerHTML=`CLABE estimada: <span style="font-family:'DM Mono',monospace;letter-spacing:.05em;">${clabe}</span> <span style="color:var(--yellow);font-size:10px;">(verifica en tu estado de cuenta)</span>`;
+  document.getElementById('proy-cuenta').dataset.clabe=clabe;
+}
+
+function selColor(el){
+  document.querySelectorAll('.proy-color-opt').forEach(e=>e.style.border='2px solid transparent');
+  el.style.border='2px solid var(--text)';
+  document.getElementById('proy-color').value=el.dataset.color;
+}
+
+function abrirModalProyecto(id){
+  editProyId=id;
+  const p=id?proyectos.find(x=>x.id===id):null;
+  document.getElementById('modal-proy-title').textContent=p?'Editar Proyecto':'Nuevo Proyecto';
+  document.getElementById('proy-nombre').value=p?.nombre||'';
+  document.getElementById('proy-empresa').value=p?.empresa||'';
+  document.getElementById('proy-cuenta').value=p?.cuenta||'';
+  document.getElementById('proy-color').value=p?.color||'#c8a96e';
+  // Highlight color
+  document.querySelectorAll('.proy-color-opt').forEach(e=>{
+    e.style.border=e.dataset.color===(p?.color||'#c8a96e')?'2px solid var(--text)':'2px solid transparent';
+  });
+  document.getElementById('proy-clabe-preview').textContent='';
+  if(p?.clabe)document.getElementById('proy-clabe-preview').innerHTML=
+    `CLABE actual: <span style="font-family:'DM Mono',monospace;">${p.clabe}</span>`;
+  document.getElementById('modal-proyecto').classList.add('open');
+}
+
+function guardarProyecto(){
+  const nombre=document.getElementById('proy-nombre').value.trim();
+  const cuenta=document.getElementById('proy-cuenta').value.trim().replace(/\D/g,'');
+  if(!nombre){notify('El nombre es obligatorio','error');return;}
+  if(!cuenta){notify('El número de cuenta es obligatorio','error');return;}
+  const empresa=document.getElementById('proy-empresa').value.trim();
+  const color=document.getElementById('proy-color').value;
+  // Calcular CLABE
+  const base='012180'+('0'+cuenta).slice(-11);
+  let clabe='';
+  if(base.length===17){
+    const pesos=[3,7,1,3,7,1,3,7,1,3,7,1,3,7,1,3,7];
+    const d=(10-([...base].reduce((s,c,i)=>s+parseInt(c)*pesos[i],0)%10))%10;
+    clabe=base+d;
+  }
+  if(editProyId){
+    const idx=proyectos.findIndex(p=>p.id===editProyId);
+    proyectos[idx]={...proyectos[idx],nombre,empresa,cuenta,clabe,color};
+  } else {
+    // Generar id limpio del nombre
+    const id='proy_'+nombre.toLowerCase().replace(/[^a-z0-9]/g,'_').replace(/_+/g,'_').slice(0,20)+'_'+Date.now();
+    proyectos.push({id,nombre,empresa,cuenta,clabe,color,activo:true});
+  }
+  saveProy();
+  cerrar('modal-proyecto');
+  renderConfigProyectos();
+  renderCuentaDispSelect();
+  renderHeaderBadges();
+  refreshProyectosEnSelects();
+  notify(editProyId?'Proyecto actualizado':'Proyecto agregado ✓');
+}
+
+function toggleProyecto(id,activo){
+  const p=proyectos.find(x=>x.id===id);
+  if(p){p.activo=activo;saveProy();}
+  renderConfigProyectos();
+  renderCuentaDispSelect();
+  renderHeaderBadges();
+  refreshProyectosEnSelects();
+}
+
+function renderConfigProyectos(){
+  const div=document.getElementById('config-proyectos-lista');
+  if(!div)return;
+  div.innerHTML=proyectos.map(p=>`
+    <div style="display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--border);">
+      <div style="width:10px;height:36px;border-radius:4px;background:${p.color};flex-shrink:0;"></div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:600;font-size:13px;">${p.nombre}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">${p.empresa||''}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;">
+        <div style="font-family:'DM Mono',monospace;font-size:12px;">${p.cuenta}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px;font-family:'DM Mono',monospace;">${p.clabe||'—'}</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0;">
+        <button class="btn btn-ghost btn-sm" onclick="abrirModalProyecto('${p.id}')">✎ Editar</button>
+        <button class="btn btn-sm ${p.activo?'btn-ghost':'btn-success'}" onclick="toggleProyecto('${p.id}',${!p.activo})">
+          ${p.activo?'● Activo':'○ Inactivo'}
+        </button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function refreshProyectosEnSelects(){
+  // Actualizar todos los <select> con opciones de proyectos
+  ['pago-proy','f-proy'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el)return;
+    const cur=el.value;
+    el.innerHTML=proyectos.filter(p=>p.activo).map(p=>`<option value="${p.nombre}">${p.nombre}</option>`).join('');
+    if(cur)el.value=cur;
+  });
+  // Filtro de proyectos en proveedores (f-proy)
+  const fp=document.getElementById('f-proy');
+  if(fp){
+    const cur=fp.value;
+    fp.innerHTML='<option value="">Todos los proyectos</option>'+
+      proyectos.filter(p=>p.activo).map(p=>`<option value="${p.nombre}">${p.nombre}</option>`).join('');
+    if(cur)fp.value=cur;
+  }
+  // proyecto-pill en modal proveedor
+  const placeholder=document.getElementById('pills-placeholder');
+  const pillContainer=placeholder?.parentElement||document.querySelector('#modal-prov .proyecto-pill')?.parentElement;
+  if(pillContainer){
+    pillContainer.innerHTML=proyectos.filter(p=>p.activo)
+      .map(p=>`<span class="proyecto-pill" data-p="${p.nombre}" onclick="this.classList.toggle('selected')">${p.nombre}</span>`).join('');
+  }
+}
+
+
+// ---- UTILS ----
+function dl(csv,fn){const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=fn;a.click();URL.revokeObjectURL(url);}
+function updateCuentaGlobal(){
+  const v=document.getElementById('cuenta-global')?.value;
+  const cd=document.getElementById('cuenta-disp');
+  if(cd&&v)cd.value=v;
+  renderHeaderBadges();
+}
+function renderHeaderBadges(){
+  const hb=document.getElementById('header-badges');
+  if(!hb)return;
+  const cg=document.getElementById('cuenta-disp');
+  const cur=cg?cg.value:(proyectos[0]?.id||'');
+  hb.innerHTML=proyectos.filter(p=>p.activo).map(p=>
+    `<span class="badge ${p.id===cur?'active':''}" 
+      onclick="document.getElementById('cuenta-disp').value='${p.id}';renderHeaderBadges();"
+      style="cursor:pointer;border-left:3px solid ${p.color};">${p.nombre}</span>`
+  ).join('')+
+  `<select class="filter-select" id="cuenta-global" onchange="updateCuentaGlobal()" style="font-size:12px;padding:6px 10px;">
+    ${proyectos.filter(p=>p.activo).map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('')}
+  </select>`;
+}
+function renderCuentaDispSelect(){
+  const sel=document.getElementById('cuenta-disp');
+  if(!sel)return;
+  const cur=sel.value;
+  sel.innerHTML=proyectos.filter(p=>p.activo).map(p=>
+    `<option value="${p.id}">${p.nombre} – BBVA ···${p.cuenta.slice(-4)}</option>`
+  ).join('');
+  if(cur&&proyectos.find(p=>p.id===cur))sel.value=cur;
+}
+function cerrar(id){document.getElementById(id).classList.remove('open');}
+let _nt;function notify(msg,type='success'){const el=document.getElementById('notif');document.getElementById('nm').textContent=msg;document.getElementById('ni').textContent=type==='success'?'✓':'✕';el.className=`notif show ${type}`;clearTimeout(_nt);_nt=setTimeout(()=>el.classList.remove('show'),3000);}
+document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');}));
+document.getElementById('fecha-disp').value=new Date().toISOString().split('T')[0];
+renderProveedores();renderNomina();renderCuentaDispSelect();renderHeaderBadges();refreshProyectosEnSelects();renderConfigProyectos();renderAuthStatus();
+</script>
+
+<!-- MODAL VINCULAR PROVEEDOR -->
+<div class="modal-overlay" id="modal-vincular">
+  <div class="modal" style="max-width:540px;">
+    <div class="modal-header">
+      <div class="modal-title">Vincular / Agregar Proveedor</div>
+      <button class="modal-close" onclick="cerrar(&#39;modal-vincular&#39;)">✕</button>
+    </div>
+    <div style="padding:0 0 8px;">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:16px;">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Nombre en la solicitud</div>
+        <div style="font-size:14px;font-weight:600;" id="vinc-nombre-sol">—</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;" id="vinc-cuenta-sol">—</div>
+      </div>
+
+      <!-- Opción A: Vincular a proveedor existente -->
+      <div style="margin-bottom:14px;">
+        <div style="font-size:12px;font-weight:700;margin-bottom:8px;color:var(--text);">A) Vincular a proveedor existente en la base</div>
+        <div class="search-box" style="margin-bottom:8px;">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="vinc-buscar" placeholder="Buscar en base de proveedores..." oninput="renderVincBusqueda()">
+        </div>
+        <div id="vinc-resultados" style="max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;"></div>
+      </div>
+
+      <!-- Opción B: Agregar nuevo -->
+      <div style="border-top:1px solid var(--border);padding-top:14px;">
+        <div style="font-size:12px;font-weight:700;margin-bottom:10px;color:var(--text);">B) Agregar como proveedor nuevo</div>
+        <div class="form-grid">
+          <div class="field span2"><label>Nombre / Razón Social</label>
+            <input id="vinc-nuevo-nombre" placeholder="Nombre en mayúsculas">
+          </div>
+          <div class="field span2"><label>Tipo de cuenta</label>
+            <select id="vinc-nuevo-tipo" onchange="renderVincTipo()">
+              <option value="CLABE">CLABE (18 dígitos)</option>
+              <option value="Cuenta BBVA">Cuenta BBVA (10 dígitos)</option>
+              <option value="Cuenta corta">Cuenta corta</option>
+            </select>
+          </div>
+          <div class="field span2">
+            <label id="vinc-lbl-cuenta">CLABE Interbancaria</label>
+            <input id="vinc-nuevo-cuenta" placeholder="000000000000000000" style="font-family:&#39;DM Mono&#39;,monospace;" oninput="validarVincCuenta()">
+            <div id="vinc-cuenta-status" style="font-size:11px;margin-top:4px;"></div>
+          </div>
+          <div class="field"><label>Banco detectado</label>
+            <input id="vinc-banco" readonly="" style="color:var(--muted);">
+          </div>
+          <div class="field"><label>Categoría</label>
+            <select id="vinc-cat">
+              <option>Obra / Materiales</option><option>General</option>
+              <option>Nómina / Asimilados</option><option>Impuestos</option>
+              <option>Gastos fijos</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-primary" style="width:100%;margin-top:12px;" onclick="confirmarNuevoProv()">
+          + Agregar a base y vincular
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+</body></html>
