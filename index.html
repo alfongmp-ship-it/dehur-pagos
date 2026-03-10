@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0046)file:///C:/Users/alfon/Downloads/index_16.html -->
+<!-- saved from url=(0046)file:///C:/Users/alfon/Downloads/index_17.html -->
 <html lang="es"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -805,24 +805,9 @@ async function gsLoadAll() {
   try {
     // Load proveedores
     const pRows = await gsReadSheet('proveedores');
-    if (pRows && pRows.length > 1) {
-      const fromSheets = pRows.slice(1).filter(r=>r[0]).map(r => ({
-        id: parseInt(r[0])||0,
-        nombre: r[1]||'',
-        rfc: r[2]||'',
-        banco: r[3]||'BBVA',
-        tipo_cuenta: r[4]||'',
-        cuenta: r[5]||'',
-        categoria: r[6]||'General',
-        proyectos: (r[7]||'').split('|').filter(Boolean),
-        activo: r[8]!=='false'
-      }));
-      // Merge: Sheets data takes priority, but keep local extras not yet uploaded
-      const sheetsCuentas = new Set(fromSheets.map(p=>p.cuenta));
-      const localOnly = proveedores.filter(p => !sheetsCuentas.has(p.cuenta));
-      proveedores = [...fromSheets, ...localOnly];
-      nextId = Math.max(500, ...proveedores.map(p=>p.id)) + 1;
-    }
+    // Proveedores: NO se sobreescriben desde Sheets — siempre vienen del código (512 registros)
+    // Solo se suben a Sheets, nunca se bajan para evitar perder datos del directorio
+    if (false) { /* disabled */ }
     // Load empleados
     const eRows = await gsReadSheet('empleados');
     if (eRows && eRows.length > 1) {
