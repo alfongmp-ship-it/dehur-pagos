@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0045)file:///C:/Users/alfon/Downloads/index_9.html -->
+<!-- saved from url=(0046)file:///C:/Users/alfon/Downloads/index_10.html -->
 <html lang="es"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -379,6 +379,19 @@ input::placeholder{color:var(--muted);}
 
     <!-- ===== CONFIGURACIÓN ===== -->
     <div id="page-config" style="display:none">
+      <!-- GOOGLE SHEETS SECTION -->
+      <div class="card" style="margin-bottom:24px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <div>
+            <div style="font-weight:600;font-size:15px;">🔗 Google Sheets — Sincronización</div>
+            <div style="color:var(--muted);font-size:12px;margin-top:4px;">Conecta para guardar proveedores, empleados e historial en la nube</div>
+          </div>
+          <div id="gs-auth-status-2"></div>
+        </div>
+        <div id="gs-sync-actions" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+      </div>
+      <!-- END GOOGLE SHEETS SECTION -->
+      
       <div class="page-header">
         <div><div class="page-title">Configuración</div><div class="page-subtitle">Proyectos, cuentas bancarias y preferencias</div></div>
         <button class="btn btn-primary" onclick="abrirModalProyecto(null)">+ Nuevo Proyecto</button>
@@ -649,20 +662,30 @@ function gsLogout() {
 }
 
 function renderAuthStatus() {
+  // Update header status
   const el = document.getElementById('gs-auth-status');
-  if (!el) return;
+  // Update config page status  
+  const el2 = document.getElementById('gs-auth-status-2');
+  const actions = document.getElementById('gs-sync-actions');
+  
   if (gsToken && gsUser) {
-    el.innerHTML = '<div style="display:flex;align-items:center;gap:8px;">'
+    const html = '<div style="display:flex;align-items:center;gap:8px;">'
       + '<div style="width:8px;height:8px;border-radius:50%;background:var(--green);"></div>'
-      + '<span style="font-size:12px;color:var(--muted);">Sincronizado · ' + (gsUser.email||'') + '</span>'
-      + '<button class="btn btn-ghost btn-sm" onclick="gsLogout()" style="font-size:11px;padding:3px 8px;">Salir</button>'
+      + '<span style="font-size:12px;color:var(--muted);">✅ ' + (gsUser.email||'Conectado') + '</span>'
+      + '<button class="btn btn-ghost btn-sm" onclick="gsLogout()" style="font-size:11px;padding:3px 8px;">Desconectar</button>'
       + '</div>';
+    if (el) el.innerHTML = html;
+    if (el2) el2.innerHTML = html;
+    if (actions) actions.innerHTML = ''
+      + '<button class="btn btn-primary" onclick="gsSaveProveedores()">☁ Subir Proveedores</button>'
+      + '<button class="btn btn-primary" onclick="gsSaveEmpleados()">☁ Subir Empleados</button>'
+      + '<button class="btn btn-primary" onclick="gsSaveProyectos()">☁ Subir Proyectos</button>'
+      + '<button class="btn btn-ghost" onclick="gsLoadAll()">⬇ Cargar desde Sheets</button>';
   } else {
-    el.innerHTML = '<div style="display:flex;align-items:center;gap:8px;">'
-      + '<div style="width:8px;height:8px;border-radius:50%;background:#e74c3c;"></div>'
-      + '<span style="font-size:12px;color:var(--muted);">Sin sincronizar</span>'
-      + '<button class="btn btn-primary btn-sm" onclick="gsLogin()" style="font-size:11px;padding:4px 12px;">🔗 Conectar Google Sheets</button>'
-      + '</div>';
+    const html = '<button class="btn btn-primary" onclick="gsLogin()" style="padding:8px 20px;font-size:13px;">🔗 Conectar Google Sheets</button>';
+    if (el) el.innerHTML = html;
+    if (el2) el2.innerHTML = html;
+    if (actions) actions.innerHTML = '<p style="color:var(--muted);font-size:13px;">Conecta tu cuenta para sincronizar datos con Google Sheets.</p>';
   }
 }
 
