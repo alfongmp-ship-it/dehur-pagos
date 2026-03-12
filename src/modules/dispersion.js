@@ -300,36 +300,20 @@ export function generarExcelBBVA() {
   const fecha = new Date().toLocaleDateString('es-MX');
   const fechaFn = new Date().toISOString().split('T')[0].replace(/-/g, '');
 
-  const interbancarios = activos.filter(d => getTipo(d.cuenta) === 'CLABE');
-  const mismosBanco = activos.filter(d => getTipo(d.cuenta) !== 'CLABE' && d.cuenta);
-
   const wb = XLSX.utils.book_new();
-
-  if (interbancarios.length) {
-    const dataI = [
-      ['Numero de Registros==>>', '', interbancarios.length],
-      ['Importe Total========>>', '', parseFloat(interbancarios.reduce((s, d) => s + d.importe, 0).toFixed(2))],
-      [],
-      ['CUENTA CARGO', 'CUENTA CLABE / TARJETA  ABONO', 'IMPORTE', 'TITULAR', 'MOTIVO PAGO', 'REF_NUMERICA']
-    ];
-    interbancarios.forEach(d => { dataI.push([cuentaCargo, d.cuenta, d.importe, d.nombre, d.concepto, '']); });
-    const wsI = XLSX.utils.aoa_to_sheet(dataI);
-    XLSX.utils.book_append_sheet(wb, wsI, 'Pagos Interbancarios');
-  }
-
-  if (mismosBanco.length) {
-    const dataMB = [
-      ['Numero de Registros==>>', '', mismosBanco.length],
-      ['Importe Total =======>>', '', parseFloat(mismosBanco.reduce((s, d) => s + d.importe, 0).toFixed(2))],
-      [],
-      ['CUENTA CARGO', 'CUENTA / TARJETA ABONO', 'MONEDA', 'IMPORTE', 'MOTIVO PAGO']
-    ];
-    mismosBanco.forEach(d => { dataMB.push([cuentaCargo, d.cuenta, 'MXP', d.importe, d.concepto]); });
-    const wsMB = XLSX.utils.aoa_to_sheet(dataMB);
-    XLSX.utils.book_append_sheet(wb, wsMB, 'Pagos Mismo Banco');
-  }
-
-  if (!wb.SheetNames.length) { notify('Sin pagos para generar', 'error'); return; }
+  const headers = [
+    'TIPO DE OPERACIÓN', 'CUENTA CARGO', 'CTA. ABONO O CONVENIO CIE', 'IMPORTE',
+    'DETALLE DEL PAGO O CONCEPTO CIE', 'REFERENCIA CIE O REFERENCIA NUMERICA O ABA / BIC',
+    'MONEDA', 'TITULAR o BENEFICIARIO', 'PAIS DEL BENEFICIARIO', 'DIRECCION DEL BENEFICIARIO',
+    'TELEFONO BENEFICIARIO', 'BANCO BENEFICIARIO', 'PAIS BANCO BENEFICIARIO', 'DIRECCION BANCO BENEFICIARIO'
+  ];
+  const data = [headers];
+  activos.forEach(d => {
+    const tipo = getTipo(d.cuenta) === 'CLABE' ? 'Interbancarios' : 'Mismo Banco';
+    data.push([tipo, cuentaCargo, d.cuenta, d.importe, d.concepto, '', 'Pesos', d.nombre, '', '', '', '', '', '']);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  XLSX.utils.book_append_sheet(wb, ws, 'Dispersión');
 
   XLSX.writeFile(wb, 'Dispersion_BBVA_' + fechaFn + '.xlsx');
   notify('✅ Excel generado: Dispersion_BBVA_' + fechaFn + '.xlsx');
