@@ -123,12 +123,10 @@ export function parsearSolicitud(wb, filename) {
         else if (conU.includes('SCOTIABANK')) bancoEmbebido = 'Scotiabank';
       }
 
-      const matchResult = buscarProveedorSol(proveedor, cuentaEmbebida);
-      // Solo aceptar matches de alta confianza (exacta, cuenta, alias)
-      const metodoConfiable = matchResult && ['exacta', 'cuenta exacta', 'cuenta parcial', 'alias'].includes(matchResult.metodo);
-      const matchProv = metodoConfiable ? matchResult.prov : null;
-      const matchMetodo = metodoConfiable ? matchResult.metodo : null;
-      const matchScore = metodoConfiable ? matchResult.score : 0;
+      // No auto-asignar — todos requieren vinculación manual
+      const matchProv = null;
+      const matchMetodo = null;
+      const matchScore = 0;
 
       state.solicitudesData.push({
         uid: Date.now() + '-' + Math.random(),
