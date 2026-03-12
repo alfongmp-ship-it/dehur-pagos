@@ -241,7 +241,7 @@ export function abrirModalDispersion() {
   if (proy && proy.cuenta) sel2.value = proy.cuenta;
 
   renderModalDisp();
-  document.getElementById('modal-dispersion').style.display = 'flex';
+  document.getElementById('modal-dispersion').classList.add('open');
 }
 
 export function renderModalDisp() {
