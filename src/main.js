@@ -15,7 +15,7 @@ import { renderCola, abrirPagoRapido, abrirModalPago, buscarModal, selPago, agre
 import { handleSolDrop, handleSolFile, descargarPlantilla, parsearSolicitud, renderSolicitudes, toggleSol, seleccionarTodosSol, nuevaSolicitud, abrirVincular, renderVincBusqueda, seleccionarProvExistente, renderVincTipo, validarVincCuenta, confirmarNuevoProv } from './modules/solicitudes.js';
 import { calcularClabeProy, selColor, abrirModalProyecto, guardarProyecto, toggleProyecto, renderConfigProyectos } from './modules/config-page.js';
 import { gsLogin, gsLogout, renderAuthStatus, checkOAuthCallback } from './services/google-auth.js';
-import { gsLoadAll, gsSaveProveedores, gsSaveEmpleados, gsSaveProyectos } from './services/google-sync.js';
+import { gsLoadAll, gsSaveProveedores, gsSaveEmpleados, gsSaveProyectos, gsSaveAlias } from './services/google-sync.js';
 
 // ===== INICIALIZACIÓN =====
 async function init() {
@@ -169,6 +169,7 @@ window.gsLoadAll = gsLoadAll;
 window.gsSaveProveedores = gsSaveProveedores;
 window.gsSaveEmpleados = gsSaveEmpleados;
 window.gsSaveProyectos = gsSaveProyectos;
+window.gsSaveAlias = gsSaveAlias;
 
 // State references for inline onclick in rendered HTML
 // (e.g., dispPagos[i].seleccionado, pendientesConfirmacion[i].confirmado)

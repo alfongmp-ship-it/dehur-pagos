@@ -39,6 +39,13 @@ export function buscarProveedorSol(nombre, cuentaEmbebida) {
   const nombreNorm = normalizar(nombre);
   if (!nombreNorm) return null;
 
+  // Strategy 1.5: Alias match
+  for (const p of proveedores) {
+    if (p.aliases && p.aliases.some(a => normalizar(a) === nombreNorm)) {
+      return { prov: p, score: 98, metodo: 'alias' };
+    }
+  }
+
   // Strategy 2: Exact match
   for (const p of proveedores) {
     if (normalizar(p.nombre) === nombreNorm) {

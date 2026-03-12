@@ -50,6 +50,18 @@ export async function gsLoadAll() {
       if (loaded.length) state.proyectos = loaded;
     }
 
+    // Load aliases
+    const aRows = await gsReadSheet('aliases');
+    if (aRows && aRows.length > 1) {
+      aRows.slice(1).filter(r => r[0]).forEach(r => {
+        const prov = state.proveedores.find(p => p.id === parseInt(r[1]));
+        if (prov) {
+          if (!prov.aliases) prov.aliases = [];
+          if (!prov.aliases.includes(r[0])) prov.aliases.push(r[0]);
+        }
+      });
+    }
+
     // Re-render everything
     if (window.renderProveedores) window.renderProveedores();
     if (window.renderNomina) window.renderNomina();
@@ -82,6 +94,14 @@ export async function gsSaveProveedores() {
     await gsClearAndWrite('proveedores', rows, ['id', 'nombre', 'rfc', 'banco', 'tipo_cuenta', 'cuenta', 'categoria', 'proyectos', 'activo']);
     notify('✅ Proveedores guardados en Sheets');
   } catch (e) { notify('Error guardando proveedores: ' + e.message, 'error'); }
+}
+
+export async function gsSaveAlias(nombreOriginal, provId) {
+  if (!state.gsToken) return;
+  try {
+    const fecha = new Date().toISOString().split('T')[0];
+    await gsAppendRow('aliases', [nombreOriginal, provId, fecha]);
+  } catch (e) { console.error('gsSaveAlias error', e); }
 }
 
 export async function gsSaveEmpleados() {
