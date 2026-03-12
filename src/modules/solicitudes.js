@@ -123,10 +123,12 @@ export function parsearSolicitud(wb, filename) {
         else if (conU.includes('SCOTIABANK')) bancoEmbebido = 'Scotiabank';
       }
 
-      // No auto-asignar — todos requieren vinculación manual
-      const matchProv = null;
-      const matchMetodo = null;
-      const matchScore = 0;
+      const matchResult = buscarProveedorSol(proveedor, cuentaEmbebida);
+      // Solo auto-asignar match exacto por nombre
+      const esExacto = matchResult && matchResult.metodo === 'exacta';
+      const matchProv = esExacto ? matchResult.prov : null;
+      const matchMetodo = esExacto ? matchResult.metodo : null;
+      const matchScore = esExacto ? matchResult.score : 0;
 
       state.solicitudesData.push({
         uid: Date.now() + '-' + Math.random(),
