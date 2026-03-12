@@ -57,7 +57,7 @@ export function toggleAllConf(v) {
 export function abrirModalConfirmarPagos() {
   if (!state.pendientesConfirmacion.length) { notify('No hay pagos pendientes de confirmar', 'error'); return; }
   renderModalConf();
-  document.getElementById('modal-confirmar-pagos').style.display = 'flex';
+  document.getElementById('modal-confirmar-pagos').classList.add('open');
 }
 
 export function confirmarPagos() {
