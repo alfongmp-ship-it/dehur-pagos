@@ -71,5 +71,8 @@ export function confirmarPagos() {
   saveData();
   notify('✅ ' + confirmados.length + ' pago(s) registrados en historial');
   state.pendientesConfirmacion = [];
+  const btnConf = document.getElementById('btn-confirmar-hist');
+  if (btnConf) btnConf.style.display = 'none';
   cerrar('modal-confirmar-pagos');
+  renderHistorial();
 }
