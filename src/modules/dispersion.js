@@ -208,6 +208,13 @@ export function abrirModalDispersion() {
   const sel = state.solicitudesData.filter(s => s.seleccionado);
   if (!sel.length) { notify('Selecciona al menos un pago', 'error'); return; }
 
+  // Bloquear si hay proveedores sin match — forzar vinculación manual primero
+  const sinMatch = sel.filter(s => !s.match);
+  if (sinMatch.length) {
+    notify(`⚠ ${sinMatch.length} proveedor(es) sin vincular: ${sinMatch.map(s => s.proveedor).join(', ')}. Vincúlalos primero.`, 'error');
+    return;
+  }
+
   state.dispPagos = [];
   sel.forEach(s => {
     const prov = s.match;
