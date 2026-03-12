@@ -124,9 +124,11 @@ export function parsearSolicitud(wb, filename) {
       }
 
       const matchResult = buscarProveedorSol(proveedor, cuentaEmbebida);
-      const matchProv = matchResult ? matchResult.prov : null;
-      const matchMetodo = matchResult ? matchResult.metodo : null;
-      const matchScore = matchResult ? matchResult.score : 0;
+      // Solo aceptar matches de alta confianza (exacta, cuenta, alias)
+      const metodoConfiable = matchResult && ['exacta', 'cuenta exacta', 'cuenta parcial', 'alias'].includes(matchResult.metodo);
+      const matchProv = metodoConfiable ? matchResult.prov : null;
+      const matchMetodo = metodoConfiable ? matchResult.metodo : null;
+      const matchScore = metodoConfiable ? matchResult.score : 0;
 
       state.solicitudesData.push({
         uid: Date.now() + '-' + Math.random(),
@@ -136,18 +138,6 @@ export function parsearSolicitud(wb, filename) {
         match: matchProv, matchMetodo, matchScore,
         vinculadoManual: false, seleccionado: !esNo
       });
-
-      // Auto-save alias for partial matches (containment, tokens, keyword)
-      if (matchProv && matchMetodo && !['exacta', 'cuenta exacta', 'cuenta parcial', 'alias'].includes(matchMetodo)) {
-        const nameNorm = normalizar(proveedor);
-        if (normalizar(matchProv.nombre) !== nameNorm) {
-          if (!matchProv.aliases) matchProv.aliases = [];
-          if (!matchProv.aliases.some(a => normalizar(a) === nameNorm)) {
-            matchProv.aliases.push(proveedor);
-            gsSaveAlias(proveedor, matchProv.id);
-          }
-        }
-      }
     });
   });
 
