@@ -1,0 +1,42 @@
+/* === Layout: Header, Sidebar, Main === */
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 32px; border-bottom: 1px solid var(--border);
+  background: var(--surface); position: sticky; top: 0; z-index: 100;
+}
+.logo { display: flex; align-items: center; gap: 12px; }
+.logo-mark {
+  width: 36px; height: 36px; background: var(--accent); border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Syne', sans-serif; font-weight: 800; font-size: 16px; color: #0f0f0f;
+}
+.logo-text { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px; line-height: 1.2; }
+.logo-sub { font-size: 11px; color: var(--muted); }
+.header-right { display: flex; gap: 8px; align-items: center; }
+
+.layout { display: flex; height: calc(100vh - 61px); }
+
+.sidebar {
+  width: 220px; min-width: 220px; background: var(--surface);
+  border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 16px 0;
+}
+.nav-label {
+  font-size: 10px; font-weight: 600; color: var(--muted);
+  letter-spacing: .1em; text-transform: uppercase; padding: 8px 24px 4px;
+}
+.nav-item {
+  display: flex; align-items: center; gap: 10px; padding: 9px 12px;
+  border-radius: 8px; cursor: pointer; transition: all .15s;
+  font-size: 13.5px; color: var(--muted); margin: 0 12px;
+}
+.nav-item:hover { background: var(--surface2); color: var(--text); }
+.nav-item.active { background: rgba(200,169,110,.12); color: var(--accent); font-weight: 500; }
+.nav-count {
+  margin-left: auto; background: var(--surface2); border-radius: 10px;
+  padding: 1px 7px; font-size: 11px; font-family: 'DM Mono', monospace; color: var(--muted);
+}
+
+.main { flex: 1; overflow-y: auto; padding: 28px 32px; }
+.page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; }
+.page-title { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 700; }
+.page-subtitle { color: var(--muted); font-size: 13px; margin-top: 2px; }

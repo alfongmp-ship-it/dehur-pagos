@@ -1,0 +1,15 @@
+/* === Mobile Responsive === */
+@media (max-width: 768px) {
+  .sidebar { display: none; }
+  .main { padding: 16px; }
+  .header { padding: 12px 16px; }
+  .stats-row { grid-template-columns: repeat(2, 1fr); }
+  .stats-row-4 { grid-template-columns: repeat(2, 1fr); }
+  .page-header { flex-direction: column; gap: 12px; }
+  .toolbar { flex-wrap: wrap; }
+  .table-wrap { overflow-x: auto; }
+  .form-grid { grid-template-columns: 1fr; }
+  .field.span2 { grid-column: span 1; }
+  .modal { padding: 20px; }
+  .hist-row { grid-template-columns: 1fr; gap: 4px; }
+}

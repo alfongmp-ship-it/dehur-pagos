@@ -1,0 +1,18 @@
+export const state = {
+  proveedores: [],
+  empleados: [],
+  proyectos: [],
+  cola: [],
+  historial: [],
+  solicitudesData: [],
+  dispPagos: [],
+  pendientesConfirmacion: [],
+  editProvId: null,
+  editEmpId: null,
+  editProyId: null,
+  pagoP: null,
+  vincUid: null,
+  nextId: 600,
+  gsToken: null,
+  gsUser: null,
+};

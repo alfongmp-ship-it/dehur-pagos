@@ -1,0 +1,30 @@
+/* === Page-specific styles === */
+
+/* Queue items (Dispersión) */
+.queue-item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; }
+.qi-name { flex: 1; font-weight: 500; font-size: 13px; }
+.qi-amount { font-family: 'DM Mono', monospace; font-weight: 500; color: var(--accent); font-size: 14px; white-space: nowrap; }
+.queue-empty { text-align: center; padding: 40px; color: var(--muted); font-size: 13px; }
+
+/* Totals bar */
+.total-bar { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; background: rgba(200,169,110,.08); border: 1px solid rgba(200,169,110,.2); border-radius: 10px; margin-top: 14px; }
+.total-amount { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 700; color: var(--accent); }
+
+/* Historial */
+.hist-row { display: grid; grid-template-columns: 110px 1fr 130px 110px 90px; gap: 12px; align-items: center; padding: 12px 16px; border-bottom: 1px solid rgba(42,42,42,.5); }
+.hist-row:hover { background: rgba(255,255,255,.02); }
+.empty-state { text-align: center; padding: 60px 20px; color: var(--muted); }
+
+/* Proyecto pills */
+.proyecto-pill { padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border); cursor: pointer; font-size: 12px; transition: all .15s; color: var(--muted); background: var(--surface2); display: inline-block; margin: 3px; }
+.proyecto-pill:hover { border-color: var(--accent); color: var(--accent); }
+.proyecto-pill.selected { border-color: var(--accent); background: rgba(200,169,110,.12); color: var(--accent); }
+
+/* Account validation */
+.cuenta-ok { color: var(--green); font-size: 11px; margin-top: 3px; }
+.cuenta-err { color: var(--red); font-size: 11px; margin-top: 3px; }
+
+/* Quincena badges (Nómina) */
+.quincena-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 600; margin-left: 6px; }
+.q1 { background: rgba(200,169,110,.15); color: var(--accent); }
+.q2 { background: rgba(90,155,224,.15); color: var(--blue); }
