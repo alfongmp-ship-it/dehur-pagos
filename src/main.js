@@ -11,8 +11,8 @@ import { refreshProyectosEnSelects } from './ui/nav.js';
 import { renderProveedores, abrirNuevoProveedor, editarProv, updateTipoProv, validarCuentaProv, guardarProveedor, exportarCSV } from './modules/proveedores.js';
 import { renderNomina, abrirNuevoEmpleado, editarEmp, updateTipoEmp, validarCuentaEmp, guardarEmpleado, exportarNomina } from './modules/nomina.js';
 import { renderHistorial, exportarHistorial, renderModalConf, toggleAllConf, abrirModalConfirmarPagos, confirmarPagos } from './modules/historial.js';
-import { renderCola, abrirPagoRapido, abrirModalPago, buscarModal, selPago, agregarACola, abrirModalNominaDisp, filtrarNomDisp, agregarNominaACola, qDel, limpiarCola, buscarRapido, quickAdd, generarArchivo, abrirModalDispersion, renderModalDisp, toggleAllDisp, generarExcelBBVA, enviarADispersion } from './modules/dispersion.js';
-import { handleSolDrop, handleSolFile, descargarPlantilla, parsearSolicitud, renderSolicitudes, toggleSol, seleccionarTodosSol, nuevaSolicitud, abrirVincular, renderVincBusqueda, seleccionarProvExistente, renderVincTipo, validarVincCuenta, confirmarNuevoProv } from './modules/solicitudes.js';
+import { renderCola, abrirPagoRapido, abrirModalPago, buscarModal, selPago, agregarACola, abrirModalNominaDisp, filtrarNomDisp, agregarNominaACola, qDel, limpiarCola, buscarRapido, quickAdd, generarArchivo } from './modules/dispersion.js';
+import { handleSolDrop, handleSolFile, descargarPlantilla, parsearSolicitud, renderSolicitudes, toggleSol, seleccionarTodosSol, nuevaSolicitud, abrirVincular, renderVincBusqueda, seleccionarProvExistente, renderVincTipo, validarVincCuenta, confirmarNuevoProv, enviarACola } from './modules/solicitudes.js';
 import { calcularClabeProy, selColor, abrirModalProyecto, guardarProyecto, toggleProyecto, renderConfigProyectos } from './modules/config-page.js';
 import { gsLogin, gsLogout, renderAuthStatus, checkOAuthCallback } from './services/google-auth.js';
 import { gsLoadAll, gsSaveProveedores, gsSaveEmpleados, gsSaveProyectos, gsSaveAlias } from './services/google-sync.js';
@@ -133,12 +133,6 @@ window.limpiarCola = limpiarCola;
 window.buscarRapido = buscarRapido;
 window.quickAdd = quickAdd;
 window.generarArchivo = generarArchivo;
-window.abrirModalDispersion = abrirModalDispersion;
-window.renderModalDisp = renderModalDisp;
-window.toggleAllDisp = toggleAllDisp;
-window.generarExcelBBVA = generarExcelBBVA;
-window.enviarADispersion = enviarADispersion;
-
 // Solicitudes
 window.handleSolDrop = handleSolDrop;
 window.handleSolFile = handleSolFile;
@@ -153,6 +147,7 @@ window.seleccionarProvExistente = seleccionarProvExistente;
 window.renderVincTipo = renderVincTipo;
 window.validarVincCuenta = validarVincCuenta;
 window.confirmarNuevoProv = confirmarNuevoProv;
+window.enviarACola = enviarACola;
 
 // Config / Proyectos
 window.calcularClabeProy = calcularClabeProy;
@@ -172,16 +167,7 @@ window.gsSaveProyectos = gsSaveProyectos;
 window.gsSaveAlias = gsSaveAlias;
 
 // State references for inline onclick in rendered HTML
-// (e.g., dispPagos[i].seleccionado, pendientesConfirmacion[i].confirmado)
-window.dispPagos = state.dispPagos;
 window.pendientesConfirmacion = state.pendientesConfirmacion;
-
-// Keep window references in sync when arrays are replaced
-const origPush = Array.prototype.push;
-Object.defineProperty(state, 'dispPagos', {
-  get() { return window.dispPagos; },
-  set(v) { window.dispPagos = v; }
-});
 Object.defineProperty(state, 'pendientesConfirmacion', {
   get() { return window.pendientesConfirmacion; },
   set(v) { window.pendientesConfirmacion = v; }

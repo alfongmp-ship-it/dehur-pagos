@@ -120,16 +120,10 @@
             <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;margin-bottom:14px;">Generar Archivo</div>
             <div style="font-size:12px;color:var(--muted);margin-bottom:5px;">Cuenta origen:</div>
             <select class="filter-select" style="width:100%;margin-bottom:12px;" id="cuenta-disp"></select>
-            <div style="font-size:12px;color:var(--muted);margin-bottom:5px;">Tipo de pago:</div>
-            <select class="filter-select" style="width:100%;margin-bottom:12px;" id="tipo-disp">
-              <option value="interbancario">Pagos Interbancarios (CLABE)</option>
-              <option value="mismo-banco">Pagos Mismo Banco (BBVA)</option>
-              <option value="nomina">Nómina</option>
-            </select>
             <div style="font-size:12px;color:var(--muted);margin-bottom:5px;">Fecha aplicación:</div>
             <input type="date" id="fecha-disp" style="width:100%;margin-bottom:16px;">
             <button class="btn btn-primary" style="width:100%;padding:12px;" onclick="generarArchivo()">⬇ Generar Archivo BBVA</button>
-            <div style="font-size:11px;color:var(--muted);margin-top:8px;text-align:center;">Compatible con SIM BBVA · CSV</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:8px;text-align:center;">Compatible con SIM BBVA · XLSX</div>
           </div>
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;">
             <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;margin-bottom:10px;">Búsqueda rápida</div>
@@ -199,7 +193,7 @@
           <button class="btn btn-ghost" onclick="descargarPlantilla()" style="font-size:12px;">⬇ Descargar Plantilla</button>
           <div id="sol-actions" style="display:none;gap:8px;">
             <button class="btn btn-ghost" id="btn-nueva-sol" onclick="nuevaSolicitud()">↺ Nueva solicitud</button>
-            <button class="btn btn-primary" id="btn-enviar-disp" onclick="abrirModalDispersion()">⚡ Generar Excel BBVA</button>
+            <button class="btn btn-primary" id="btn-enviar-disp" onclick="enviarACola()">📤 Enviar a Cola</button>
           </div>
         </div>
       </div>
@@ -259,7 +253,7 @@
 
         <div style="display:flex;justify-content:flex-end;margin-top:16px;gap:10px;">
           <button class="btn btn-ghost" onclick="nuevaSolicitud()">↺ Cargar otro archivo</button>
-          <button class="btn btn-primary" style="padding:10px 24px;" onclick="abrirModalDispersion()">⚡ Generar Excel BBVA</button>
+          <button class="btn btn-primary" style="padding:10px 24px;" onclick="enviarACola()">📤 Enviar a Cola de Pagos</button>
         </div>
       </div>
     </div>
@@ -402,40 +396,6 @@
 </div>
 
 <!-- MODAL GENERAR EXCEL BBVA -->
-<div class="modal-overlay" id="modal-dispersion">
-  <div class="modal" style="width:700px;max-height:90vh;overflow-y:auto;">
-    <div class="modal-header">
-      <div class="modal-title">⚡ Generar Excel BBVA</div>
-      <button class="modal-close" onclick="cerrar('modal-dispersion')">✕</button>
-    </div>
-    <div id="disp-resumen" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:18px;"></div>
-    <div style="margin-bottom:14px;">
-      <label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:6px;">CUENTA CARGO (origen del pago)</label>
-      <select id="disp-cuenta-cargo" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px;"></select>
-    </div>
-    <div id="disp-sin-cuenta-warn" style="display:none;background:rgba(255,180,0,.1);border:1px solid rgba(255,180,0,.3);border-radius:8px;padding:12px 14px;font-size:12px;color:#c8960a;margin-bottom:14px;"></div>
-    <div id="disp-tabla-wrap">
-      <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:8px;">PAGOS SELECCIONADOS</div>
-      <div class="table-wrap" style="max-height:280px;overflow-y:auto;">
-        <table>
-          <thead><tr>
-            <th style="width:32px;"><input type="checkbox" id="chk-disp-all" onchange="toggleAllDisp(this.checked)" style="width:14px;height:14px;cursor:pointer;"></th>
-            <th>Beneficiario</th>
-            <th>Concepto</th>
-            <th>Cuenta / CLABE</th>
-            <th>Banco</th>
-            <th style="text-align:right">Importe</th>
-          </tr></thead>
-          <tbody id="tbody-disp"></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="form-actions" style="margin-top:18px;">
-      <button class="btn btn-ghost" onclick="cerrar('modal-dispersion')">Cancelar</button>
-      <button class="btn btn-primary" onclick="generarExcelBBVA()" style="padding:10px 28px;">📥 Descargar Excel BBVA</button>
-    </div>
-  </div>
-</div>
 
 <!-- MODAL CONFIRMACION DE PAGOS -->
 <div class="modal-overlay" id="modal-confirmar-pagos">

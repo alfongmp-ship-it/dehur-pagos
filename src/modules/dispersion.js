@@ -1,7 +1,7 @@
 import { state } from '../state.js';
 import { getTipo } from '../config/bancos.js';
-import { tipoBadge, proyTag } from '../ui/badges.js';
-import { fmt, dl } from '../ui/format.js';
+import { tipoBadge } from '../ui/badges.js';
+import { fmt } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { abrirModalConfirmarPagos } from './historial.js';
@@ -169,136 +169,15 @@ export function quickAdd(src, id) {
   document.getElementById('modal-pago').classList.add('open');
 }
 
-// ---- GENERAR ARCHIVO CSV (desde cola) ----
+// ---- GENERAR ARCHIVO BBVA (XLSX formato SIM) ----
 export function generarArchivo() {
+  if (!window.XLSX) { notify('Cargando librería, intenta en 2 segundos', 'error'); return; }
   if (!state.cola.length) { notify('Cola vacía', 'error'); return; }
-  const tipo = document.getElementById('tipo-disp').value;
   const fecha = document.getElementById('fecha-disp').value || new Date().toISOString().split('T')[0];
   const proyId = document.getElementById('cuenta-disp').value;
   const proySel = state.proyectos.find(p => p.id === proyId) || state.proyectos[0];
   const cargo = proySel.cuenta;
-  const total = state.cola.reduce((s, i) => s + i.importe, 0);
-  let csv = '', fn = '';
-  if (tipo === 'interbancario') {
-    csv = `Numero de Registros=>>,, ${state.cola.length}\nImporte Total=======>>,, ${total.toFixed(2)}\n\nCUENTA CARGO,CUENTA CLABE / TARJETA ABONO,IMPORTE,TITULAR,MOTIVO PAGO,REF_NUMERICA\n`;
-    csv += state.cola.map(i => `${cargo},${i.proveedor.cuenta},${i.importe.toFixed(2)},"${i.proveedor.nombre}","${i.concepto}",`).join('\n');
-    fn = `bbva_interbancario_${fecha.replace(/-/g, '')}.csv`;
-  } else if (tipo === 'mismo-banco') {
-    csv = `Numero de Registros=>>,, ${state.cola.length}\nImporte Total ======>>,, ${total.toFixed(2)}\n\nCUENTA CARGO,CUENTA / TARJETA ABONO,MONEDA,IMPORTE,MOTIVO PAGO\n`;
-    csv += state.cola.map(i => `${cargo},${i.proveedor.cuenta},MXP,${i.importe.toFixed(2)},"${i.concepto}"`).join('\n');
-    fn = `bbva_mismo_banco_${fecha.replace(/-/g, '')}.csv`;
-  } else {
-    csv = `\n\n\n\n\n\n\nAFILIACION,,,,,,,,,,, DISPERSION\n,NO EMPLEADO,NOMBRE,CLABE,BANCO,IMPORTE,,,,,,,IMPORTE\n`;
-    csv += state.cola.map((i, n) => `,${n + 1},"${i.proveedor.nombre}",${i.proveedor.cuenta},${i.proveedor.banco},${i.importe.toFixed(2)},,,,,,,${i.importe.toFixed(2)}`).join('\n');
-    fn = `bbva_nomina_${fecha.replace(/-/g, '')}.csv`;
-  }
-  dl(csv, fn);
-  const fd = new Date().toLocaleDateString('es-MX');
-  state.cola.forEach(item => state.historial.unshift({ fecha: fd, nombre: item.proveedor.nombre, concepto: item.concepto, importe: item.importe, proyecto: item.proyecto, banco: item.proveedor.banco, tipo: item.proveedor.tipo_cuenta }));
-  document.getElementById('cnt-hist').textContent = state.historial.length;
-  notify(`Archivo generado: ${fn}`);
-  state.cola = [];
-  renderCola();
-  document.getElementById('cnt-cola').textContent = 0;
-  document.getElementById('st-cola').textContent = 0;
-}
-
-// ---- GENERAR EXCEL BBVA (desde solicitudes) ----
-export function abrirModalDispersion() {
-  const sel = state.solicitudesData.filter(s => s.seleccionado);
-  if (!sel.length) { notify('Selecciona al menos un pago', 'error'); return; }
-
-  // Bloquear si hay proveedores sin match — forzar vinculación manual primero
-  const sinMatch = sel.filter(s => !s.match);
-  if (sinMatch.length) {
-    notify(`⚠ ${sinMatch.length} proveedor(es) sin vincular: ${sinMatch.map(s => s.proveedor).join(', ')}. Vincúlalos primero.`, 'error');
-    return;
-  }
-
-  state.dispPagos = [];
-  sel.forEach(s => {
-    const prov = s.match;
-    const cuentaF = s.cuentaEmbebida || '';
-    const bancoF = s.bancoEmbebido || '';
-    const cuenta = prov ? prov.cuenta : cuentaF;
-    const banco = prov ? prov.banco : bancoF;
-    const tieneInfo = !!(cuenta);
-    state.dispPagos.push({
-      id: Date.now() + '-' + Math.random(),
-      nombre: prov ? prov.nombre : (s.proveedor || '').toUpperCase(),
-      cuenta: cuenta || '', banco: banco || '',
-      tipo: cuenta ? getTipo(cuenta) : '',
-      concepto: (s.motivo || s.concepto || '').substring(0, 40),
-      importe: s.importe, proyecto: s.proyecto || '',
-      tieneInfo, seleccionado: tieneInfo
-    });
-  });
-
-  const sel2 = document.getElementById('disp-cuenta-cargo');
-  sel2.innerHTML = '';
-  state.proyectos.filter(p => p.activo && p.cuenta).forEach(p => {
-    const o = document.createElement('option');
-    o.value = p.cuenta;
-    o.textContent = p.nombre + ' — cta ' + p.cuenta;
-    sel2.appendChild(o);
-  });
-  const proyFrec = state.dispPagos.map(d => d.proyecto).sort((a, b) =>
-    state.dispPagos.filter(x => x.proyecto === b).length - state.dispPagos.filter(x => x.proyecto === a).length)[0];
-  const proy = state.proyectos.find(p => p.nombre === proyFrec);
-  if (proy && proy.cuenta) sel2.value = proy.cuenta;
-
-  renderModalDisp();
-  document.getElementById('modal-dispersion').classList.add('open');
-}
-
-export function renderModalDisp() {
-  const tbody = document.getElementById('tbody-disp');
-  const total = state.dispPagos.reduce((s, d) => s + d.importe, 0);
-  const selTotal = state.dispPagos.filter(d => d.seleccionado).reduce((s, d) => s + d.importe, 0);
-  const sinInfo = state.dispPagos.filter(d => !d.tieneInfo);
-
-  document.getElementById('disp-resumen').innerHTML =
-    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;">' +
-    '<div style="font-size:11px;color:var(--muted);margin-bottom:4px;">TOTAL SOLICITUD</div>' +
-    '<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:700;">' + fmt(total) + '</div></div>' +
-    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;">' +
-    '<div style="font-size:11px;color:var(--muted);margin-bottom:4px;">A DISPERSAR</div>' +
-    '<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:700;color:var(--accent);">' + fmt(selTotal) + '</div></div>' +
-    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;">' +
-    '<div style="font-size:11px;color:var(--muted);margin-bottom:4px;">SIN CUENTA</div>' +
-    '<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:700;color:' + (sinInfo.length ? '#e74c3c' : 'var(--green)') + ';">' + sinInfo.length + '</div></div>';
-
-  const warn = document.getElementById('disp-sin-cuenta-warn');
-  if (sinInfo.length) {
-    warn.style.display = 'block';
-    warn.textContent = '⚠️ ' + sinInfo.length + ' pago(s) sin datos bancarios (no se incluirán en el Excel): ' + sinInfo.map(x => x.nombre).join(', ');
-  } else { warn.style.display = 'none'; }
-
-  tbody.innerHTML = state.dispPagos.map((d, i) =>
-    '<tr style="' + (d.tieneInfo ? '' : 'opacity:.45') + '">' +
-    '<td><input type="checkbox" ' + (d.seleccionado ? 'checked' : '') + ' ' + (d.tieneInfo ? '' : 'disabled') + ' onchange="dispPagos[' + i + '].seleccionado=this.checked;renderModalDisp()" style="width:14px;height:14px;cursor:pointer;"></td>' +
-    '<td style="font-size:12px;font-weight:500;">' + d.nombre + '</td>' +
-    '<td style="font-size:11px;color:var(--muted);">' + d.concepto + '</td>' +
-    '<td style="font-family:DM Mono,monospace;font-size:11px;">' + (d.cuenta || '<span style="color:#e74c3c">—</span>') + '</td>' +
-    '<td style="font-size:11px;">' + (d.banco || '—') + '</td>' +
-    '<td style="font-family:DM Mono,monospace;font-size:12px;font-weight:600;text-align:right;">' + fmt(d.importe) + '</td>' +
-    '</tr>'
-  ).join('');
-}
-
-export function toggleAllDisp(v) {
-  state.dispPagos.forEach(d => { if (d.tieneInfo) d.seleccionado = v; });
-  renderModalDisp();
-}
-
-export function generarExcelBBVA() {
-  if (!window.XLSX) { notify('Cargando librería, intenta en 2 segundos', 'error'); return; }
-  const activos = state.dispPagos.filter(d => d.seleccionado && d.tieneInfo);
-  if (!activos.length) { notify('Sin pagos con cuenta para generar', 'error'); return; }
-
-  const cuentaCargo = document.getElementById('disp-cuenta-cargo').value;
-  const fecha = new Date().toLocaleDateString('es-MX');
-  const fechaFn = new Date().toISOString().split('T')[0].replace(/-/g, '');
+  const fechaFn = fecha.replace(/-/g, '');
 
   const wb = XLSX.utils.book_new();
   const headers = [
@@ -308,19 +187,30 @@ export function generarExcelBBVA() {
     'TELEFONO BENEFICIARIO', 'BANCO BENEFICIARIO', 'PAIS BANCO BENEFICIARIO', 'DIRECCION BANCO BENEFICIARIO'
   ];
   const data = [headers];
-  activos.forEach(d => {
-    const tipo = getTipo(d.cuenta) === 'CLABE' ? 'Interbancarios' : 'Mismo Banco';
-    data.push([tipo, cuentaCargo, d.cuenta, d.importe, d.concepto, '', 'Pesos', d.nombre, '', '', '', '', '', '']);
+  state.cola.forEach(item => {
+    const tipo = getTipo(item.proveedor.cuenta) === 'CLABE' ? 'Interbancarios' : 'Mismo Banco';
+    data.push([tipo, cargo, item.proveedor.cuenta, item.importe, item.concepto, '', 'Pesos', item.proveedor.nombre, '', '', '', '', '', '']);
   });
   const ws = XLSX.utils.aoa_to_sheet(data);
   XLSX.utils.book_append_sheet(wb, ws, 'Dispersión');
 
-  XLSX.writeFile(wb, 'Dispersion_BBVA_' + fechaFn + '.xlsx');
-  notify('✅ Excel generado: Dispersion_BBVA_' + fechaFn + '.xlsx');
+  const fn = 'Dispersion_BBVA_' + fechaFn + '.xlsx';
+  XLSX.writeFile(wb, fn);
+  notify('✅ Excel generado: ' + fn);
 
-  state.pendientesConfirmacion = [...activos.map(d => Object.assign({}, d, { fechaGen: fecha }))];
-  cerrar('modal-dispersion');
+  // Mover a pendientes de confirmación y abrir modal
+  const fd = new Date().toLocaleDateString('es-MX');
+  state.pendientesConfirmacion = state.cola.map(item => ({
+    id: item.id, nombre: item.proveedor.nombre, cuenta: item.proveedor.cuenta,
+    banco: item.proveedor.banco, tipo: item.proveedor.tipo_cuenta,
+    concepto: item.concepto, importe: item.importe, proyecto: item.proyecto,
+    fechaGen: fd, seleccionado: true, tieneInfo: true
+  }));
+
+  state.cola = [];
+  renderCola();
+  document.getElementById('cnt-cola').textContent = 0;
+  document.getElementById('st-cola').textContent = 0;
   setTimeout(() => { abrirModalConfirmarPagos(); }, 700);
 }
 
-export function enviarADispersion() { abrirModalDispersion(); }
