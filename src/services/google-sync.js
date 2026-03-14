@@ -134,7 +134,7 @@ export async function gsSaveProveedores() {
   if (!state.gsToken) return;
   try {
     const rows = state.proveedores.map(p => [p.id, p.nombre, p.rfc || '', p.banco, p.tipo_cuenta, p.cuenta, p.categoria, (p.proyectos || []).join('|'), p.activo]);
-    await gsClearAndWrite('proveedores', rows, ['id', 'nombre', 'rfc', 'banco', 'tipo_cuenta', 'cuenta', 'categoria', 'proyectos', 'activo']);
+    await gsClearAndWrite('proveedores', rows, ['proveedor_id', 'nombre', 'rfc', 'banco', 'tipo_cuenta', 'cuenta', 'categoria', 'proyectos', 'activo']);
     notify('✅ Proveedores guardados en Sheets');
   } catch (e) { notify('Error guardando proveedores: ' + e.message, 'error'); }
 }

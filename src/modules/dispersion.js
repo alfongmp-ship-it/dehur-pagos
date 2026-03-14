@@ -201,7 +201,8 @@ export function generarArchivo() {
   // Mover a pendientes de confirmación y abrir modal
   const fd = new Date().toLocaleDateString('es-MX');
   state.pendientesConfirmacion = state.cola.map(item => ({
-    id: item.id, proveedor_id: item.proveedor.id || '', nombre: item.proveedor.nombre, cuenta: item.proveedor.cuenta,
+    id: item.id, proveedor_id: item.proveedor_id || item.proveedor.id || '', factura_id: item.factura_id || '',
+    nombre: item.proveedor.nombre, cuenta: item.proveedor.cuenta,
     banco: item.proveedor.banco, tipo: item.proveedor.tipo_cuenta,
     concepto: item.concepto, importe: item.importe, proyecto: item.proyecto,
     fechaGen: fd, seleccionado: true, tieneInfo: true
