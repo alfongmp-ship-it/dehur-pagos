@@ -17,8 +17,13 @@ export async function gsLoadAll() {
         banco: r[4] || 'BBVA',
         tipo_cuenta: r[5] || '',
         cuenta: r[6] || '',
-        activo: r[7] !== 'false'
+        clabe: r[7] || '',
+        rfc: r[8] || '',
+        activo: r[9] !== 'false'
       }));
+    } else if (state.empleados.length) {
+      // Hoja vacía — auto-popular desde JSON seed
+      await gsSaveEmpleados();
     }
 
     // Load historial
@@ -107,8 +112,8 @@ export async function gsSaveAlias(nombreOriginal, provId) {
 export async function gsSaveEmpleados() {
   if (!state.gsToken) return;
   try {
-    const rows = state.empleados.map(e => [e.id, e.nombre, e.puesto || '', e.empresa || '', e.banco, e.tipo_cuenta, e.cuenta, e.activo]);
-    await gsClearAndWrite('empleados', rows, ['id', 'nombre', 'puesto', 'empresa', 'banco', 'tipo_cuenta', 'cuenta', 'activo']);
+    const rows = state.empleados.map(e => [e.id, e.nombre, e.puesto || '', e.empresa || '', e.banco, e.tipo_cuenta, e.cuenta, e.clabe || '', e.rfc || '', e.activo]);
+    await gsClearAndWrite('empleados', rows, ['id', 'nombre', 'puesto', 'empresa', 'banco', 'tipo_cuenta', 'cuenta', 'clabe', 'rfc', 'activo']);
     notify('✅ Empleados guardados en Sheets');
   } catch (e) { console.error('gsSaveEmpleados', e); }
 }
