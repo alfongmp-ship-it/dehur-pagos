@@ -7,6 +7,8 @@ export const state = {
   solicitudesData: [],
   dispPagos: [],
   pendientesConfirmacion: [],
+  facturas: [],
+  facturaPagos: [],
   editProvId: null,
   editEmpId: null,
   editProyId: null,

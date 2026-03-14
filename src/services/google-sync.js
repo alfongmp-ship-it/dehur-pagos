@@ -67,6 +67,42 @@ export async function gsLoadAll() {
       });
     }
 
+    // Load facturas
+    const fRows = await gsReadSheet('facturas');
+    if (fRows && fRows.length > 1) {
+      state.facturas = fRows.slice(1).filter(r => r[0]).map(r => ({
+        factura_id: parseInt(r[0]) || 0,
+        proveedor_id: parseInt(r[1]) || 0,
+        folio_factura: r[2] || '',
+        uuid: r[3] || '',
+        fecha_factura: r[4] || '',
+        fecha_registro: r[5] || '',
+        moneda: r[6] || 'MXN',
+        monto_total: parseFloat(r[7]) || 0,
+        monto_pagado: parseFloat(r[8]) || 0,
+        saldo_pendiente: parseFloat(r[9]) || 0,
+        estatus_factura: r[10] || 'pendiente',
+        proyecto: r[11] || '',
+        observaciones: r[12] || '',
+        activo: r[13] !== 'false'
+      }));
+    }
+
+    // Load factura_pagos
+    const fpRows = await gsReadSheet('factura_pagos');
+    if (fpRows && fpRows.length > 1) {
+      state.facturaPagos = fpRows.slice(1).filter(r => r[0]).map(r => ({
+        factura_pago_id: parseInt(r[0]) || 0,
+        factura_id: parseInt(r[1]) || 0,
+        pago_id: parseInt(r[2]) || 0,
+        proveedor_id: parseInt(r[3]) || 0,
+        monto_aplicado: parseFloat(r[4]) || 0,
+        fecha_pago: r[5] || '',
+        estatus: r[6] || '',
+        observaciones: r[7] || ''
+      }));
+    }
+
     // Re-render everything
     if (window.renderProveedores) window.renderProveedores();
     if (window.renderNomina) window.renderNomina();
@@ -116,6 +152,22 @@ export async function gsSaveEmpleados() {
     await gsClearAndWrite('empleados', rows, ['id', 'nombre', 'puesto', 'empresa', 'banco', 'tipo_cuenta', 'cuenta', 'clabe', 'rfc', 'activo']);
     notify('✅ Empleados guardados en Sheets');
   } catch (e) { console.error('gsSaveEmpleados', e); }
+}
+
+export async function gsSaveFacturas() {
+  if (!state.gsToken) return;
+  try {
+    const rows = state.facturas.map(f => [f.factura_id, f.proveedor_id, f.folio_factura, f.uuid, f.fecha_factura, f.fecha_registro, f.moneda, f.monto_total, f.monto_pagado, f.saldo_pendiente, f.estatus_factura, f.proyecto, f.observaciones, f.activo]);
+    await gsClearAndWrite('facturas', rows, ['factura_id', 'proveedor_id', 'folio_factura', 'uuid', 'fecha_factura', 'fecha_registro', 'moneda', 'monto_total', 'monto_pagado', 'saldo_pendiente', 'estatus_factura', 'proyecto', 'observaciones', 'activo']);
+  } catch (e) { console.error('gsSaveFacturas', e); }
+}
+
+export async function gsSaveFacturaPagos() {
+  if (!state.gsToken) return;
+  try {
+    const rows = state.facturaPagos.map(fp => [fp.factura_pago_id, fp.factura_id, fp.pago_id, fp.proveedor_id, fp.monto_aplicado, fp.fecha_pago, fp.estatus, fp.observaciones]);
+    await gsClearAndWrite('factura_pagos', rows, ['factura_pago_id', 'factura_id', 'pago_id', 'proveedor_id', 'monto_aplicado', 'fecha_pago', 'estatus', 'observaciones']);
+  } catch (e) { console.error('gsSaveFacturaPagos', e); }
 }
 
 export async function gsSaveProyectos() {
