@@ -36,7 +36,9 @@ export async function gsLoadAll() {
         tipo: r[3] || '',
         concepto: r[4] || '',
         importe: parseFloat(r[5]) || 0,
-        proyecto: r[6] || ''
+        proyecto: r[6] || '',
+        proveedor_id: r[7] || '',
+        factura_id: r[8] || ''
       }));
     }
 
@@ -123,7 +125,7 @@ export async function saveData() {
   try {
     if (state.historial.length) {
       const h = state.historial[0];
-      await gsAppendRow('historial_pagos', [h.fecha, h.nombre, h.banco, h.tipo, h.concepto, h.importe, h.proyecto]);
+      await gsAppendRow('historial_pagos', [h.fecha, h.nombre, h.banco, h.tipo, h.concepto, h.importe, h.proyecto, h.proveedor_id || '', h.factura_id || '']);
     }
   } catch (e) { console.error('saveData error', e); }
 }

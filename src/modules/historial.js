@@ -12,15 +12,15 @@ export function renderHistorial() {
     return;
   }
   el.innerHTML = state.historial.map(h =>
-    `<div class="hist-row"><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.fecha}</div><div><div style="font-weight:500;font-size:12px;">${h.nombre}</div><div style="font-size:11px;color:var(--muted);">${h.banco} · ${h.tipo}</div></div><div style="font-size:11px;color:var(--muted);">${h.concepto.substring(0, 35)}</div><div style="font-family:'DM Mono',monospace;font-weight:500;color:var(--accent);text-align:right;">${fmt(h.importe)}</div><div>${proyTag(h.proyecto)}</div></div>`
+    `<div class="hist-row"><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.proveedor_id || '—'}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.factura_id || '—'}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.fecha}</div><div><div style="font-weight:500;font-size:12px;">${h.nombre}</div><div style="font-size:11px;color:var(--muted);">${h.banco} · ${h.tipo}</div></div><div style="font-size:11px;color:var(--muted);">${h.concepto.substring(0, 35)}</div><div style="font-family:'DM Mono',monospace;font-weight:500;color:var(--accent);text-align:right;">${fmt(h.importe)}</div><div>${proyTag(h.proyecto)}</div></div>`
   ).join('');
 }
 
 export function exportarHistorial() {
   if (!state.historial.length) { notify('Sin historial', 'error'); return; }
-  let csv = 'Fecha,Beneficiario,Banco,Tipo Cuenta,Concepto,Importe,Proyecto\n';
+  let csv = 'Proveedor_ID,Factura_ID,Fecha,Beneficiario,Banco,Tipo Cuenta,Concepto,Importe,Proyecto\n';
   csv += state.historial.map(h =>
-    `${h.fecha},"${h.nombre}",${h.banco},${h.tipo},"${h.concepto}",${h.importe},"${h.proyecto}"`
+    `${h.proveedor_id || ''},${h.factura_id || ''},${h.fecha},"${h.nombre}",${h.banco},${h.tipo},"${h.concepto}",${h.importe},"${h.proyecto}"`
   ).join('\n');
   dl(csv, 'historial_pagos_dehur.csv');
   notify('Historial exportado');
@@ -65,7 +65,7 @@ export function confirmarPagos() {
   if (!confirmados.length) { notify('Selecciona al menos un pago confirmado', 'error'); return; }
   const fecha = new Date().toLocaleDateString('es-MX');
   confirmados.forEach(d => {
-    state.historial.unshift({ fecha, nombre: d.nombre, concepto: d.concepto, importe: d.importe, proyecto: d.proyecto, banco: d.banco, tipo: d.tipo || d.cuenta });
+    state.historial.unshift({ fecha, nombre: d.nombre, concepto: d.concepto, importe: d.importe, proyecto: d.proyecto, banco: d.banco, tipo: d.tipo || d.cuenta, proveedor_id: d.proveedor_id || '', factura_id: '' });
   });
   document.getElementById('cnt-hist').textContent = state.historial.length;
   saveData();
