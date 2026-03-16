@@ -46,7 +46,7 @@ export function editarProv(id) {
   document.getElementById('modal-prov-title').textContent = 'Editar Proveedor';
   document.getElementById('p-nombre').value = p.nombre;
   document.getElementById('p-rfc').value = p.rfc || '';
-  document.getElementById('p-cuenta').value = p.cuenta;
+  document.getElementById('p-cuenta').value = p.tipo_cuenta === 'CLABE' ? (p.clabe || p.cuenta) : p.cuenta;
   document.getElementById('p-banco').value = p.banco;
   document.getElementById('p-cat').value = p.categoria;
   document.getElementById('p-activo').value = p.activo ? 'true' : 'false';
