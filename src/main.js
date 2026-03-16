@@ -6,7 +6,7 @@ import { loadProyectos } from './config/proyectos.js';
 import { showPage } from './router.js';
 import { setupModalCloseHandlers, cerrar } from './ui/modal.js';
 import { notify } from './ui/notify.js';
-import { renderHeaderBadges, renderCuentaDispSelect, updateCuentaGlobal } from './ui/header.js';
+import { renderHeaderBadges, renderCuentaDispSelect } from './ui/header.js';
 import { refreshProyectosEnSelects } from './ui/nav.js';
 import { renderProveedores, abrirNuevoProveedor, editarProv, validarCuentaProv, guardarProveedor, exportarCSV } from './modules/proveedores.js';
 import { renderNomina, abrirNuevoEmpleado, editarEmp, updateTipoEmp, validarCuentaEmp, guardarEmpleado, exportarNomina } from './modules/nomina.js';
@@ -76,7 +76,6 @@ window.cerrar = cerrar;
 window.notify = notify;
 window.renderHeaderBadges = renderHeaderBadges;
 window.renderCuentaDispSelect = renderCuentaDispSelect;
-window.updateCuentaGlobal = updateCuentaGlobal;
 window.refreshProyectosEnSelects = refreshProyectosEnSelects;
 
 // Proveedores
