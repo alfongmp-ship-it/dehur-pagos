@@ -13,7 +13,7 @@ import { renderNomina, abrirNuevoEmpleado, editarEmp, updateTipoEmp, validarCuen
 import { renderHistorial, exportarHistorial, renderModalConf, toggleAllConf, abrirModalConfirmarPagos, confirmarPagos } from './modules/historial.js';
 import { renderCola, abrirPagoRapido, abrirModalPago, buscarModal, selPago, agregarACola, abrirModalNominaDisp, filtrarNomDisp, agregarNominaACola, qDel, limpiarCola, buscarRapido, quickAdd, generarArchivo } from './modules/dispersion.js';
 import { handleSolDrop, handleSolFile, descargarPlantilla, parsearSolicitud, renderSolicitudes, toggleSol, seleccionarTodosSol, nuevaSolicitud, abrirVincular, renderVincBusqueda, seleccionarProvExistente, renderVincTipo, validarVincCuenta, confirmarNuevoProv, enviarACola } from './modules/solicitudes.js';
-import { renderFacturas, renderFacturaPagos } from './modules/facturas.js';
+import { renderFacturas, renderFacturaPagos, abrirNuevaFactura, editarFactura, guardarFactura } from './modules/facturas.js';
 import { calcularClabeProy, selColor, abrirModalProyecto, guardarProyecto, toggleProyecto, renderConfigProyectos } from './modules/config-page.js';
 import { gsLogin, gsLogout, renderAuthStatus, checkOAuthCallback } from './services/google-auth.js';
 import { gsLoadAll, gsSaveProveedores, gsSaveEmpleados, gsSaveProyectos, gsSaveAlias } from './services/google-sync.js';
@@ -100,6 +100,9 @@ window.exportarNomina = exportarNomina;
 // Facturas
 window.renderFacturas = renderFacturas;
 window.renderFacturaPagos = renderFacturaPagos;
+window.abrirNuevaFactura = abrirNuevaFactura;
+window.editarFactura = editarFactura;
+window.guardarFactura = guardarFactura;
 // Historial
 window.renderHistorial = renderHistorial;
 window.exportarHistorial = exportarHistorial;

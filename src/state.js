@@ -12,6 +12,7 @@ export const state = {
   editProvId: null,
   editEmpId: null,
   editProyId: null,
+  editFactId: null,
   pagoP: null,
   vincUid: null,
   nextId: 600,

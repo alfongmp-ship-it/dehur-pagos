@@ -176,6 +176,7 @@
     <div id="page-facturas" style="display:none">
       <div class="page-header">
         <div><div class="page-title">Facturas</div><div class="page-subtitle">Registro de facturas por proveedor</div></div>
+        <button class="btn btn-primary" onclick="abrirNuevaFactura()">+ Nueva Factura</button>
       </div>
       <div style="margin-bottom:10px;">
         <div class="search-box"><span class="search-icon">🔍</span><input type="text" id="buscar-fact" placeholder="Buscar por ID, folio o proveedor..." oninput="renderFacturas()"></div>
@@ -192,7 +193,7 @@
       <div id="fact-subtitulo" style="font-size:11px;color:var(--muted);margin-bottom:6px;"></div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th style="width:50px">ID</th><th>Proveedor</th><th>Folio</th><th>Fecha</th><th>Moneda</th><th style="text-align:right">Total</th><th style="text-align:right">Pagado</th><th style="text-align:right">Saldo</th><th>Estatus</th><th>Proyecto</th></tr></thead>
+          <thead><tr><th style="width:50px">ID</th><th>Proveedor</th><th>Folio</th><th>Fecha</th><th>Moneda</th><th style="text-align:right">Total</th><th style="text-align:right">Pagado</th><th style="text-align:right">Saldo</th><th>Estatus</th><th>Proyecto</th><th style="text-align:right">Acciones</th></tr></thead>
           <tbody id="tbody-fact"></tbody>
         </table>
       </div>
@@ -427,6 +428,26 @@
       <div class="field"><label>Estado</label><select id="e-activo"><option value="true">Activo</option><option value="false">Inactivo</option></select></div>
     </div>
     <div class="form-actions"><button class="btn btn-ghost" onclick="cerrar('modal-emp')">Cancelar</button><button class="btn btn-primary" onclick="guardarEmpleado()">Guardar</button></div>
+  </div>
+</div>
+
+<!-- MODAL FACTURA -->
+<div class="modal-overlay" id="modal-factura">
+  <div class="modal">
+    <div class="modal-header"><div class="modal-title" id="modal-fact-title">Nueva Factura</div><button class="modal-close" onclick="cerrar('modal-factura')">✕</button></div>
+    <div class="form-grid">
+      <div class="field span2"><label>Proveedor *</label><select id="f-proveedor"></select></div>
+      <div class="field"><label>Folio Factura *</label><input id="f-folio" placeholder="Ej: A-001"></div>
+      <div class="field"><label>UUID</label><input id="f-uuid" placeholder="Opcional" style="font-family:'DM Mono',monospace;font-size:11px;"></div>
+      <div class="field"><label>Fecha Factura *</label><input type="date" id="f-fecha-factura"></div>
+      <div class="field"><label>Fecha Registro</label><input type="date" id="f-fecha-registro"></div>
+      <div class="field"><label>Moneda</label><select id="f-moneda"><option>MXN</option><option>USD</option></select></div>
+      <div class="field"><label>Monto Total *</label><input type="number" id="f-monto" step="0.01" placeholder="0.00" style="font-family:'DM Mono',monospace;"></div>
+      <div class="field"><label>Estatus</label><select id="f-estatus"><option>pendiente</option><option>parcial</option><option>pagada</option><option>cancelada</option></select></div>
+      <div class="field"><label>Proyecto</label><select id="f-proyecto"></select></div>
+      <div class="field span2"><label>Observaciones</label><textarea id="f-obs" rows="2" placeholder="Opcional" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-size:12px;resize:vertical;"></textarea></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-ghost" onclick="cerrar('modal-factura')">Cancelar</button><button class="btn btn-primary" onclick="guardarFactura()">Guardar</button></div>
   </div>
 </div>
 
