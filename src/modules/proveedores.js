@@ -25,8 +25,8 @@ export function renderProveedores() {
   tb.innerHTML = fil.map(p => `<tr><td><div class="name-cell">${p.nombre}</div>${p.rfc ? `<div class="name-sub">${p.rfc}</div>` : ''}</td><td>${tipoBadge(p.tipo_cuenta)}</td><td style="font-size:13px;">${p.banco}</td><td><span class="mono">${p.clabe || p.cuenta}</span></td><td>${catTag(p.categoria)}</td><td>${p.proyectos.map(proyTag).join(' ')}</td><td><div style="display:flex;gap:6px;justify-content:flex-end;"><button class="btn btn-success btn-sm" onclick="abrirPagoRapido('prov',${p.id})">+ Pago</button><button class="btn btn-ghost btn-sm" onclick="editarProv(${p.id})">Editar</button></div></td></tr>`).join('');
   document.getElementById('st-total').textContent = state.proveedores.length;
   document.getElementById('st-clabe').textContent = state.proveedores.filter(p => p.tipo_cuenta === 'CLABE').length;
-  document.getElementById('st-bbva').textContent = state.proveedores.filter(p => p.tipo_cuenta === 'Cuenta BBVA').length;
-  document.getElementById('st-corta').textContent = state.proveedores.filter(p => p.tipo_cuenta === 'Cuenta corta').length;
+  document.getElementById('st-bbva').textContent = state.proveedores.filter(p => p.tipo_cuenta === 'Cuenta').length;
+  if (document.getElementById('st-corta')) document.getElementById('st-corta').textContent = '0';
   document.getElementById('st-cola').textContent = state.cola.length;
   document.getElementById('sub-prov').textContent = `${fil.length} de ${state.proveedores.length} registros`;
   document.getElementById('cnt-prov').textContent = state.proveedores.length;

@@ -1,7 +1,6 @@
 export function tipoBadge(t) {
   if (t === 'CLABE') return '<span class="tipo-badge-clabe">✓ CLABE</span>';
-  if (t === 'Cuenta BBVA') return '<span class="tipo-badge-bbva">🏦 BBVA</span>';
-  return '<span class="tipo-badge-corta">⚠ Corta</span>';
+  return '<span class="tipo-badge-bbva">Cuenta</span>';
 }
 
 export function catTag(c) {

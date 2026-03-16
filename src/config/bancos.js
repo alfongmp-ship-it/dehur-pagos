@@ -7,6 +7,5 @@ export function getBanco(c) {
 
 export function getTipo(c) {
   if (c.length === 18) return 'CLABE';
-  if (c.length === 10) return 'Cuenta BBVA';
-  return 'Cuenta corta';
+  return 'Cuenta';
 }

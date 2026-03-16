@@ -12,7 +12,7 @@ export async function gsLoadAll() {
         nombre: r[1] || '',
         rfc: r[2] || '',
         banco: r[3] || '',
-        tipo_cuenta: r[4] || '',
+        tipo_cuenta: (r[6] || '').replace(/\D/g, '').length === 18 ? 'CLABE' : 'Cuenta',
         cuenta: r[5] || '',
         clabe: r[6] || '',
         categoria: r[7] || '',
