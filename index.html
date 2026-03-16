@@ -76,7 +76,7 @@
         </select>
         <select class="filter-select" id="f-cat" onchange="renderProveedores()">
           <option value="">Todas las categorías</option>
-          <option>General</option><option>Nomina</option><option>Proveedor</option><option>Obra</option><option>Acreedor</option><option>Socio</option>
+          <option>General</option><option>Nomina</option><option>Proveedor</option><option>Obra</option><option>Contratista</option><option>Acreedor</option><option>Socio</option>
         </select>
         <select class="filter-select" id="f-proy" onchange="renderProveedores()">
           <option value="">Todos los proyectos</option>
@@ -335,7 +335,7 @@
     <div class="form-grid">
       <div class="field span2"><label>Nombre / Razón Social *</label><input id="p-nombre" placeholder="NOMBRE EN MAYÚSCULAS"></div>
       <div class="field"><label>RFC</label><input id="p-rfc" placeholder="Opcional"></div>
-      <div class="field"><label>Categoría</label><select id="p-cat"><option>General</option><option>Nomina</option><option>Proveedor</option><option>Obra</option><option>Acreedor</option><option>Socio</option></select></div>
+      <div class="field"><label>Categoría</label><select id="p-cat"><option>General</option><option>Nomina</option><option>Proveedor</option><option>Obra</option><option>Contratista</option><option>Acreedor</option><option>Socio</option></select></div>
       <div class="field"><label>Número de cuenta</label><input id="p-cuenta" placeholder="Opcional" style="font-family:'DM Mono',monospace;"></div>
       <div class="field"><label>CLABE Interbancaria (18 dígitos)</label><input id="p-clabe" placeholder="000000000000000000" maxlength="18" oninput="validarCuentaProv()" style="font-family:'DM Mono',monospace;"><div id="p-cuenta-status"></div></div>
       <div class="field"><label>Banco detectado</label><input id="p-banco" readonly style="color:var(--muted)"></div>

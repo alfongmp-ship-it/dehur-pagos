@@ -10,7 +10,8 @@ export function catTag(c) {
     'Proveedor': 'tag-general',
     'Obra': 'tag-obra',
     'Acreedor': 'tag-fijo',
-    'Socio': 'tag-prestamo'
+    'Socio': 'tag-prestamo',
+    'Contratista': 'tag-obra'
   };
   return `<span class="tag ${m[c] || 'tag-general'}">${c}</span>`;
 }
