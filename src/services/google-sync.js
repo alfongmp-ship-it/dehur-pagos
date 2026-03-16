@@ -138,6 +138,8 @@ export async function gsLoadAll() {
     if (window.renderHeaderBadges) window.renderHeaderBadges();
     if (window.refreshProyectosEnSelects) window.refreshProyectosEnSelects();
     document.getElementById('cnt-hist').textContent = state.historial.length;
+    document.getElementById('cnt-fact').textContent = state.facturas.length;
+    document.getElementById('cnt-fp').textContent = state.facturaPagos.length;
   } catch (e) {
     console.error('gsLoadAll error', e);
     notify('Error cargando datos: ' + e.message, 'error');

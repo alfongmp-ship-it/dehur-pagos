@@ -42,6 +42,12 @@
     <div class="nav-item" id="nav-historial" onclick="showPage('historial',this)">
       <span>📋</span> Historial <span class="nav-count" id="cnt-hist">0</span>
     </div>
+    <div class="nav-item" id="nav-facturas" onclick="showPage('facturas',this)">
+      <span>🧾</span> Facturas <span class="nav-count" id="cnt-fact">0</span>
+    </div>
+    <div class="nav-item" id="nav-factura-pagos" onclick="showPage('factura-pagos',this)">
+      <span>💳</span> Pagos a Facturas <span class="nav-count" id="cnt-fp">0</span>
+    </div>
     <div class="nav-item" id="nav-config" onclick="showPage('config',this)"><span>⚙</span> Configuración</div>
   </nav>
 
@@ -163,6 +169,49 @@
           <div>ID Prov</div><div>ID Fact</div><div>Fecha</div><div>Beneficiario</div><div>Categoría</div><div>Concepto</div><div style="text-align:right">Importe</div><div>Proyecto</div>
         </div>
         <div id="historial-lista"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">📋</div><div>Sin registros aún</div></div></div>
+      </div>
+    </div>
+
+    <!-- ===== FACTURAS ===== -->
+    <div id="page-facturas" style="display:none">
+      <div class="page-header">
+        <div><div class="page-title">Facturas</div><div class="page-subtitle">Registro de facturas por proveedor</div></div>
+      </div>
+      <div style="margin-bottom:10px;">
+        <div class="search-box"><span class="search-icon">🔍</span><input type="text" id="buscar-fact" placeholder="Buscar por ID, folio o proveedor..." oninput="renderFacturas()"></div>
+      </div>
+      <div class="toolbar">
+        <select class="filter-select" id="ff-estatus" onchange="renderFacturas()">
+          <option value="">Todos los estatus</option>
+          <option>pendiente</option><option>parcial</option><option>pagada</option><option>cancelada</option>
+        </select>
+        <select class="filter-select" id="ff-proy" onchange="renderFacturas()">
+          <option value="">Todos los proyectos</option>
+        </select>
+      </div>
+      <div id="fact-subtitulo" style="font-size:11px;color:var(--muted);margin-bottom:6px;"></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:50px">ID</th><th>Proveedor</th><th>Folio</th><th>Fecha</th><th>Moneda</th><th style="text-align:right">Total</th><th style="text-align:right">Pagado</th><th style="text-align:right">Saldo</th><th>Estatus</th><th>Proyecto</th></tr></thead>
+          <tbody id="tbody-fact"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== FACTURA PAGOS ===== -->
+    <div id="page-factura-pagos" style="display:none">
+      <div class="page-header">
+        <div><div class="page-title">Pagos a Facturas</div><div class="page-subtitle">Detalle de pagos aplicados a facturas</div></div>
+      </div>
+      <div style="margin-bottom:10px;">
+        <div class="search-box"><span class="search-icon">🔍</span><input type="text" id="buscar-fp" placeholder="Buscar por ID de factura o proveedor..." oninput="renderFacturaPagos()"></div>
+      </div>
+      <div id="fp-subtitulo" style="font-size:11px;color:var(--muted);margin-bottom:6px;"></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:50px">ID</th><th>Factura</th><th>Proveedor</th><th style="text-align:right">Monto Aplicado</th><th>Fecha Pago</th><th>Estatus</th><th>Observaciones</th></tr></thead>
+          <tbody id="tbody-fp"></tbody>
+        </table>
       </div>
     </div>
 

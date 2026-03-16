@@ -14,5 +14,7 @@ export function showPage(name, el) {
     if (btn) btn.style.display = state.pendientesConfirmacion && state.pendientesConfirmacion.length ? 'inline-flex' : 'none';
   }
   if (name === 'solicitudes' && window.renderSolicitudes) window.renderSolicitudes();
+  if (name === 'facturas' && window.renderFacturas) window.renderFacturas();
+  if (name === 'factura-pagos' && window.renderFacturaPagos) window.renderFacturaPagos();
   if (name === 'config' && window.renderConfigProyectos) window.renderConfigProyectos();
 }
