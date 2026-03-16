@@ -88,7 +88,7 @@ export function parsearSolicitud(wb, filename) {
     });
 
     // Column offset: new template has proveedor_id(0), factura_id(1) before proveedor(2)
-    const off = tieneProvId ? 2 : 0;
+    const off = tieneProvId ? 1 : 0;
 
     let dataStart = 4;
     rows.forEach((r, i) => {
