@@ -12,7 +12,7 @@ export function renderProveedores() {
   const fc = document.getElementById('f-cat').value;
   const fp = document.getElementById('f-proy').value;
   const fil = state.proveedores.filter(p =>
-    (!q || (p.nombre.toLowerCase().includes(q) || p.cuenta.includes(q) || p.banco.toLowerCase().includes(q))) &&
+    (!q || (String(p.id).includes(q) || p.nombre.toLowerCase().includes(q) || p.cuenta.includes(q) || (p.clabe || '').includes(q) || p.banco.toLowerCase().includes(q))) &&
     (!ft || p.tipo_cuenta === ft) &&
     (!fc || p.categoria === fc) &&
     (!fp || p.proyectos.includes(fp))
