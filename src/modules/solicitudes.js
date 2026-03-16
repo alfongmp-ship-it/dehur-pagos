@@ -52,12 +52,14 @@ export function descargarPlantilla() {
   notify('Plantilla descargada ✓', 'success');
 }
 
-function detectarProyecto(sheetName, obra) {
-  const s = (sheetName + '|' + obra).toUpperCase();
-  if (s.includes('PARAISO') || s.includes('PARAÍSO')) return 'Privada del Paraíso';
-  if (s.includes('ENTORNO')) return 'Entorno';
-  if (s.includes('DT') || s.includes('CONCENTRADORA')) return 'Concentradora DT';
-  return 'Privada del Paraíso';
+function detectarProyecto(sheetName, obra, proyectoFila) {
+  const texto = (proyectoFila || obra || sheetName || '');
+  const norm = texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+  for (const p of state.proyectos) {
+    const pNorm = p.nombre.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+    if (pNorm.includes(norm) || norm.includes(pNorm)) return p.nombre;
+  }
+  return state.proyectos.length ? state.proyectos[0].nombre : texto;
 }
 
 export function parsearSolicitud(wb, filename) {
@@ -164,7 +166,7 @@ export function parsearSolicitud(wb, filename) {
         uid: Date.now() + '-' + Math.random(),
         proveedor, partida, clave, oc, concepto, motivo, importe, flag,
         proveedor_id: proveedorIdRaw, factura_id: facturaIdRaw,
-        esNo, proyecto: detectarProyecto(sheetName, obraGlobal),
+        esNo, proyecto: detectarProyecto(sheetName, obraGlobal, proyectoFila),
         semana: sheetName, cuentaEmbebida, bancoEmbebido,
         match: matchProv, matchMetodo, matchScore,
         vinculadoManual: false, seleccionado: !esNo
