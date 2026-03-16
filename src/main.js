@@ -24,27 +24,14 @@ async function init() {
 
   // 2. Fetch datos JSON en paralelo
   try {
-    const [seedRes, extraRes, nomRes] = await Promise.all([
-      fetch('./data/proveedores-seed.json'),
-      fetch('./data/proveedores-extra.json'),
+    const [nomRes] = await Promise.all([
       fetch('./data/nomina-seed.json')
     ]);
-    const seed = await seedRes.json();
-    const extra = await extraRes.json();
     const nomina = await nomRes.json();
 
-    // 3. Merge proveedores (dedup por cuenta)
-    const cuentasVistas = new Set();
-    const merged = [];
-    [...seed, ...extra].forEach(p => {
-      const key = p.cuenta || p.clabe || p.nombre;
-      if (!cuentasVistas.has(key)) {
-        cuentasVistas.add(key);
-        merged.push(p);
-      }
-    });
-    state.proveedores = merged;
-    state.nextId = Math.max(...merged.map(p => p.id || 0), ...nomina.map(e => e.id || 0)) + 1;
+    // 3. Proveedores: vacío hasta conectar Google Sheets
+    state.proveedores = [];
+    state.nextId = Math.max(...nomina.map(e => e.id || 0)) + 1;
 
     // 4. Empleados
     state.empleados = nomina;
