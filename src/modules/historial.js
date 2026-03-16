@@ -7,25 +7,72 @@ import { saveData } from '../services/google-sync.js';
 
 export function renderHistorial() {
   const el = document.getElementById('historial-lista');
+  refreshHistProyectos();
   if (!state.historial.length) {
     el.innerHTML = `<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">📋</div><div>Sin registros aún</div></div>`;
+    document.getElementById('hist-subtitulo').textContent = '';
     return;
   }
-  el.innerHTML = state.historial.map(h => {
+
+  const fil = getFilteredHistorial();
+
+  const sub = document.getElementById('hist-subtitulo');
+  if (fil.length !== state.historial.length) {
+    sub.textContent = `${fil.length} de ${state.historial.length} registros`;
+  } else {
+    sub.textContent = `${state.historial.length} registros`;
+  }
+
+  if (!fil.length) {
+    el.innerHTML = `<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔍</div><div>Sin resultados con los filtros actuales</div></div>`;
+    return;
+  }
+
+  el.innerHTML = fil.map(h => {
     const prov = h.proveedor_id ? state.proveedores.find(p => p.id === parseInt(h.proveedor_id)) : null;
     const cat = prov ? catTag(prov.categoria) : '<span style="color:var(--muted)">—</span>';
     return `<div class="hist-row"><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.proveedor_id || '—'}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.factura_id || '—'}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.fecha}</div><div><div style="font-weight:500;font-size:12px;">${h.nombre}</div><div style="font-size:11px;color:var(--muted);">${h.banco} · ${h.tipo}</div></div><div>${cat}</div><div style="font-size:11px;color:var(--muted);">${h.concepto.substring(0, 35)}</div><div style="font-family:'DM Mono',monospace;font-weight:500;color:var(--accent);text-align:right;">${fmt(h.importe)}</div><div>${proyTag(h.proyecto)}</div></div>`;
   }).join('');
 }
 
+function refreshHistProyectos() {
+  const sel = document.getElementById('fh-proy');
+  if (!sel) return;
+  const val = sel.value;
+  const opts = state.proyectos.filter(p => p.activo !== false).map(p => p.nombre);
+  sel.innerHTML = '<option value="">Todos los proyectos</option>' + opts.map(n => `<option>${n}</option>`).join('');
+  sel.value = val;
+}
+
 export function exportarHistorial() {
   if (!state.historial.length) { notify('Sin historial', 'error'); return; }
+  const data = getFilteredHistorial();
+  if (!data.length) { notify('Sin registros con los filtros actuales', 'error'); return; }
   let csv = 'Proveedor_ID,Factura_ID,Fecha,Beneficiario,Banco,Tipo Cuenta,Concepto,Importe,Proyecto\n';
-  csv += state.historial.map(h =>
+  csv += data.map(h =>
     `${h.proveedor_id || ''},${h.factura_id || ''},${h.fecha},"${h.nombre}",${h.banco},${h.tipo},"${h.concepto}",${h.importe},"${h.proyecto}"`
   ).join('\n');
   dl(csv, 'historial_pagos_dehur.csv');
-  notify('Historial exportado');
+  notify('Historial exportado (' + data.length + ' registros)');
+}
+
+function getFilteredHistorial() {
+  const q = (document.getElementById('buscar-hist')?.value || '').toLowerCase();
+  const fc = document.getElementById('fh-cat')?.value || '';
+  const fp = document.getElementById('fh-proy')?.value || '';
+  const fd = document.getElementById('fh-desde')?.value || '';
+  const fh2 = document.getElementById('fh-hasta')?.value || '';
+  return state.historial.filter(h => {
+    if (q && !(/^\d+$/.test(q) ? String(h.proveedor_id) === q : h.nombre.toLowerCase().includes(q))) return false;
+    if (fc) {
+      const prov = h.proveedor_id ? state.proveedores.find(p => p.id === parseInt(h.proveedor_id)) : null;
+      if (!prov || prov.categoria !== fc) return false;
+    }
+    if (fp && h.proyecto !== fp) return false;
+    if (fd && h.fecha < fd) return false;
+    if (fh2 && h.fecha > fh2) return false;
+    return true;
+  });
 }
 
 export function renderModalConf() {
