@@ -46,12 +46,12 @@ export function editarProv(id) {
   document.getElementById('modal-prov-title').textContent = 'Editar Proveedor';
   document.getElementById('p-nombre').value = p.nombre;
   document.getElementById('p-rfc').value = p.rfc || '';
-  document.getElementById('p-cuenta').value = p.tipo_cuenta === 'CLABE' ? (p.clabe || p.cuenta) : p.cuenta;
+  document.getElementById('p-cuenta').value = p.cuenta || '';
+  document.getElementById('p-clabe').value = p.clabe || '';
   document.getElementById('p-banco').value = p.banco;
   document.getElementById('p-cat').value = p.categoria;
   document.getElementById('p-activo').value = p.activo ? 'true' : 'false';
-  document.getElementById('p-tipo').value = p.tipo_cuenta;
-  updateTipoProv();
+  validarCuentaProv();
   document.querySelectorAll('#modal-prov .proyecto-pill').forEach(pp =>
     pp.classList.toggle('selected', p.proyectos.includes(pp.dataset.p))
   );
@@ -62,55 +62,40 @@ function limpiarFormProv() {
   document.getElementById('p-nombre').value = '';
   document.getElementById('p-rfc').value = '';
   document.getElementById('p-cuenta').value = '';
+  document.getElementById('p-clabe').value = '';
   document.getElementById('p-banco').value = '';
   document.getElementById('p-cat').value = 'General';
   document.getElementById('p-activo').value = 'true';
-  document.getElementById('p-tipo').value = 'CLABE';
-  updateTipoProv();
+  document.getElementById('p-cuenta-status').textContent = '';
   document.querySelectorAll('#modal-prov .proyecto-pill').forEach(pp => pp.classList.remove('selected'));
 }
 
-export function updateTipoProv() {
-  const t = document.getElementById('p-tipo').value;
-  const lbl = document.getElementById('lbl-cuenta-prov');
-  const inp = document.getElementById('p-cuenta');
-  if (t === 'CLABE') { lbl.textContent = 'CLABE Interbancaria * (18 dígitos)'; inp.maxLength = 18; inp.placeholder = '000000000000000000'; }
-  else if (t === 'Cuenta BBVA') { lbl.textContent = 'Número de Cuenta BBVA * (10 dígitos)'; inp.maxLength = 10; inp.placeholder = '0000000000'; }
-  else { lbl.textContent = 'Número de Cuenta corta *'; inp.maxLength = 15; inp.placeholder = '0000000'; }
-  validarCuentaProv();
-}
-
 export function validarCuentaProv() {
-  const t = document.getElementById('p-tipo').value;
-  const v = document.getElementById('p-cuenta').value.replace(/\D/g, '');
-  document.getElementById('p-cuenta').value = v;
+  const v = (document.getElementById('p-clabe').value || '').replace(/\D/g, '');
+  document.getElementById('p-clabe').value = v;
   const st = document.getElementById('p-cuenta-status');
   const bi = document.getElementById('p-banco');
-  if (t === 'CLABE') {
-    if (v.length === 18) { bi.value = getBanco(v); st.className = 'cuenta-ok'; st.textContent = `✓ ${getBanco(v)}`; }
-    else if (v.length > 0) { st.className = 'cuenta-err'; st.textContent = `${v.length}/18`; bi.value = ''; }
-    else { st.textContent = ''; bi.value = ''; }
-  } else {
-    bi.value = 'BBVA';
-    st.className = v.length > 0 ? 'cuenta-ok' : '';
-    st.textContent = v.length > 0 ? `✓ ${v.length} dígitos · BBVA` : '';
-  }
+  if (v.length === 18) { bi.value = getBanco(v); st.className = 'cuenta-ok'; st.textContent = `✓ ${getBanco(v)}`; }
+  else if (v.length > 0) { st.className = 'cuenta-err'; st.textContent = `${v.length}/18`; bi.value = ''; }
+  else { st.textContent = ''; bi.value = ''; }
 }
 
 export function guardarProveedor() {
   const nombre = document.getElementById('p-nombre').value.trim().toUpperCase();
   const cuenta = document.getElementById('p-cuenta').value.trim();
-  const tipo = document.getElementById('p-tipo').value;
+  const clabe = document.getElementById('p-clabe').value.trim();
   if (!nombre) { notify('El nombre es obligatorio', 'error'); return; }
-  if (!cuenta) { notify('El número de cuenta es obligatorio', 'error'); return; }
-  if (tipo === 'CLABE' && cuenta.length !== 18) { notify('CLABE debe tener 18 dígitos', 'error'); return; }
+  if (!cuenta && !clabe) { notify('Ingresa al menos un número de cuenta o CLABE', 'error'); return; }
+  if (clabe && clabe.length !== 18) { notify('CLABE debe tener 18 dígitos', 'error'); return; }
+  const tipo = clabe.length === 18 ? 'CLABE' : 'Cuenta';
+  const banco = clabe.length === 18 ? getBanco(clabe) : (document.getElementById('p-banco').value || 'BBVA');
   const projs = [...document.querySelectorAll('#modal-prov .proyecto-pill.selected')].map(p => p.dataset.p);
   const existing = state.editProvId ? state.proveedores.find(p => p.id === state.editProvId) : null;
   const obj = {
     id: state.editProvId || state.nextId++,
     nombre, rfc: document.getElementById('p-rfc').value.toUpperCase(),
-    banco: getBanco(cuenta) || 'BBVA', tipo_cuenta: tipo, cuenta,
-    clabe: tipo === 'CLABE' ? cuenta : '', num_cuenta: tipo !== 'CLABE' ? cuenta : '',
+    banco, tipo_cuenta: tipo, cuenta,
+    clabe, num_cuenta: cuenta,
     categoria: document.getElementById('p-cat').value,
     subcategoria: existing ? existing.subcategoria || '' : '',
     activo: document.getElementById('p-activo').value === 'true',

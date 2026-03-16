@@ -336,8 +336,8 @@
       <div class="field span2"><label>Nombre / Razón Social *</label><input id="p-nombre" placeholder="NOMBRE EN MAYÚSCULAS"></div>
       <div class="field"><label>RFC</label><input id="p-rfc" placeholder="Opcional"></div>
       <div class="field"><label>Categoría</label><select id="p-cat"><option>Obra / Materiales</option><option>Nómina / Asimilados</option><option>Impuestos</option><option>Gastos fijos</option><option>Préstamo entre proyectos</option><option>General</option></select></div>
-      <div class="field span2"><label>Tipo de cuenta</label><select id="p-tipo" onchange="updateTipoProv()"><option value="CLABE">CLABE (18 dígitos)</option><option value="Cuenta BBVA">Número de Cuenta BBVA (10 dígitos)</option><option value="Cuenta corta">Cuenta corta</option></select></div>
-      <div class="field span2"><label id="lbl-cuenta-prov">CLABE Interbancaria *</label><input id="p-cuenta" placeholder="000000000000000000" oninput="validarCuentaProv()" style="font-family:'DM Mono',monospace;"><div id="p-cuenta-status"></div></div>
+      <div class="field"><label>Número de cuenta</label><input id="p-cuenta" placeholder="Opcional" style="font-family:'DM Mono',monospace;"></div>
+      <div class="field"><label>CLABE Interbancaria (18 dígitos)</label><input id="p-clabe" placeholder="000000000000000000" maxlength="18" oninput="validarCuentaProv()" style="font-family:'DM Mono',monospace;"><div id="p-cuenta-status"></div></div>
       <div class="field"><label>Banco detectado</label><input id="p-banco" readonly style="color:var(--muted)"></div>
       <div class="field"><label>Estado</label><select id="p-activo"><option value="true">Activo</option><option value="false">Inactivo</option></select></div>
       <div class="field span2"><label>Proyectos</label><div><span id="pills-placeholder" style="font-size:11px;color:var(--muted);">Cargando proyectos...</span></div></div>
