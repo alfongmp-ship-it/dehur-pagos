@@ -66,8 +66,10 @@
         <div class="stat-card"><div class="stat-label">Cta. Corta</div><div class="stat-value stat-orange" id="st-corta">0</div><div class="stat-sub">Alias / formato especial</div></div>
         <div class="stat-card"><div class="stat-label">En Cola</div><div class="stat-value stat-purple" id="st-cola">0</div><div class="stat-sub">Pendientes de pago</div></div>
       </div>
+      <div style="margin-bottom:10px;">
+        <div class="search-box"><span class="search-icon">🔍</span><input type="text" id="buscar-prov" placeholder="Buscar por nombre, cuenta, banco..." oninput="renderProveedores()"></div>
+      </div>
       <div class="toolbar">
-        <div class="search-box"><span class="search-icon">🔍</span><input type="text" id="buscar-prov" placeholder="Buscar nombre, cuenta, banco..." oninput="renderProveedores()"></div>
         <select class="filter-select" id="f-tipo" onchange="renderProveedores()">
           <option value="">Todos los tipos</option>
           <option value="CLABE">CLABE</option>
