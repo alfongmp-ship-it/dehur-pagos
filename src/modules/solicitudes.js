@@ -262,6 +262,7 @@ export function renderSolicitudes() {
     return `<tr style="${rowStyle}">
       <td style="padding:8px 6px;"><input type="checkbox" ${s.seleccionado ? 'checked' : ''}
         onchange="toggleSol('${s.uid}',this.checked)" style="width:15px;height:15px;cursor:pointer;accent-color:var(--accent);"></td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);text-align:center;">${s.proveedor_id || '—'}</td>
       <td>
         <div style="font-size:12px;font-weight:600;line-height:1.3;">${s.match ? s.match.nombre : s.proveedor}</div>
         <div style="font-size:10px;color:var(--muted);margin-top:2px;">${s.proyecto}</div>
