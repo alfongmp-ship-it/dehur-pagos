@@ -85,19 +85,50 @@ function estatusBadge(estatus) {
 // ===== CRUD Facturas =====
 
 function populateFacturaSelects() {
-  const selProv = document.getElementById('f-proveedor');
-  selProv.innerHTML = '<option value="">— Seleccionar —</option>' +
-    state.proveedores.filter(p => p.activo).map(p => `<option value="${p.id}">${p.id} — ${p.nombre}</option>`).join('');
-
   const selProy = document.getElementById('f-proyecto');
   selProy.innerHTML = '<option value="">— Sin proyecto —</option>' +
     state.proyectos.filter(p => p.activo !== false).map(p => `<option>${p.nombre}</option>`).join('');
+}
+
+export function filtrarProvFactura() {
+  const input = document.getElementById('f-proveedor');
+  const dd = document.getElementById('f-prov-dropdown');
+  const q = input.value.trim().toLowerCase();
+  if (!q) {
+    dd.style.display = 'none';
+    document.getElementById('f-proveedor-id').value = '';
+    return;
+  }
+  const results = state.proveedores.filter(p => p.activo &&
+    (/^\d+$/.test(q) ? String(p.id).includes(q) : p.nombre.toLowerCase().includes(q))
+  ).slice(0, 15);
+  if (!results.length) {
+    dd.innerHTML = '<div style="padding:10px;font-size:11px;color:var(--muted);">Sin resultados</div>';
+    dd.style.display = 'block';
+    return;
+  }
+  dd.innerHTML = results.map(p =>
+    `<div onclick="selProvFactura(${p.id})" style="padding:8px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--border);" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background='transparent'">
+      <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-right:6px;">${p.id}</span>${p.nombre}
+    </div>`
+  ).join('');
+  dd.style.display = 'block';
+}
+
+export function selProvFactura(id) {
+  const p = state.proveedores.find(x => x.id === id);
+  if (!p) return;
+  document.getElementById('f-proveedor').value = p.nombre;
+  document.getElementById('f-proveedor-id').value = id;
+  document.getElementById('f-prov-dropdown').style.display = 'none';
 }
 
 export function abrirNuevaFactura() {
   state.editFactId = null;
   document.getElementById('modal-fact-title').textContent = 'Nueva Factura';
   document.getElementById('f-proveedor').value = '';
+  document.getElementById('f-proveedor-id').value = '';
+  document.getElementById('f-prov-dropdown').style.display = 'none';
   document.getElementById('f-folio').value = '';
   document.getElementById('f-uuid').value = '';
   document.getElementById('f-fecha-factura').value = '';
@@ -117,7 +148,10 @@ export function editarFactura(id) {
   state.editFactId = id;
   populateFacturaSelects();
   document.getElementById('modal-fact-title').textContent = 'Editar Factura #' + id;
-  document.getElementById('f-proveedor').value = f.proveedor_id;
+  const prov = state.proveedores.find(p => p.id === f.proveedor_id);
+  document.getElementById('f-proveedor').value = prov ? prov.nombre : `ID ${f.proveedor_id}`;
+  document.getElementById('f-proveedor-id').value = f.proveedor_id;
+  document.getElementById('f-prov-dropdown').style.display = 'none';
   document.getElementById('f-folio').value = f.folio_factura;
   document.getElementById('f-uuid').value = f.uuid || '';
   document.getElementById('f-fecha-factura').value = f.fecha_factura;
@@ -131,7 +165,7 @@ export function editarFactura(id) {
 }
 
 export function guardarFactura() {
-  const provId = parseInt(document.getElementById('f-proveedor').value);
+  const provId = parseInt(document.getElementById('f-proveedor-id').value);
   const folio = document.getElementById('f-folio').value.trim();
   const fechaFact = document.getElementById('f-fecha-factura').value;
   const monto = parseFloat(document.getElementById('f-monto').value) || 0;
