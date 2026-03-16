@@ -5,12 +5,12 @@ export function tipoBadge(t) {
 
 export function catTag(c) {
   const m = {
-    'Obra / Materiales': 'tag-obra',
-    'Nómina / Asimilados': 'tag-nomina',
-    'Impuestos': 'tag-impuesto',
-    'Gastos fijos': 'tag-fijo',
-    'Préstamo entre proyectos': 'tag-prestamo',
-    'General': 'tag-general'
+    'General': 'tag-general',
+    'Nomina': 'tag-nomina',
+    'Proveedor': 'tag-general',
+    'Obra': 'tag-obra',
+    'Acreedor': 'tag-fijo',
+    'Socio': 'tag-prestamo'
   };
   return `<span class="tag ${m[c] || 'tag-general'}">${c}</span>`;
 }
