@@ -241,7 +241,7 @@ export function renderSolicitudes() {
       cuentaHtml = `<span style="font-size:11px;color:var(--red);">⚠ Sin cuenta</span>`;
     }
 
-    const metodoLabel = { 'cuenta exacta': 'Cta.', 'cuenta parcial': 'Cta.', 'cuenta': 'Cta.', 'exacta': 'Exacto', 'contención': 'Contenido', 'contencion': 'Contenido', 'tokens': 'Palabras', 'keyword largo': 'Keyword', 'alias': 'Alias' }[s.matchMetodo] || '';
+    const metodoLabel = { 'id': 'ID', 'cuenta exacta': 'Cta.', 'cuenta parcial': 'Cta.', 'cuenta': 'Cta.', 'exacta': 'Exacto', 'contención': 'Contenido', 'contencion': 'Contenido', 'tokens': 'Palabras', 'keyword largo': 'Keyword', 'alias': 'Alias' }[s.matchMetodo] || '';
     const estadoHtml = s.esNo
       ? `<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;background:rgba(224,90,90,.15);color:var(--red);">NO</span>`
       : s.match
@@ -263,7 +263,7 @@ export function renderSolicitudes() {
       <td style="padding:8px 6px;"><input type="checkbox" ${s.seleccionado ? 'checked' : ''}
         onchange="toggleSol('${s.uid}',this.checked)" style="width:15px;height:15px;cursor:pointer;accent-color:var(--accent);"></td>
       <td>
-        <div style="font-size:12px;font-weight:600;line-height:1.3;">${s.proveedor}</div>
+        <div style="font-size:12px;font-weight:600;line-height:1.3;">${s.match ? s.match.nombre : s.proveedor}</div>
         <div style="font-size:10px;color:var(--muted);margin-top:2px;">${s.proyecto}</div>
       </td>
       <td style="font-size:11px;color:var(--muted);">${s.partida}</td>
