@@ -53,16 +53,16 @@ export async function gsLoadAll() {
     // Load historial
     const hRows = await gsReadSheet('historial_pagos');
     if (hRows && hRows.length > 1) {
-      state.historial = hRows.slice(1).filter(r => r[0]).map(r => ({
-        fecha: r[0] || '',
-        nombre: r[1] || '',
-        banco: r[2] || '',
-        tipo: r[3] || '',
-        concepto: r[4] || '',
-        importe: parseFloat(r[5]) || 0,
-        proyecto: r[6] || '',
-        proveedor_id: r[7] || '',
-        factura_id: r[8] || ''
+      state.historial = hRows.slice(1).filter(r => r[0] || r[2]).map(r => ({
+        proveedor_id: r[0] || '',
+        factura_id: r[1] || '',
+        fecha: r[2] || '',
+        nombre: r[3] || '',
+        banco: r[4] || '',
+        tipo: r[5] || '',
+        concepto: r[6] || '',
+        importe: parseFloat(r[7]) || 0,
+        proyecto: r[8] || ''
       }));
     }
 
@@ -149,7 +149,7 @@ export async function saveData() {
   try {
     if (state.historial.length) {
       const h = state.historial[0];
-      await gsAppendRow('historial_pagos', [h.fecha, h.nombre, h.banco, h.tipo, h.concepto, h.importe, h.proyecto, h.proveedor_id || '', h.factura_id || '']);
+      await gsAppendRow('historial_pagos', [h.proveedor_id || '', h.factura_id || '', h.fecha, h.nombre, h.banco, h.tipo, h.concepto, h.importe, h.proyecto]);
     }
   } catch (e) { console.error('saveData error', e); }
 }
