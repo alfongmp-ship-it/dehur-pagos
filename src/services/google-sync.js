@@ -4,7 +4,31 @@ import { gsReadSheet, gsClearAndWrite, gsAppendRow } from './google-sheets.js';
 
 export async function gsLoadAll() {
   try {
-    // Proveedores: NEVER overwrite from Sheets — always from code/JSON
+    // Load proveedores from Sheets (Sheets is source of truth)
+    const pRows = await gsReadSheet('proveedores');
+    if (pRows && pRows.length > 1) {
+      const loaded = pRows.slice(1).filter(r => r[0]).map(r => ({
+        id: parseInt(r[0]) || 0,
+        nombre: r[1] || '',
+        rfc: r[2] || '',
+        banco: r[3] || '',
+        tipo_cuenta: r[4] || '',
+        cuenta: r[5] || '',
+        clabe: r[6] || '',
+        categoria: r[7] || '',
+        subcategoria: r[8] || '',
+        proyectos: (r[9] || '').split('|').filter(Boolean),
+        activo: r[10] !== 'FALSE' && r[10] !== 'false',
+        bloqueada_para_pago: r[11] === 'TRUE' || r[11] === 'true',
+        aliases: []
+      }));
+      if (loaded.length) {
+        state.proveedores = loaded;
+        document.getElementById('cnt-prov').textContent = loaded.length;
+      }
+    } else if (state.proveedores.length) {
+      await gsSaveProveedores();
+    }
 
     // Load empleados
     const eRows = await gsReadSheet('empleados');
@@ -133,8 +157,8 @@ export async function saveData() {
 export async function gsSaveProveedores() {
   if (!state.gsToken) return;
   try {
-    const rows = state.proveedores.map(p => [p.id, p.nombre, p.rfc || '', p.banco, p.tipo_cuenta, p.cuenta, p.categoria, (p.proyectos || []).join('|'), p.activo]);
-    await gsClearAndWrite('proveedores', rows, ['proveedor_id', 'nombre', 'rfc', 'banco', 'tipo_cuenta', 'cuenta', 'categoria', 'proyectos', 'activo']);
+    const rows = state.proveedores.map(p => [p.id, p.nombre, p.rfc || '', p.banco, p.tipo_cuenta, p.cuenta, p.clabe || '', p.categoria, p.subcategoria || '', (p.proyectos || []).join('|'), p.activo, p.bloqueada_para_pago || false]);
+    await gsClearAndWrite('proveedores', rows, ['proveedor_id', 'nombre', 'rfc', 'banco', 'tipo_cuenta', 'cuenta', 'clabe', 'categoria', 'Subcategoria', 'proyectos', 'activo', 'bloqueada_para_pago']);
     notify('✅ Proveedores guardados en Sheets');
   } catch (e) { notify('Error guardando proveedores: ' + e.message, 'error'); }
 }

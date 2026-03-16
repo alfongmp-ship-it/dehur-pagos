@@ -105,13 +105,16 @@ export function guardarProveedor() {
   if (!cuenta) { notify('El número de cuenta es obligatorio', 'error'); return; }
   if (tipo === 'CLABE' && cuenta.length !== 18) { notify('CLABE debe tener 18 dígitos', 'error'); return; }
   const projs = [...document.querySelectorAll('#modal-prov .proyecto-pill.selected')].map(p => p.dataset.p);
+  const existing = state.editProvId ? state.proveedores.find(p => p.id === state.editProvId) : null;
   const obj = {
     id: state.editProvId || state.nextId++,
     nombre, rfc: document.getElementById('p-rfc').value.toUpperCase(),
     banco: getBanco(cuenta) || 'BBVA', tipo_cuenta: tipo, cuenta,
     clabe: tipo === 'CLABE' ? cuenta : '', num_cuenta: tipo !== 'CLABE' ? cuenta : '',
     categoria: document.getElementById('p-cat').value,
+    subcategoria: existing ? existing.subcategoria || '' : '',
     activo: document.getElementById('p-activo').value === 'true',
+    bloqueada_para_pago: existing ? existing.bloqueada_para_pago || false : false,
     proyectos: projs
   };
   if (state.editProvId) {

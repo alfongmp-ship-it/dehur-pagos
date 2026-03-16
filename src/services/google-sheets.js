@@ -40,7 +40,7 @@ export async function gsInitSheets() {
         requests: toCreate.map(title => ({ addSheet: { properties: { title } } }))
       });
       const headers = {
-        proveedores: [['proveedor_id', 'nombre', 'rfc', 'banco', 'tipo_cuenta', 'cuenta', 'categoria', 'proyectos', 'activo']],
+        proveedores: [['proveedor_id', 'nombre', 'rfc', 'banco', 'tipo_cuenta', 'cuenta', 'clabe', 'categoria', 'Subcategoria', 'proyectos', 'activo', 'bloqueada_para_pago']],
         empleados: [['id', 'nombre', 'puesto', 'empresa', 'banco', 'tipo_cuenta', 'cuenta', 'activo']],
         historial_pagos: [['fecha', 'nombre', 'banco', 'tipo', 'concepto', 'importe', 'proyecto', 'proveedor_id', 'factura_id']],
         proyectos: [['id', 'nombre', 'empresa', 'cuenta', 'clabe', 'color', 'activo']],
