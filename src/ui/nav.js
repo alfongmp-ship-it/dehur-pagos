@@ -1,7 +1,7 @@
 import { state } from '../state.js';
 
 export function refreshProyectosEnSelects() {
-  ['pago-proy', 'f-proy'].forEach(id => {
+  ['pago-proy'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     const cur = el.value;
