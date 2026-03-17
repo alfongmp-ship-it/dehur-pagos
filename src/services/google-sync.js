@@ -110,7 +110,8 @@ export async function gsLoadAll() {
         estatus_factura: r[10] || 'pendiente',
         proyecto: r[11] || '',
         observaciones: r[12] || '',
-        activo: r[13] !== 'false'
+        activo: r[13] !== 'false',
+        fecha_vencimiento: r[14] || ''
       }));
     }
 
@@ -185,8 +186,8 @@ export async function gsSaveEmpleados() {
 export async function gsSaveFacturas() {
   if (!state.gsToken) return;
   try {
-    const rows = state.facturas.map(f => [f.factura_id, f.proveedor_id, f.folio_factura, f.uuid, f.fecha_factura, f.fecha_registro, f.moneda, f.monto_total, f.monto_pagado, f.saldo_pendiente, f.estatus_factura, f.proyecto, f.observaciones, f.activo]);
-    await gsClearAndWrite('facturas', rows, ['factura_id', 'proveedor_id', 'folio_factura', 'uuid', 'fecha_factura', 'fecha_registro', 'moneda', 'monto_total', 'monto_pagado', 'saldo_pendiente', 'estatus_factura', 'proyecto', 'observaciones', 'activo']);
+    const rows = state.facturas.map(f => [f.factura_id, f.proveedor_id, f.folio_factura, f.uuid, f.fecha_factura, f.fecha_registro, f.moneda, f.monto_total, f.monto_pagado, f.saldo_pendiente, f.estatus_factura, f.proyecto, f.observaciones, f.activo, f.fecha_vencimiento || '']);
+    await gsClearAndWrite('facturas', rows, ['factura_id', 'proveedor_id', 'folio_factura', 'uuid', 'fecha_factura', 'fecha_registro', 'moneda', 'monto_total', 'monto_pagado', 'saldo_pendiente', 'estatus_factura', 'proyecto', 'observaciones', 'activo', 'fecha_vencimiento']);
   } catch (e) { console.error('gsSaveFacturas', e); }
 }
 

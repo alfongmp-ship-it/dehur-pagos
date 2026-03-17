@@ -10,7 +10,7 @@ export function renderFacturas() {
   refreshFactProyectos();
 
   if (!state.facturas.length) {
-    tb.innerHTML = '<tr><td colspan="11"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🧾</div><div>Sin facturas registradas</div></div></td></tr>';
+    tb.innerHTML = '<tr><td colspan="12"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🧾</div><div>Sin facturas registradas</div></div></td></tr>';
     document.getElementById('fact-subtitulo').textContent = '';
     return;
   }
@@ -22,7 +22,7 @@ export function renderFacturas() {
     : `${state.facturas.length} facturas`;
 
   if (!fil.length) {
-    tb.innerHTML = '<tr><td colspan="11"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔍</div><div>Sin resultados con los filtros actuales</div></div></td></tr>';
+    tb.innerHTML = '<tr><td colspan="12"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔍</div><div>Sin resultados con los filtros actuales</div></div></td></tr>';
     return;
   }
 
@@ -35,6 +35,7 @@ export function renderFacturas() {
       <td><div style="font-weight:500;font-size:12px;">${provNombre}</div></td>
       <td style="font-size:11px;">${f.folio_factura}</td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${f.fecha_factura}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${f.fecha_vencimiento || '—'}</td>
       <td style="font-size:11px;">${f.moneda}</td>
       <td style="font-family:'DM Mono',monospace;font-weight:500;text-align:right;">${fmt(f.monto_total)}</td>
       <td style="font-family:'DM Mono',monospace;text-align:right;color:var(--green);">${fmt(f.monto_pagado)}</td>
@@ -133,6 +134,7 @@ export function abrirNuevaFactura() {
   document.getElementById('f-uuid').value = '';
   document.getElementById('f-fecha-factura').value = '';
   document.getElementById('f-fecha-registro').value = new Date().toISOString().split('T')[0];
+  document.getElementById('f-fecha-vencimiento').value = '';
   document.getElementById('f-moneda').value = 'MXN';
   document.getElementById('f-monto').value = '';
   document.getElementById('f-estatus').value = 'pendiente';
@@ -156,6 +158,7 @@ export function editarFactura(id) {
   document.getElementById('f-uuid').value = f.uuid || '';
   document.getElementById('f-fecha-factura').value = f.fecha_factura;
   document.getElementById('f-fecha-registro').value = f.fecha_registro;
+  document.getElementById('f-fecha-vencimiento').value = f.fecha_vencimiento || '';
   document.getElementById('f-moneda').value = f.moneda;
   document.getElementById('f-monto').value = f.monto_total;
   document.getElementById('f-estatus').value = f.estatus_factura;
@@ -191,6 +194,7 @@ export function guardarFactura() {
     saldo_pendiente: monto - pagado,
     estatus_factura: document.getElementById('f-estatus').value,
     proyecto: document.getElementById('f-proyecto').value,
+    fecha_vencimiento: document.getElementById('f-fecha-vencimiento').value || '',
     observaciones: document.getElementById('f-obs').value.trim(),
     activo: true
   };
