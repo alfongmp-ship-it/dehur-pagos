@@ -17,4 +17,5 @@ export function showPage(name, el) {
   if (name === 'facturas' && window.renderFacturas) window.renderFacturas();
   if (name === 'factura-pagos' && window.renderFacturaPagos) window.renderFacturaPagos();
   if (name === 'config' && window.renderConfigProyectos) window.renderConfigProyectos();
+  if (name === 'cuentas-propias' && window.renderCuentasPropias) window.renderCuentasPropias();
 }

@@ -116,6 +116,22 @@ export async function gsLoadAll() {
       }));
     }
 
+    // Load cuentas_propias
+    const cpRows = await gsReadSheet('cuentas_propias');
+    if (cpRows && cpRows.length > 1) {
+      state.cuentasPropias = cpRows.slice(1).filter(r => r[0]).map(r => ({
+        cuenta_id: parseInt(r[0]) || 0,
+        nombre: r[1] || '',
+        banco: r[2] || '',
+        clabe: r[3] || '',
+        numero_cuenta: r[4] || '',
+        proyecto: r[5] || '',
+        saldo: parseFloat(r[6]) || 0,
+        ultima_actualizacion: r[7] || '',
+        activo: r[8] !== 'false'
+      }));
+    }
+
     // Load factura_pagos
     const fpRows = await gsReadSheet('factura_pagos');
     if (fpRows && fpRows.length > 1) {
@@ -132,6 +148,7 @@ export async function gsLoadAll() {
     }
 
     // Re-render everything
+    if (window.renderCuentasPropias) window.renderCuentasPropias();
     if (window.renderProveedores) window.renderProveedores();
     if (window.renderNomina) window.renderNomina();
     if (window.renderHistorial) window.renderHistorial();
@@ -198,6 +215,14 @@ export async function gsSaveFacturaPagos() {
     const rows = state.facturaPagos.map(fp => [fp.factura_pago_id, fp.factura_id, fp.pago_id, fp.proveedor_id, fp.monto_aplicado, fp.fecha_pago, fp.estatus, fp.observaciones]);
     await gsClearAndWrite('factura_pagos', rows, ['factura_pago_id', 'factura_id', 'pago_id', 'proveedor_id', 'monto_aplicado', 'fecha_pago', 'estatus', 'observaciones']);
   } catch (e) { console.error('gsSaveFacturaPagos', e); }
+}
+
+export async function gsSaveCuentasPropias() {
+  if (!state.gsToken) return;
+  try {
+    const rows = state.cuentasPropias.map(c => [c.cuenta_id, c.nombre, c.banco, c.clabe || '', c.numero_cuenta || '', c.proyecto || '', c.saldo, c.ultima_actualizacion || '', c.activo]);
+    await gsClearAndWrite('cuentas_propias', rows, ['cuenta_id', 'nombre', 'banco', 'clabe', 'numero_cuenta', 'proyecto', 'saldo', 'ultima_actualizacion', 'activo']);
+  } catch (e) { console.error('gsSaveCuentasPropias', e); }
 }
 
 export async function gsSaveProyectos() {

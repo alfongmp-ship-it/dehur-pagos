@@ -15,8 +15,9 @@ import { renderCola, abrirPagoRapido, abrirModalPago, buscarModal, selPago, agre
 import { handleSolDrop, handleSolFile, descargarPlantilla, parsearSolicitud, renderSolicitudes, toggleSol, seleccionarTodosSol, nuevaSolicitud, abrirVincular, renderVincBusqueda, seleccionarProvExistente, renderVincTipo, validarVincCuenta, confirmarNuevoProv, enviarACola } from './modules/solicitudes.js';
 import { renderFacturas, renderFacturaPagos, abrirNuevaFactura, editarFactura, guardarFactura, filtrarProvFactura, selProvFactura } from './modules/facturas.js';
 import { calcularClabeProy, selColor, abrirModalProyecto, guardarProyecto, toggleProyecto, renderConfigProyectos } from './modules/config-page.js';
+import { renderCuentasPropias, abrirNuevaCuenta, editarCuenta, guardarCuenta } from './modules/cuentas-propias.js';
 import { gsLogin, gsLogout, renderAuthStatus, checkOAuthCallback } from './services/google-auth.js';
-import { gsLoadAll, gsSaveProveedores, gsSaveEmpleados, gsSaveProyectos, gsSaveAlias } from './services/google-sync.js';
+import { gsLoadAll, gsSaveProveedores, gsSaveEmpleados, gsSaveProyectos, gsSaveAlias, gsSaveCuentasPropias } from './services/google-sync.js';
 
 // ===== INICIALIZACIÓN =====
 async function init() {
@@ -58,6 +59,7 @@ async function init() {
   document.getElementById('cnt-prov').textContent = state.proveedores.length;
   document.getElementById('cnt-nom').textContent = state.empleados.length;
   document.getElementById('cnt-hist').textContent = state.historial.length;
+  document.getElementById('cnt-cp').textContent = state.cuentasPropias.length;
 
   // 8. Setup modal close handlers
   setupModalCloseHandlers();
@@ -143,6 +145,13 @@ window.renderVincTipo = renderVincTipo;
 window.validarVincCuenta = validarVincCuenta;
 window.confirmarNuevoProv = confirmarNuevoProv;
 window.enviarACola = enviarACola;
+
+// Cuentas Propias
+window.renderCuentasPropias = renderCuentasPropias;
+window.abrirNuevaCuenta = abrirNuevaCuenta;
+window.editarCuenta = editarCuenta;
+window.guardarCuenta = guardarCuenta;
+window.gsSaveCuentasPropias = gsSaveCuentasPropias;
 
 // Config / Proyectos
 window.calcularClabeProy = calcularClabeProy;
