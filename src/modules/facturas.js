@@ -127,6 +127,7 @@ export function selProvFactura(id) {
 export function abrirNuevaFactura() {
   state.editFactId = null;
   document.getElementById('modal-fact-title').textContent = 'Nueva Factura';
+  document.getElementById('f-razon-social').value = '';
   document.getElementById('f-proveedor').value = '';
   document.getElementById('f-proveedor-id').value = '';
   document.getElementById('f-prov-dropdown').style.display = 'none';
@@ -150,6 +151,7 @@ export function editarFactura(id) {
   state.editFactId = id;
   populateFacturaSelects();
   document.getElementById('modal-fact-title').textContent = 'Editar Factura #' + id;
+  document.getElementById('f-razon-social').value = f.razon_social || '';
   const prov = state.proveedores.find(p => p.id === f.proveedor_id);
   document.getElementById('f-proveedor').value = prov ? prov.nombre : `ID ${f.proveedor_id}`;
   document.getElementById('f-proveedor-id').value = f.proveedor_id;
@@ -182,6 +184,7 @@ export function guardarFactura() {
   const pagado = existing ? existing.monto_pagado : 0;
 
   const obj = {
+    razon_social: document.getElementById('f-razon-social').value.trim(),
     factura_id: state.editFactId || (state.facturas.reduce((max, f) => Math.max(max, f.factura_id), 0) + 1),
     proveedor_id: provId,
     folio_factura: folio,

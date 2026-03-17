@@ -96,22 +96,23 @@ export async function gsLoadAll() {
     // Load facturas
     const fRows = await gsReadSheet('facturas');
     if (fRows && fRows.length > 1) {
-      state.facturas = fRows.slice(1).filter(r => r[0]).map(r => ({
-        factura_id: parseInt(r[0]) || 0,
-        proveedor_id: parseInt(r[1]) || 0,
-        folio_factura: r[2] || '',
-        uuid: r[3] || '',
-        fecha_factura: r[4] || '',
-        fecha_registro: r[5] || '',
-        moneda: r[6] || 'MXN',
-        monto_total: parseFloat(r[7]) || 0,
-        monto_pagado: parseFloat(r[8]) || 0,
-        saldo_pendiente: parseFloat(r[9]) || 0,
-        estatus_factura: r[10] || 'pendiente',
-        proyecto: r[11] || '',
-        observaciones: r[12] || '',
-        activo: r[13] !== 'false',
-        fecha_vencimiento: r[14] || ''
+      state.facturas = fRows.slice(1).filter(r => r[1]).map(r => ({
+        razon_social: r[0] || '',
+        factura_id: parseInt(r[1]) || 0,
+        proveedor_id: parseInt(r[2]) || 0,
+        folio_factura: r[3] || '',
+        uuid: r[4] || '',
+        fecha_factura: r[5] || '',
+        fecha_registro: r[6] || '',
+        moneda: r[7] || 'MXN',
+        monto_total: parseFloat(r[8]) || 0,
+        monto_pagado: parseFloat(r[9]) || 0,
+        saldo_pendiente: parseFloat(r[10]) || 0,
+        estatus_factura: r[11] || 'pendiente',
+        proyecto: r[12] || '',
+        observaciones: r[13] || '',
+        activo: r[14] !== 'false',
+        fecha_vencimiento: r[15] || ''
       }));
     }
 
@@ -186,8 +187,8 @@ export async function gsSaveEmpleados() {
 export async function gsSaveFacturas() {
   if (!state.gsToken) return;
   try {
-    const rows = state.facturas.map(f => [f.factura_id, f.proveedor_id, f.folio_factura, f.uuid, f.fecha_factura, f.fecha_registro, f.moneda, f.monto_total, f.monto_pagado, f.saldo_pendiente, f.estatus_factura, f.proyecto, f.observaciones, f.activo, f.fecha_vencimiento || '']);
-    await gsClearAndWrite('facturas', rows, ['factura_id', 'proveedor_id', 'folio_factura', 'uuid', 'fecha_factura', 'fecha_registro', 'moneda', 'monto_total', 'monto_pagado', 'saldo_pendiente', 'estatus_factura', 'proyecto', 'observaciones', 'activo', 'fecha_vencimiento']);
+    const rows = state.facturas.map(f => [f.razon_social || '', f.factura_id, f.proveedor_id, f.folio_factura, f.uuid, f.fecha_factura, f.fecha_registro, f.moneda, f.monto_total, f.monto_pagado, f.saldo_pendiente, f.estatus_factura, f.proyecto, f.observaciones, f.activo, f.fecha_vencimiento || '']);
+    await gsClearAndWrite('facturas', rows, ['razon_social', 'factura_id', 'proveedor_id', 'folio_factura', 'uuid', 'fecha_factura', 'fecha_registro', 'moneda', 'monto_total', 'monto_pagado', 'saldo_pendiente', 'estatus_factura', 'proyecto', 'observaciones', 'activo', 'fecha_vencimiento']);
   } catch (e) { console.error('gsSaveFacturas', e); }
 }
 
