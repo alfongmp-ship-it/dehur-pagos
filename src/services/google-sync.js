@@ -135,6 +135,29 @@ export async function gsLoadAll() {
       }));
     }
 
+    // Load traspasos
+    const tRows = await gsReadSheet('traspasos');
+    if (tRows && tRows.length > 1) {
+      state.traspasos = tRows.slice(1).filter(r => r[0]).map(r => ({
+        traspaso_id: parseInt(r[0]) || 0,
+        tipo: r[1] || '',
+        cuenta_origen_id: r[2] || '',
+        cuenta_origen_tipo: r[3] || 'proyecto',
+        cuenta_origen_nombre: r[4] || '',
+        proyecto_origen: r[5] || '',
+        cuenta_destino_id: r[6] || '',
+        cuenta_destino_tipo: r[7] || 'proyecto',
+        cuenta_destino_nombre: r[8] || '',
+        proyecto_destino: r[9] || '',
+        monto: parseFloat(r[10]) || 0,
+        fecha: r[11] || '',
+        concepto: r[12] || '',
+        referencia: r[13] || '',
+        estatus: r[14] || 'pendiente',
+        fecha_registro: r[15] || ''
+      }));
+    }
+
     // Load factura_pagos
     const fpRows = await gsReadSheet('factura_pagos');
     if (fpRows && fpRows.length > 1) {
@@ -151,6 +174,8 @@ export async function gsLoadAll() {
     }
 
     // Re-render everything
+    if (window.renderTraspasos) window.renderTraspasos();
+    if (window.renderResumenTraspasos) window.renderResumenTraspasos();
     if (window.renderCuentasPropias) window.renderCuentasPropias();
     if (window.renderProveedores) window.renderProveedores();
     if (window.renderNomina) window.renderNomina();
@@ -226,6 +251,24 @@ export async function gsSaveCuentasPropias() {
     const rows = state.cuentasPropias.map(c => [c.cuenta_id, c.nombre, c.banco, c.clabe || '', c.numero_cuenta || '', c.proyecto || '', c.tipo || 'General', c.saldo, c.ultima_actualizacion || '', c.activo]);
     await gsClearAndWrite('cuentas_propias', rows, ['cuenta_id', 'nombre', 'banco', 'clabe', 'numero_cuenta', 'proyecto', 'tipo', 'saldo', 'ultima_actualizacion', 'activo']);
   } catch (e) { console.error('gsSaveCuentasPropias', e); }
+}
+
+export async function gsSaveTraspasos() {
+  if (!state.gsToken) return;
+  try {
+    const rows = state.traspasos.map(t => [
+      t.traspaso_id, t.tipo,
+      t.cuenta_origen_id, t.cuenta_origen_tipo, t.cuenta_origen_nombre, t.proyecto_origen,
+      t.cuenta_destino_id, t.cuenta_destino_tipo, t.cuenta_destino_nombre, t.proyecto_destino,
+      t.monto, t.fecha, t.concepto, t.referencia, t.estatus, t.fecha_registro
+    ]);
+    await gsClearAndWrite('traspasos', rows, [
+      'traspaso_id', 'tipo',
+      'cuenta_origen_id', 'cuenta_origen_tipo', 'cuenta_origen_nombre', 'proyecto_origen',
+      'cuenta_destino_id', 'cuenta_destino_tipo', 'cuenta_destino_nombre', 'proyecto_destino',
+      'monto', 'fecha', 'concepto', 'referencia', 'estatus', 'fecha_registro'
+    ]);
+  } catch (e) { console.error('gsSaveTraspasos', e); }
 }
 
 export async function gsSaveProyectos() {

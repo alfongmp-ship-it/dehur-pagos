@@ -52,6 +52,12 @@
     <div class="nav-item" id="nav-cuentas-propias" onclick="showPage('cuentas-propias',this)">
       <span>🏦</span> Cuentas Propias <span class="nav-count" id="cnt-cp">0</span>
     </div>
+    <div class="nav-item" id="nav-traspasos" onclick="showPage('traspasos',this)">
+      <span>↔</span> Traspasos y Préstamos <span class="nav-count" id="cnt-traspasos">0</span>
+    </div>
+    <div class="nav-item" id="nav-resumen-traspasos" onclick="showPage('resumen-traspasos',this)">
+      <span>📊</span> Resumen
+    </div>
     <div class="nav-item" id="nav-config" onclick="showPage('config',this)"><span>⚙</span> Configuración</div>
   </nav>
 
@@ -329,6 +335,101 @@
       </div>
     </div>
 
+    <!-- ===== TRASPASOS Y PRÉSTAMOS ===== -->
+    <div id="page-traspasos" style="display:none">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Traspasos y Préstamos</div>
+          <div class="page-subtitle"><span id="cnt-traspasos-sub">0 registros</span></div>
+        </div>
+        <button class="btn btn-primary" onclick="abrirNuevoTraspaso()">+ Nuevo</button>
+      </div>
+      <div class="card" style="padding:0;">
+        <table class="table">
+          <thead><tr>
+            <th>Fecha</th>
+            <th>Tipo</th>
+            <th>Origen → Destino</th>
+            <th style="text-align:right;">Monto</th>
+            <th>Concepto</th>
+            <th>Referencia</th>
+            <th>Estatus</th>
+            <th style="text-align:right;">Acciones</th>
+          </tr></thead>
+          <tbody id="tbody-traspasos"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== RESUMEN TRASPASOS ===== -->
+    <div id="page-resumen-traspasos" style="display:none">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Resumen de Traspasos y Préstamos</div>
+          <div class="page-subtitle"><span id="resumen-cnt">0 registros</span> &nbsp;·&nbsp; Total: <span id="resumen-total" style="font-family:'DM Mono',monospace;color:var(--accent);">$0</span></div>
+        </div>
+      </div>
+
+      <!-- Filtros -->
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+          <div class="field" style="margin:0;min-width:140px;">
+            <label style="font-size:11px;">Tipo</label>
+            <select id="res-filtro-tipo" onchange="filtrarResumen()">
+              <option value="">Todos</option>
+              <option value="Traspaso">Traspaso</option>
+              <option value="Préstamo">Préstamo</option>
+            </select>
+          </div>
+          <div class="field" style="margin:0;min-width:160px;">
+            <label style="font-size:11px;">Proyecto</label>
+            <select id="res-filtro-proyecto" onchange="filtrarResumen()"></select>
+          </div>
+          <div class="field" style="margin:0;min-width:120px;">
+            <label style="font-size:11px;">Estatus</label>
+            <select id="res-filtro-estatus" onchange="filtrarResumen()">
+              <option value="">Todos</option>
+              <option value="pendiente">Pendiente</option>
+              <option value="completado">Completado</option>
+              <option value="cancelado">Cancelado</option>
+            </select>
+          </div>
+          <div class="field" style="margin:0;min-width:130px;">
+            <label style="font-size:11px;">Desde</label>
+            <input type="date" id="res-filtro-desde" oninput="filtrarResumen()">
+          </div>
+          <div class="field" style="margin:0;min-width:130px;">
+            <label style="font-size:11px;">Hasta</label>
+            <input type="date" id="res-filtro-hasta" oninput="filtrarResumen()">
+          </div>
+          <button class="btn btn-ghost btn-sm" style="margin-bottom:2px;" onclick="document.getElementById('res-filtro-tipo').value='';document.getElementById('res-filtro-proyecto').value='';document.getElementById('res-filtro-estatus').value='';document.getElementById('res-filtro-desde').value='';document.getElementById('res-filtro-hasta').value='';filtrarResumen()">Limpiar</button>
+        </div>
+      </div>
+
+      <!-- Saldo neto entre proyectos -->
+      <div class="card" style="margin-bottom:16px;">
+        <div style="font-weight:600;font-size:13px;margin-bottom:10px;">Saldo neto entre proyectos (Préstamos)</div>
+        <div id="resumen-saldos-netos" style="display:flex;flex-wrap:wrap;gap:0;"></div>
+      </div>
+
+      <!-- Tabla histórico -->
+      <div class="card" style="padding:0;">
+        <table class="table">
+          <thead><tr>
+            <th>Fecha</th>
+            <th>Tipo</th>
+            <th>Origen → Destino</th>
+            <th style="text-align:right;">Monto</th>
+            <th>Concepto</th>
+            <th>Referencia</th>
+            <th>Estatus</th>
+            <th>Registrado</th>
+          </tr></thead>
+          <tbody id="tbody-resumen-traspasos"></tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- ===== CONFIGURACIÓN ===== -->
     <div id="page-config" style="display:none">
       <div class="card" style="margin-bottom:24px;">
@@ -445,6 +546,58 @@
       <div class="field"><label>Última Actualización</label><input type="date" id="cp-ultima-act"></div>
     </div>
     <div class="form-actions"><button class="btn btn-ghost" onclick="cerrar('modal-cuenta')">Cancelar</button><button class="btn btn-primary" onclick="guardarCuenta()">Guardar</button></div>
+  </div>
+</div>
+
+<!-- MODAL TRASPASO / PRÉSTAMO -->
+<div class="modal-overlay" id="modal-traspaso">
+  <div class="modal" style="max-width:520px;">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-traspaso-title">Nuevo Traspaso / Préstamo</div>
+      <button class="modal-close" onclick="cerrar('modal-traspaso')">✕</button>
+    </div>
+    <div class="form-grid">
+      <div class="field span2">
+        <label>Cuenta Origen *</label>
+        <select id="tr-origen" onchange="actualizarTipoDetectado()"></select>
+      </div>
+      <div class="field span2">
+        <label>Cuenta Destino *</label>
+        <select id="tr-destino" onchange="actualizarTipoDetectado()"></select>
+      </div>
+      <div class="field span2">
+        <label>Tipo detectado</label>
+        <div id="tr-tipo-badge" style="padding:6px 0;"><span style="color:var(--muted);font-size:12px;">Selecciona ambas cuentas</span></div>
+      </div>
+      <div class="field">
+        <label>Monto *</label>
+        <input type="number" id="tr-monto" step="0.01" placeholder="0.00" style="font-family:'DM Mono',monospace;">
+      </div>
+      <div class="field">
+        <label>Fecha *</label>
+        <input type="date" id="tr-fecha">
+      </div>
+      <div class="field span2">
+        <label>Concepto</label>
+        <input type="text" id="tr-concepto" placeholder="Descripción del movimiento">
+      </div>
+      <div class="field">
+        <label>Referencia</label>
+        <input type="text" id="tr-referencia" placeholder="Folio, referencia, etc.">
+      </div>
+      <div class="field">
+        <label>Estatus</label>
+        <select id="tr-estatus">
+          <option value="pendiente">Pendiente</option>
+          <option value="completado">Completado</option>
+          <option value="cancelado">Cancelado</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="cerrar('modal-traspaso')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarTraspaso()">Guardar</button>
+    </div>
   </div>
 </div>
 

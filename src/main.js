@@ -14,10 +14,12 @@ import { renderHistorial, exportarHistorial, renderModalConf, toggleAllConf, abr
 import { renderCola, abrirPagoRapido, abrirModalPago, buscarModal, selPago, agregarACola, abrirModalNominaDisp, filtrarNomDisp, agregarNominaACola, qDel, limpiarCola, buscarRapido, quickAdd, generarArchivo } from './modules/dispersion.js';
 import { handleSolDrop, handleSolFile, descargarPlantilla, parsearSolicitud, renderSolicitudes, toggleSol, seleccionarTodosSol, nuevaSolicitud, abrirVincular, renderVincBusqueda, seleccionarProvExistente, renderVincTipo, validarVincCuenta, confirmarNuevoProv, enviarACola } from './modules/solicitudes.js';
 import { renderFacturas, renderFacturaPagos, abrirNuevaFactura, editarFactura, guardarFactura, filtrarProvFactura, selProvFactura } from './modules/facturas.js';
+import { renderTraspasos, abrirNuevoTraspaso, editarTraspaso, guardarTraspaso, eliminarTraspaso, actualizarTipoDetectado } from './modules/traspasos.js';
+import { renderResumenTraspasos, filtrarResumen } from './modules/resumen-traspasos.js';
 import { calcularClabeProy, selColor, abrirModalProyecto, guardarProyecto, toggleProyecto, renderConfigProyectos } from './modules/config-page.js';
 import { renderCuentasPropias, abrirNuevaCuenta, editarCuenta, guardarCuenta, actualizarSaldoCuenta, guardarSaldoCuenta } from './modules/cuentas-propias.js';
 import { gsLogin, gsLogout, renderAuthStatus, checkOAuthCallback } from './services/google-auth.js';
-import { gsLoadAll, gsSaveProveedores, gsSaveEmpleados, gsSaveProyectos, gsSaveAlias, gsSaveCuentasPropias } from './services/google-sync.js';
+import { gsLoadAll, gsSaveProveedores, gsSaveEmpleados, gsSaveProyectos, gsSaveAlias, gsSaveCuentasPropias, gsSaveTraspasos } from './services/google-sync.js';
 
 // ===== INICIALIZACIÓN =====
 async function init() {
@@ -108,6 +110,18 @@ window.editarFactura = editarFactura;
 window.guardarFactura = guardarFactura;
 window.filtrarProvFactura = filtrarProvFactura;
 window.selProvFactura = selProvFactura;
+
+// Traspasos y Préstamos
+window.renderTraspasos = renderTraspasos;
+window.abrirNuevoTraspaso = abrirNuevoTraspaso;
+window.editarTraspaso = editarTraspaso;
+window.guardarTraspaso = guardarTraspaso;
+window.eliminarTraspaso = eliminarTraspaso;
+window.actualizarTipoDetectado = actualizarTipoDetectado;
+window.renderResumenTraspasos = renderResumenTraspasos;
+window.filtrarResumen = filtrarResumen;
+window.gsSaveTraspasos = gsSaveTraspasos;
+
 // Historial
 window.renderHistorial = renderHistorial;
 window.exportarHistorial = exportarHistorial;
