@@ -79,7 +79,7 @@ export async function gsLoadAll() {
         activo: r[6] !== 'false',
         saldo: parseFloat(r[7]) || 0,
         ultima_act_saldo: r[8] || '',
-        es_concentradora: r[9] === 'true' || r[9] === true
+        es_concentradora: String(r[9]).toLowerCase() === 'true'
       }));
       if (loaded.length) state.proyectos = loaded;
     }
