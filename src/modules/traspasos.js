@@ -60,7 +60,7 @@ export function renderTraspasos() {
   if (cnt) cnt.textContent = state.traspasos.length;
 
   if (!state.traspasos.length) {
-    tb.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">↔</div><div>Sin traspasos o préstamos registrados</div></div></td></tr>';
+    tb.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">↔</div><div>Sin traspasos o préstamos registrados</div></div></td></tr>';
     return;
   }
 
@@ -70,10 +70,8 @@ export function renderTraspasos() {
     <tr>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${t.fecha || '—'}</td>
       <td>${tipoBadge(t.tipo)}</td>
-      <td style="font-size:12px;">
-        <div style="font-weight:500;">${t.cuenta_origen_nombre || '—'}</div>
-        <div style="color:var(--muted);font-size:10px;margin-top:2px;">→ ${t.cuenta_destino_nombre || '—'}</div>
-      </td>
+      <td style="font-size:12px;font-weight:500;">${t.cuenta_origen_nombre || '—'}</td>
+      <td style="font-size:12px;color:var(--muted);">${t.cuenta_destino_nombre || '—'}</td>
       <td style="font-family:'DM Mono',monospace;font-weight:600;text-align:right;color:var(--accent);">${fmt(t.monto)}</td>
       <td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.concepto || '—'}</td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${t.referencia || '—'}</td>
