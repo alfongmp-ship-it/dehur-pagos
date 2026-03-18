@@ -9,7 +9,7 @@ export function actualizarDisplaySaldo() {
   const p = proyId ? state.proyectos.find(x => x.id === proyId) : null;
   if (p && p.saldo) {
     el.style.display = '';
-    el.innerHTML = `🏦 <span style="color:var(--accent);font-weight:600;">${fmt(p.saldo)}</span><span style="color:var(--muted);font-size:10px;margin-left:4px;">disponible</span>`;
+    el.innerHTML = `🏦 <span style="color:var(--green);font-weight:700;font-size:15px;">${fmt(p.saldo)}</span><span style="color:var(--muted);font-size:11px;margin-left:6px;">disponible</span>`;
   } else {
     el.style.display = 'none';
   }
