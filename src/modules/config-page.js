@@ -38,6 +38,7 @@ export function abrirModalProyecto(id) {
   document.getElementById('proy-clabe-preview').textContent = '';
   if (p?.clabe) document.getElementById('proy-clabe-preview').innerHTML =
     `CLABE actual: <span style="font-family:'DM Mono',monospace;">${p.clabe}</span>`;
+  document.getElementById('proy-concentradora').checked = p?.es_concentradora || false;
   document.getElementById('modal-proyecto').classList.add('open');
 }
 
@@ -55,12 +56,13 @@ export function guardarProyecto() {
     const d = (10 - ([...base].reduce((s, c, i) => s + parseInt(c) * pesos[i], 0) % 10)) % 10;
     clabe = base + d;
   }
+  const es_concentradora = document.getElementById('proy-concentradora').checked;
   if (state.editProyId) {
     const idx = state.proyectos.findIndex(p => p.id === state.editProyId);
-    state.proyectos[idx] = { ...state.proyectos[idx], nombre, empresa, cuenta, clabe, color, saldo: state.proyectos[idx].saldo || 0, ultima_act_saldo: state.proyectos[idx].ultima_act_saldo || '' };
+    state.proyectos[idx] = { ...state.proyectos[idx], nombre, empresa, cuenta, clabe, color, saldo: state.proyectos[idx].saldo || 0, ultima_act_saldo: state.proyectos[idx].ultima_act_saldo || '', es_concentradora };
   } else {
     const id = 'proy_' + nombre.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').slice(0, 20) + '_' + Date.now();
-    state.proyectos.push({ id, nombre, empresa, cuenta, clabe, color, activo: true, saldo: 0, ultima_act_saldo: '' });
+    state.proyectos.push({ id, nombre, empresa, cuenta, clabe, color, activo: true, saldo: 0, ultima_act_saldo: '', es_concentradora });
   }
   saveProy(state.proyectos);
   cerrar('modal-proyecto');

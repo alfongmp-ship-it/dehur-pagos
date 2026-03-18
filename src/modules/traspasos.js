@@ -9,7 +9,8 @@ function getAllCuentas() {
     id: p.id,
     tipo: 'proyecto',
     nombre: p.nombre + ' – BBVA ···' + p.cuenta.slice(-4),
-    proyecto: p.nombre
+    proyecto: p.nombre,
+    es_concentradora: p.es_concentradora || false
   }));
   const deExtra = state.cuentasPropias.filter(c => c.activo !== false).map(c => ({
     id: String(c.cuenta_id),
@@ -25,15 +26,19 @@ function detectarTipo(origenId, destinoId) {
   const o = cuentas.find(c => String(c.id) === String(origenId));
   const d = cuentas.find(c => String(c.id) === String(destinoId));
   if (!o || !d) return '';
+  if (o.es_concentradora || d.es_concentradora) return 'Aportación';
   if (!o.proyecto || !d.proyecto) return 'Préstamo';
   return o.proyecto === d.proyecto ? 'Traspaso' : 'Préstamo';
 }
 
 function tipoBadge(tipo) {
   if (!tipo) return '<span style="color:var(--muted);font-size:11px;">—</span>';
-  const color = tipo === 'Traspaso'
-    ? 'rgba(52,152,219,.15);color:#3498db'
-    : 'rgba(200,169,110,.15);color:#C8A96E';
+  const colorMap = {
+    'Traspaso':  'rgba(52,152,219,.15);color:#3498db',
+    'Préstamo':  'rgba(200,169,110,.15);color:#C8A96E',
+    'Aportación':'rgba(39,174,96,.15);color:#27ae60'
+  };
+  const color = colorMap[tipo] || colorMap['Préstamo'];
   return `<span style="display:inline-block;padding:2px 10px;border-radius:6px;font-size:11px;font-weight:600;background:${color};">${tipo}</span>`;
 }
 

@@ -78,7 +78,8 @@ export async function gsLoadAll() {
         color: r[5] || '#C8A96E',
         activo: r[6] !== 'false',
         saldo: parseFloat(r[7]) || 0,
-        ultima_act_saldo: r[8] || ''
+        ultima_act_saldo: r[8] || '',
+        es_concentradora: r[9] === 'true' || r[9] === true
       }));
       if (loaded.length) state.proyectos = loaded;
     }
@@ -274,8 +275,8 @@ export async function gsSaveTraspasos() {
 export async function gsSaveProyectos() {
   if (!state.gsToken) return;
   try {
-    const rows = state.proyectos.map(p => [p.id, p.nombre, p.empresa || '', p.cuenta || '', p.clabe || '', p.color || '', p.activo, p.saldo || 0, p.ultima_act_saldo || '']);
-    await gsClearAndWrite('proyectos', rows, ['id', 'nombre', 'empresa', 'cuenta', 'clabe', 'color', 'activo', 'saldo', 'ultima_act_saldo']);
+    const rows = state.proyectos.map(p => [p.id, p.nombre, p.empresa || '', p.cuenta || '', p.clabe || '', p.color || '', p.activo, p.saldo || 0, p.ultima_act_saldo || '', p.es_concentradora || false]);
+    await gsClearAndWrite('proyectos', rows, ['id', 'nombre', 'empresa', 'cuenta', 'clabe', 'color', 'activo', 'saldo', 'ultima_act_saldo', 'es_concentradora']);
     notify('✅ Proyectos guardados en Sheets');
   } catch (e) { console.error('gsSaveProyectos', e); }
 }

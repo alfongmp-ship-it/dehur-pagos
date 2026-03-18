@@ -43,7 +43,7 @@ export async function gsInitSheets() {
         proveedores: [['proveedor_id', 'nombre', 'rfc', 'banco', 'tipo_cuenta', 'cuenta', 'clabe', 'categoria', 'Subcategoria', 'proyectos', 'activo', 'bloqueada_para_pago']],
         empleados: [['id', 'nombre', 'puesto', 'empresa', 'banco', 'tipo_cuenta', 'cuenta', 'activo']],
         historial_pagos: [['proveedor_id', 'factura_id', 'fecha', 'nombre', 'banco', 'tipo', 'concepto', 'importe', 'proyecto']],
-        proyectos: [['id', 'nombre', 'empresa', 'cuenta', 'clabe', 'color', 'activo']],
+        proyectos: [['id', 'nombre', 'empresa', 'cuenta', 'clabe', 'color', 'activo', 'saldo', 'ultima_act_saldo', 'es_concentradora']],
         facturas: [['factura_id', 'proveedor_id', 'folio_factura', 'uuid', 'fecha_factura', 'fecha_registro', 'moneda', 'monto_total', 'monto_pagado', 'saldo_pendiente', 'estatus_factura', 'proyecto', 'observaciones', 'activo']],
         factura_pagos: [['factura_pago_id', 'factura_id', 'pago_id', 'proveedor_id', 'monto_aplicado', 'fecha_pago', 'estatus', 'observaciones']],
         aliases: [['alias', 'proveedor_id', 'fecha']],

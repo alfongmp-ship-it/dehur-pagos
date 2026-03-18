@@ -379,6 +379,7 @@
               <option value="">Todos</option>
               <option value="Traspaso">Traspaso</option>
               <option value="Préstamo">Préstamo</option>
+              <option value="Aportación">Aportación</option>
             </select>
           </div>
           <div class="field" style="margin:0;min-width:160px;">
@@ -510,6 +511,12 @@
           <span class="proy-color-opt" data-color="#e05a5a" onclick="selColor(this)" style="width:26px;height:26px;border-radius:50%;background:#e05a5a;cursor:pointer;border:2px solid transparent;"></span>
         </div>
         <input type="hidden" id="proy-color" value="#c8a96e">
+      </div>
+      <div class="field span2" style="margin-top:4px;">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400;">
+          <input type="checkbox" id="proy-concentradora" style="width:15px;height:15px;">
+          <span>Cuenta Concentradora <span style="color:var(--muted);font-size:11px;">(recibe aportaciones de otros proyectos, no genera deuda)</span></span>
+        </label>
       </div>
     </div>
     <div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end;">
