@@ -197,7 +197,8 @@ export function guardarTraspaso() {
         tipo: 'Aportación',
         proveedor_id: '',
         factura_id: '',
-        cuenta_origen: o.nombre
+        cuenta_origen: o.proyecto,
+        tipo_registro: 'Traspaso'
       });
       saveData();
       const cntHist = document.getElementById('cnt-hist');
