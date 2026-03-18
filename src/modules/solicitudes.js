@@ -162,9 +162,10 @@ export function parsearSolicitud(wb, filename) {
         matchScore = esExacto ? matchResult.score : 0;
       }
 
+      const nombreFinal = (matchProv && matchMetodo === 'id') ? matchProv.nombre : proveedor;
       state.solicitudesData.push({
         uid: Date.now() + '-' + Math.random(),
-        proveedor, partida, clave, oc, concepto, motivo, importe, flag,
+        proveedor: nombreFinal, partida, clave, oc, concepto, motivo, importe, flag,
         proveedor_id: proveedorIdRaw, factura_id: facturaIdRaw,
         esNo, proyecto: detectarProyecto(sheetName, obraGlobal, proyectoFila),
         semana: sheetName, cuentaEmbebida, bancoEmbebido,
