@@ -4,6 +4,7 @@ import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { renderCuentaDispSelect, renderHeaderBadges } from '../ui/header.js';
 import { refreshProyectosEnSelects } from '../ui/nav.js';
+import { gsSaveProyectos } from '../services/google-sync.js';
 
 export function calcularClabeProy() {
   const cta = document.getElementById('proy-cuenta').value.trim().replace(/\D/g, '');
@@ -71,11 +72,12 @@ export function guardarProyecto() {
   renderHeaderBadges();
   refreshProyectosEnSelects();
   notify(state.editProyId ? 'Proyecto actualizado' : 'Proyecto agregado ✓');
+  gsSaveProyectos();
 }
 
 export function toggleProyecto(id, activo) {
   const p = state.proyectos.find(x => x.id === id);
-  if (p) { p.activo = activo; saveProy(state.proyectos); }
+  if (p) { p.activo = activo; saveProy(state.proyectos); gsSaveProyectos(); }
   renderConfigProyectos();
   renderCuentaDispSelect();
   renderHeaderBadges();
