@@ -46,7 +46,7 @@ export function buscarModal() {
   const res = document.getElementById('res-modal');
   if (!q) { res.style.display = 'none'; return; }
   const all = [...state.proveedores.map(p => ({ ...p, _src: 'prov' })), ...state.empleados.map(e => ({ ...e, _src: 'emp' }))];
-  const f = all.filter(p => p.nombre.toLowerCase().includes(q) || p.cuenta.includes(q)).slice(0, 8);
+  const f = all.filter(p => p.nombre.toLowerCase().includes(q) || p.cuenta.includes(q) || String(p.id) === q).slice(0, 8);
   if (!f.length) { res.style.display = 'none'; return; }
   res.style.display = '';
   res.innerHTML = f.map(p =>
