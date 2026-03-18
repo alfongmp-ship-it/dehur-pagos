@@ -106,7 +106,8 @@
     <div id="page-dispersion" style="display:none">
       <div class="page-header">
         <div><div class="page-title">Dispersión BBVA</div><div class="page-subtitle">Arma tu orden semanal y genera el archivo para el banco</div></div>
-        <div style="display:flex;gap:8px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div id="disp-saldo-display" style="display:none;padding:6px 12px;border-radius:8px;background:var(--surface);border:1px solid var(--border);font-size:12px;font-family:'DM Mono',monospace;"></div>
           <button class="btn btn-ghost" onclick="abrirModalNominaDisp()">+ Nómina completa</button>
           <button class="btn btn-primary" onclick="abrirModalPago()">+ Agregar Pago</button>
         </div>
@@ -129,7 +130,7 @@
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:16px;">
             <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;margin-bottom:14px;">Generar Archivo</div>
             <div style="font-size:12px;color:var(--muted);margin-bottom:5px;">Cuenta origen:</div>
-            <select class="filter-select" style="width:100%;margin-bottom:12px;" id="cuenta-disp"></select>
+            <select class="filter-select" style="width:100%;margin-bottom:12px;" id="cuenta-disp" onchange="actualizarDisplaySaldo()"></select>
             <div style="font-size:12px;color:var(--muted);margin-bottom:5px;">Fecha aplicación:</div>
             <input type="date" id="fecha-disp" style="width:100%;margin-bottom:16px;">
             <button class="btn btn-primary" style="width:100%;padding:12px;" onclick="generarArchivo()">⬇ Generar Archivo BBVA</button>
