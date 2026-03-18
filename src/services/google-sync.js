@@ -76,7 +76,9 @@ export async function gsLoadAll() {
         cuenta: r[3] || '',
         clabe: r[4] || '',
         color: r[5] || '#C8A96E',
-        activo: r[6] !== 'false'
+        activo: r[6] !== 'false',
+        saldo: parseFloat(r[7]) || 0,
+        ultima_act_saldo: r[8] || ''
       }));
       if (loaded.length) state.proyectos = loaded;
     }
@@ -229,8 +231,8 @@ export async function gsSaveCuentasPropias() {
 export async function gsSaveProyectos() {
   if (!state.gsToken) return;
   try {
-    const rows = state.proyectos.map(p => [p.id, p.nombre, p.empresa || '', p.cuenta || '', p.clabe || '', p.color || '', p.activo]);
-    await gsClearAndWrite('proyectos', rows, ['id', 'nombre', 'empresa', 'cuenta', 'clabe', 'color', 'activo']);
+    const rows = state.proyectos.map(p => [p.id, p.nombre, p.empresa || '', p.cuenta || '', p.clabe || '', p.color || '', p.activo, p.saldo || 0, p.ultima_act_saldo || '']);
+    await gsClearAndWrite('proyectos', rows, ['id', 'nombre', 'empresa', 'cuenta', 'clabe', 'color', 'activo', 'saldo', 'ultima_act_saldo']);
     notify('✅ Proyectos guardados en Sheets');
   } catch (e) { console.error('gsSaveProyectos', e); }
 }

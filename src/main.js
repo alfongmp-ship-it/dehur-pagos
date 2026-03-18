@@ -15,7 +15,7 @@ import { renderCola, abrirPagoRapido, abrirModalPago, buscarModal, selPago, agre
 import { handleSolDrop, handleSolFile, descargarPlantilla, parsearSolicitud, renderSolicitudes, toggleSol, seleccionarTodosSol, nuevaSolicitud, abrirVincular, renderVincBusqueda, seleccionarProvExistente, renderVincTipo, validarVincCuenta, confirmarNuevoProv, enviarACola } from './modules/solicitudes.js';
 import { renderFacturas, renderFacturaPagos, abrirNuevaFactura, editarFactura, guardarFactura, filtrarProvFactura, selProvFactura } from './modules/facturas.js';
 import { calcularClabeProy, selColor, abrirModalProyecto, guardarProyecto, toggleProyecto, renderConfigProyectos } from './modules/config-page.js';
-import { renderCuentasPropias, abrirNuevaCuenta, editarCuenta, guardarCuenta } from './modules/cuentas-propias.js';
+import { renderCuentasPropias, abrirNuevaCuenta, editarCuenta, guardarCuenta, actualizarSaldoCuenta, guardarSaldoCuenta } from './modules/cuentas-propias.js';
 import { gsLogin, gsLogout, renderAuthStatus, checkOAuthCallback } from './services/google-auth.js';
 import { gsLoadAll, gsSaveProveedores, gsSaveEmpleados, gsSaveProyectos, gsSaveAlias, gsSaveCuentasPropias } from './services/google-sync.js';
 
@@ -152,6 +152,8 @@ window.abrirNuevaCuenta = abrirNuevaCuenta;
 window.editarCuenta = editarCuenta;
 window.guardarCuenta = guardarCuenta;
 window.gsSaveCuentasPropias = gsSaveCuentasPropias;
+window.actualizarSaldoCuenta = actualizarSaldoCuenta;
+window.guardarSaldoCuenta = guardarSaldoCuenta;
 
 // Config / Proyectos
 window.calcularClabeProy = calcularClabeProy;

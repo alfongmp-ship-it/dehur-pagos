@@ -1,4 +1,5 @@
 import { state } from '../state.js';
+import { fmt } from './format.js';
 
 export function renderHeaderBadges() {
   const hb = document.getElementById('header-badges');
@@ -12,9 +13,10 @@ export function renderCuentaDispSelect() {
   const sel = document.getElementById('cuenta-disp');
   if (!sel) return;
   const cur = sel.value;
-  sel.innerHTML = state.proyectos.filter(p => p.activo).map(p =>
-    `<option value="${p.id}">${p.nombre} – BBVA ···${p.cuenta.slice(-4)}</option>`
-  ).join('');
+  sel.innerHTML = state.proyectos.filter(p => p.activo).map(p => {
+    const saldoStr = p.saldo ? ` · $${fmt(p.saldo)}` : '';
+    return `<option value="${p.id}">${p.nombre} – BBVA ···${p.cuenta.slice(-4)}${saldoStr}</option>`;
+  }).join('');
   if (cur && state.proyectos.find(p => p.id === cur)) sel.value = cur;
 }
 

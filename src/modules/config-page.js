@@ -57,10 +57,10 @@ export function guardarProyecto() {
   }
   if (state.editProyId) {
     const idx = state.proyectos.findIndex(p => p.id === state.editProyId);
-    state.proyectos[idx] = { ...state.proyectos[idx], nombre, empresa, cuenta, clabe, color };
+    state.proyectos[idx] = { ...state.proyectos[idx], nombre, empresa, cuenta, clabe, color, saldo: state.proyectos[idx].saldo || 0, ultima_act_saldo: state.proyectos[idx].ultima_act_saldo || '' };
   } else {
     const id = 'proy_' + nombre.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').slice(0, 20) + '_' + Date.now();
-    state.proyectos.push({ id, nombre, empresa, cuenta, clabe, color, activo: true });
+    state.proyectos.push({ id, nombre, empresa, cuenta, clabe, color, activo: true, saldo: 0, ultima_act_saldo: '' });
   }
   saveProy(state.proyectos);
   cerrar('modal-proyecto');

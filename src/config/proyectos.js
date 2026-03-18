@@ -1,10 +1,10 @@
 export const PROYECTOS_SEED = [
   {id:'paraiso', nombre:'Privada del Paraíso', empresa:'Desarrollo de Hogares Urbanos SA de CV',
-   cuenta:'0124913019', clabe:'012180001249130198', color:'#c8a96e', activo:true},
+   cuenta:'0124913019', clabe:'012180001249130198', color:'#c8a96e', activo:true, saldo:0, ultima_act_saldo:''},
   {id:'entorno', nombre:'Entorno', empresa:'Dehur Territorial SA de CV',
-   cuenta:'0111221051', clabe:'012180001112210514', color:'#5a9be0', activo:true},
+   cuenta:'0111221051', clabe:'012180001112210514', color:'#5a9be0', activo:true, saldo:0, ultima_act_saldo:''},
   {id:'dt', nombre:'Concentradora DT', empresa:'Dehur Territorial SA de CV',
-   cuenta:'0122903652', clabe:'012180001229036526', color:'#4caf7d', activo:true},
+   cuenta:'0122903652', clabe:'012180001229036526', color:'#4caf7d', activo:true, saldo:0, ultima_act_saldo:''},
 ];
 
 export function loadProyectos() {

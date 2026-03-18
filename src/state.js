@@ -12,6 +12,7 @@ export const state = {
   cuentasPropias: [],
   editProvId: null,
   editCuentaId: null,
+  editSaldoProy: null,
   editEmpId: null,
   editProyId: null,
   editFactId: null,

@@ -3,7 +3,8 @@ import { fmt } from '../ui/format.js';
 import { proyTag } from '../ui/badges.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
-import { gsSaveCuentasPropias } from '../services/google-sync.js';
+import { gsSaveCuentasPropias, gsSaveProyectos } from '../services/google-sync.js';
+import { saveProy } from '../config/proyectos.js';
 
 const TIPO_COLORS = {
   'Dispersión': 'rgba(200,169,110,.15);color:#C8A96E',
@@ -32,9 +33,12 @@ export function renderCuentasPropias() {
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${p.clabe || '—'}</td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${p.cuenta || '—'}</td>
       <td>${proyTag(p.nombre)}</td>
-      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);text-align:right;">—</td>
-      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">—</td>
-      <td style="text-align:right;"><button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="showPage('config',document.getElementById('nav-config'))">Config →</button></td>
+      <td style="font-family:'DM Mono',monospace;font-weight:500;text-align:right;color:${p.saldo ? 'var(--accent)' : 'var(--muted)'};">${p.saldo ? fmt(p.saldo) : '—'}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${p.ultima_act_saldo || '—'}</td>
+      <td style="text-align:right;display:flex;gap:4px;justify-content:flex-end;">
+        <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="actualizarSaldoCuenta('${p.id}')">Actualizar saldo</button>
+        <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="showPage('config',document.getElementById('nav-config'))">Config →</button>
+      </td>
     </tr>`);
 
   // Filas de cuentas adicionales
@@ -103,6 +107,31 @@ export function editarCuenta(id) {
   document.getElementById('cp-ultima-act').value = c.ultima_actualizacion || '';
   document.getElementById('cp-proyecto').value = c.proyecto || '';
   document.getElementById('modal-cuenta').classList.add('open');
+}
+
+export function actualizarSaldoCuenta(proyId) {
+  const p = state.proyectos.find(x => x.id === proyId);
+  if (!p) return;
+  state.editSaldoProy = proyId;
+  document.getElementById('modal-saldo-title').textContent = 'Actualizar Saldo – ' + p.nombre;
+  document.getElementById('saldo-monto').value = p.saldo || '';
+  document.getElementById('saldo-fecha').value = p.ultima_act_saldo || new Date().toISOString().split('T')[0];
+  document.getElementById('modal-saldo').classList.add('open');
+}
+
+export function guardarSaldoCuenta() {
+  const p = state.proyectos.find(x => x.id === state.editSaldoProy);
+  if (!p) return;
+  const saldo = parseFloat(document.getElementById('saldo-monto').value) || 0;
+  const fecha = document.getElementById('saldo-fecha').value || new Date().toISOString().split('T')[0];
+  p.saldo = saldo;
+  p.ultima_act_saldo = fecha;
+  saveProy(state.proyectos);
+  cerrar('modal-saldo');
+  renderCuentasPropias();
+  if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
+  notify('Saldo actualizado');
+  gsSaveProyectos();
 }
 
 export function guardarCuenta() {

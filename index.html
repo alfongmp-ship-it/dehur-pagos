@@ -417,6 +417,18 @@
   </div>
 </div>
 
+<!-- MODAL SALDO -->
+<div class="modal-overlay" id="modal-saldo">
+  <div class="modal" style="max-width:380px;">
+    <div class="modal-header"><div class="modal-title" id="modal-saldo-title">Actualizar Saldo</div><button class="modal-close" onclick="cerrar('modal-saldo')">✕</button></div>
+    <div class="form-grid">
+      <div class="field span2"><label>Saldo actual *</label><input type="number" id="saldo-monto" step="0.01" placeholder="0.00" style="font-family:'DM Mono',monospace;"></div>
+      <div class="field span2"><label>Fecha de corte</label><input type="date" id="saldo-fecha"></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-ghost" onclick="cerrar('modal-saldo')">Cancelar</button><button class="btn btn-primary" onclick="guardarSaldoCuenta()">Guardar</button></div>
+  </div>
+</div>
+
 <!-- MODAL CUENTA PROPIA -->
 <div class="modal-overlay" id="modal-cuenta">
   <div class="modal">
