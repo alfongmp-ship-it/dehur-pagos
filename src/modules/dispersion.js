@@ -206,6 +206,7 @@ export function generarArchivo() {
     nombre: item.proveedor.nombre, cuenta: item.proveedor.cuenta,
     banco: item.proveedor.banco, tipo: item.proveedor.tipo_cuenta,
     concepto: item.concepto, importe: item.importe, proyecto: item.proyecto,
+    cuenta_cargo: proySel.nombre,
     fechaGen: fd, seleccionado: true, tieneInfo: true
   }));
 

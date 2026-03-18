@@ -196,7 +196,8 @@ export function guardarTraspaso() {
         banco: 'BBVA',
         tipo: 'Aportación',
         proveedor_id: '',
-        factura_id: ''
+        factura_id: '',
+        cuenta_origen: o.nombre
       });
       saveData();
       const cntHist = document.getElementById('cnt-hist');
