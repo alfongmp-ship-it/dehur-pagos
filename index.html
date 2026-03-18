@@ -371,7 +371,7 @@
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th style="width:50px">ID</th><th>Nombre</th><th>Banco</th><th>CLABE</th><th>N° Cuenta</th><th>Proyecto</th><th style="text-align:right">Saldo</th><th>Última Act.</th><th style="text-align:right">Acciones</th></tr></thead>
+          <thead><tr><th>Tipo</th><th>Nombre</th><th>Banco</th><th>CLABE</th><th>N° Cuenta</th><th>Proyecto</th><th style="text-align:right">Saldo</th><th>Última Act.</th><th style="text-align:right">Acciones</th></tr></thead>
           <tbody id="tbody-cp"></tbody>
         </table>
       </div>
@@ -423,6 +423,7 @@
     <div class="modal-header"><div class="modal-title" id="modal-cuenta-title">Nueva Cuenta</div><button class="modal-close" onclick="cerrar('modal-cuenta')">✕</button></div>
     <div class="form-grid">
       <div class="field span2"><label>Nombre *</label><input type="text" id="cp-nombre" placeholder="Ej: BBVA Operaciones"></div>
+      <div class="field"><label>Tipo</label><select id="cp-tipo"><option>General</option><option>Cobranza</option><option>Ahorro</option><option>Pagos</option></select></div>
       <div class="field"><label>Banco *</label><input type="text" id="cp-banco" placeholder="Ej: BBVA"></div>
       <div class="field"><label>Proyecto</label><select id="cp-proyecto"></select></div>
       <div class="field"><label>CLABE (18 dígitos)</label><input type="text" id="cp-clabe" placeholder="000000000000000000" maxlength="18" style="font-family:'DM Mono',monospace;"></div>

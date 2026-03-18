@@ -126,9 +126,10 @@ export async function gsLoadAll() {
         clabe: r[3] || '',
         numero_cuenta: r[4] || '',
         proyecto: r[5] || '',
-        saldo: parseFloat(r[6]) || 0,
-        ultima_actualizacion: r[7] || '',
-        activo: r[8] !== 'false'
+        tipo: r[6] || 'General',
+        saldo: parseFloat(r[7]) || 0,
+        ultima_actualizacion: r[8] || '',
+        activo: r[9] !== 'false'
       }));
     }
 
@@ -220,8 +221,8 @@ export async function gsSaveFacturaPagos() {
 export async function gsSaveCuentasPropias() {
   if (!state.gsToken) return;
   try {
-    const rows = state.cuentasPropias.map(c => [c.cuenta_id, c.nombre, c.banco, c.clabe || '', c.numero_cuenta || '', c.proyecto || '', c.saldo, c.ultima_actualizacion || '', c.activo]);
-    await gsClearAndWrite('cuentas_propias', rows, ['cuenta_id', 'nombre', 'banco', 'clabe', 'numero_cuenta', 'proyecto', 'saldo', 'ultima_actualizacion', 'activo']);
+    const rows = state.cuentasPropias.map(c => [c.cuenta_id, c.nombre, c.banco, c.clabe || '', c.numero_cuenta || '', c.proyecto || '', c.tipo || 'General', c.saldo, c.ultima_actualizacion || '', c.activo]);
+    await gsClearAndWrite('cuentas_propias', rows, ['cuenta_id', 'nombre', 'banco', 'clabe', 'numero_cuenta', 'proyecto', 'tipo', 'saldo', 'ultima_actualizacion', 'activo']);
   } catch (e) { console.error('gsSaveCuentasPropias', e); }
 }
 

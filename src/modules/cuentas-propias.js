@@ -5,32 +5,65 @@ import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { gsSaveCuentasPropias } from '../services/google-sync.js';
 
+const TIPO_COLORS = {
+  'Dispersión': 'rgba(200,169,110,.15);color:#C8A96E',
+  'Cobranza':   'rgba(52,152,219,.15);color:#3498db',
+  'Ahorro':     'rgba(39,174,96,.15);color:#27ae60',
+  'Pagos':      'rgba(224,122,58,.15);color:#e07a3a',
+  'General':    'rgba(150,150,150,.15);color:#aaa'
+};
+
+function tipoBadge(tipo) {
+  const style = TIPO_COLORS[tipo] || TIPO_COLORS['General'];
+  return `<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:600;background:${style};">${tipo}</span>`;
+}
+
 export function renderCuentasPropias() {
   const tb = document.getElementById('tbody-cp');
   if (!tb) return;
 
-  if (!state.cuentasPropias.length) {
+  // Filas de proyectos (solo lectura)
+  const filasProyectos = state.proyectos
+    .filter(p => p.activo !== false && p.cuenta)
+    .map(p => `<tr style="opacity:.85;">
+      <td>${tipoBadge('Dispersión')}</td>
+      <td><div style="font-weight:500;font-size:12px;">${p.nombre} <span style="font-size:10px;color:var(--muted);font-weight:400;">· Principal</span></div></td>
+      <td style="font-size:11px;">BBVA</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${p.clabe || '—'}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${p.cuenta || '—'}</td>
+      <td>${proyTag(p.nombre)}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);text-align:right;">—</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">—</td>
+      <td style="text-align:right;"><button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="showPage('config',document.getElementById('nav-config'))">Config →</button></td>
+    </tr>`);
+
+  // Filas de cuentas adicionales
+  const filasExtra = state.cuentasPropias
+    .filter(c => c.activo !== false)
+    .map(c => `<tr>
+      <td>${tipoBadge(c.tipo || 'General')}</td>
+      <td><div style="font-weight:500;font-size:12px;">${c.nombre}</div></td>
+      <td style="font-size:11px;">${c.banco}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${c.clabe || '—'}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${c.numero_cuenta || '—'}</td>
+      <td>${proyTag(c.proyecto)}</td>
+      <td style="font-family:'DM Mono',monospace;font-weight:500;text-align:right;color:var(--accent);">${fmt(c.saldo)}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${c.ultima_actualizacion || '—'}</td>
+      <td style="text-align:right;"><button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="editarCuenta(${c.cuenta_id})">Editar</button></td>
+    </tr>`);
+
+  const total = filasProyectos.length + filasExtra.length;
+
+  if (!total) {
     tb.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🏦</div><div>Sin cuentas registradas</div></div></td></tr>';
     document.getElementById('cp-subtitulo').textContent = '';
+    document.getElementById('cnt-cp').textContent = '0';
     return;
   }
 
-  const activas = state.cuentasPropias.filter(c => c.activo !== false);
-  document.getElementById('cp-subtitulo').textContent = `${activas.length} cuenta${activas.length !== 1 ? 's' : ''}`;
-
-  tb.innerHTML = activas.map(c => `<tr>
-    <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${c.cuenta_id}</td>
-    <td><div style="font-weight:500;font-size:12px;">${c.nombre}</div></td>
-    <td style="font-size:11px;">${c.banco}</td>
-    <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${c.clabe || '—'}</td>
-    <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${c.numero_cuenta || '—'}</td>
-    <td>${proyTag(c.proyecto)}</td>
-    <td style="font-family:'DM Mono',monospace;font-weight:500;text-align:right;color:var(--accent);">${fmt(c.saldo)}</td>
-    <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${c.ultima_actualizacion || '—'}</td>
-    <td style="text-align:right;"><button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="editarCuenta(${c.cuenta_id})">Editar</button></td>
-  </tr>`).join('');
-
-  document.getElementById('cnt-cp').textContent = activas.length;
+  tb.innerHTML = [...filasProyectos, ...filasExtra].join('');
+  document.getElementById('cp-subtitulo').textContent = `${total} cuenta${total !== 1 ? 's' : ''} (${filasProyectos.length} dispersión · ${filasExtra.length} adicionales)`;
+  document.getElementById('cnt-cp').textContent = total;
 }
 
 function populateCuentaSelects() {
@@ -43,6 +76,7 @@ function populateCuentaSelects() {
 export function abrirNuevaCuenta() {
   state.editCuentaId = null;
   document.getElementById('modal-cuenta-title').textContent = 'Nueva Cuenta';
+  document.getElementById('cp-tipo').value = 'General';
   document.getElementById('cp-nombre').value = '';
   document.getElementById('cp-banco').value = '';
   document.getElementById('cp-clabe').value = '';
@@ -60,6 +94,7 @@ export function editarCuenta(id) {
   state.editCuentaId = id;
   populateCuentaSelects();
   document.getElementById('modal-cuenta-title').textContent = 'Editar Cuenta #' + id;
+  document.getElementById('cp-tipo').value = c.tipo || 'General';
   document.getElementById('cp-nombre').value = c.nombre;
   document.getElementById('cp-banco').value = c.banco;
   document.getElementById('cp-clabe').value = c.clabe || '';
@@ -83,6 +118,7 @@ export function guardarCuenta() {
     clabe: document.getElementById('cp-clabe').value.trim(),
     numero_cuenta: document.getElementById('cp-numero-cuenta').value.trim(),
     proyecto: document.getElementById('cp-proyecto').value,
+    tipo: document.getElementById('cp-tipo').value,
     saldo: parseFloat(document.getElementById('cp-saldo').value) || 0,
     ultima_actualizacion: document.getElementById('cp-ultima-act').value || new Date().toISOString().split('T')[0],
     activo: true
