@@ -3,7 +3,8 @@ import { fmt, dl } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { proyTag, catTag } from '../ui/badges.js';
-import { saveData } from '../services/google-sync.js';
+import { saveData, gsSaveProyectos } from '../services/google-sync.js';
+import { saveProy } from '../config/proyectos.js';
 
 export function renderHistorial() {
   const el = document.getElementById('historial-lista');
@@ -118,6 +119,26 @@ export function confirmarPagos() {
   });
   document.getElementById('cnt-hist').textContent = state.historial.length;
   saveData();
+
+  // Restar saldo del proyecto por cada pago confirmado
+  const todayISO = new Date().toISOString().split('T')[0];
+  let saldoChanged = false;
+  confirmados.forEach(d => {
+    if (!d.proyecto || !d.importe) return;
+    const p = state.proyectos.find(x => x.nombre === d.proyecto);
+    if (!p || !p.ultima_act_saldo) return;
+    if (todayISO >= p.ultima_act_saldo.slice(0, 10)) {
+      p.saldo = (p.saldo || 0) - d.importe;
+      saldoChanged = true;
+    }
+  });
+  if (saldoChanged) {
+    saveProy(state.proyectos);
+    gsSaveProyectos();
+    if (window.renderCuentasPropias) window.renderCuentasPropias();
+    if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
+  }
+
   notify('✅ ' + confirmados.length + ' pago(s) registrados en historial');
   state.pendientesConfirmacion = [];
   const btnConf = document.getElementById('btn-confirmar-hist');
