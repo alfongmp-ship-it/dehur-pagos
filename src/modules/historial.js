@@ -125,8 +125,9 @@ export function confirmarPagos() {
   const todayISO = new Date().toISOString().split('T')[0];
   let saldoChanged = false;
   confirmados.forEach(d => {
-    if (!d.proyecto || !d.importe) return;
-    const p = state.proyectos.find(x => x.nombre === d.proyecto);
+    const proyNombre = d.cuenta_cargo || d.proyecto;
+    if (!proyNombre || !d.importe) return;
+    const p = state.proyectos.find(x => x.nombre === proyNombre);
     if (!p || !p.ultima_act_saldo) return;
     if (todayISO >= p.ultima_act_saldo.slice(0, 10)) {
       p.saldo = (p.saldo || 0) - d.importe;
