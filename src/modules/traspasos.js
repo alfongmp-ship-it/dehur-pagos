@@ -2,7 +2,8 @@ import { state } from '../state.js';
 import { fmt } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
-import { gsSaveTraspasos } from '../services/google-sync.js';
+import { gsSaveTraspasos, saveData, gsSaveProyectos } from '../services/google-sync.js';
+import { saveProy } from '../config/proyectos.js';
 
 function getAllCuentas() {
   const deProy = state.proyectos.filter(p => p.activo !== false && p.cuenta).map(p => ({
@@ -182,6 +183,33 @@ export function guardarTraspaso() {
     state.traspasos[i] = obj;
   } else {
     state.traspasos.push(obj);
+
+    // Auto-registrar en historial cuando origen es proyecto y destino es concentradora
+    if (d?.es_concentradora && o?.proyecto && obj.estatus === 'completado') {
+      const fechaHist = new Date(fecha + 'T12:00:00').toLocaleDateString('es-MX');
+      state.historial.unshift({
+        fecha: fechaHist,
+        nombre: d.nombre,
+        concepto: obj.concepto || `Aportación a ${d.nombre}`,
+        importe: monto,
+        proyecto: o.proyecto,
+        banco: 'BBVA',
+        tipo: 'Aportación',
+        proveedor_id: '',
+        factura_id: ''
+      });
+      saveData();
+
+      const todayISO = new Date().toISOString().split('T')[0];
+      const proy = state.proyectos.find(x => x.nombre === o.proyecto);
+      if (proy && proy.ultima_act_saldo && todayISO >= proy.ultima_act_saldo.slice(0, 10)) {
+        proy.saldo = (proy.saldo || 0) - monto;
+        saveProy(state.proyectos);
+        gsSaveProyectos();
+        if (window.renderCuentasPropias) window.renderCuentasPropias();
+        if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
+      }
+    }
   }
 
   cerrar('modal-traspaso');
