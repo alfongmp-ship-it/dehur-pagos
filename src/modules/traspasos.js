@@ -199,6 +199,9 @@ export function guardarTraspaso() {
         factura_id: ''
       });
       saveData();
+      const cntHist = document.getElementById('cnt-hist');
+      if (cntHist) cntHist.textContent = state.historial.length;
+      if (window.renderHistorial) window.renderHistorial();
 
       const todayISO = new Date().toISOString().split('T')[0];
       const proy = state.proyectos.find(x => x.nombre === o.proyecto);
