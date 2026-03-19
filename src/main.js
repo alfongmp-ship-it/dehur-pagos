@@ -18,7 +18,7 @@ import { renderTraspasos, abrirNuevoTraspaso, editarTraspaso, guardarTraspaso, e
 import { renderResumenTraspasos, filtrarResumen } from './modules/resumen-traspasos.js';
 import { calcularClabeProy, selColor, abrirModalProyecto, guardarProyecto, toggleProyecto, renderConfigProyectos } from './modules/config-page.js';
 import { renderCuentasPropias, abrirNuevaCuenta, editarCuenta, guardarCuenta, actualizarSaldoCuenta, guardarSaldoCuenta, actualizarSaldoExtra } from './modules/cuentas-propias.js';
-import { renderCreditos, seleccionarCredito, abrirNuevoCredito, editarCredito, guardarCredito, abrirNuevaDisposicion, guardarDisposicion, togglePagare, abrirNuevaFechaPago, guardarFechaPago, marcarPagoPagado } from './modules/creditos.js';
+import { renderCreditos, seleccionarCredito, abrirNuevoCredito, editarCredito, guardarCredito, abrirNuevaDisposicion, guardarDisposicion, editarPagare, togglePagare, abrirNuevaFechaPago, guardarFechaPago, marcarPagoPagado } from './modules/creditos.js';
 import { gsLogin, gsLogout, renderAuthStatus, checkOAuthCallback } from './services/google-auth.js';
 import { gsLoadAll, gsSaveProveedores, gsSaveEmpleados, gsSaveProyectos, gsSaveAlias, gsSaveCuentasPropias, gsSaveTraspasos, gsSaveCreditos, gsSavePagares, gsSavePagosPagare } from './services/google-sync.js';
 
@@ -180,6 +180,7 @@ window.editarCredito = editarCredito;
 window.guardarCredito = guardarCredito;
 window.abrirNuevaDisposicion = abrirNuevaDisposicion;
 window.guardarDisposicion = guardarDisposicion;
+window.editarPagare = editarPagare;
 window.togglePagare = togglePagare;
 window.abrirNuevaFechaPago = abrirNuevaFechaPago;
 window.guardarFechaPago = guardarFechaPago;

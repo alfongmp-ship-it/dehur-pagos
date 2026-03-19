@@ -69,7 +69,7 @@ export function renderCreditos() {
         <thead><tr>
           <th style="width:30px;"></th>
           <th># Pagaré</th><th style="text-align:right">Monto</th><th>Fecha Disp.</th>
-          <th>Vencimiento</th><th style="text-align:center">Tasa</th><th>Estatus</th>
+          <th>Vencimiento</th><th style="text-align:center">Tasa</th><th>Estatus</th><th style="text-align:right">Acciones</th>
         </tr></thead>
         <tbody id="tbody-pagares">${renderPagaresRows(pagares)}</tbody>
       </table>
@@ -78,7 +78,7 @@ export function renderCreditos() {
 }
 
 function renderPagaresRows(pagares) {
-  if (!pagares.length) return '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px;">Sin disposiciones</td></tr>';
+  if (!pagares.length) return '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:24px;">Sin disposiciones</td></tr>';
 
   return pagares.map(p => {
     const pagos = state.pagosPagare.filter(pp => pp.pagare_id === p.pagare_id);
@@ -95,10 +95,11 @@ function renderPagaresRows(pagares) {
       <td style="font-size:11px;color:var(--muted);">${p.fecha_vencimiento}</td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;text-align:center;">${p.tasa}%</td>
       <td>${estBadge}</td>
+      <td style="text-align:right;"><button class="btn btn-ghost" style="font-size:10px;padding:4px 8px;" onclick="event.stopPropagation();editarPagare(${p.pagare_id})">Editar</button></td>
     </tr>`;
 
     if (isOpen) {
-      rows += `<tr><td colspan="7" style="padding:0 0 0 30px;background:rgba(0,0,0,.15);">
+      rows += `<tr><td colspan="8" style="padding:0 0 0 30px;background:rgba(0,0,0,.15);">
         <div style="padding:12px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
             <div style="font-size:12px;font-weight:600;color:var(--muted);">Fechas de Pago de Intereses</div>
@@ -242,19 +243,48 @@ export function guardarDisposicion() {
   if (!monto) { notify('El monto es obligatorio', 'error'); return; }
   if (!fecha || !venc) { notify('Las fechas son obligatorias', 'error'); return; }
 
-  const obj = {
-    pagare_id: state.pagares.reduce((max, p) => Math.max(max, p.pagare_id), 0) + 1,
-    credito_id: state._dispCreditoId,
-    numero_pagare: numero,
-    monto, fecha_disposicion: fecha, fecha_vencimiento: venc, tasa,
-    estatus: 'Vigente', activo: true
-  };
+  if (state._editPagareId) {
+    const i = state.pagares.findIndex(p => p.pagare_id === state._editPagareId);
+    if (i >= 0) {
+      state.pagares[i].numero_pagare = numero;
+      state.pagares[i].monto = monto;
+      state.pagares[i].fecha_disposicion = fecha;
+      state.pagares[i].fecha_vencimiento = venc;
+      state.pagares[i].tasa = tasa;
+    }
+    cerrar('modal-disposicion');
+    renderCreditos();
+    gsSavePagares();
+    notify('Pagaré ' + numero + ' actualizado');
+  } else {
+    const obj = {
+      pagare_id: state.pagares.reduce((max, p) => Math.max(max, p.pagare_id), 0) + 1,
+      credito_id: state._dispCreditoId,
+      numero_pagare: numero,
+      monto, fecha_disposicion: fecha, fecha_vencimiento: venc, tasa,
+      estatus: 'Vigente', activo: true
+    };
+    state.pagares.push(obj);
+    cerrar('modal-disposicion');
+    renderCreditos();
+    gsSavePagares();
+    notify('Disposición registrada – Pagaré ' + numero);
+  }
+}
 
-  state.pagares.push(obj);
-  cerrar('modal-disposicion');
-  renderCreditos();
-  gsSavePagares();
-  notify('Disposición registrada – Pagaré ' + numero);
+export function editarPagare(id) {
+  const p = state.pagares.find(x => x.pagare_id === id);
+  if (!p) return;
+  state._editPagareId = id;
+  state._dispCreditoId = p.credito_id;
+  const c = state.creditos.find(x => x.credito_id === p.credito_id);
+  document.getElementById('modal-disp-title').textContent = `Editar Pagaré ${p.numero_pagare} – ${c?.nombre || ''}`;
+  document.getElementById('disp-numero').value = p.numero_pagare;
+  document.getElementById('disp-monto').value = p.monto;
+  document.getElementById('disp-fecha').value = p.fecha_disposicion;
+  document.getElementById('disp-venc').value = p.fecha_vencimiento;
+  document.getElementById('disp-tasa').value = p.tasa;
+  document.getElementById('modal-disposicion').classList.add('open');
 }
 
 export function togglePagare(pagareId) {
