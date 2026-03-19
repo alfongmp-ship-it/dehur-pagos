@@ -131,7 +131,10 @@ function renderFechasPago(pagos) {
         <td style="padding:6px 8px;font-family:'DM Mono',monospace;text-align:right;font-weight:500;">${pp.monto_intereses ? fmt(pp.monto_intereses) : '—'}</td>
         <td style="padding:6px 8px;color:var(--muted);">${pp.concepto || '—'}</td>
         <td style="padding:6px 8px;"><span style="color:${estColor};font-weight:600;">${estIcon} ${pp.estatus}</span></td>
-        <td style="padding:6px 8px;text-align:right;">${pp.estatus !== 'Pagado' ? `<button class="btn btn-ghost" style="font-size:10px;padding:2px 6px;" onclick="event.stopPropagation();marcarPagoPagado(${pp.pago_id})">Marcar pagado</button>` : ''}</td>
+        <td style="padding:6px 8px;text-align:right;white-space:nowrap;">
+          <button class="btn btn-ghost" style="font-size:10px;padding:2px 6px;" onclick="event.stopPropagation();editarFechaPago(${pp.pago_id})">Editar</button>
+          ${pp.estatus !== 'Pagado' ? `<button class="btn btn-ghost" style="font-size:10px;padding:2px 6px;" onclick="event.stopPropagation();marcarPagoPagado(${pp.pago_id})">Marcar pagado</button>` : ''}
+        </td>
       </tr>`;
     }).join('')}</tbody>
   </table>`;
@@ -295,18 +298,44 @@ export function togglePagare(pagareId) {
 // ===== FECHAS DE PAGO =====
 export function abrirNuevaFechaPago(pagareId) {
   state._fpPagareId = pagareId;
-  const p = state.pagares.find(x => x.pagare_id === pagareId);
+  state._editFechaPagoId = null;
   document.getElementById('fp-fecha').value = '';
   document.getElementById('fp-monto').value = '';
   document.getElementById('fp-concepto').value = '';
   document.getElementById('modal-fecha-pago').classList.add('open');
 }
 
+export function editarFechaPago(pagoId) {
+  const pp = state.pagosPagare.find(x => x.pago_id === pagoId);
+  if (!pp) return;
+  state._editFechaPagoId = pagoId;
+  state._fpPagareId = pp.pagare_id;
+  document.getElementById('fp-fecha').value = pp.fecha_pago;
+  document.getElementById('fp-monto').value = pp.monto_intereses || '';
+  document.getElementById('fp-concepto').value = pp.concepto || '';
+  document.getElementById('modal-fecha-pago').classList.add('open');
+}
+
 export function guardarFechaPago() {
   const fecha = document.getElementById('fp-fecha').value;
   if (!fecha) { notify('La fecha es obligatoria', 'error'); return; }
-  const p = state.pagares.find(x => x.pagare_id === state._fpPagareId);
 
+  if (state._editFechaPagoId) {
+    const pp = state.pagosPagare.find(x => x.pago_id === state._editFechaPagoId);
+    if (pp) {
+      pp.fecha_pago = fecha;
+      pp.monto_intereses = parseFloat(document.getElementById('fp-monto').value) || 0;
+      pp.concepto = document.getElementById('fp-concepto').value.trim();
+    }
+    state._editFechaPagoId = null;
+    cerrar('modal-fecha-pago');
+    renderCreditos();
+    gsSavePagosPagare();
+    notify('Fecha de pago actualizada');
+    return;
+  }
+
+  const p = state.pagares.find(x => x.pagare_id === state._fpPagareId);
   const obj = {
     pago_id: state.pagosPagare.reduce((max, pp) => Math.max(max, pp.pago_id), 0) + 1,
     pagare_id: state._fpPagareId,
