@@ -578,9 +578,10 @@
 <!-- MODAL FECHA PAGO -->
 <div class="modal-overlay" id="modal-fecha-pago">
   <div class="modal" style="max-width:400px;">
-    <div class="modal-header"><div class="modal-title">Agregar Fecha de Pago</div><button class="modal-close" onclick="cerrar('modal-fecha-pago')">✕</button></div>
-    <div class="form-grid" style="grid-template-columns:1fr;">
+    <div class="modal-header"><div class="modal-title" id="modal-fp-title">Agregar Fecha de Pago</div><button class="modal-close" onclick="cerrar('modal-fecha-pago')">✕</button></div>
+    <div class="form-grid" style="grid-template-columns:1fr 1fr;">
       <div class="field"><label>Fecha de Pago *</label><input id="fp-fecha" type="date"></div>
+      <div class="field"><label>Estatus</label><select id="fp-estatus"><option>Pendiente</option><option>Pagado</option></select></div>
       <div class="field"><label>Monto Intereses</label><input id="fp-monto" type="number" step="0.01" placeholder="Se puede llenar después"></div>
       <div class="field"><label>Concepto</label><input id="fp-concepto" placeholder="Intereses marzo, etc."></div>
     </div>

@@ -299,20 +299,24 @@ export function togglePagare(pagareId) {
 export function abrirNuevaFechaPago(pagareId) {
   state._fpPagareId = pagareId;
   state._editFechaPagoId = null;
+  document.getElementById('modal-fp-title').textContent = 'Agregar Fecha de Pago';
   document.getElementById('fp-fecha').value = '';
   document.getElementById('fp-monto').value = '';
   document.getElementById('fp-concepto').value = '';
+  document.getElementById('fp-estatus').value = 'Pendiente';
   document.getElementById('modal-fecha-pago').classList.add('open');
 }
 
 export function editarFechaPago(pagoId) {
   const pp = state.pagosPagare.find(x => x.pago_id === pagoId);
-  if (!pp) return;
+  if (!pp) { console.warn('editarFechaPago: pago no encontrado', pagoId); return; }
   state._editFechaPagoId = pagoId;
   state._fpPagareId = pp.pagare_id;
+  document.getElementById('modal-fp-title').textContent = 'Editar Fecha de Pago';
   document.getElementById('fp-fecha').value = pp.fecha_pago;
   document.getElementById('fp-monto').value = pp.monto_intereses || '';
   document.getElementById('fp-concepto').value = pp.concepto || '';
+  document.getElementById('fp-estatus').value = pp.estatus || 'Pendiente';
   document.getElementById('modal-fecha-pago').classList.add('open');
 }
 
@@ -326,6 +330,7 @@ export function guardarFechaPago() {
       pp.fecha_pago = fecha;
       pp.monto_intereses = parseFloat(document.getElementById('fp-monto').value) || 0;
       pp.concepto = document.getElementById('fp-concepto').value.trim();
+      pp.estatus = document.getElementById('fp-estatus').value;
     }
     state._editFechaPagoId = null;
     cerrar('modal-fecha-pago');
