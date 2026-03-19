@@ -245,11 +245,12 @@ export async function gsLoadAll() {
   }
 }
 
-export async function saveData() {
+export async function saveData(count = 1) {
   if (!state.gsToken) return;
   try {
-    if (state.historial.length) {
-      const h = state.historial[0];
+    const n = Math.min(count, state.historial.length);
+    for (let i = 0; i < n; i++) {
+      const h = state.historial[i];
       await gsAppendRow('historial_pagos', [h.proveedor_id || '', h.factura_id || '', h.fecha, h.nombre, h.banco, h.tipo, h.concepto, h.importe, h.proyecto, h.cuenta_origen || '', h.tipo_registro || 'Pago']);
     }
   } catch (e) { console.error('saveData error', e); }

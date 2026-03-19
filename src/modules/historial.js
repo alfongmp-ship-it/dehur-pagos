@@ -128,7 +128,7 @@ export function confirmarPagos() {
     state.historial.unshift({ fecha, nombre: d.nombre, concepto: d.concepto, importe: d.importe, proyecto: d.cuenta_cargo || d.proyecto, banco: d.banco, tipo: d.tipo || d.cuenta, proveedor_id: d.proveedor_id || '', factura_id: d.factura_id || '', cuenta_origen: d.cuenta_cargo || '', tipo_registro: 'Pago' });
   });
   document.getElementById('cnt-hist').textContent = state.historial.length;
-  saveData();
+  saveData(confirmados.length);
 
   // Restar saldo del proyecto por cada pago confirmado
   const todayISO = new Date().toISOString().split('T')[0];
