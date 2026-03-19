@@ -145,8 +145,9 @@ function populateSelects() {
       state.proyectos.filter(p => p.activo !== false).map(p => `<option value="${p.nombre}">${p.nombre}</option>`).join('');
   }
   if (selCta) {
-    selCta.innerHTML = '<option value="">—</option>' +
-      state.proyectos.filter(p => p.activo !== false && p.cuenta).map(p => `<option value="${p.nombre}">${p.nombre} – BBVA ···${p.cuenta.slice(-4)}</option>`).join('');
+    const proyOpts = state.proyectos.filter(p => p.activo !== false && p.cuenta).map(p => `<option value="${p.nombre}">${p.nombre} – BBVA ···${p.cuenta.slice(-4)}</option>`).join('');
+    const extraOpts = state.cuentasPropias.filter(c => c.activo !== false).map(c => `<option value="${c.nombre}">${c.nombre} – ${c.banco}${c.numero_cuenta ? ' ···' + c.numero_cuenta.slice(-4) : ''}</option>`).join('');
+    selCta.innerHTML = '<option value="">—</option>' + proyOpts + extraOpts;
   }
 }
 
