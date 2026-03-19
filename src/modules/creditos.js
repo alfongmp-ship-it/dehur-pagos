@@ -23,7 +23,7 @@ export function renderCreditos() {
   // Render tabs
   tabs.innerHTML = activos.map(c => {
     const isActive = c.credito_id === state.creditoTabActivo;
-    return `<button onclick="state.creditoTabActivo=${c.credito_id};renderCreditos()" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid ${isActive ? 'var(--accent)' : 'var(--border)'};background:${isActive ? 'rgba(200,169,110,.15)' : 'var(--surface2)'};color:${isActive ? 'var(--accent)' : 'var(--muted)'};">${c.nombre}</button>`;
+    return `<button onclick="seleccionarCredito(${c.credito_id})" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid ${isActive ? 'var(--accent)' : 'var(--border)'};background:${isActive ? 'rgba(200,169,110,.15)' : 'var(--surface2)'};color:${isActive ? 'var(--accent)' : 'var(--muted)'};">${c.nombre}</button>`;
   }).join('') + `<button onclick="abrirNuevoCredito()" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;border:1px dashed var(--border);background:transparent;color:var(--muted);">+ Nuevo</button>`;
 
   if (!activos.length) {
@@ -134,6 +134,11 @@ function renderFechasPago(pagos) {
       </tr>`;
     }).join('')}</tbody>
   </table>`;
+}
+
+export function seleccionarCredito(id) {
+  state.creditoTabActivo = id;
+  renderCreditos();
 }
 
 // ===== CRÉDITOS CRUD =====
