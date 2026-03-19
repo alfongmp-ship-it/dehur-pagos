@@ -2,7 +2,7 @@ import { state } from '../state.js';
 import { fmt } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
-import { gsSaveTraspasos, saveData, gsSaveProyectos } from '../services/google-sync.js';
+import { gsSaveTraspasos, saveData, gsSaveProyectos, gsSaveCuentasPropias } from '../services/google-sync.js';
 import { saveProy } from '../config/proyectos.js';
 
 function getAllCuentas() {
@@ -184,8 +184,8 @@ export function guardarTraspaso() {
   } else {
     state.traspasos.push(obj);
 
-    // Registrar en historial y mover saldos para Aportación y Préstamo completados
-    if (obj.estatus === 'completado' && (obj.tipo === 'Aportación' || obj.tipo === 'Préstamo') && o?.proyecto) {
+    // Registrar en historial y mover saldos para todos los traspasos completados
+    if (obj.estatus === 'completado' && o?.proyecto) {
       const fechaHist = new Date(fecha + 'T12:00:00').toLocaleDateString('es-MX');
       state.historial.unshift({
         fecha: fechaHist,
@@ -205,21 +205,36 @@ export function guardarTraspaso() {
       if (cntHist) cntHist.textContent = state.historial.length;
       if (window.renderHistorial) window.renderHistorial();
 
+      // Helper: buscar cuenta en proyectos O cuentasPropias y ajustar saldo
       const todayISO = new Date().toISOString().split('T')[0];
-      let saldoChanged = false;
-      const proyOrigen = state.proyectos.find(x => x.nombre === o.proyecto);
-      if (proyOrigen && proyOrigen.ultima_act_saldo && todayISO >= proyOrigen.ultima_act_saldo.slice(0, 10)) {
-        proyOrigen.saldo = (proyOrigen.saldo || 0) - monto;
-        saldoChanged = true;
+      let saldoProyChanged = false;
+      let saldoExtraChanged = false;
+
+      function ajustarSaldo(nombre, delta) {
+        const proy = state.proyectos.find(x => x.nombre === nombre);
+        if (proy && proy.ultima_act_saldo && todayISO >= proy.ultima_act_saldo.slice(0, 10)) {
+          proy.saldo = (proy.saldo || 0) + delta;
+          saldoProyChanged = true;
+          return;
+        }
+        const extra = state.cuentasPropias.find(x => x.nombre === nombre);
+        if (extra && extra.ultima_actualizacion && todayISO >= extra.ultima_actualizacion.slice(0, 10)) {
+          extra.saldo = (extra.saldo || 0) + delta;
+          saldoExtraChanged = true;
+        }
       }
-      const proyDestino = d?.proyecto ? state.proyectos.find(x => x.nombre === d.proyecto) : null;
-      if (proyDestino && proyDestino.ultima_act_saldo && todayISO >= proyDestino.ultima_act_saldo.slice(0, 10)) {
-        proyDestino.saldo = (proyDestino.saldo || 0) + monto;
-        saldoChanged = true;
-      }
-      if (saldoChanged) {
+
+      ajustarSaldo(o.proyecto, -monto);
+      if (d?.proyecto) ajustarSaldo(d.proyecto, monto);
+
+      if (saldoProyChanged) {
         saveProy(state.proyectos);
         gsSaveProyectos();
+      }
+      if (saldoExtraChanged) {
+        gsSaveCuentasPropias();
+      }
+      if (saldoProyChanged || saldoExtraChanged) {
         if (window.renderCuentasPropias) window.renderCuentasPropias();
         if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
       }
