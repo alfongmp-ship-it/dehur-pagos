@@ -444,6 +444,7 @@
           <div class="page-subtitle" id="creditos-subtitulo"></div>
         </div>
       </div>
+      <div id="creditos-tabs" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;"></div>
       <div id="creditos-content"></div>
     </div>
 
@@ -539,6 +540,51 @@
       <button class="btn btn-ghost" onclick="cerrar('modal-proyecto')">Cancelar</button>
       <button class="btn btn-primary" onclick="guardarProyecto()">Guardar Proyecto</button>
     </div>
+  </div>
+</div>
+
+<!-- MODAL CRÉDITO -->
+<div class="modal-overlay" id="modal-credito">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-header"><div class="modal-title" id="modal-credito-title">Nuevo Crédito</div><button class="modal-close" onclick="cerrar('modal-credito')">✕</button></div>
+    <div class="form-grid" style="grid-template-columns:1fr 1fr;">
+      <div class="field span2"><label>Nombre del Crédito *</label><input id="cred-nombre" placeholder="Ej: Crédito Puente Paraíso"></div>
+      <div class="field"><label>Banco *</label><input id="cred-banco" placeholder="Mifel"></div>
+      <div class="field"><label>Tipo</label><select id="cred-tipo"><option>Puente</option><option>Simple</option><option>Hipotecario</option><option>Revolvente</option></select></div>
+      <div class="field"><label>Monto Autorizado *</label><input id="cred-monto" type="number" step="0.01" placeholder="0.00"></div>
+      <div class="field"><label>Tasa Base (%)</label><input id="cred-tasa" type="number" step="0.01" placeholder="12.5"></div>
+      <div class="field"><label>Proyecto Asociado</label><select id="cred-proyecto"></select></div>
+      <div class="field"><label>Cuenta de Pago</label><select id="cred-cuenta-pago"></select></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-ghost" onclick="cerrar('modal-credito')">Cancelar</button><button class="btn btn-primary" onclick="guardarCredito()">Guardar</button></div>
+  </div>
+</div>
+
+<!-- MODAL DISPOSICIÓN/PAGARÉ -->
+<div class="modal-overlay" id="modal-disposicion">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-header"><div class="modal-title" id="modal-disp-title">Nueva Disposición</div><button class="modal-close" onclick="cerrar('modal-disposicion')">✕</button></div>
+    <div class="form-grid" style="grid-template-columns:1fr 1fr;">
+      <div class="field"><label>Número de Pagaré *</label><input id="disp-numero" placeholder="001"></div>
+      <div class="field"><label>Monto *</label><input id="disp-monto" type="number" step="0.01" placeholder="0.00"></div>
+      <div class="field"><label>Fecha Disposición *</label><input id="disp-fecha" type="date"></div>
+      <div class="field"><label>Fecha Vencimiento *</label><input id="disp-venc" type="date"></div>
+      <div class="field"><label>Tasa (%) *</label><input id="disp-tasa" type="number" step="0.01" placeholder="12.5"></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-ghost" onclick="cerrar('modal-disposicion')">Cancelar</button><button class="btn btn-primary" onclick="guardarDisposicion()">Guardar</button></div>
+  </div>
+</div>
+
+<!-- MODAL FECHA PAGO -->
+<div class="modal-overlay" id="modal-fecha-pago">
+  <div class="modal" style="max-width:400px;">
+    <div class="modal-header"><div class="modal-title">Agregar Fecha de Pago</div><button class="modal-close" onclick="cerrar('modal-fecha-pago')">✕</button></div>
+    <div class="form-grid" style="grid-template-columns:1fr;">
+      <div class="field"><label>Fecha de Pago *</label><input id="fp-fecha" type="date"></div>
+      <div class="field"><label>Monto Intereses</label><input id="fp-monto" type="number" step="0.01" placeholder="Se puede llenar después"></div>
+      <div class="field"><label>Concepto</label><input id="fp-concepto" placeholder="Intereses marzo, etc."></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-ghost" onclick="cerrar('modal-fecha-pago')">Cancelar</button><button class="btn btn-primary" onclick="guardarFechaPago()">Guardar</button></div>
   </div>
 </div>
 

@@ -166,18 +166,46 @@ export async function gsLoadAll() {
     if (crRows && crRows.length > 1) {
       state.creditos = crRows.slice(1).filter(r => r[0]).map(r => ({
         credito_id: parseInt(r[0]) || 0,
-        banco: r[1] || '',
-        tipo_credito: r[2] || 'Préstamo',
-        monto_total: parseFloat(r[3]) || 0,
-        tasa_interes: parseFloat(r[4]) || 0,
-        plazo_meses: parseInt(r[5]) || 0,
-        fecha_inicio: r[6] || '',
-        pago_mensual: parseFloat(r[7]) || 0,
-        saldo_pendiente: parseFloat(r[8]) || 0,
-        proyecto: r[9] || '',
-        concepto: r[10] || '',
-        estatus: r[11] || 'Activo',
-        activo: r[12] !== 'false'
+        nombre: r[1] || '',
+        banco: r[2] || '',
+        tipo_credito: r[3] || 'Puente',
+        monto_autorizado: parseFloat(r[4]) || 0,
+        tasa_base: parseFloat(r[5]) || 0,
+        proyecto: r[6] || '',
+        cuenta_pago: r[7] || '',
+        estatus: r[8] || 'Activo',
+        activo: r[9] !== 'false'
+      }));
+    }
+
+    // Load pagares
+    const pgRows = await gsReadSheet('pagares');
+    if (pgRows && pgRows.length > 1) {
+      state.pagares = pgRows.slice(1).filter(r => r[0]).map(r => ({
+        pagare_id: parseInt(r[0]) || 0,
+        credito_id: parseInt(r[1]) || 0,
+        numero_pagare: r[2] || '',
+        monto: parseFloat(r[3]) || 0,
+        fecha_disposicion: r[4] || '',
+        fecha_vencimiento: r[5] || '',
+        tasa: parseFloat(r[6]) || 0,
+        estatus: r[7] || 'Vigente',
+        activo: r[8] !== 'false'
+      }));
+    }
+
+    // Load pagos_pagare
+    const ppRows = await gsReadSheet('pagos_pagare');
+    if (ppRows && ppRows.length > 1) {
+      state.pagosPagare = ppRows.slice(1).filter(r => r[0]).map(r => ({
+        pago_id: parseInt(r[0]) || 0,
+        pagare_id: parseInt(r[1]) || 0,
+        credito_id: parseInt(r[2]) || 0,
+        fecha_pago: r[3] || '',
+        monto_intereses: parseFloat(r[4]) || 0,
+        concepto: r[5] || '',
+        estatus: r[6] || 'Pendiente',
+        fecha_real_pago: r[7] || ''
       }));
     }
 
@@ -299,16 +327,42 @@ export async function gsSaveCreditos() {
   if (!state.gsToken) return;
   try {
     const rows = state.creditos.map(c => [
-      c.credito_id, c.banco, c.tipo_credito, c.monto_total, c.tasa_interes,
-      c.plazo_meses, c.fecha_inicio, c.pago_mensual, c.saldo_pendiente,
-      c.proyecto || '', c.concepto || '', c.estatus, c.activo
+      c.credito_id, c.nombre, c.banco, c.tipo_credito, c.monto_autorizado,
+      c.tasa_base, c.proyecto || '', c.cuenta_pago || '', c.estatus, c.activo
     ]);
     await gsClearAndWrite('creditos', rows, [
-      'credito_id', 'banco', 'tipo_credito', 'monto_total', 'tasa_interes',
-      'plazo_meses', 'fecha_inicio', 'pago_mensual', 'saldo_pendiente',
-      'proyecto', 'concepto', 'estatus', 'activo'
+      'credito_id', 'nombre', 'banco', 'tipo_credito', 'monto_autorizado',
+      'tasa_base', 'proyecto', 'cuenta_pago', 'estatus', 'activo'
     ]);
   } catch (e) { console.error('gsSaveCreditos', e); }
+}
+
+export async function gsSavePagares() {
+  if (!state.gsToken) return;
+  try {
+    const rows = state.pagares.map(p => [
+      p.pagare_id, p.credito_id, p.numero_pagare, p.monto,
+      p.fecha_disposicion, p.fecha_vencimiento, p.tasa, p.estatus, p.activo
+    ]);
+    await gsClearAndWrite('pagares', rows, [
+      'pagare_id', 'credito_id', 'numero_pagare', 'monto',
+      'fecha_disposicion', 'fecha_vencimiento', 'tasa', 'estatus', 'activo'
+    ]);
+  } catch (e) { console.error('gsSavePagares', e); }
+}
+
+export async function gsSavePagosPagare() {
+  if (!state.gsToken) return;
+  try {
+    const rows = state.pagosPagare.map(p => [
+      p.pago_id, p.pagare_id, p.credito_id, p.fecha_pago,
+      p.monto_intereses, p.concepto || '', p.estatus, p.fecha_real_pago || ''
+    ]);
+    await gsClearAndWrite('pagos_pagare', rows, [
+      'pago_id', 'pagare_id', 'credito_id', 'fecha_pago',
+      'monto_intereses', 'concepto', 'estatus', 'fecha_real_pago'
+    ]);
+  } catch (e) { console.error('gsSavePagosPagare', e); }
 }
 
 export async function gsSaveProyectos() {

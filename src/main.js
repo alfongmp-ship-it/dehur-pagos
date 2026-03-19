@@ -18,9 +18,9 @@ import { renderTraspasos, abrirNuevoTraspaso, editarTraspaso, guardarTraspaso, e
 import { renderResumenTraspasos, filtrarResumen } from './modules/resumen-traspasos.js';
 import { calcularClabeProy, selColor, abrirModalProyecto, guardarProyecto, toggleProyecto, renderConfigProyectos } from './modules/config-page.js';
 import { renderCuentasPropias, abrirNuevaCuenta, editarCuenta, guardarCuenta, actualizarSaldoCuenta, guardarSaldoCuenta } from './modules/cuentas-propias.js';
-import { renderCreditos, abrirNuevoCredito, editarCredito, guardarCredito, eliminarCredito, abrirPagoCredito, confirmarPagoCredito } from './modules/creditos.js';
+import { renderCreditos, abrirNuevoCredito, editarCredito, guardarCredito, abrirNuevaDisposicion, guardarDisposicion, togglePagare, abrirNuevaFechaPago, guardarFechaPago, marcarPagoPagado } from './modules/creditos.js';
 import { gsLogin, gsLogout, renderAuthStatus, checkOAuthCallback } from './services/google-auth.js';
-import { gsLoadAll, gsSaveProveedores, gsSaveEmpleados, gsSaveProyectos, gsSaveAlias, gsSaveCuentasPropias, gsSaveTraspasos, gsSaveCreditos } from './services/google-sync.js';
+import { gsLoadAll, gsSaveProveedores, gsSaveEmpleados, gsSaveProyectos, gsSaveAlias, gsSaveCuentasPropias, gsSaveTraspasos, gsSaveCreditos, gsSavePagares, gsSavePagosPagare } from './services/google-sync.js';
 
 // ===== INICIALIZACIÓN =====
 async function init() {
@@ -176,10 +176,15 @@ window.renderCreditos = renderCreditos;
 window.abrirNuevoCredito = abrirNuevoCredito;
 window.editarCredito = editarCredito;
 window.guardarCredito = guardarCredito;
-window.eliminarCredito = eliminarCredito;
-window.abrirPagoCredito = abrirPagoCredito;
-window.confirmarPagoCredito = confirmarPagoCredito;
+window.abrirNuevaDisposicion = abrirNuevaDisposicion;
+window.guardarDisposicion = guardarDisposicion;
+window.togglePagare = togglePagare;
+window.abrirNuevaFechaPago = abrirNuevaFechaPago;
+window.guardarFechaPago = guardarFechaPago;
+window.marcarPagoPagado = marcarPagoPagado;
 window.gsSaveCreditos = gsSaveCreditos;
+window.gsSavePagares = gsSavePagares;
+window.gsSavePagosPagare = gsSavePagosPagare;
 
 // Config / Proyectos
 window.calcularClabeProy = calcularClabeProy;
