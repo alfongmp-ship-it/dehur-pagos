@@ -30,7 +30,7 @@ export async function gsClearAndWrite(sheet, rows, headers) {
 }
 
 export async function gsInitSheets() {
-  const sheetsNeeded = ['proveedores', 'empleados', 'historial_pagos', 'proyectos', 'facturas', 'factura_pagos', 'aliases', 'cuentas_propias', 'traspasos'];
+  const sheetsNeeded = ['proveedores', 'empleados', 'historial_pagos', 'proyectos', 'facturas', 'factura_pagos', 'aliases', 'cuentas_propias', 'traspasos', 'creditos'];
   try {
     const r = await gsFetch(`https://sheets.googleapis.com/v4/spreadsheets/${GS_SPREADSHEET_ID}`);
     const existing = r.sheets.map(s => s.properties.title);
@@ -48,7 +48,8 @@ export async function gsInitSheets() {
         factura_pagos: [['factura_pago_id', 'factura_id', 'pago_id', 'proveedor_id', 'monto_aplicado', 'fecha_pago', 'estatus', 'observaciones']],
         aliases: [['alias', 'proveedor_id', 'fecha']],
         cuentas_propias: [['cuenta_id', 'nombre', 'banco', 'clabe', 'numero_cuenta', 'proyecto', 'tipo', 'saldo', 'ultima_actualizacion', 'activo']],
-        traspasos: [['traspaso_id', 'tipo', 'cuenta_origen_id', 'cuenta_origen_tipo', 'cuenta_origen_nombre', 'proyecto_origen', 'cuenta_destino_id', 'cuenta_destino_tipo', 'cuenta_destino_nombre', 'proyecto_destino', 'monto', 'fecha', 'concepto', 'referencia', 'estatus', 'fecha_registro']]
+        traspasos: [['traspaso_id', 'tipo', 'cuenta_origen_id', 'cuenta_origen_tipo', 'cuenta_origen_nombre', 'proyecto_origen', 'cuenta_destino_id', 'cuenta_destino_tipo', 'cuenta_destino_nombre', 'proyecto_destino', 'monto', 'fecha', 'concepto', 'referencia', 'estatus', 'fecha_registro']],
+        creditos: [['credito_id', 'banco', 'tipo_credito', 'monto_total', 'tasa_interes', 'plazo_meses', 'fecha_inicio', 'pago_mensual', 'saldo_pendiente', 'proyecto', 'concepto', 'estatus', 'activo']]
       };
       for (const sheet of toCreate) {
         await gsWriteRange(sheet + '!A1', headers[sheet]);

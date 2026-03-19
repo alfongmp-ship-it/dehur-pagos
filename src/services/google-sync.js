@@ -161,6 +161,26 @@ export async function gsLoadAll() {
       }));
     }
 
+    // Load creditos
+    const crRows = await gsReadSheet('creditos');
+    if (crRows && crRows.length > 1) {
+      state.creditos = crRows.slice(1).filter(r => r[0]).map(r => ({
+        credito_id: parseInt(r[0]) || 0,
+        banco: r[1] || '',
+        tipo_credito: r[2] || 'Préstamo',
+        monto_total: parseFloat(r[3]) || 0,
+        tasa_interes: parseFloat(r[4]) || 0,
+        plazo_meses: parseInt(r[5]) || 0,
+        fecha_inicio: r[6] || '',
+        pago_mensual: parseFloat(r[7]) || 0,
+        saldo_pendiente: parseFloat(r[8]) || 0,
+        proyecto: r[9] || '',
+        concepto: r[10] || '',
+        estatus: r[11] || 'Activo',
+        activo: r[12] !== 'false'
+      }));
+    }
+
     // Load factura_pagos
     const fpRows = await gsReadSheet('factura_pagos');
     if (fpRows && fpRows.length > 1) {
@@ -177,6 +197,7 @@ export async function gsLoadAll() {
     }
 
     // Re-render everything
+    if (window.renderCreditos) window.renderCreditos();
     if (window.renderTraspasos) window.renderTraspasos();
     if (window.renderResumenTraspasos) window.renderResumenTraspasos();
     if (window.renderCuentasPropias) window.renderCuentasPropias();
@@ -272,6 +293,22 @@ export async function gsSaveTraspasos() {
       'monto', 'fecha', 'concepto', 'referencia', 'estatus', 'fecha_registro'
     ]);
   } catch (e) { console.error('gsSaveTraspasos', e); }
+}
+
+export async function gsSaveCreditos() {
+  if (!state.gsToken) return;
+  try {
+    const rows = state.creditos.map(c => [
+      c.credito_id, c.banco, c.tipo_credito, c.monto_total, c.tasa_interes,
+      c.plazo_meses, c.fecha_inicio, c.pago_mensual, c.saldo_pendiente,
+      c.proyecto || '', c.concepto || '', c.estatus, c.activo
+    ]);
+    await gsClearAndWrite('creditos', rows, [
+      'credito_id', 'banco', 'tipo_credito', 'monto_total', 'tasa_interes',
+      'plazo_meses', 'fecha_inicio', 'pago_mensual', 'saldo_pendiente',
+      'proyecto', 'concepto', 'estatus', 'activo'
+    ]);
+  } catch (e) { console.error('gsSaveCreditos', e); }
 }
 
 export async function gsSaveProyectos() {
