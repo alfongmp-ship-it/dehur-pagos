@@ -53,7 +53,10 @@ export function renderCuentasPropias() {
       <td>${proyTag(c.proyecto)}</td>
       <td style="font-family:'DM Mono',monospace;font-weight:500;text-align:right;color:var(--accent);">${fmt(c.saldo)}</td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${c.ultima_actualizacion || '—'}</td>
-      <td style="text-align:right;"><button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="editarCuenta(${c.cuenta_id})">Editar</button></td>
+      <td style="text-align:right;display:flex;gap:4px;justify-content:flex-end;">
+        <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="actualizarSaldoExtra(${c.cuenta_id})">Actualizar saldo</button>
+        <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="editarCuenta(${c.cuenta_id})">Editar</button>
+      </td>
     </tr>`);
 
   const total = filasProyectos.length + filasExtra.length;
@@ -113,6 +116,7 @@ export function actualizarSaldoCuenta(proyId) {
   const p = state.proyectos.find(x => x.id === proyId);
   if (!p) return;
   state.editSaldoProy = proyId;
+  state._editSaldoExtra = null;
   document.getElementById('modal-saldo-title').textContent = 'Actualizar Saldo – ' + p.nombre;
   document.getElementById('saldo-monto').value = p.saldo || '';
   document.getElementById('saldo-fecha').value = p.ultima_act_saldo || new Date().toISOString().split('T')[0];
@@ -120,19 +124,46 @@ export function actualizarSaldoCuenta(proyId) {
 }
 
 export function guardarSaldoCuenta() {
-  const p = state.proyectos.find(x => x.id === state.editSaldoProy);
-  if (!p) return;
   const saldo = parseFloat(document.getElementById('saldo-monto').value) || 0;
   const now = new Date();
   const pad = n => String(n).padStart(2, '0');
-  p.saldo = saldo;
-  p.ultima_act_saldo = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
-  saveProy(state.proyectos);
-  cerrar('modal-saldo');
-  renderCuentasPropias();
-  if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
-  notify('Saldo actualizado');
-  gsSaveProyectos();
+  const ts = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
+  if (state._editSaldoExtra) {
+    // Cuenta adicional (cuentasPropias)
+    const c = state.cuentasPropias.find(x => x.cuenta_id === state._editSaldoExtra);
+    if (!c) return;
+    c.saldo = saldo;
+    c.ultima_actualizacion = ts;
+    state._editSaldoExtra = null;
+    cerrar('modal-saldo');
+    renderCuentasPropias();
+    gsSaveCuentasPropias();
+    notify('Saldo actualizado');
+  } else {
+    // Cuenta de proyecto (dispersión)
+    const p = state.proyectos.find(x => x.id === state.editSaldoProy);
+    if (!p) return;
+    p.saldo = saldo;
+    p.ultima_act_saldo = ts;
+    saveProy(state.proyectos);
+    cerrar('modal-saldo');
+    renderCuentasPropias();
+    if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
+    notify('Saldo actualizado');
+    gsSaveProyectos();
+  }
+}
+
+export function actualizarSaldoExtra(cuentaId) {
+  const c = state.cuentasPropias.find(x => x.cuenta_id === cuentaId);
+  if (!c) return;
+  state.editSaldoProy = null;
+  state._editSaldoExtra = cuentaId;
+  document.getElementById('modal-saldo-title').textContent = 'Actualizar Saldo – ' + c.nombre;
+  document.getElementById('saldo-monto').value = c.saldo || '';
+  document.getElementById('saldo-fecha').value = c.ultima_actualizacion || new Date().toISOString().split('T')[0];
+  document.getElementById('modal-saldo').classList.add('open');
 }
 
 export function guardarCuenta() {
