@@ -11,7 +11,7 @@ import { refreshProyectosEnSelects } from './ui/nav.js';
 import { renderProveedores, abrirNuevoProveedor, editarProv, validarCuentaProv, guardarProveedor, exportarCSV, toggleSubcat } from './modules/proveedores.js';
 import { renderNomina, abrirNuevoEmpleado, editarEmp, updateTipoEmp, validarCuentaEmp, guardarEmpleado, exportarNomina } from './modules/nomina.js';
 import { renderHistorial, exportarHistorial, renderModalConf, toggleAllConf, abrirModalConfirmarPagos, confirmarPagos } from './modules/historial.js';
-import { renderCola, abrirPagoRapido, abrirModalPago, buscarModal, selPago, agregarACola, abrirModalNominaDisp, filtrarNomDisp, agregarNominaACola, qDel, limpiarCola, buscarRapido, quickAdd, generarArchivo } from './modules/dispersion.js';
+import { renderCola, abrirPagoRapido, abrirModalPago, buscarModal, selPago, agregarACola, confirmarPagoDirecto, checkCuentaOrigenPago, abrirModalNominaDisp, filtrarNomDisp, agregarNominaACola, qDel, limpiarCola, buscarRapido, quickAdd, generarArchivo } from './modules/dispersion.js';
 import { handleSolDrop, handleSolFile, descargarPlantilla, parsearSolicitud, renderSolicitudes, toggleSol, seleccionarTodosSol, nuevaSolicitud, abrirVincular, renderVincBusqueda, seleccionarProvExistente, renderVincTipo, validarVincCuenta, confirmarNuevoProv, enviarACola } from './modules/solicitudes.js';
 import { renderFacturas, renderFacturaPagos, abrirNuevaFactura, editarFactura, guardarFactura, filtrarProvFactura, selProvFactura } from './modules/facturas.js';
 import { renderTraspasos, abrirNuevoTraspaso, editarTraspaso, guardarTraspaso, eliminarTraspaso, actualizarTipoDetectado } from './modules/traspasos.js';
@@ -147,6 +147,8 @@ window.limpiarCola = limpiarCola;
 window.buscarRapido = buscarRapido;
 window.quickAdd = quickAdd;
 window.generarArchivo = generarArchivo;
+window.confirmarPagoDirecto = confirmarPagoDirecto;
+window.checkCuentaOrigenPago = checkCuentaOrigenPago;
 // Solicitudes
 window.handleSolDrop = handleSolDrop;
 window.handleSolFile = handleSolFile;

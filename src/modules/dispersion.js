@@ -5,6 +5,8 @@ import { fmt } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { abrirModalConfirmarPagos } from './historial.js';
+import { saveData, gsSaveProyectos, gsSaveCuentasPropias } from '../services/google-sync.js';
+import { saveProy } from '../config/proyectos.js';
 
 // ---- PAGO / COLA ----
 export function abrirPagoRapido(src, id) {
@@ -28,7 +30,38 @@ export function abrirModalPago() {
   document.getElementById('alerta-tipo').style.display = 'none';
   document.getElementById('pago-concepto').value = '';
   document.getElementById('pago-importe').value = '';
+  document.getElementById('pago-partida').value = '';
+  // Poblar cuenta origen: proyectos BBVA + cuentas adicionales
+  const sel = document.getElementById('pago-cuenta-origen');
+  if (sel) {
+    const proyOpts = state.proyectos.filter(p => p.activo !== false && p.cuenta).map(p =>
+      `<option value="proy:${p.nombre}" data-tipo="bbva">${p.nombre} – BBVA ···${p.cuenta.slice(-4)}</option>`
+    ).join('');
+    const extraOpts = state.cuentasPropias.filter(c => c.activo !== false).map(c =>
+      `<option value="extra:${c.nombre}" data-tipo="otro">${c.nombre} – ${c.banco}${c.numero_cuenta ? ' ···' + c.numero_cuenta.slice(-4) : ''}</option>`
+    ).join('');
+    sel.innerHTML = proyOpts + extraOpts;
+  }
+  checkCuentaOrigenPago();
   document.getElementById('modal-pago').classList.add('open');
+}
+
+export function checkCuentaOrigenPago() {
+  const sel = document.getElementById('pago-cuenta-origen');
+  const btn = document.getElementById('btn-pago-action');
+  const info = document.getElementById('pago-info-no-bbva');
+  if (!sel || !btn) return;
+  const val = sel.value || '';
+  const esBBVA = val.startsWith('proy:');
+  if (esBBVA) {
+    btn.textContent = 'Agregar a Cola ⚡';
+    btn.onclick = agregarACola;
+    if (info) info.style.display = 'none';
+  } else {
+    btn.textContent = 'Confirmar Pago ✓';
+    btn.onclick = confirmarPagoDirecto;
+    if (info) info.style.display = '';
+  }
 }
 
 function cargarSeleccionado() {
@@ -67,15 +100,59 @@ export function agregarACola() {
   if (!state.pagoP) { notify('Selecciona un destinatario', 'error'); return; }
   const concepto = document.getElementById('pago-concepto').value.trim();
   const importe = parseFloat(document.getElementById('pago-importe').value);
-  const proyecto = document.getElementById('pago-proy').value;
+  const partida = document.getElementById('pago-partida')?.value.trim() || '';
+  const ctaVal = document.getElementById('pago-cuenta-origen')?.value || '';
+  const proyecto = ctaVal.replace(/^proy:|^extra:/, '');
   if (!concepto) { notify('El concepto es obligatorio', 'error'); return; }
   if (!importe || importe <= 0) { notify('Ingresa un importe válido', 'error'); return; }
-  state.cola.push({ id: Date.now(), proveedor: state.pagoP, concepto, importe, proyecto });
+  state.cola.push({ id: Date.now(), proveedor: state.pagoP, concepto, importe, proyecto, partida, proveedor_id: String(state.pagoP.id || ''), factura_id: '' });
   cerrar('modal-pago');
   renderCola();
   document.getElementById('cnt-cola').textContent = state.cola.length;
   document.getElementById('st-cola').textContent = state.cola.length;
   notify(`${state.pagoP.nombre.split(' ')[0]} · ${fmt(importe)}`);
+}
+
+export function confirmarPagoDirecto() {
+  if (!state.pagoP) { notify('Selecciona un destinatario', 'error'); return; }
+  const concepto = document.getElementById('pago-concepto').value.trim();
+  const importe = parseFloat(document.getElementById('pago-importe').value);
+  const partida = document.getElementById('pago-partida')?.value.trim() || '';
+  const ctaVal = document.getElementById('pago-cuenta-origen')?.value || '';
+  const cuentaNombre = ctaVal.replace(/^proy:|^extra:/, '');
+  if (!concepto) { notify('El concepto es obligatorio', 'error'); return; }
+  if (!importe || importe <= 0) { notify('Ingresa un importe válido', 'error'); return; }
+
+  const fecha = new Date().toLocaleDateString('es-MX');
+  state.historial.unshift({
+    fecha, nombre: state.pagoP.nombre, concepto, importe,
+    proyecto: cuentaNombre, banco: state.pagoP.banco,
+    tipo: state.pagoP.tipo_cuenta || 'Cuenta',
+    proveedor_id: String(state.pagoP.id || ''), factura_id: '',
+    cuenta_origen: cuentaNombre, tipo_registro: 'Pago', partida
+  });
+
+  document.getElementById('cnt-hist').textContent = state.historial.length;
+  saveData(1);
+
+  // Ajustar saldo de la cuenta origen
+  const todayISO = new Date().toISOString().split('T')[0];
+  const proy = state.proyectos.find(x => x.nombre === cuentaNombre);
+  if (proy && proy.ultima_act_saldo && todayISO >= proy.ultima_act_saldo.slice(0, 10)) {
+    proy.saldo = (proy.saldo || 0) - importe;
+    saveProy(state.proyectos); gsSaveProyectos();
+  } else {
+    const extra = state.cuentasPropias.find(x => x.nombre === cuentaNombre);
+    if (extra && extra.ultima_actualizacion && todayISO >= extra.ultima_actualizacion.slice(0, 10)) {
+      extra.saldo = (extra.saldo || 0) - importe;
+      gsSaveCuentasPropias();
+    }
+  }
+
+  cerrar('modal-pago');
+  if (window.renderHistorial) window.renderHistorial();
+  if (window.renderCuentasPropias) window.renderCuentasPropias();
+  notify(`Pago directo registrado: ${state.pagoP.nombre.split(' ')[0]} · ${fmt(importe)}`);
 }
 
 // Nómina masiva a cola
