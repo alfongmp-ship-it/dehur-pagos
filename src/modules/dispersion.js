@@ -123,10 +123,15 @@ export function confirmarPagoDirecto() {
   if (!concepto) { notify('El concepto es obligatorio', 'error'); return; }
   if (!importe || importe <= 0) { notify('Ingresa un importe válido', 'error'); return; }
 
+  // Buscar el proyecto real de la cuenta
+  const proy = state.proyectos.find(x => x.nombre === cuentaNombre);
+  const extra = state.cuentasPropias.find(x => x.nombre === cuentaNombre);
+  const proyectoReal = proy ? proy.nombre : (extra?.proyecto || cuentaNombre);
+
   const fecha = new Date().toLocaleDateString('es-MX');
   state.historial.unshift({
     fecha, nombre: state.pagoP.nombre, concepto, importe,
-    proyecto: cuentaNombre, banco: state.pagoP.banco,
+    proyecto: proyectoReal, banco: state.pagoP.banco,
     tipo: state.pagoP.tipo_cuenta || 'Cuenta',
     proveedor_id: String(state.pagoP.id || ''), factura_id: '',
     cuenta_origen: cuentaNombre, tipo_registro: 'Pago', partida
