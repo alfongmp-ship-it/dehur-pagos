@@ -140,18 +140,14 @@ export function confirmarPagoDirecto() {
   document.getElementById('cnt-hist').textContent = state.historial.length;
   saveData(1);
 
-  // Ajustar saldo de la cuenta origen
+  // Ajustar saldo de la cuenta origen (reusar proy/extra de arriba)
   const todayISO = new Date().toISOString().split('T')[0];
-  const proy = state.proyectos.find(x => x.nombre === cuentaNombre);
   if (proy && proy.ultima_act_saldo && todayISO >= proy.ultima_act_saldo.slice(0, 10)) {
     proy.saldo = (proy.saldo || 0) - importe;
     saveProy(state.proyectos); gsSaveProyectos();
-  } else {
-    const extra = state.cuentasPropias.find(x => x.nombre === cuentaNombre);
-    if (extra && extra.ultima_actualizacion && todayISO >= extra.ultima_actualizacion.slice(0, 10)) {
-      extra.saldo = (extra.saldo || 0) - importe;
-      gsSaveCuentasPropias();
-    }
+  } else if (extra && extra.ultima_actualizacion && todayISO >= extra.ultima_actualizacion.slice(0, 10)) {
+    extra.saldo = (extra.saldo || 0) - importe;
+    gsSaveCuentasPropias();
   }
 
   cerrar('modal-pago');
