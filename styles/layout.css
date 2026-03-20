@@ -19,6 +19,7 @@
 .sidebar {
   width: 220px; min-width: 220px; background: var(--surface);
   border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 16px 0;
+  overflow-y: auto;
 }
 .nav-label {
   font-size: 10px; font-weight: 600; color: var(--muted);
