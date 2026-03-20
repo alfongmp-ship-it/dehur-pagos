@@ -105,7 +105,7 @@
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th style="width:40px;text-align:center">ID</th><th>Proveedor</th><th>Tipo Cuenta</th><th>Banco</th><th>Número de Cuenta / CLABE</th><th>Categoría</th><th>Proyectos</th><th style="text-align:right">Acciones</th></tr></thead>
+          <thead><tr><th style="width:40px;text-align:center">ID</th><th>Proveedor</th><th>Tipo Cuenta</th><th>Banco</th><th>Número de Cuenta / CLABE</th><th>Categoría</th><th>Subcategoría</th><th>Proyectos</th><th style="text-align:right">Acciones</th></tr></thead>
           <tbody id="tbody-prov"></tbody>
         </table>
       </div>
@@ -179,8 +179,8 @@
       </div>
       <div id="hist-subtitulo" style="font-size:11px;color:var(--muted);margin-bottom:6px;"></div>
       <div class="table-wrap">
-        <div style="display:grid;grid-template-columns:60px 60px 100px 120px 1fr 100px 80px 130px 110px 90px;gap:12px;padding:11px 16px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;">
-          <div>ID Prov</div><div>ID Fact</div><div>Fecha</div><div>Origen</div><div>Beneficiario</div><div>Tipo</div><div>Categoría</div><div>Concepto</div><div style="text-align:right">Importe</div><div>Proyecto</div>
+        <div style="display:grid;grid-template-columns:60px 60px 100px 120px 1fr 90px 80px 70px 120px 100px 90px;gap:12px;padding:11px 16px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;">
+          <div>ID Prov</div><div>ID Fact</div><div>Fecha</div><div>Origen</div><div>Beneficiario</div><div>Tipo</div><div>Categoría</div><div>Subcat.</div><div>Concepto</div><div style="text-align:right">Importe</div><div>Proyecto</div>
         </div>
         <div id="historial-lista"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">📋</div><div>Sin registros aún</div></div></div>
       </div>
@@ -678,7 +678,8 @@
     <div class="form-grid">
       <div class="field span2"><label>Nombre / Razón Social *</label><input id="p-nombre" placeholder="NOMBRE EN MAYÚSCULAS"></div>
       <div class="field"><label>RFC</label><input id="p-rfc" placeholder="Opcional"></div>
-      <div class="field"><label>Categoría</label><select id="p-cat"><option>General</option><option>Nomina</option><option>Proveedor</option><option>Obra</option><option>Contratista</option><option>Acreedor</option><option>Socio</option></select></div>
+      <div class="field"><label>Categoría</label><select id="p-cat" onchange="toggleSubcat()"><option>General</option><option>Nomina</option><option>Proveedor</option><option>Obra</option><option>Contratista</option><option>Acreedor</option><option>Socio</option></select></div>
+      <div class="field" id="field-subcat" style="display:none;"><label>Subcategoría</label><select id="p-subcat"><option value="">—</option><option>Estructura</option><option>Instalaciones</option><option>Acabados</option><option>Herrería</option><option>Impermeabilización</option><option>Electricidad</option><option>Plomería</option><option>Otros</option></select></div>
       <div class="field"><label>Número de cuenta</label><input id="p-cuenta" placeholder="Opcional" style="font-family:'DM Mono',monospace;"></div>
       <div class="field"><label>CLABE Interbancaria (18 dígitos)</label><input id="p-clabe" placeholder="000000000000000000" maxlength="18" oninput="validarCuentaProv()" style="font-family:'DM Mono',monospace;"><div id="p-cuenta-status"></div></div>
       <div class="field"><label>Banco detectado</label><input id="p-banco" readonly style="color:var(--muted)"></div>

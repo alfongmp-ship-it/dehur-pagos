@@ -6,6 +6,11 @@ import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { gsSaveProveedores } from '../services/google-sync.js';
 
+export function toggleSubcat() {
+  const cat = document.getElementById('p-cat').value;
+  document.getElementById('field-subcat').style.display = cat === 'Proveedor' ? '' : 'none';
+}
+
 export function renderProveedores() {
   const q = document.getElementById('buscar-prov').value.toLowerCase();
   const ft = document.getElementById('f-tipo').value;
@@ -19,10 +24,10 @@ export function renderProveedores() {
   );
   const tb = document.getElementById('tbody-prov');
   if (!fil.length) {
-    tb.innerHTML = `<tr><td colspan="8"><div class="empty-state" style="padding:30px;"><div style="font-size:28px;opacity:.4;margin-bottom:8px;">🔍</div><div>Sin resultados</div></div></td></tr>`;
+    tb.innerHTML = `<tr><td colspan="9"><div class="empty-state" style="padding:30px;"><div style="font-size:28px;opacity:.4;margin-bottom:8px;">🔍</div><div>Sin resultados</div></div></td></tr>`;
     return;
   }
-  tb.innerHTML = fil.map(p => `<tr><td style="font-size:12px;color:var(--muted);text-align:center;">${p.id}</td><td><div class="name-cell">${p.nombre}</div>${p.rfc ? `<div class="name-sub">${p.rfc}</div>` : ''}</td><td>${tipoBadge(p.tipo_cuenta)}</td><td style="font-size:13px;">${p.banco}</td><td><span class="mono">${p.clabe || p.cuenta}</span></td><td>${catTag(p.categoria)}</td><td>${p.proyectos.map(proyTag).join(' ')}</td><td><div style="display:flex;gap:6px;justify-content:flex-end;"><button class="btn btn-success btn-sm" onclick="abrirPagoRapido('prov',${p.id})">+ Pago</button><button class="btn btn-ghost btn-sm" onclick="editarProv(${p.id})">Editar</button></div></td></tr>`).join('');
+  tb.innerHTML = fil.map(p => `<tr><td style="font-size:12px;color:var(--muted);text-align:center;">${p.id}</td><td><div class="name-cell">${p.nombre}</div>${p.rfc ? `<div class="name-sub">${p.rfc}</div>` : ''}</td><td>${tipoBadge(p.tipo_cuenta)}</td><td style="font-size:13px;">${p.banco}</td><td><span class="mono">${p.clabe || p.cuenta}</span></td><td>${catTag(p.categoria)}</td><td style="font-size:11px;color:var(--muted);">${p.categoria === 'Proveedor' && p.subcategoria ? p.subcategoria : '—'}</td><td>${p.proyectos.map(proyTag).join(' ')}</td><td><div style="display:flex;gap:6px;justify-content:flex-end;"><button class="btn btn-success btn-sm" onclick="abrirPagoRapido('prov',${p.id})">+ Pago</button><button class="btn btn-ghost btn-sm" onclick="editarProv(${p.id})">Editar</button></div></td></tr>`).join('');
   document.getElementById('st-total').textContent = state.proveedores.length;
   document.getElementById('st-clabe').textContent = state.proveedores.filter(p => p.tipo_cuenta === 'CLABE').length;
   document.getElementById('st-bbva').textContent = state.proveedores.filter(p => p.tipo_cuenta === 'Cuenta').length;
@@ -50,6 +55,8 @@ export function editarProv(id) {
   document.getElementById('p-clabe').value = p.clabe || '';
   document.getElementById('p-banco').value = p.banco;
   document.getElementById('p-cat').value = p.categoria;
+  toggleSubcat();
+  document.getElementById('p-subcat').value = p.subcategoria || '';
   document.getElementById('p-activo').value = p.activo ? 'true' : 'false';
   validarCuentaProv();
   document.querySelectorAll('#modal-prov .proyecto-pill').forEach(pp =>
@@ -65,6 +72,8 @@ function limpiarFormProv() {
   document.getElementById('p-clabe').value = '';
   document.getElementById('p-banco').value = '';
   document.getElementById('p-cat').value = 'General';
+  document.getElementById('p-subcat').value = '';
+  document.getElementById('field-subcat').style.display = 'none';
   document.getElementById('p-activo').value = 'true';
   document.getElementById('p-cuenta-status').textContent = '';
   document.querySelectorAll('#modal-prov .proyecto-pill').forEach(pp => pp.classList.remove('selected'));
@@ -97,7 +106,7 @@ export function guardarProveedor() {
     banco, tipo_cuenta: tipo, cuenta,
     clabe, num_cuenta: cuenta,
     categoria: document.getElementById('p-cat').value,
-    subcategoria: existing ? existing.subcategoria || '' : '',
+    subcategoria: document.getElementById('p-cat').value === 'Proveedor' ? (document.getElementById('p-subcat').value || '') : '',
     activo: document.getElementById('p-activo').value === 'true',
     bloqueada_para_pago: existing ? existing.bloqueada_para_pago || false : false,
     proyectos: projs

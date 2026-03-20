@@ -8,7 +8,7 @@ import { setupModalCloseHandlers, cerrar } from './ui/modal.js';
 import { notify } from './ui/notify.js';
 import { renderHeaderBadges, renderCuentaDispSelect, actualizarDisplaySaldo } from './ui/header.js';
 import { refreshProyectosEnSelects } from './ui/nav.js';
-import { renderProveedores, abrirNuevoProveedor, editarProv, validarCuentaProv, guardarProveedor, exportarCSV } from './modules/proveedores.js';
+import { renderProveedores, abrirNuevoProveedor, editarProv, validarCuentaProv, guardarProveedor, exportarCSV, toggleSubcat } from './modules/proveedores.js';
 import { renderNomina, abrirNuevoEmpleado, editarEmp, updateTipoEmp, validarCuentaEmp, guardarEmpleado, exportarNomina } from './modules/nomina.js';
 import { renderHistorial, exportarHistorial, renderModalConf, toggleAllConf, abrirModalConfirmarPagos, confirmarPagos } from './modules/historial.js';
 import { renderCola, abrirPagoRapido, abrirModalPago, buscarModal, selPago, agregarACola, abrirModalNominaDisp, filtrarNomDisp, agregarNominaACola, qDel, limpiarCola, buscarRapido, quickAdd, generarArchivo } from './modules/dispersion.js';
@@ -93,6 +93,7 @@ window.editarProv = editarProv;
 window.validarCuentaProv = validarCuentaProv;
 window.guardarProveedor = guardarProveedor;
 window.exportarCSV = exportarCSV;
+window.toggleSubcat = toggleSubcat;
 
 // Nómina
 window.renderNomina = renderNomina;
