@@ -67,11 +67,13 @@ export function exportarHistorial() {
   if (!state.historial.length) { notify('Sin historial', 'error'); return; }
   const data = getFilteredHistorial();
   if (!data.length) { notify('Sin registros con los filtros actuales', 'error'); return; }
-  let csv = 'Proveedor_ID,Factura_ID,Fecha,Origen,Beneficiario,Banco,Tipo Cuenta,Categoria,Tipo,Concepto,Importe,Proyecto\n';
+  let csv = 'ID Prov,ID Fact,Fecha,Origen,Beneficiario,Banco,Tipo Cuenta,Tipo,Categoria,Subcategoria,Partida,Concepto,Importe,Proyecto\n';
   csv += data.map(h => {
-    const tipoProv = (h.tipo_registro !== 'Traspaso' && h.proveedor_id) ? (state.proveedores.find(p => p.id === parseInt(h.proveedor_id))?.categoria || '') : '';
-    const cat = h.tipo_registro === 'Traspaso' ? h.tipo : 'Pago';
-    return `${h.proveedor_id || ''},${h.factura_id || ''},${h.fecha},"${h.cuenta_origen || ''}","${h.nombre}",${h.banco},${h.tipo},${cat},${tipoProv},"${h.concepto}",${h.importe},"${h.proyecto}"`;
+    const prov = (h.proveedor_id && h.tipo_registro !== 'Traspaso' && h.tipo_registro !== 'Crédito') ? state.proveedores.find(p => p.id === parseInt(h.proveedor_id)) : null;
+    const tipo = h.tipo_registro === 'Crédito' ? 'Crédito' : h.tipo_registro === 'Traspaso' ? (h.tipo === 'Préstamo' ? 'Préstamo' : 'Aportación') : 'Pago';
+    const categoria = prov?.categoria || '';
+    const subcat = (prov?.categoria === 'Proveedor' && prov?.subcategoria) ? prov.subcategoria : '';
+    return `${h.proveedor_id || ''},${h.factura_id || ''},${h.fecha},"${h.cuenta_origen || ''}","${h.nombre}",${h.banco},${h.tipo},${tipo},${categoria},${subcat},"${h.partida || ''}","${h.concepto}",${h.importe},"${h.proyecto}"`;
   }).join('\n');
   dl(csv, 'historial_pagos_dehur.csv');
   notify('Historial exportado (' + data.length + ' registros)');
