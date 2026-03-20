@@ -462,6 +462,7 @@ export function enviarACola() {
       proyecto: s.proyecto || '',
       proveedor_id: s.proveedor_id || String(prov.id || ''),
       factura_id: s.factura_id || '',
+      partida: s.partida || '',
       origen: 'solicitud'
     });
   });

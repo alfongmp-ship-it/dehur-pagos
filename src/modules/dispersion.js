@@ -123,7 +123,7 @@ export function renderCola() {
     return;
   }
   lista.innerHTML = state.cola.map(item =>
-    `<div class="queue-item"><div style="flex:1;"><div class="qi-name">${item.proveedor.nombre}</div><div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:2px;">${item.proveedor.cuenta} · ${item.proveedor.banco} ${tipoBadge(item.proveedor.tipo_cuenta)}</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">${item.concepto} · ${item.proyecto}</div></div><div style="text-align:right;"><div class="qi-amount">${fmt(item.importe)}</div></div><button onclick="qDel(${item.id})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:4px;" title="Quitar">✕</button></div>`
+    `<div class="queue-item"><div style="flex:1;"><div class="qi-name">${item.proveedor.nombre}</div><div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:2px;">${item.proveedor.cuenta} · ${item.proveedor.banco} ${tipoBadge(item.proveedor.tipo_cuenta)}</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">${item.concepto} · ${item.proyecto}${item.partida ? ' · <span style="color:var(--accent);">' + item.partida + '</span>' : ''}</div></div><div style="text-align:right;"><div class="qi-amount">${fmt(item.importe)}</div></div><button onclick="qDel(${item.id})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:4px;" title="Quitar">✕</button></div>`
   ).join('');
   const total = state.cola.reduce((s, i) => s + i.importe, 0);
   document.getElementById('total-amount').textContent = fmt(total);
@@ -205,7 +205,7 @@ export function generarArchivo() {
     id: item.id, proveedor_id: item.proveedor_id || item.proveedor.id || '', factura_id: item.factura_id || '',
     nombre: item.proveedor.nombre, cuenta: item.proveedor.cuenta,
     banco: item.proveedor.banco, tipo: item.proveedor.tipo_cuenta,
-    concepto: item.concepto, importe: item.importe, proyecto: item.proyecto,
+    concepto: item.concepto, importe: item.importe, proyecto: item.proyecto, partida: item.partida || '',
     cuenta_cargo: proySel.nombre,
     fechaGen: fd, seleccionado: true, tieneInfo: true
   }));
