@@ -9,6 +9,7 @@ import { saveProy } from '../config/proyectos.js';
 export function renderHistorial() {
   const el = document.getElementById('historial-lista');
   refreshHistProyectos();
+  refreshHistPartidas();
   if (!state.historial.length) {
     el.innerHTML = `<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">📋</div><div>Sin registros aún</div></div>`;
     document.getElementById('hist-subtitulo').textContent = '';
@@ -53,6 +54,15 @@ function refreshHistProyectos() {
   sel.value = val;
 }
 
+function refreshHistPartidas() {
+  const sel = document.getElementById('fh-partida');
+  if (!sel) return;
+  const val = sel.value;
+  const partidas = [...new Set(state.historial.map(h => h.partida).filter(p => p))].sort();
+  sel.innerHTML = '<option value="">Todas las partidas</option>' + partidas.map(p => `<option>${p}</option>`).join('');
+  sel.value = val;
+}
+
 export function exportarHistorial() {
   if (!state.historial.length) { notify('Sin historial', 'error'); return; }
   const data = getFilteredHistorial();
@@ -71,6 +81,7 @@ function getFilteredHistorial() {
   const q = (document.getElementById('buscar-hist')?.value || '').toLowerCase();
   const fc = document.getElementById('fh-cat')?.value || '';
   const fp = document.getElementById('fh-proy')?.value || '';
+  const fpart = document.getElementById('fh-partida')?.value || '';
   const fd = document.getElementById('fh-desde')?.value || '';
   const fh2 = document.getElementById('fh-hasta')?.value || '';
   return state.historial.filter(h => {
@@ -80,6 +91,7 @@ function getFilteredHistorial() {
       if (!prov || prov.categoria !== fc) return false;
     }
     if (fp && h.proyecto !== fp) return false;
+    if (fpart && (h.partida || '') !== fpart) return false;
     if (fd && h.fecha < fd) return false;
     if (fh2 && h.fecha > fh2) return false;
     return true;
