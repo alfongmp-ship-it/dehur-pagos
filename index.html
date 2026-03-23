@@ -210,7 +210,7 @@
       <div id="fact-subtitulo" style="font-size:11px;color:var(--muted);margin-bottom:6px;"></div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th style="width:50px">ID</th><th>Proveedor</th><th>Folio</th><th>Fecha</th><th>Vencimiento</th><th>Moneda</th><th style="text-align:right">Total</th><th style="text-align:right">Pagado</th><th style="text-align:right">Saldo</th><th>Estatus</th><th>Proyecto</th><th style="text-align:right">Acciones</th></tr></thead>
+          <thead><tr><th style="width:50px">ID</th><th>Núm. Factura</th><th>Proveedor</th><th>Fecha</th><th>Vencimiento</th><th style="text-align:right">Total</th><th style="text-align:right">Pagado</th><th style="text-align:right">Saldo</th><th>Estatus</th><th>Proyecto</th><th style="text-align:right">Acciones</th></tr></thead>
           <tbody id="tbody-fact"></tbody>
         </table>
       </div>
@@ -717,12 +717,10 @@
     <div class="form-grid">
       <div class="field span2"><label>Razón Social</label><input type="text" id="f-razon-social" placeholder="Nombre de la empresa en la factura"></div>
       <div class="field span2" style="position:relative;"><label>Proveedor *</label><input type="hidden" id="f-proveedor-id"><input type="text" id="f-proveedor" placeholder="Escribe ID o nombre..." oninput="filtrarProvFactura()" onfocus="filtrarProvFactura()" autocomplete="off"><div id="f-prov-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:200px;overflow-y:auto;background:var(--surface2);border:1px solid var(--border);border-radius:8px;z-index:10;margin-top:2px;"></div></div>
-      <div class="field"><label>Folio Factura *</label><input id="f-folio" placeholder="Ej: A-001"></div>
+      <div class="field"><label>Número Factura *</label><input id="f-folio" placeholder="Ej: A-001"></div>
       <div class="field"><label>UUID</label><input id="f-uuid" placeholder="Opcional" style="font-family:'DM Mono',monospace;font-size:11px;"></div>
       <div class="field"><label>Fecha Factura *</label><input type="date" id="f-fecha-factura"></div>
-      <div class="field"><label>Fecha Registro</label><input type="date" id="f-fecha-registro"></div>
       <div class="field"><label>Fecha Vencimiento</label><input type="date" id="f-fecha-vencimiento"></div>
-      <div class="field"><label>Moneda</label><select id="f-moneda"><option>MXN</option><option>USD</option></select></div>
       <div class="field"><label>Monto Total *</label><input type="number" id="f-monto" step="0.01" placeholder="0.00" style="font-family:'DM Mono',monospace;"></div>
       <div class="field"><label>Estatus</label><select id="f-estatus"><option>pendiente</option><option>parcial</option><option>pagada</option><option>cancelada</option></select></div>
       <div class="field"><label>Proyecto</label><select id="f-proyecto"></select></div>

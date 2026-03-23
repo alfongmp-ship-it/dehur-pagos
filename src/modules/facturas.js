@@ -10,7 +10,7 @@ export function renderFacturas() {
   refreshFactProyectos();
 
   if (!state.facturas.length) {
-    tb.innerHTML = '<tr><td colspan="12"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🧾</div><div>Sin facturas registradas</div></div></td></tr>';
+    tb.innerHTML = '<tr><td colspan="11"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🧾</div><div>Sin facturas registradas</div></div></td></tr>';
     document.getElementById('fact-subtitulo').textContent = '';
     return;
   }
@@ -22,21 +22,19 @@ export function renderFacturas() {
     : `${state.facturas.length} facturas`;
 
   if (!fil.length) {
-    tb.innerHTML = '<tr><td colspan="12"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔍</div><div>Sin resultados con los filtros actuales</div></div></td></tr>';
+    tb.innerHTML = '<tr><td colspan="11"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔍</div><div>Sin resultados con los filtros actuales</div></div></td></tr>';
     return;
   }
 
   tb.innerHTML = fil.map(f => {
-    const prov = state.proveedores.find(p => p.id === f.proveedor_id);
-    const provNombre = prov ? prov.nombre : `ID ${f.proveedor_id}`;
+    const provNombre = f.nombre_proveedor || f.razon_social || `ID ${f.proveedor_id}`;
     const estBadge = estatusBadge(f.estatus_factura);
     return `<tr>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${f.factura_id}</td>
-      <td><div style="font-weight:500;font-size:12px;">${provNombre}</div></td>
-      <td style="font-size:11px;">${f.folio_factura}</td>
+      <td style="font-size:11px;">${f.numero_factura || '—'}</td>
+      <td><div style="font-weight:500;font-size:12px;">${provNombre}</div><div style="font-size:10px;color:var(--muted);">${f.razon_social && f.nombre_proveedor ? f.razon_social : ''}</div></td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${f.fecha_factura}</td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${f.fecha_vencimiento || '—'}</td>
-      <td style="font-size:11px;">${f.moneda}</td>
       <td style="font-family:'DM Mono',monospace;font-weight:500;text-align:right;">${fmt(f.monto_total)}</td>
       <td style="font-family:'DM Mono',monospace;text-align:right;color:var(--green);">${fmt(f.monto_pagado)}</td>
       <td style="font-family:'DM Mono',monospace;font-weight:500;text-align:right;color:${f.saldo_pendiente > 0 ? 'var(--accent)' : 'var(--muted)'};">${fmt(f.saldo_pendiente)}</td>
@@ -55,7 +53,7 @@ function getFilteredFacturas() {
     if (q) {
       const prov = state.proveedores.find(p => p.id === f.proveedor_id);
       const provNombre = prov ? prov.nombre.toLowerCase() : '';
-      if (!(/^\d+$/.test(q) ? String(f.factura_id) === q || String(f.proveedor_id) === q : provNombre.includes(q) || f.folio_factura.toLowerCase().includes(q))) return false;
+      if (!(/^\d+$/.test(q) ? String(f.factura_id) === q || String(f.proveedor_id) === q : provNombre.includes(q) || (f.numero_factura || '').toLowerCase().includes(q) || (f.nombre_proveedor || '').toLowerCase().includes(q))) return false;
     }
     if (fe && f.estatus_factura !== fe) return false;
     if (fp && f.proyecto !== fp) return false;
@@ -134,9 +132,7 @@ export function abrirNuevaFactura() {
   document.getElementById('f-folio').value = '';
   document.getElementById('f-uuid').value = '';
   document.getElementById('f-fecha-factura').value = '';
-  document.getElementById('f-fecha-registro').value = new Date().toISOString().split('T')[0];
   document.getElementById('f-fecha-vencimiento').value = '';
-  document.getElementById('f-moneda').value = 'MXN';
   document.getElementById('f-monto').value = '';
   document.getElementById('f-estatus').value = 'pendiente';
   document.getElementById('f-proyecto').value = '';
@@ -156,12 +152,10 @@ export function editarFactura(id) {
   document.getElementById('f-proveedor').value = prov ? prov.nombre : `ID ${f.proveedor_id}`;
   document.getElementById('f-proveedor-id').value = f.proveedor_id;
   document.getElementById('f-prov-dropdown').style.display = 'none';
-  document.getElementById('f-folio').value = f.folio_factura;
+  document.getElementById('f-folio').value = f.numero_factura || f.folio_factura || '';
   document.getElementById('f-uuid').value = f.uuid || '';
   document.getElementById('f-fecha-factura').value = f.fecha_factura;
-  document.getElementById('f-fecha-registro').value = f.fecha_registro;
   document.getElementById('f-fecha-vencimiento').value = f.fecha_vencimiento || '';
-  document.getElementById('f-moneda').value = f.moneda;
   document.getElementById('f-monto').value = f.monto_total;
   document.getElementById('f-estatus').value = f.estatus_factura;
   document.getElementById('f-proyecto').value = f.proyecto;
@@ -183,23 +177,24 @@ export function guardarFactura() {
   const existing = state.editFactId ? state.facturas.find(f => f.factura_id === state.editFactId) : null;
   const pagado = existing ? existing.monto_pagado : 0;
 
+  const prov = state.proveedores.find(p => p.id === provId);
   const obj = {
-    razon_social: document.getElementById('f-razon-social').value.trim(),
     factura_id: state.editFactId || (state.facturas.reduce((max, f) => Math.max(max, f.factura_id), 0) + 1),
+    numero_factura: folio,
+    razon_social: document.getElementById('f-razon-social').value.trim(),
     proveedor_id: provId,
-    folio_factura: folio,
-    uuid: document.getElementById('f-uuid').value.trim(),
+    nombre_proveedor: prov ? prov.nombre : '',
     fecha_factura: fechaFact,
-    fecha_registro: document.getElementById('f-fecha-registro').value || new Date().toISOString().split('T')[0],
-    moneda: document.getElementById('f-moneda').value,
+    fecha_vencimiento: document.getElementById('f-fecha-vencimiento').value || '',
+    fecha_pago_total: existing ? existing.fecha_pago_total || '' : '',
     monto_total: monto,
     monto_pagado: pagado,
     saldo_pendiente: monto - pagado,
     estatus_factura: document.getElementById('f-estatus').value,
     proyecto: document.getElementById('f-proyecto').value,
-    fecha_vencimiento: document.getElementById('f-fecha-vencimiento').value || '',
     observaciones: document.getElementById('f-obs').value.trim(),
-    activo: true
+    activo: true,
+    uuid: document.getElementById('f-uuid').value.trim()
   };
 
   if (state.editFactId) {
