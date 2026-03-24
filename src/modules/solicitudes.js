@@ -452,6 +452,23 @@ export function enviarACola() {
     return;
   }
 
+  // Validar facturas antes de agregar a cola
+  for (const s of sel) {
+    if (s.factura_id) {
+      const fact = state.facturas.find(f => f.factura_id === parseInt(s.factura_id));
+      if (fact) {
+        if (fact.estatus_factura === 'pagada') {
+          notify(`⛔ Factura ${s.factura_id} ya está pagada. Pago bloqueado: ${s.proveedor} · $${s.importe}`, 'error');
+          return;
+        }
+        if (s.importe > fact.saldo_pendiente) {
+          notify(`⛔ Pago de $${s.importe} excede saldo de factura ${s.factura_id} (saldo: $${fact.saldo_pendiente}). Proveedor: ${s.proveedor}`, 'error');
+          return;
+        }
+      }
+    }
+  }
+
   sel.forEach(s => {
     const prov = s.match;
     state.cola.push({

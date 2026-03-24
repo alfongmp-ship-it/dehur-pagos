@@ -3,7 +3,7 @@ import { fmt, dl } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { proyTag, catTag } from '../ui/badges.js';
-import { saveData, gsSaveProyectos } from '../services/google-sync.js';
+import { saveData, gsSaveProyectos, gsSaveFacturas, gsSaveFacturaPagos } from '../services/google-sync.js';
 import { saveProy } from '../config/proyectos.js';
 
 export function renderHistorial() {
@@ -143,6 +143,47 @@ export function confirmarPagos() {
   });
   document.getElementById('cnt-hist').textContent = state.historial.length;
   saveData(confirmados.length);
+
+  // Registrar pagos a facturas y actualizar saldos de facturas
+  let factChanged = false;
+  confirmados.forEach(d => {
+    if (!d.factura_id) return;
+    const factId = parseInt(d.factura_id);
+    const fact = state.facturas.find(f => f.factura_id === factId);
+    if (!fact) return;
+
+    // Crear registro en factura_pagos
+    const fpId = state.facturaPagos.reduce((max, fp) => Math.max(max, fp.factura_pago_id), 0) + 1;
+    state.facturaPagos.push({
+      factura_pago_id: fpId,
+      factura_id: factId,
+      pago_id: d.id || 0,
+      proveedor_id: parseInt(d.proveedor_id) || 0,
+      monto_aplicado: d.importe,
+      fecha_pago: fecha,
+      estatus: 'aplicado',
+      observaciones: d.concepto || ''
+    });
+
+    // Actualizar factura
+    fact.monto_pagado = (fact.monto_pagado || 0) + d.importe;
+    fact.saldo_pendiente = Math.max(0, fact.monto_total - fact.monto_pagado);
+    if (fact.saldo_pendiente <= 0) {
+      fact.estatus_factura = 'pagada';
+      fact.fecha_pago_total = new Date().toISOString().split('T')[0];
+    } else if (fact.monto_pagado > 0) {
+      fact.estatus_factura = 'parcial';
+    }
+    factChanged = true;
+  });
+  if (factChanged) {
+    gsSaveFacturas();
+    gsSaveFacturaPagos();
+    if (window.renderFacturas) window.renderFacturas();
+    if (window.renderFacturaPagos) window.renderFacturaPagos();
+    document.getElementById('cnt-fact').textContent = state.facturas.length;
+    document.getElementById('cnt-fp').textContent = state.facturaPagos.length;
+  }
 
   // Restar saldo del proyecto por cada pago confirmado
   const todayISO = new Date().toISOString().split('T')[0];
