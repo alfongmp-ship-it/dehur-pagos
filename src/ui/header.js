@@ -19,15 +19,15 @@ export function renderHeaderBadges() {
   const hb = document.getElementById('header-badges');
   if (!hb) return;
   const proyBadges = state.proyectos.filter(p => p.activo).map(p =>
-    `<span class="badge" style="border-left:3px solid ${p.color};display:flex;align-items:center;gap:6px;">
-      <span style="font-size:10px;">${p.nombre}</span>
-      <span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:${p.saldo ? 'var(--green)' : 'var(--muted)'};">${p.saldo ? fmt(p.saldo) : '—'}</span>
+    `<span class="badge" style="border-left:3px solid ${p.color};display:flex;align-items:center;gap:8px;padding:6px 12px;">
+      <span style="font-size:12px;font-weight:500;">${p.nombre}</span>
+      <span style="font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:${p.saldo ? 'var(--green)' : 'var(--muted)'};">${p.saldo ? fmt(p.saldo) : '—'}</span>
     </span>`
   ).join('');
   const extraBadges = state.cuentasPropias.filter(c => c.activo !== false).map(c =>
-    `<span class="badge" style="border-left:3px solid var(--accent);display:flex;align-items:center;gap:6px;">
-      <span style="font-size:10px;">${c.nombre}</span>
-      <span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:${c.saldo ? 'var(--green)' : 'var(--muted)'};">${c.saldo ? fmt(c.saldo) : '—'}</span>
+    `<span class="badge" style="border-left:3px solid var(--accent);display:flex;align-items:center;gap:8px;padding:6px 12px;">
+      <span style="font-size:12px;font-weight:500;">${c.nombre}</span>
+      <span style="font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:${c.saldo ? 'var(--green)' : 'var(--muted)'};">${c.saldo ? fmt(c.saldo) : '—'}</span>
     </span>`
   ).join('');
   hb.innerHTML = proyBadges + extraBadges;
