@@ -222,7 +222,12 @@
         <div><div class="page-title">Pagos a Facturas</div><div class="page-subtitle">Detalle de pagos aplicados a facturas</div></div>
       </div>
       <div style="margin-bottom:10px;">
-        <div class="search-box"><span class="search-icon">🔍</span><input type="text" id="buscar-fp" placeholder="Buscar por ID de factura o proveedor..." oninput="renderFacturaPagos()"></div>
+        <div class="search-box"><span class="search-icon">🔍</span><input type="text" id="buscar-fp" placeholder="Buscar por proveedor o ID..." oninput="renderFacturaPagos()"></div>
+      </div>
+      <div class="toolbar">
+        <input type="number" class="filter-select" id="fp-factura-id" placeholder="Factura ID" oninput="renderFacturaPagos()" style="width:120px;">
+        <input type="date" class="filter-select" id="fp-desde" onchange="renderFacturaPagos()" title="Desde">
+        <input type="date" class="filter-select" id="fp-hasta" onchange="renderFacturaPagos()" title="Hasta">
       </div>
       <div id="fp-subtitulo" style="font-size:11px;color:var(--muted);margin-bottom:6px;"></div>
       <div class="table-wrap">

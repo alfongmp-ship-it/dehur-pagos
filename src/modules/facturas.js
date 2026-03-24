@@ -223,11 +223,22 @@ export function renderFacturaPagos() {
   }
 
   const q = (document.getElementById('buscar-fp')?.value || '').toLowerCase();
+  const ffId = document.getElementById('fp-factura-id')?.value || '';
+  const fd = document.getElementById('fp-desde')?.value || '';
+  const fh = document.getElementById('fp-hasta')?.value || '';
   const fil = state.facturaPagos.filter(fp => {
-    if (!q) return true;
-    if (/^\d+$/.test(q)) return String(fp.factura_pago_id) === q || String(fp.factura_id) === q || String(fp.proveedor_id) === q;
-    const prov = state.proveedores.find(p => p.id === fp.proveedor_id);
-    return prov && prov.nombre.toLowerCase().includes(q);
+    if (q) {
+      if (/^\d+$/.test(q)) {
+        if (String(fp.factura_pago_id) !== q && String(fp.factura_id) !== q && String(fp.proveedor_id) !== q) return false;
+      } else {
+        const prov = state.proveedores.find(p => p.id === fp.proveedor_id);
+        if (!prov || !prov.nombre.toLowerCase().includes(q)) return false;
+      }
+    }
+    if (ffId && String(fp.factura_id) !== ffId) return false;
+    if (fd && fp.fecha_pago < fd) return false;
+    if (fh && fp.fecha_pago > fh) return false;
+    return true;
   });
 
   const sub = document.getElementById('fp-subtitulo');
