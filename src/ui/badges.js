@@ -17,7 +17,10 @@ export function catTag(c) {
 }
 
 export function proyTag(p) {
-  if (p.includes('Paraíso')) return `<span class="tag tag-paraiso" style="font-size:10px;padding:2px 6px;">Paraíso</span>`;
-  if (p.includes('Entorno')) return `<span class="tag tag-entorno" style="font-size:10px;padding:2px 6px;">Entorno</span>`;
-  return `<span class="tag tag-dt" style="font-size:10px;padding:2px 6px;">DT</span>`;
+  if (!p) return '<span class="tag tag-dt" style="font-size:10px;padding:2px 6px;">—</span>';
+  const pl = p.toLowerCase();
+  if (pl.includes('paraiso') || pl.includes('paraíso')) return `<span class="tag tag-paraiso" style="font-size:10px;padding:2px 6px;">Paraíso</span>`;
+  if (pl.includes('entorno')) return `<span class="tag tag-entorno" style="font-size:10px;padding:2px 6px;">Entorno</span>`;
+  if (pl.includes('concentradora') || pl === 'dt') return `<span class="tag tag-dt" style="font-size:10px;padding:2px 6px;">DT</span>`;
+  return `<span class="tag tag-dt" style="font-size:10px;padding:2px 6px;">${p}</span>`;
 }
