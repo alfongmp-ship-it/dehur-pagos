@@ -113,7 +113,7 @@ export async function gsLoadAll() {
         fecha_pago_total: r[7] || '',
         monto_total: parseFloat(String(r[8]).replace(/,/g, '')) || 0,
         monto_pagado: parseFloat(String(r[9]).replace(/,/g, '')) || 0,
-        saldo_pendiente: parseFloat(String(r[10]).replace(/,/g, '')) || 0,
+        saldo_pendiente: (parseFloat(String(r[8]).replace(/,/g, '')) || 0) - (parseFloat(String(r[9]).replace(/,/g, '')) || 0),
         estatus_factura: r[11] || 'pendiente',
         proyecto: r[12] || '',
         observaciones: r[13] || '',
