@@ -206,6 +206,21 @@ export function renderSolicitudes() {
     (!fp || s.partida === fp)
   );
 
+  // Validar facturas inline
+  state.solicitudesData.forEach(s => {
+    s._facturaError = '';
+    if (!s.factura_id) return;
+    const fact = state.facturas.find(f => f.factura_id === parseInt(s.factura_id));
+    if (!fact) return;
+    if (fact.estatus_factura === 'pagada') {
+      s._facturaError = 'Factura ya pagada';
+      s.seleccionado = false;
+    } else if (s.importe > fact.saldo_pendiente) {
+      s._facturaError = `Excede saldo ($${fmt(fact.saldo_pendiente)})`;
+      s.seleccionado = false;
+    }
+  });
+
   let total = 0, selTotal = 0, selCount = 0;
   state.solicitudesData.forEach(s => { total += s.importe; if (s.seleccionado) { selTotal += s.importe; selCount++; } });
   document.getElementById('sol-total').textContent = fmt(total);
@@ -261,7 +276,7 @@ export function renderSolicitudes() {
               <div style="margin-top:3px;"><a href="#" onclick="abrirVincular('${s.uid}');return false;" style="font-size:10px;color:var(--accent);text-decoration:none;">🔗 Vincular / Agregar</a></div>
             </div>`;
 
-    const rowStyle = s.esNo ? 'opacity:.5' : '';
+    const rowStyle = s.esNo ? 'opacity:.5' : s._facturaError ? 'background:rgba(231,76,60,.08);' : '';
     return `<tr style="${rowStyle}">
       <td style="padding:8px 6px;"><input type="checkbox" ${s.seleccionado ? 'checked' : ''}
         onchange="toggleSol('${s.uid}',this.checked)" style="width:15px;height:15px;cursor:pointer;accent-color:var(--accent);"></td>
@@ -272,7 +287,11 @@ export function renderSolicitudes() {
       </td>
       <td style="font-size:11px;color:var(--muted);">${s.partida}</td>
       <td style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);">${s.clave}</td>
-      <td style="font-family:'DM Mono',monospace;font-size:11px;color:${s.factura_id ? 'var(--accent)' : 'var(--muted)'};">${s.factura_id || '—'}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;">${s.factura_id
+        ? s._facturaError
+          ? `<div style="color:#e74c3c;font-weight:600;">${s.factura_id}</div><div style="font-size:9px;color:#e74c3c;margin-top:2px;">⛔ ${s._facturaError}</div>`
+          : `<span style="color:var(--accent);">${s.factura_id}</span>`
+        : '<span style="color:var(--muted);">—</span>'}</td>
       <td style="font-size:11px;color:var(--muted);max-width:240px;">
         <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px;" title="${s.concepto}">${s.concepto}</div>
       </td>
@@ -453,24 +472,11 @@ export function enviarACola() {
     return;
   }
 
-  // Validar facturas antes de agregar a cola
-  for (const s of sel) {
-    if (s.factura_id) {
-      const fact = state.facturas.find(f => f.factura_id === parseInt(s.factura_id));
-      if (fact) {
-        if (fact.estatus_factura === 'pagada') {
-          notify(`⛔ Factura ${s.factura_id} ya está pagada. Pago bloqueado: ${s.proveedor} · $${s.importe}`, 'error');
-          return;
-        }
-        if (s.importe > fact.saldo_pendiente) {
-          notify(`⛔ Pago de $${s.importe} excede saldo de factura ${s.factura_id} (saldo: $${fact.saldo_pendiente}). Proveedor: ${s.proveedor}`, 'error');
-          return;
-        }
-      }
-    }
-  }
+  // Filtrar solicitudes con error de factura (ya están deseleccionadas pero por si acaso)
+  const validos = sel.filter(s => !s._facturaError);
+  if (!validos.length) { notify('⛔ Todos los pagos seleccionados tienen problemas de factura. Revisa las advertencias.', 'error'); return; }
 
-  sel.forEach(s => {
+  validos.forEach(s => {
     const prov = s.match;
     state.cola.push({
       id: Date.now() + Math.random(),
@@ -485,8 +491,8 @@ export function enviarACola() {
     });
   });
 
-  const count = sel.length;
-  const total = sel.reduce((a, s) => a + s.importe, 0);
+  const count = validos.length;
+  const total = validos.reduce((a, s) => a + s.importe, 0);
 
   // Limpiar solicitudes
   state.solicitudesData = [];
