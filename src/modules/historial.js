@@ -146,11 +146,13 @@ export function confirmarPagos() {
 
   // Registrar pagos a facturas y actualizar saldos de facturas
   let factChanged = false;
-  confirmados.forEach(d => {
-    if (!d.factura_id) return;
+  confirmados.forEach((d, idx) => {
+    console.log(`[PAGO ${idx}] factura_id="${d.factura_id}" importe=${d.importe} nombre=${d.nombre}`);
+    if (!d.factura_id) { console.log(`  → SIN FACTURA, skip`); return; }
     const factId = parseInt(d.factura_id);
     const fact = state.facturas.find(f => f.factura_id === factId);
-    if (!fact) return;
+    if (!fact) { console.log(`  → FACTURA ${factId} NO ENCONTRADA`); return; }
+    console.log(`  → ANTES: pagado=${fact.monto_pagado} saldo=${fact.saldo_pendiente}`);
 
     // Crear registro en factura_pagos
     const fpId = state.facturaPagos.reduce((max, fp) => Math.max(max, fp.factura_pago_id), 0) + 1;
@@ -174,6 +176,7 @@ export function confirmarPagos() {
     } else if (fact.monto_pagado > 0) {
       fact.estatus_factura = 'parcial';
     }
+    console.log(`  → DESPUÉS: pagado=${fact.monto_pagado} saldo=${fact.saldo_pendiente} estatus=${fact.estatus_factura}`);
     factChanged = true;
   });
   if (factChanged) {
