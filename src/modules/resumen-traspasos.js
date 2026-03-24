@@ -5,7 +5,9 @@ function tipoBadge(tipo) {
   if (!tipo) return '';
   const color = tipo === 'Traspaso'
     ? 'rgba(52,152,219,.15);color:#3498db'
-    : 'rgba(200,169,110,.15);color:#C8A96E';
+    : tipo === 'Aportación'
+      ? 'rgba(39,174,96,.15);color:#27ae60'
+      : 'rgba(200,169,110,.15);color:#C8A96E';
   return `<span style="display:inline-block;padding:2px 10px;border-radius:6px;font-size:11px;font-weight:600;background:${color};">${tipo}</span>`;
 }
 
