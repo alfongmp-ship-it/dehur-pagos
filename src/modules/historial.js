@@ -31,13 +31,9 @@ export function renderHistorial() {
   }
 
   el.innerHTML = fil.map(h => {
-    const trBadge = h.tipo_registro === 'Crédito'
-      ? '<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:600;background:rgba(142,68,173,.15);color:#8e44ad;">Crédito</span>'
-      : h.tipo_registro !== 'Traspaso'
-        ? '<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:600;background:rgba(200,169,110,.15);color:#C8A96E;">Pago</span>'
-        : h.tipo === 'Préstamo'
-          ? '<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:600;background:rgba(231,76,60,.15);color:#e74c3c;">Préstamo</span>'
-          : '<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:600;background:rgba(52,152,219,.15);color:#3498db;">Aportación</span>';
+    const badgeColors = { 'Crédito': 'rgba(142,68,173,.15);color:#8e44ad', 'Pago': 'rgba(200,169,110,.15);color:#C8A96E', 'Préstamo': 'rgba(200,169,110,.15);color:#C8A96E', 'Aportación': 'rgba(39,174,96,.15);color:#27ae60', 'Traspaso': 'rgba(52,152,219,.15);color:#3498db' };
+    const tipoLabel = h.tipo_registro === 'Crédito' ? 'Crédito' : h.tipo_registro !== 'Traspaso' ? 'Pago' : (h.tipo || 'Traspaso');
+    const trBadge = `<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:600;background:${badgeColors[tipoLabel] || badgeColors['Pago']};">${tipoLabel}</span>`;
     const prov = (h.proveedor_id && h.tipo_registro !== 'Traspaso' && h.tipo_registro !== 'Crédito') ? state.proveedores.find(p => p.id === parseInt(h.proveedor_id)) : null;
     const tipoProv = prov?.categoria || '—';
     const subcat = (prov?.categoria === 'Proveedor' && prov?.subcategoria) ? prov.subcategoria : '—';
