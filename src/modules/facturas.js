@@ -3,7 +3,7 @@ import { fmt } from '../ui/format.js';
 import { proyTag } from '../ui/badges.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
-import { gsSaveFacturas } from '../services/google-sync.js';
+import { gsSaveFacturas, gsSaveFacturaPagos } from '../services/google-sync.js';
 
 export function renderFacturas() {
   const tb = document.getElementById('tbody-fact');
@@ -217,7 +217,7 @@ export function renderFacturaPagos() {
   const tb = document.getElementById('tbody-fp');
 
   if (!state.facturaPagos.length) {
-    tb.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">💳</div><div>Sin pagos a facturas registrados</div></div></td></tr>';
+    tb.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">💳</div><div>Sin pagos a facturas registrados</div></div></td></tr>';
     document.getElementById('fp-subtitulo').textContent = '';
     return;
   }
@@ -236,7 +236,7 @@ export function renderFacturaPagos() {
     : `${state.facturaPagos.length} registros`;
 
   if (!fil.length) {
-    tb.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔍</div><div>Sin resultados</div></div></td></tr>';
+    tb.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔍</div><div>Sin resultados</div></div></td></tr>';
     return;
   }
 
@@ -252,6 +252,35 @@ export function renderFacturaPagos() {
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${fp.fecha_pago}</td>
       <td>${estBadge}</td>
       <td style="font-size:11px;color:var(--muted);">${(fp.observaciones || '').substring(0, 40)}</td>
+      <td style="text-align:right;"><button class="btn btn-ghost" style="padding:4px 6px;font-size:11px;color:#e74c3c;" onclick="eliminarPagoFactura(${fp.factura_pago_id})">✕</button></td>
     </tr>`;
   }).join('');
+}
+
+export function eliminarPagoFactura(fpId) {
+  const fp = state.facturaPagos.find(x => x.factura_pago_id === fpId);
+  if (!fp) return;
+  if (!confirm(`¿Eliminar pago de ${fmt(fp.monto_aplicado)} a factura ${fp.factura_id}?`)) return;
+
+  const fact = state.facturas.find(f => f.factura_id === fp.factura_id);
+  if (fact) {
+    fact.monto_pagado = Math.max(0, (fact.monto_pagado || 0) - fp.monto_aplicado);
+    fact.saldo_pendiente = fact.monto_total - fact.monto_pagado;
+    if (fact.monto_pagado <= 0) {
+      fact.estatus_factura = 'pendiente';
+      fact.fecha_pago_total = '';
+    } else if (fact.saldo_pendiente > 0) {
+      fact.estatus_factura = 'parcial';
+      fact.fecha_pago_total = '';
+    }
+  }
+
+  state.facturaPagos = state.facturaPagos.filter(x => x.factura_pago_id !== fpId);
+  gsSaveFacturas();
+  gsSaveFacturaPagos();
+  renderFacturas();
+  renderFacturaPagos();
+  document.getElementById('cnt-fact').textContent = state.facturas.length;
+  document.getElementById('cnt-fp').textContent = state.facturaPagos.length;
+  notify('Pago a factura eliminado');
 }
