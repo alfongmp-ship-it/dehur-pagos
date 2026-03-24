@@ -272,6 +272,7 @@ export function renderSolicitudes() {
       </td>
       <td style="font-size:11px;color:var(--muted);">${s.partida}</td>
       <td style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);">${s.clave}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;color:${s.factura_id ? 'var(--accent)' : 'var(--muted)'};">${s.factura_id || '—'}</td>
       <td style="font-size:11px;color:var(--muted);max-width:240px;">
         <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px;" title="${s.concepto}">${s.concepto}</div>
       </td>
