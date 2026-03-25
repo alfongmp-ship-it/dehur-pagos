@@ -214,18 +214,26 @@ export function renderSolicitudes() {
     (!fp || s.partida === fp)
   );
 
-  // Validar facturas inline
+  // Validar facturas inline — acumula pagos del mismo lote + tolerancia punto flotante
+  const acumuladoPorFactura = {};
   state.solicitudesData.forEach(s => {
     s._facturaError = '';
     if (!s.factura_id) return;
-    const fact = state.facturas.find(f => f.factura_id === parseInt(s.factura_id));
+    const factId = parseInt(s.factura_id);
+    const fact = state.facturas.find(f => f.factura_id === factId);
     if (!fact) return;
     if (fact.estatus_factura === 'pagada') {
       s._facturaError = 'Factura ya pagada';
       s.seleccionado = false;
-    } else if (s.importe > fact.saldo_pendiente) {
-      s._facturaError = `Excede saldo ($${fmt(fact.saldo_pendiente)})`;
+      return;
+    }
+    const yaAcumulado = acumuladoPorFactura[factId] || 0;
+    const saldoDisp = Math.round((fact.saldo_pendiente - yaAcumulado) * 100) / 100;
+    if (s.importe > saldoDisp + 0.01) {
+      s._facturaError = `Excede saldo ($${fmt(saldoDisp)})`;
       s.seleccionado = false;
+    } else {
+      acumuladoPorFactura[factId] = yaAcumulado + s.importe;
     }
   });
 
