@@ -22,7 +22,6 @@ export function renderNomina() {
     (!q || (e.nombre.toLowerCase().includes(q) || e.cuenta.includes(q) || e.banco.toLowerCase().includes(q))) &&
     (!ft || e.tipo_cuenta === ft)
   );
-  const tb = document.getElementById('tbody-nom');
   tb.innerHTML = fil.map(e => `<tr><td><div class="name-cell">${e.nombre}</div></td><td style="font-size:12px;color:var(--muted);">${e.puesto || '—'}</td><td>${tipoBadge(e.tipo_cuenta)}</td><td style="font-size:13px;">${e.banco}</td><td><span class="mono">${e.cuenta}</span></td><td style="font-size:11px;color:var(--muted);">${(e.empresa || '').replace('DESARROLLO Y CONTROL ALE SA DE CV', 'D.Y C. ALE').replace('DESARROLLO DE HOGARES URBANOS SA DE CV', 'D.H. URBANOS')}</td><td><div style="display:flex;gap:6px;justify-content:flex-end;"><button class="btn btn-success btn-sm" onclick="abrirPagoRapido('emp',${e.id})">+ Pago</button><button class="btn btn-ghost btn-sm" onclick="editarEmp(${e.id})">Editar</button></div></td></tr>`).join('');
   document.getElementById('st-nom-total').textContent = state.empleados.length;
   document.getElementById('st-nom-clabe').textContent = state.empleados.filter(e => e.tipo_cuenta === 'CLABE').length;

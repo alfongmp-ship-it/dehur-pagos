@@ -31,7 +31,6 @@ export function renderProveedores() {
     (!fc || p.categoria === fc) &&
     (!fp || p.proyectos.includes(fp))
   );
-  const tb = document.getElementById('tbody-prov');
   if (!fil.length) {
     tb.innerHTML = `<tr><td colspan="9"><div class="empty-state" style="padding:30px;"><div style="font-size:28px;opacity:.4;margin-bottom:8px;">🔍</div><div>Sin resultados</div></div></td></tr>`;
     return;
