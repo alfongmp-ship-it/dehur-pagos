@@ -27,7 +27,7 @@ export function renderCuentasPropias() {
   const filasProyectos = state.proyectos
     .filter(p => p.activo !== false && p.cuenta)
     .map(p => `<tr style="opacity:.85;">
-      <td>${tipoBadge('Dispersión')}</td>
+      <td>${tipoBadge(p.tipo_cuenta || 'Dispersión')}</td>
       <td><div style="font-weight:500;font-size:12px;">${p.nombre} <span style="font-size:10px;color:var(--muted);font-weight:400;">· Principal</span></div></td>
       <td style="font-size:11px;">BBVA</td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${p.clabe || '—'}</td>
@@ -120,7 +120,7 @@ export function editarCuentaProyecto(proyId) {
   state._editProyCuenta = proyId;
   populateCuentaSelects();
   document.getElementById('modal-cuenta-title').textContent = 'Editar Cuenta – ' + p.nombre;
-  document.getElementById('cp-tipo').value = 'Dispersión';
+  document.getElementById('cp-tipo').value = p.tipo_cuenta || 'Dispersión';
   document.getElementById('cp-nombre').value = p.nombre;
   document.getElementById('cp-banco').value = 'BBVA';
   document.getElementById('cp-clabe').value = p.clabe || '';
@@ -198,6 +198,7 @@ export function guardarCuenta() {
       p.nombre = nombre;
       p.cuenta = document.getElementById('cp-numero-cuenta').value.trim();
       p.clabe = document.getElementById('cp-clabe').value.trim();
+      p.tipo_cuenta = document.getElementById('cp-tipo').value;
     }
     state._editProyCuenta = null;
     cerrar('modal-cuenta');
