@@ -222,6 +222,12 @@ export function renderSolicitudes() {
     const factId = parseInt(s.factura_id);
     const fact = state.facturas.find(f => f.factura_id === factId);
     if (!fact) return;
+    const provIdSol = parseInt(s.proveedor_id) || 0;
+    if (fact.proveedor_id && provIdSol && fact.proveedor_id !== provIdSol) {
+      s._facturaError = `Factura pertenece a prov. #${fact.proveedor_id}`;
+      s.seleccionado = false;
+      return;
+    }
     if (fact.estatus_factura === 'pagada') {
       s._facturaError = 'Factura ya pagada';
       s.seleccionado = false;
