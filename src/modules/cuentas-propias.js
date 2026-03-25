@@ -37,7 +37,7 @@ export function renderCuentasPropias() {
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${p.ultima_act_saldo || '—'}</td>
       <td style="text-align:right;display:flex;gap:4px;justify-content:flex-end;">
         <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="actualizarSaldoCuenta('${p.id}')">Actualizar saldo</button>
-        <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="showPage('config',document.getElementById('nav-config'))">Config →</button>
+        <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="showPage('config',document.getElementById('nav-config'))">Editar</button>
       </td>
     </tr>`);
 
