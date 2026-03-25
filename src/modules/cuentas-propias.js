@@ -23,6 +23,13 @@ export function renderCuentasPropias() {
   const tb = document.getElementById('tbody-cp');
   if (!tb) return;
 
+  if (!state.gsToken) {
+    tb.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔒</div><div>Conecta Google Sheets para ver tus cuentas</div></div></td></tr>';
+    const sub = document.getElementById('cp-subtitulo'); if (sub) sub.textContent = '';
+    const cnt = document.getElementById('cnt-cp'); if (cnt) cnt.textContent = '0';
+    return;
+  }
+
   // Filas de proyectos (solo lectura)
   const filasProyectos = state.proyectos
     .filter(p => p.activo !== false && p.cuenta)
