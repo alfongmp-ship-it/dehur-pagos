@@ -37,7 +37,7 @@ export function renderCuentasPropias() {
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${p.ultima_act_saldo || '—'}</td>
       <td style="text-align:right;display:flex;gap:4px;justify-content:flex-end;">
         <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="actualizarSaldoCuenta('${p.id}')">Actualizar saldo</button>
-        <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="showPage('config',document.getElementById('nav-config'))">Editar</button>
+        <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="editarCuentaProyecto('${p.id}')">Editar</button>
       </td>
     </tr>`);
 
@@ -99,6 +99,7 @@ export function editarCuenta(id) {
   const c = state.cuentasPropias.find(x => x.cuenta_id === id);
   if (!c) return;
   state.editCuentaId = id;
+  state._editProyCuenta = null;
   populateCuentaSelects();
   document.getElementById('modal-cuenta-title').textContent = 'Editar Cuenta #' + id;
   document.getElementById('cp-tipo').value = c.tipo || 'General';
@@ -109,6 +110,24 @@ export function editarCuenta(id) {
   document.getElementById('cp-saldo').value = c.saldo;
   document.getElementById('cp-ultima-act').value = c.ultima_actualizacion || '';
   document.getElementById('cp-proyecto').value = c.proyecto || '';
+  document.getElementById('modal-cuenta').classList.add('open');
+}
+
+export function editarCuentaProyecto(proyId) {
+  const p = state.proyectos.find(x => x.id === proyId);
+  if (!p) return;
+  state.editCuentaId = null;
+  state._editProyCuenta = proyId;
+  populateCuentaSelects();
+  document.getElementById('modal-cuenta-title').textContent = 'Editar Cuenta – ' + p.nombre;
+  document.getElementById('cp-tipo').value = 'Dispersión';
+  document.getElementById('cp-nombre').value = p.nombre;
+  document.getElementById('cp-banco').value = 'BBVA';
+  document.getElementById('cp-clabe').value = p.clabe || '';
+  document.getElementById('cp-numero-cuenta').value = p.cuenta || '';
+  document.getElementById('cp-saldo').value = p.saldo || 0;
+  document.getElementById('cp-ultima-act').value = p.ultima_act_saldo || '';
+  document.getElementById('cp-proyecto').value = p.nombre;
   document.getElementById('modal-cuenta').classList.add('open');
 }
 
@@ -171,6 +190,23 @@ export function guardarCuenta() {
   const banco = document.getElementById('cp-banco').value.trim();
   if (!nombre) { notify('El nombre es obligatorio', 'error'); return; }
   if (!banco) { notify('El banco es obligatorio', 'error'); return; }
+
+  // Editando cuenta de proyecto
+  if (state._editProyCuenta) {
+    const p = state.proyectos.find(x => x.id === state._editProyCuenta);
+    if (p) {
+      p.nombre = nombre;
+      p.cuenta = document.getElementById('cp-numero-cuenta').value.trim();
+      p.clabe = document.getElementById('cp-clabe').value.trim();
+    }
+    state._editProyCuenta = null;
+    cerrar('modal-cuenta');
+    renderCuentasPropias();
+    notify('Cuenta de proyecto actualizada');
+    saveProy(state.proyectos);
+    gsSaveProyectos();
+    return;
+  }
 
   const obj = {
     cuenta_id: state.editCuentaId || (state.cuentasPropias.reduce((max, c) => Math.max(max, c.cuenta_id), 0) + 1),
