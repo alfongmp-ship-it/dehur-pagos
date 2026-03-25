@@ -57,6 +57,12 @@ export function renderTraspasos() {
   const tb = document.getElementById('tbody-traspasos');
   if (!tb) return;
 
+  if (!state.gsToken) {
+    tb.innerHTML = '<tr><td colspan="10"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔒</div><div>Conecta Google Sheets para ver esta información</div></div></td></tr>';
+    const cnt = document.getElementById('cnt-traspasos'); if (cnt) cnt.textContent = '0';
+    return;
+  }
+
   const cnt = document.getElementById('cnt-traspasos');
   if (cnt) cnt.textContent = state.traspasos.length;
 

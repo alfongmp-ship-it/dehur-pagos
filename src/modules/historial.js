@@ -8,6 +8,15 @@ import { saveProy } from '../config/proyectos.js';
 
 export function renderHistorial() {
   const el = document.getElementById('historial-lista');
+  if (!el) return;
+
+  if (!state.gsToken) {
+    el.innerHTML = '<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔒</div><div>Conecta Google Sheets para ver esta información</div></div>';
+    const sub = document.getElementById('hist-subtitulo'); if (sub) sub.textContent = '';
+    const cnt = document.getElementById('cnt-hist'); if (cnt) cnt.textContent = '0';
+    return;
+  }
+
   refreshHistProyectos();
   refreshHistPartidas();
   if (!state.historial.length) {

@@ -194,7 +194,16 @@ export function agregarNominaACola() {
 
 export function renderCola() {
   const lista = document.getElementById('cola-lista');
+  if (!lista) return;
   const tb = document.getElementById('total-bar');
+
+  if (!state.gsToken) {
+    lista.innerHTML = '<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔒</div><div>Conecta Google Sheets para ver esta información</div></div>';
+    if (tb) tb.style.display = 'none';
+    const cnt = document.getElementById('cnt-cola'); if (cnt) cnt.textContent = '0';
+    return;
+  }
+
   if (!state.cola.length) {
     lista.innerHTML = `<div class="queue-empty"><div style="font-size:32px;margin-bottom:10px;opacity:.4">⚡</div><div>Sin pagos en cola</div></div>`;
     tb.style.display = 'none';

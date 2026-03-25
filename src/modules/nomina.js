@@ -7,6 +7,15 @@ import { cerrar } from '../ui/modal.js';
 import { gsSaveEmpleados } from '../services/google-sync.js';
 
 export function renderNomina() {
+  const tb = document.getElementById('tbody-nom');
+  if (!tb) return;
+
+  if (!state.gsToken) {
+    tb.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔒</div><div>Conecta Google Sheets para ver esta información</div></div></td></tr>';
+    const cnt = document.getElementById('cnt-nom'); if (cnt) cnt.textContent = '0';
+    return;
+  }
+
   const q = document.getElementById('buscar-nom').value.toLowerCase();
   const ft = document.getElementById('f-nom-tipo').value;
   const fil = state.empleados.filter(e =>

@@ -12,6 +12,15 @@ export function toggleSubcat() {
 }
 
 export function renderProveedores() {
+  const tb = document.getElementById('tbody-prov');
+  if (!tb) return;
+
+  if (!state.gsToken) {
+    tb.innerHTML = '<tr><td colspan="10"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔒</div><div>Conecta Google Sheets para ver esta información</div></div></td></tr>';
+    const cnt = document.getElementById('cnt-prov'); if (cnt) cnt.textContent = '0';
+    return;
+  }
+
   const q = document.getElementById('buscar-prov').value.toLowerCase();
   const ft = document.getElementById('f-tipo').value;
   const fc = document.getElementById('f-cat').value;

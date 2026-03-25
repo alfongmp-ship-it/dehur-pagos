@@ -7,6 +7,15 @@ import { gsSaveFacturas, gsSaveFacturaPagos } from '../services/google-sync.js';
 
 export function renderFacturas() {
   const tb = document.getElementById('tbody-fact');
+  if (!tb) return;
+
+  if (!state.gsToken) {
+    tb.innerHTML = '<tr><td colspan="11"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔒</div><div>Conecta Google Sheets para ver esta información</div></div></td></tr>';
+    const sub = document.getElementById('fact-subtitulo'); if (sub) sub.textContent = '';
+    const cnt = document.getElementById('cnt-fact'); if (cnt) cnt.textContent = '0';
+    return;
+  }
+
   refreshFactProyectos();
 
   if (!state.facturas.length) {
@@ -215,6 +224,14 @@ export function guardarFactura() {
 
 export function renderFacturaPagos() {
   const tb = document.getElementById('tbody-fp');
+  if (!tb) return;
+
+  if (!state.gsToken) {
+    tb.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔒</div><div>Conecta Google Sheets para ver esta información</div></div></td></tr>';
+    const sub = document.getElementById('fp-subtitulo'); if (sub) sub.textContent = '';
+    const cnt = document.getElementById('cnt-fp'); if (cnt) cnt.textContent = '0';
+    return;
+  }
 
   if (!state.facturaPagos.length) {
     tb.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">💳</div><div>Sin pagos a facturas registrados</div></div></td></tr>';

@@ -197,6 +197,14 @@ export function parsearSolicitud(wb, filename) {
 }
 
 export function renderSolicitudes() {
+  const tbSol = document.getElementById('tbody-sol');
+
+  if (!state.gsToken) {
+    if (tbSol) tbSol.innerHTML = '<tr><td colspan="10"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔒</div><div>Conecta Google Sheets para ver esta información</div></div></td></tr>';
+    const cnt = document.getElementById('cnt-sol'); if (cnt) cnt.textContent = '0';
+    return;
+  }
+
   if (!state.solicitudesData.length) return;
   const q = (document.getElementById('buscar-sol')?.value || '').toLowerCase();
   const fp = document.getElementById('f-sol-partida')?.value || '';

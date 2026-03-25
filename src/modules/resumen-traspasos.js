@@ -142,6 +142,15 @@ export function filtrarResumen() {
 }
 
 export function renderResumenTraspasos() {
+  const tb = document.getElementById('tbody-resumen-traspasos');
+
+  if (!state.gsToken) {
+    if (tb) tb.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔒</div><div>Conecta Google Sheets para ver esta información</div></div></td></tr>';
+    const cnt = document.getElementById('resumen-cnt'); if (cnt) cnt.textContent = '';
+    const saldos = document.getElementById('resumen-saldos-netos'); if (saldos) saldos.innerHTML = '';
+    return;
+  }
+
   populateProyectosSelect();
   filtrarResumen();
 }

@@ -11,6 +11,14 @@ export function renderCreditos() {
   const content = document.getElementById('creditos-content');
   if (!tabs || !content) return;
 
+  if (!state.gsToken) {
+    content.innerHTML = '<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔒</div><div>Conecta Google Sheets para ver esta información</div></div>';
+    tabs.innerHTML = '';
+    const cnt = document.getElementById('cnt-creditos'); if (cnt) cnt.textContent = '0';
+    const sub = document.getElementById('creditos-subtitulo'); if (sub) sub.textContent = '';
+    return;
+  }
+
   const activos = state.creditos.filter(c => c.activo !== false);
   document.getElementById('cnt-creditos').textContent = activos.length;
   document.getElementById('creditos-subtitulo').textContent = activos.length ? `${activos.length} crédito${activos.length !== 1 ? 's' : ''}` : '';
