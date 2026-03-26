@@ -208,6 +208,7 @@ export function confirmarPagos() {
     gsSaveProyectos();
     if (window.renderCuentasPropias) window.renderCuentasPropias();
     if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
+    if (window.renderHeaderBadges) window.renderHeaderBadges();
   }
 
   notify('✅ ' + confirmados.length + ' pago(s) registrados en historial');
@@ -271,6 +272,7 @@ export function eliminarHistorial(idx) {
     gsSaveCuentasPropias();
     if (window.renderCuentasPropias) window.renderCuentasPropias();
     if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
+    if (window.renderHeaderBadges) window.renderHeaderBadges();
   }
 
   state.historial.splice(idx, 1);

@@ -165,6 +165,7 @@ export function guardarSaldoCuenta() {
     cerrar('modal-saldo');
     renderCuentasPropias();
     gsSaveCuentasPropias();
+    if (window.renderHeaderBadges) window.renderHeaderBadges();
     notify('Saldo actualizado');
   } else {
     // Cuenta de proyecto (dispersión)
@@ -176,6 +177,7 @@ export function guardarSaldoCuenta() {
     cerrar('modal-saldo');
     renderCuentasPropias();
     if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
+    if (window.renderHeaderBadges) window.renderHeaderBadges();
     notify('Saldo actualizado');
     gsSaveProyectos();
   }

@@ -157,6 +157,7 @@ export function confirmarPagoDirecto() {
   cerrar('modal-pago');
   if (window.renderHistorial) window.renderHistorial();
   if (window.renderCuentasPropias) window.renderCuentasPropias();
+  if (window.renderHeaderBadges) window.renderHeaderBadges();
   notify(`Pago directo registrado: ${state.pagoP.nombre.split(' ')[0]} · ${fmt(importe)}`);
 }
 

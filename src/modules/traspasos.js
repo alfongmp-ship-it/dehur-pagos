@@ -244,6 +244,7 @@ export function guardarTraspaso() {
       if (saldoProyChanged || saldoExtraChanged) {
         if (window.renderCuentasPropias) window.renderCuentasPropias();
         if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
+        if (window.renderHeaderBadges) window.renderHeaderBadges();
       }
     }
   }
