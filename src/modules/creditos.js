@@ -392,6 +392,30 @@ export function marcarPagoPagado(pagoId) {
   });
 
   document.getElementById('cnt-hist').textContent = state.historial.length;
+
+  // Bajar saldo de la cuenta de pago
+  const todayISO = new Date().toISOString().split('T')[0];
+  const cuentaPago = c?.cuenta_pago || '';
+  let saldoChanged = false;
+  if (cuentaPago) {
+    const proy = state.proyectos.find(x => x.nombre === cuentaPago);
+    if (proy && proy.ultima_act_saldo && todayISO >= proy.ultima_act_saldo.slice(0, 10)) {
+      proy.saldo = (proy.saldo || 0) - pp.monto_intereses;
+      saldoChanged = true;
+    } else {
+      const extra = state.cuentasPropias.find(x => x.nombre === cuentaPago);
+      if (extra && extra.ultima_actualizacion && todayISO >= extra.ultima_actualizacion.slice(0, 10)) {
+        extra.saldo = (extra.saldo || 0) - pp.monto_intereses;
+        saldoChanged = true;
+      }
+    }
+  }
+  if (saldoChanged) {
+    if (window.renderCuentasPropias) window.renderCuentasPropias();
+    if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
+    if (window.renderHeaderBadges) window.renderHeaderBadges();
+  }
+
   saveData();
   gsSavePagosPagare();
   renderCreditos();

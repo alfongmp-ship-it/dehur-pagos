@@ -126,6 +126,7 @@ export function abrirNuevoTraspaso() {
   document.getElementById('tr-concepto').value = '';
   document.getElementById('tr-referencia').value = '';
   document.getElementById('tr-estatus').value = 'pendiente';
+  document.getElementById('tr-no-historial').checked = false;
   document.getElementById('modal-traspaso').classList.add('open');
 }
 
@@ -191,26 +192,29 @@ export function guardarTraspaso() {
     state.traspasos.push(obj);
 
     // Registrar en historial y mover saldos para todos los traspasos completados
+    const noHistorial = document.getElementById('tr-no-historial')?.checked;
     if (obj.estatus === 'completado' && o?.proyecto) {
-      const fechaHist = new Date(fecha + 'T12:00:00').toLocaleDateString('es-MX');
-      state.historial.unshift({
-        fecha: fechaHist,
-        nombre: d.nombre,
-        concepto: obj.concepto || `${obj.tipo} a ${d.nombre}`,
-        importe: monto,
-        proyecto: o.proyecto,
-        banco: 'BBVA',
-        tipo: obj.tipo,
-        proveedor_id: '',
-        factura_id: '',
-        cuenta_origen: o.proyecto,
-        cuenta_destino: d?.proyecto || '',
-        tipo_registro: 'Traspaso'
-      });
-      saveData();
-      const cntHist = document.getElementById('cnt-hist');
-      if (cntHist) cntHist.textContent = state.historial.length;
-      if (window.renderHistorial) window.renderHistorial();
+      if (!noHistorial) {
+        const fechaHist = new Date(fecha + 'T12:00:00').toLocaleDateString('es-MX');
+        state.historial.unshift({
+          fecha: fechaHist,
+          nombre: d.nombre,
+          concepto: obj.concepto || `${obj.tipo} a ${d.nombre}`,
+          importe: monto,
+          proyecto: o.proyecto,
+          banco: 'BBVA',
+          tipo: obj.tipo,
+          proveedor_id: '',
+          factura_id: '',
+          cuenta_origen: o.proyecto,
+          cuenta_destino: d?.proyecto || '',
+          tipo_registro: 'Traspaso'
+        });
+        saveData();
+        const cntHist = document.getElementById('cnt-hist');
+        if (cntHist) cntHist.textContent = state.historial.length;
+        if (window.renderHistorial) window.renderHistorial();
+      }
 
       // Helper: buscar cuenta en proyectos O cuentasPropias y ajustar saldo
       const todayISO = new Date().toISOString().split('T')[0];
