@@ -2,7 +2,7 @@ import { state } from '../state.js';
 import { fmt } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
-import { gsSaveTraspasos, saveData, gsSaveProyectos, gsSaveCuentasPropias } from '../services/google-sync.js';
+import { gsSaveTraspasos, saveData, gsSaveProyectos, gsSaveCuentasPropias, gsSaveMovimientosInternos } from '../services/google-sync.js';
 import { saveProy } from '../config/proyectos.js';
 
 function getAllCuentas() {
@@ -232,6 +232,20 @@ export function guardarTraspaso() {
         const cntHist = document.getElementById('cnt-hist');
         if (cntHist) cntHist.textContent = state.historial.length;
         if (window.renderHistorial) window.renderHistorial();
+      }
+
+      if (noHistorial) {
+        state.movimientosInternos.push({
+          id: state.movimientosInternos.reduce((max, m) => Math.max(max, m.id || 0), 0) + 1,
+          fecha: fecha,
+          tipo: tipo,
+          origen: o?.nombre || '',
+          destino: d?.nombre || '',
+          monto: monto,
+          concepto: obj.concepto || '',
+          referencia: obj.referencia || ''
+        });
+        gsSaveMovimientosInternos();
       }
 
       // Helper: buscar cuenta por ID y tipo, ajustar saldo

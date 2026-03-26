@@ -14,6 +14,7 @@ export const state = {
   creditos: [],
   pagares: [],
   pagosPagare: [],
+  movimientosInternos: [],
   creditoTabActivo: null,
   editProvId: null,
   editCuentaId: null,

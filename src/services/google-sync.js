@@ -210,6 +210,21 @@ export async function gsLoadAll() {
       }));
     }
 
+    // Load movimientos_internos
+    const miRows = await gsReadSheet('movimientos_internos');
+    if (miRows && miRows.length > 1) {
+      state.movimientosInternos = miRows.slice(1).filter(r => r[0]).map(r => ({
+        id: parseInt(r[0]) || 0,
+        fecha: r[1] || '',
+        tipo: r[2] || '',
+        origen: r[3] || '',
+        destino: r[4] || '',
+        monto: parseFloat(r[5]) || 0,
+        concepto: r[6] || '',
+        referencia: r[7] || ''
+      }));
+    }
+
     // Load factura_pagos
     const fpRows = await gsReadSheet('factura_pagos');
     if (fpRows && fpRows.length > 1) {
@@ -365,6 +380,12 @@ export async function gsSavePagosPagare() {
       'monto_intereses', 'concepto', 'estatus', 'fecha_real_pago'
     ]);
   } catch (e) { console.error('gsSavePagosPagare', e); }
+}
+
+export async function gsSaveMovimientosInternos() {
+  if (!state.gsToken) return;
+  const rows = state.movimientosInternos.map(m => [m.id, m.fecha, m.tipo, m.origen, m.destino, m.monto, m.concepto, m.referencia]);
+  await gsClearAndWrite('movimientos_internos', rows, ['id', 'fecha', 'tipo', 'origen', 'destino', 'monto', 'concepto', 'referencia']);
 }
 
 export async function gsSaveProyectos() {
