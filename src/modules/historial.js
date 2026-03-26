@@ -3,7 +3,7 @@ import { fmt, dl } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { proyTag, catTag } from '../ui/badges.js';
-import { saveData, gsSaveProyectos, gsSaveFacturas, gsSaveFacturaPagos } from '../services/google-sync.js';
+import { saveData, gsSaveProyectos, gsSaveCuentasPropias, gsSaveFacturas, gsSaveFacturaPagos } from '../services/google-sync.js';
 import { saveProy } from '../config/proyectos.js';
 
 export function renderHistorial() {
@@ -46,7 +46,7 @@ export function renderHistorial() {
     const prov = (h.proveedor_id && h.tipo_registro !== 'Traspaso' && h.tipo_registro !== 'Crédito') ? state.proveedores.find(p => p.id === parseInt(h.proveedor_id)) : null;
     const tipoProv = prov?.categoria || '—';
     const subcat = (prov?.categoria === 'Proveedor' && prov?.subcategoria) ? prov.subcategoria : '—';
-    return `<div class="hist-row"><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.proveedor_id || '—'}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.factura_id || '—'}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.fecha}</div><div style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${h.cuenta_origen || '—'}</div><div><div style="font-weight:500;font-size:12px;">${h.nombre}</div><div style="font-size:11px;color:var(--muted);">${h.banco} · ${h.tipo}</div></div><div>${trBadge}</div><div style="font-size:11px;color:var(--muted);">${tipoProv}</div><div style="font-size:11px;color:var(--muted);">${subcat}</div><div style="font-size:11px;color:var(--muted);">${h.partida || '—'}</div><div style="font-size:11px;color:var(--muted);">${h.concepto.substring(0, 35)}</div><div style="font-family:'DM Mono',monospace;font-weight:500;color:var(--accent);text-align:right;">${fmt(h.importe)}</div><div>${proyTag(h.proyecto)}</div></div>`;
+    return `<div class="hist-row"><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.proveedor_id || '—'}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.factura_id || '—'}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.fecha}</div><div style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${h.cuenta_origen || '—'}</div><div><div style="font-weight:500;font-size:12px;">${h.nombre}</div><div style="font-size:11px;color:var(--muted);">${h.banco} · ${h.tipo}</div></div><div>${trBadge}</div><div style="font-size:11px;color:var(--muted);">${tipoProv}</div><div style="font-size:11px;color:var(--muted);">${subcat}</div><div style="font-size:11px;color:var(--muted);">${h.partida || '—'}</div><div style="font-size:11px;color:var(--muted);">${h.concepto.substring(0, 35)}</div><div style="font-family:'DM Mono',monospace;font-weight:500;color:var(--accent);text-align:right;">${fmt(h.importe)}</div><div>${proyTag(h.proyecto)}</div><div style="text-align:right;"><button class="btn btn-ghost btn-sm" onclick="eliminarHistorial(${state.historial.indexOf(h)})" style="color:#e74c3c;font-size:11px;padding:2px 6px;" title="Eliminar">✕</button></div></div>`;
   }).join('');
 }
 
@@ -216,4 +216,66 @@ export function confirmarPagos() {
   if (btnConf) btnConf.style.display = 'none';
   cerrar('modal-confirmar-pagos');
   renderHistorial();
+}
+
+// ---- ELIMINAR REGISTRO DE HISTORIAL ----
+function revertirSaldo(nombreCuenta, monto, fechaISO) {
+  if (!nombreCuenta) return false;
+  const proy = state.proyectos.find(x => x.nombre === nombreCuenta);
+  if (proy && proy.ultima_act_saldo) {
+    if (fechaISO >= proy.ultima_act_saldo.slice(0, 10)) {
+      proy.saldo = (proy.saldo || 0) + monto;
+      return true;
+    }
+    return false;
+  }
+  const extra = state.cuentasPropias.find(x => x.nombre === nombreCuenta);
+  if (extra && extra.ultima_actualizacion) {
+    if (fechaISO >= extra.ultima_actualizacion.slice(0, 10)) {
+      extra.saldo = (extra.saldo || 0) + monto;
+      return true;
+    }
+  }
+  return false;
+}
+
+function parseFechaHist(fecha) {
+  if (!fecha) return '';
+  if (fecha.includes('-') && fecha.length >= 10) return fecha.slice(0, 10);
+  const parts = fecha.split('/');
+  if (parts.length === 3) {
+    const [d, m, y] = parts;
+    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  }
+  return '';
+}
+
+export function eliminarHistorial(idx) {
+  const h = state.historial[idx];
+  if (!h) return;
+  if (!confirm(`¿Eliminar este registro?\n${h.nombre} — $${fmt(h.importe)}`)) return;
+
+  const fechaISO = parseFechaHist(h.fecha);
+  let saldoChanged = false;
+
+  if (h.tipo_registro === 'Traspaso') {
+    if (revertirSaldo(h.cuenta_origen, +h.importe, fechaISO)) saldoChanged = true;
+    if (revertirSaldo(h.cuenta_destino, -h.importe, fechaISO)) saldoChanged = true;
+  } else if (h.tipo_registro === 'Pago' && h.cuenta_origen) {
+    if (revertirSaldo(h.cuenta_origen, +h.importe, fechaISO)) saldoChanged = true;
+  }
+
+  if (saldoChanged) {
+    saveProy(state.proyectos);
+    gsSaveProyectos();
+    gsSaveCuentasPropias();
+    if (window.renderCuentasPropias) window.renderCuentasPropias();
+    if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
+  }
+
+  state.historial.splice(idx, 1);
+  saveData();
+  document.getElementById('cnt-hist').textContent = state.historial.length;
+  renderHistorial();
+  notify('Registro eliminado del historial');
 }

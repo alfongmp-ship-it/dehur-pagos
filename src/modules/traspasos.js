@@ -204,6 +204,7 @@ export function guardarTraspaso() {
         proveedor_id: '',
         factura_id: '',
         cuenta_origen: o.proyecto,
+        cuenta_destino: d?.proyecto || '',
         tipo_registro: 'Traspaso'
       });
       saveData();
