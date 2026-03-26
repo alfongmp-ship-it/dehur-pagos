@@ -12,6 +12,10 @@ import { saveProy } from '../config/proyectos.js';
 export function abrirPagoRapido(src, id) {
   const rec = src === 'prov' ? state.proveedores.find(p => p.id === id) : state.empleados.find(e => e.id === id);
   if (!rec) return;
+  if (src === 'emp' && rec.activo === false) {
+    notify('Empleado inactivo — no se puede realizar el pago', 'error');
+    return;
+  }
   state.pagoP = { ...rec, _src: src };
   document.getElementById('buscar-m').value = rec.nombre;
   document.getElementById('res-modal').style.display = 'none';
