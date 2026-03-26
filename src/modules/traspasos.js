@@ -217,27 +217,29 @@ export function guardarTraspaso() {
         if (window.renderHistorial) window.renderHistorial();
       }
 
-      // Helper: buscar cuenta en proyectos O cuentasPropias y ajustar saldo
+      // Helper: buscar cuenta por ID y tipo, ajustar saldo
       const todayISO = new Date().toISOString().split('T')[0];
       let saldoProyChanged = false;
       let saldoExtraChanged = false;
 
-      function ajustarSaldo(nombre, delta) {
-        const proy = state.proyectos.find(x => x.nombre === nombre);
-        if (proy && proy.ultima_act_saldo && todayISO >= proy.ultima_act_saldo.slice(0, 10)) {
-          proy.saldo = (proy.saldo || 0) + delta;
-          saldoProyChanged = true;
-          return;
-        }
-        const extra = state.cuentasPropias.find(x => x.nombre === nombre || x.proyecto === nombre);
-        if (extra && extra.ultima_actualizacion && todayISO >= extra.ultima_actualizacion.slice(0, 10)) {
-          extra.saldo = (extra.saldo || 0) + delta;
-          saldoExtraChanged = true;
+      function ajustarSaldo(cuentaId, cuentaTipo, delta) {
+        if (cuentaTipo === 'proyecto') {
+          const proy = state.proyectos.find(x => x.id === cuentaId);
+          if (proy && proy.ultima_act_saldo && todayISO >= proy.ultima_act_saldo.slice(0, 10)) {
+            proy.saldo = (proy.saldo || 0) + delta;
+            saldoProyChanged = true;
+          }
+        } else {
+          const extra = state.cuentasPropias.find(x => String(x.cuenta_id) === String(cuentaId));
+          if (extra && extra.ultima_actualizacion && todayISO >= extra.ultima_actualizacion.slice(0, 10)) {
+            extra.saldo = (extra.saldo || 0) + delta;
+            saldoExtraChanged = true;
+          }
         }
       }
 
-      ajustarSaldo(o.proyecto, -monto);
-      if (d?.proyecto) ajustarSaldo(d.proyecto, monto);
+      ajustarSaldo(origenId, o?.tipo, -monto);
+      ajustarSaldo(destinoId, d?.tipo, monto);
 
       if (saldoProyChanged) {
         saveProy(state.proyectos);
