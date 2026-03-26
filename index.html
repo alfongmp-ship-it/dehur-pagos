@@ -644,9 +644,14 @@
         <label>Cuenta Destino *</label>
         <select id="tr-destino" onchange="actualizarTipoDetectado()"></select>
       </div>
-      <div class="field span2">
-        <label>Tipo detectado</label>
-        <div id="tr-tipo-badge" style="padding:6px 0;"><span style="color:var(--muted);font-size:12px;">Selecciona ambas cuentas</span></div>
+      <div class="field">
+        <label>Tipo</label>
+        <select id="tr-tipo-select" class="filter-select">
+          <option value="">— Selecciona cuentas —</option>
+          <option value="Aportación">Aportación</option>
+          <option value="Préstamo">Préstamo</option>
+          <option value="Traspaso">Traspaso</option>
+        </select>
       </div>
       <div class="field">
         <label>Monto *</label>

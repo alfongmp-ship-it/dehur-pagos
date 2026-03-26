@@ -104,14 +104,14 @@ function populateTraspasoSelects() {
 export function actualizarTipoDetectado() {
   const origenId = document.getElementById('tr-origen')?.value;
   const destinoId = document.getElementById('tr-destino')?.value;
-  const badge = document.getElementById('tr-tipo-badge');
-  if (!badge) return;
+  const sel = document.getElementById('tr-tipo-select');
+  if (!sel) return;
   if (!origenId || !destinoId || origenId === destinoId) {
-    badge.innerHTML = '<span style="color:var(--muted);font-size:12px;">Selecciona ambas cuentas</span>';
+    sel.value = '';
     return;
   }
   const tipo = detectarTipo(origenId, destinoId);
-  badge.innerHTML = tipoBadge(tipo);
+  sel.value = tipo;
 }
 
 export function abrirNuevoTraspaso() {
@@ -120,7 +120,7 @@ export function abrirNuevoTraspaso() {
   populateTraspasoSelects();
   document.getElementById('tr-origen').value = '';
   document.getElementById('tr-destino').value = '';
-  document.getElementById('tr-tipo-badge').innerHTML = '<span style="color:var(--muted);font-size:12px;">Selecciona ambas cuentas</span>';
+  document.getElementById('tr-tipo-select').value = '';
   document.getElementById('tr-monto').value = '';
   document.getElementById('tr-fecha').value = new Date().toISOString().split('T')[0];
   document.getElementById('tr-concepto').value = '';
@@ -138,7 +138,8 @@ export function editarTraspaso(id) {
   populateTraspasoSelects();
   document.getElementById('tr-origen').value = t.cuenta_origen_id;
   document.getElementById('tr-destino').value = t.cuenta_destino_id;
-  actualizarTipoDetectado();
+  document.getElementById('tr-tipo-select').value = t.tipo || '';
+  if (!t.tipo) actualizarTipoDetectado();
   document.getElementById('tr-monto').value = t.monto;
   document.getElementById('tr-fecha').value = t.fecha;
   document.getElementById('tr-concepto').value = t.concepto || '';
@@ -162,7 +163,7 @@ export function guardarTraspaso() {
   const cuentas = getAllCuentas();
   const o = cuentas.find(c => String(c.id) === String(origenId));
   const d = cuentas.find(c => String(c.id) === String(destinoId));
-  const tipo = detectarTipo(origenId, destinoId);
+  const tipo = document.getElementById('tr-tipo-select')?.value || detectarTipo(origenId, destinoId);
 
   const obj = {
     traspaso_id: state.editTraspasoId || (state.traspasos.reduce((max, t) => Math.max(max, t.traspaso_id), 0) + 1),
