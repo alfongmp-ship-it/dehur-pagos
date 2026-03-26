@@ -14,7 +14,7 @@ import { renderHistorial, exportarHistorial, renderModalConf, toggleAllConf, abr
 import { renderCola, abrirPagoRapido, abrirModalPago, buscarModal, selPago, agregarACola, confirmarPagoDirecto, checkCuentaOrigenPago, abrirModalNominaDisp, filtrarNomDisp, agregarNominaACola, qDel, limpiarCola, buscarRapido, quickAdd, generarArchivo } from './modules/dispersion.js';
 import { handleSolDrop, handleSolFile, descargarPlantilla, parsearSolicitud, renderSolicitudes, toggleSol, seleccionarTodosSol, nuevaSolicitud, abrirVincular, renderVincBusqueda, seleccionarProvExistente, renderVincTipo, validarVincCuenta, confirmarNuevoProv, enviarACola } from './modules/solicitudes.js';
 import { renderFacturas, renderFacturaPagos, abrirNuevaFactura, editarFactura, guardarFactura, filtrarProvFactura, selProvFactura, eliminarPagoFactura } from './modules/facturas.js';
-import { renderTraspasos, abrirNuevoTraspaso, editarTraspaso, guardarTraspaso, eliminarTraspaso, actualizarTipoDetectado } from './modules/traspasos.js';
+import { renderTraspasos, abrirNuevoTraspaso, editarTraspaso, guardarTraspaso, eliminarTraspaso, actualizarTipoDetectado, togglePartidaTraspaso } from './modules/traspasos.js';
 import { renderResumenTraspasos, filtrarResumen } from './modules/resumen-traspasos.js';
 import { calcularClabeProy, selColor, abrirModalProyecto, guardarProyecto, toggleProyecto, renderConfigProyectos } from './modules/config-page.js';
 import { renderCuentasPropias, abrirNuevaCuenta, editarCuenta, editarCuentaProyecto, guardarCuenta, actualizarSaldoCuenta, guardarSaldoCuenta, actualizarSaldoExtra } from './modules/cuentas-propias.js';
@@ -121,6 +121,7 @@ window.editarTraspaso = editarTraspaso;
 window.guardarTraspaso = guardarTraspaso;
 window.eliminarTraspaso = eliminarTraspaso;
 window.actualizarTipoDetectado = actualizarTipoDetectado;
+window.togglePartidaTraspaso = togglePartidaTraspaso;
 window.renderResumenTraspasos = renderResumenTraspasos;
 window.filtrarResumen = filtrarResumen;
 window.gsSaveTraspasos = gsSaveTraspasos;

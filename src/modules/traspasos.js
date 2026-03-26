@@ -101,6 +101,12 @@ function populateTraspasoSelects() {
   if (destino) destino.innerHTML = opts;
 }
 
+export function togglePartidaTraspaso() {
+  const tipo = document.getElementById('tr-tipo-select')?.value;
+  const wrap = document.getElementById('tr-partida-wrap');
+  if (wrap) wrap.style.display = tipo === 'Aportación' ? '' : 'none';
+}
+
 export function actualizarTipoDetectado() {
   const origenId = document.getElementById('tr-origen')?.value;
   const destinoId = document.getElementById('tr-destino')?.value;
@@ -108,10 +114,12 @@ export function actualizarTipoDetectado() {
   if (!sel) return;
   if (!origenId || !destinoId || origenId === destinoId) {
     sel.value = '';
+    togglePartidaTraspaso();
     return;
   }
   const tipo = detectarTipo(origenId, destinoId);
   sel.value = tipo;
+  togglePartidaTraspaso();
 }
 
 export function abrirNuevoTraspaso() {
@@ -127,6 +135,8 @@ export function abrirNuevoTraspaso() {
   document.getElementById('tr-referencia').value = '';
   document.getElementById('tr-estatus').value = 'pendiente';
   document.getElementById('tr-no-historial').checked = false;
+  document.getElementById('tr-partida').value = '';
+  document.getElementById('tr-partida-wrap').style.display = 'none';
   document.getElementById('modal-traspaso').classList.add('open');
 }
 
@@ -145,6 +155,8 @@ export function editarTraspaso(id) {
   document.getElementById('tr-concepto').value = t.concepto || '';
   document.getElementById('tr-referencia').value = t.referencia || '';
   document.getElementById('tr-estatus').value = t.estatus || 'pendiente';
+  document.getElementById('tr-partida').value = t.partida || '';
+  togglePartidaTraspaso();
   document.getElementById('modal-traspaso').classList.add('open');
 }
 
@@ -159,6 +171,9 @@ export function guardarTraspaso() {
   if (origenId === destinoId) { notify('La cuenta origen y destino no pueden ser la misma', 'error'); return; }
   if (!monto) { notify('El monto es obligatorio', 'error'); return; }
   if (!fecha) { notify('La fecha es obligatoria', 'error'); return; }
+  const tipoSel = document.getElementById('tr-tipo-select')?.value;
+  const partida = document.getElementById('tr-partida')?.value?.trim() || '';
+  if (tipoSel === 'Aportación' && !partida) { notify('La partida es obligatoria para Aportaciones', 'error'); return; }
 
   const cuentas = getAllCuentas();
   const o = cuentas.find(c => String(c.id) === String(origenId));
@@ -179,6 +194,7 @@ export function guardarTraspaso() {
     monto,
     fecha,
     concepto: document.getElementById('tr-concepto').value.trim(),
+    partida,
     referencia: document.getElementById('tr-referencia').value.trim(),
     estatus: document.getElementById('tr-estatus').value,
     fecha_registro: state.editTraspasoId
@@ -209,7 +225,8 @@ export function guardarTraspaso() {
           factura_id: '',
           cuenta_origen: o.proyecto,
           cuenta_destino: d?.proyecto || '',
-          tipo_registro: 'Traspaso'
+          tipo_registro: 'Traspaso',
+          partida: partida || ''
         });
         saveData();
         const cntHist = document.getElementById('cnt-hist');

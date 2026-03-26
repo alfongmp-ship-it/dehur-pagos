@@ -646,7 +646,7 @@
       </div>
       <div class="field">
         <label>Tipo</label>
-        <select id="tr-tipo-select" class="filter-select">
+        <select id="tr-tipo-select" class="filter-select" onchange="togglePartidaTraspaso()">
           <option value="">— Selecciona cuentas —</option>
           <option value="Aportación">Aportación</option>
           <option value="Préstamo">Préstamo</option>
@@ -664,6 +664,10 @@
       <div class="field span2">
         <label>Concepto</label>
         <input type="text" id="tr-concepto" placeholder="Descripción del movimiento">
+      </div>
+      <div class="field" id="tr-partida-wrap" style="display:none;">
+        <label>Partida *</label>
+        <input type="text" id="tr-partida" placeholder="Ej: Estructura, Instalaciones...">
       </div>
       <div class="field">
         <label>Referencia</label>
