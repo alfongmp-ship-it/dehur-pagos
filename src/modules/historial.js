@@ -3,7 +3,7 @@ import { fmt, dl } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { proyTag, catTag } from '../ui/badges.js';
-import { saveData, gsSaveProyectos, gsSaveCuentasPropias, gsSaveFacturas, gsSaveFacturaPagos } from '../services/google-sync.js';
+import { saveData, gsSaveProyectos, gsSaveCuentasPropias, gsSaveTraspasos, gsSaveFacturas, gsSaveFacturaPagos } from '../services/google-sync.js';
 import { saveProy } from '../config/proyectos.js';
 
 export function renderHistorial() {
@@ -273,6 +273,23 @@ export function eliminarHistorial(idx) {
     if (window.renderCuentasPropias) window.renderCuentasPropias();
     if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
     if (window.renderHeaderBadges) window.renderHeaderBadges();
+  }
+
+  // Eliminar traspaso correspondiente en módulo de Traspasos
+  if (h.tipo_registro === 'Traspaso') {
+    const ti = state.traspasos.findIndex(t =>
+      t.proyecto_origen === h.cuenta_origen &&
+      t.cuenta_destino_nombre === h.nombre &&
+      t.monto === h.importe
+    );
+    if (ti !== -1) {
+      state.traspasos.splice(ti, 1);
+      gsSaveTraspasos();
+      if (window.renderTraspasos) window.renderTraspasos();
+      if (window.renderResumenTraspasos) window.renderResumenTraspasos();
+      const cntT = document.getElementById('cnt-traspasos');
+      if (cntT) cntT.textContent = state.traspasos.length;
+    }
   }
 
   state.historial.splice(idx, 1);
