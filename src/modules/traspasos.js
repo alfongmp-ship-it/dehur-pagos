@@ -229,7 +229,7 @@ export function guardarTraspaso() {
           saldoProyChanged = true;
           return;
         }
-        const extra = state.cuentasPropias.find(x => x.nombre === nombre);
+        const extra = state.cuentasPropias.find(x => x.nombre === nombre || x.proyecto === nombre);
         if (extra && extra.ultima_actualizacion && todayISO >= extra.ultima_actualizacion.slice(0, 10)) {
           extra.saldo = (extra.saldo || 0) + delta;
           saldoExtraChanged = true;

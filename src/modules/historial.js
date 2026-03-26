@@ -230,7 +230,7 @@ function revertirSaldo(nombreCuenta, monto, fechaISO) {
     }
     return false;
   }
-  const extra = state.cuentasPropias.find(x => x.nombre === nombreCuenta);
+  const extra = state.cuentasPropias.find(x => x.nombre === nombreCuenta || x.proyecto === nombreCuenta);
   if (extra && extra.ultima_actualizacion) {
     if (fechaISO >= extra.ultima_actualizacion.slice(0, 10)) {
       extra.saldo = (extra.saldo || 0) + monto;
