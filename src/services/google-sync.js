@@ -261,6 +261,11 @@ export async function gsLoadAll() {
       }));
     }
 
+    // Recalcular nextId con el máximo entre proveedores y empleados
+    const maxProv = state.proveedores.reduce((max, p) => Math.max(max, p.id || 0), 0);
+    const maxEmp = state.empleados.reduce((max, e) => Math.max(max, e.id || 0), 0);
+    state.nextId = Math.max(maxProv, maxEmp, state.nextId || 0) + 1;
+
     // Re-render everything
     if (window.renderCreditos) window.renderCreditos();
     if (window.renderTraspasos) window.renderTraspasos();
