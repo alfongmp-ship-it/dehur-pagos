@@ -272,6 +272,22 @@ export async function saveData(count = 1) {
   } catch (e) { console.error('saveData error', e); }
 }
 
+export async function gsSaveHistorial() {
+  if (!state.gsToken) return;
+  try {
+    const rows = state.historial.map(h => [
+      h.proveedor_id || '', h.factura_id || '', h.fecha, h.nombre, h.banco,
+      h.tipo, h.concepto, h.importe, h.proyecto, h.cuenta_origen || '',
+      h.tipo_registro || 'Pago', h.partida || ''
+    ]);
+    await gsClearAndWrite('historial_pagos', rows, [
+      'proveedor_id', 'factura_id', 'fecha', 'nombre', 'banco',
+      'tipo', 'concepto', 'importe', 'proyecto', 'cuenta_origen',
+      'tipo_registro', 'partida'
+    ]);
+  } catch (e) { console.error('gsSaveHistorial', e); }
+}
+
 export async function gsSaveProveedores() {
   if (!state.gsToken) return;
   try {
