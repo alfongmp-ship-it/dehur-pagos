@@ -2,8 +2,9 @@ import { state } from '../state.js';
 import { fmt } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
-import { gsSaveTraspasos, saveData, gsSaveProyectos, gsSaveCuentasPropias, gsSaveMovimientosInternos } from '../services/google-sync.js';
+import { gsSaveTraspasos, saveData, gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveMovimientosInternos } from '../services/google-sync.js';
 import { saveProy } from '../config/proyectos.js';
+import { revertirSaldo, parseFechaHist } from './historial.js';
 
 function getAllCuentas() {
   const deProy = state.proyectos.filter(p => p.activo !== false && p.cuenta).map(p => ({
@@ -295,8 +296,40 @@ export function guardarTraspaso() {
 }
 
 export function eliminarTraspaso(id) {
+  const t = state.traspasos.find(x => x.traspaso_id === id);
+  if (!t) return;
   if (!confirm('¿Eliminar este registro?')) return;
-  state.traspasos = state.traspasos.filter(t => t.traspaso_id !== id);
+
+  // Buscar y eliminar historial correspondiente
+  if (t.estatus === 'completado') {
+    const hi = state.historial.findIndex(h =>
+      h.tipo_registro === 'Traspaso' &&
+      h.cuenta_origen === t.proyecto_origen &&
+      h.nombre === t.cuenta_destino_nombre &&
+      h.importe === t.monto
+    );
+    if (hi !== -1) {
+      const h = state.historial[hi];
+      const fechaISO = parseFechaHist(h.fecha);
+      let saldoChanged = false;
+      if (revertirSaldo(h.cuenta_origen, +h.importe, fechaISO)) saldoChanged = true;
+      if (revertirSaldo(h.cuenta_destino, -h.importe, fechaISO)) saldoChanged = true;
+      if (saldoChanged) {
+        saveProy(state.proyectos);
+        gsSaveProyectos();
+        gsSaveCuentasPropias();
+        if (window.renderCuentasPropias) window.renderCuentasPropias();
+        if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
+        if (window.renderHeaderBadges) window.renderHeaderBadges();
+      }
+      state.historial.splice(hi, 1);
+      gsSaveHistorial();
+      document.getElementById('cnt-hist').textContent = state.historial.length;
+      if (window.renderHistorial) window.renderHistorial();
+    }
+  }
+
+  state.traspasos = state.traspasos.filter(x => x.traspaso_id !== id);
   renderTraspasos();
   if (window.renderResumenTraspasos) window.renderResumenTraspasos();
   notify('Registro eliminado');
