@@ -10,7 +10,8 @@ import { renderHeaderBadges, renderCuentaDispSelect, actualizarDisplaySaldo } fr
 import { refreshProyectosEnSelects } from './ui/nav.js';
 import { renderProveedores, abrirNuevoProveedor, editarProv, validarCuentaProv, guardarProveedor, exportarCSV, toggleSubcat } from './modules/proveedores.js';
 import { renderNomina, abrirNuevoEmpleado, editarEmp, updateTipoEmp, validarCuentaEmp, guardarEmpleado, exportarNomina } from './modules/nomina.js';
-import { renderHistorial, exportarHistorial, renderModalConf, toggleAllConf, abrirModalConfirmarPagos, confirmarPagos, eliminarHistorial } from './modules/historial.js';
+import { renderHistorial, exportarHistorial, eliminarHistorial } from './modules/historial.js';
+import { renderConfirmarPagos, toggleConfPago, toggleAllConf, confirmarPagos, eliminarPendiente } from './modules/confirmar-pagos.js';
 import { renderCola, abrirPagoRapido, abrirModalPago, buscarModal, selPago, agregarACola, confirmarPagoDirecto, checkCuentaOrigenPago, abrirModalNominaDisp, filtrarNomDisp, agregarNominaACola, qDel, limpiarCola, buscarRapido, quickAdd, generarArchivo } from './modules/dispersion.js';
 import { handleSolDrop, handleSolFile, descargarPlantilla, parsearSolicitud, renderSolicitudes, toggleSol, seleccionarTodosSol, nuevaSolicitud, abrirVincular, renderVincBusqueda, seleccionarProvExistente, renderVincTipo, validarVincCuenta, confirmarNuevoProv, enviarACola } from './modules/solicitudes.js';
 import { renderFacturas, renderFacturaPagos, abrirNuevaFactura, editarFactura, guardarFactura, filtrarProvFactura, selProvFactura, eliminarPagoFactura } from './modules/facturas.js';
@@ -129,11 +130,14 @@ window.gsSaveTraspasos = gsSaveTraspasos;
 // Historial
 window.renderHistorial = renderHistorial;
 window.exportarHistorial = exportarHistorial;
-window.renderModalConf = renderModalConf;
-window.toggleAllConf = toggleAllConf;
-window.abrirModalConfirmarPagos = abrirModalConfirmarPagos;
-window.confirmarPagos = confirmarPagos;
 window.eliminarHistorial = eliminarHistorial;
+
+// Confirmar Pagos
+window.renderConfirmarPagos = renderConfirmarPagos;
+window.toggleConfPago = toggleConfPago;
+window.toggleAllConf = toggleAllConf;
+window.confirmarPagos = confirmarPagos;
+window.eliminarPendiente = eliminarPendiente;
 
 // Dispersión / Cola
 window.renderCola = renderCola;
