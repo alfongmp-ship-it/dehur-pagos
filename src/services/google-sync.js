@@ -30,6 +30,27 @@ export async function gsLoadAll() {
       await gsSaveProveedores();
     }
 
+    // Load pendientes confirmacion
+    const pcRows = await gsReadSheet('pendientes_confirmacion');
+    if (pcRows && pcRows.length > 1) {
+      state.pendientesConfirmacion = pcRows.slice(1).filter(r => r[0]).map(r => ({
+        id: parseInt(r[0]) || Date.now(),
+        proveedor_id: r[1] || '',
+        factura_id: r[2] || '',
+        nombre: r[3] || '',
+        cuenta: r[4] || '',
+        banco: r[5] || '',
+        tipo: r[6] || '',
+        concepto: r[7] || '',
+        importe: parseFloat(r[8]) || 0,
+        proyecto: r[9] || '',
+        partida: r[10] || '',
+        cuenta_cargo: r[11] || '',
+        fechaGen: r[12] || '',
+        confirmado: r[13] !== 'false'
+      }));
+    }
+
     // Load empleados
     const eRows = await gsReadSheet('empleados');
     if (eRows && eRows.length > 1) {
@@ -270,6 +291,22 @@ export async function saveData(count = 1) {
       await gsAppendRow('historial_pagos', [h.proveedor_id || '', h.factura_id || '', h.fecha, h.nombre, h.banco, h.tipo, h.concepto, h.importe, h.proyecto, h.cuenta_origen || '', h.tipo_registro || 'Pago', h.partida || '']);
     }
   } catch (e) { console.error('saveData error', e); }
+}
+
+export async function gsSavePendientes() {
+  if (!state.gsToken) return;
+  try {
+    const rows = state.pendientesConfirmacion.map(p => [
+      p.id, p.proveedor_id || '', p.factura_id || '', p.nombre, p.cuenta || '',
+      p.banco, p.tipo, p.concepto, p.importe, p.proyecto, p.partida || '',
+      p.cuenta_cargo || '', p.fechaGen || '', p.confirmado
+    ]);
+    await gsClearAndWrite('pendientes_confirmacion', rows, [
+      'id', 'proveedor_id', 'factura_id', 'nombre', 'cuenta', 'banco',
+      'tipo', 'concepto', 'importe', 'proyecto', 'partida', 'cuenta_cargo',
+      'fechaGen', 'confirmado'
+    ]);
+  } catch (e) { console.error('gsSavePendientes', e); }
 }
 
 export async function gsSaveHistorial() {

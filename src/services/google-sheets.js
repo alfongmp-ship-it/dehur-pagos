@@ -30,7 +30,7 @@ export async function gsClearAndWrite(sheet, rows, headers) {
 }
 
 export async function gsInitSheets() {
-  const sheetsNeeded = ['proveedores', 'empleados', 'historial_pagos', 'proyectos', 'facturas', 'factura_pagos', 'aliases', 'cuentas_propias', 'traspasos', 'creditos', 'pagares', 'pagos_pagare', 'movimientos_internos'];
+  const sheetsNeeded = ['proveedores', 'empleados', 'historial_pagos', 'proyectos', 'facturas', 'factura_pagos', 'aliases', 'cuentas_propias', 'traspasos', 'creditos', 'pagares', 'pagos_pagare', 'movimientos_internos', 'pendientes_confirmacion'];
   try {
     const r = await gsFetch(`https://sheets.googleapis.com/v4/spreadsheets/${GS_SPREADSHEET_ID}`);
     const existing = r.sheets.map(s => s.properties.title);
@@ -52,7 +52,8 @@ export async function gsInitSheets() {
         creditos: [['credito_id', 'nombre', 'banco', 'tipo_credito', 'monto_autorizado', 'tasa_base', 'proyecto', 'cuenta_pago', 'estatus', 'activo']],
         pagares: [['pagare_id', 'credito_id', 'numero_pagare', 'monto', 'fecha_disposicion', 'fecha_vencimiento', 'tasa', 'estatus', 'activo']],
         pagos_pagare: [['pago_id', 'pagare_id', 'credito_id', 'fecha_pago', 'monto_intereses', 'concepto', 'estatus', 'fecha_real_pago']],
-        movimientos_internos: [['id', 'fecha', 'tipo', 'origen', 'destino', 'monto', 'concepto', 'referencia']]
+        movimientos_internos: [['id', 'fecha', 'tipo', 'origen', 'destino', 'monto', 'concepto', 'referencia']],
+        pendientes_confirmacion: [['id', 'proveedor_id', 'factura_id', 'nombre', 'cuenta', 'banco', 'tipo', 'concepto', 'importe', 'proyecto', 'partida', 'cuenta_cargo', 'fechaGen', 'confirmado']]
       };
       for (const sheet of toCreate) {
         await gsWriteRange(sheet + '!A1', headers[sheet]);
