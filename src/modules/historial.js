@@ -3,7 +3,7 @@ import { fmt, dl } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { proyTag, catTag } from '../ui/badges.js';
-import { saveData, gsSaveProyectos, gsSaveCuentasPropias, gsSaveTraspasos, gsSaveFacturas, gsSaveFacturaPagos } from '../services/google-sync.js';
+import { saveData, gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveTraspasos, gsSaveFacturas, gsSaveFacturaPagos } from '../services/google-sync.js';
 import { saveProy } from '../config/proyectos.js';
 
 export function renderHistorial() {
@@ -220,7 +220,7 @@ export function confirmarPagos() {
 }
 
 // ---- ELIMINAR REGISTRO DE HISTORIAL ----
-function revertirSaldo(nombreCuenta, monto, fechaISO) {
+export function revertirSaldo(nombreCuenta, monto, fechaISO) {
   if (!nombreCuenta) return false;
   const proy = state.proyectos.find(x => x.nombre === nombreCuenta);
   if (proy && proy.ultima_act_saldo) {
@@ -240,7 +240,7 @@ function revertirSaldo(nombreCuenta, monto, fechaISO) {
   return false;
 }
 
-function parseFechaHist(fecha) {
+export function parseFechaHist(fecha) {
   if (!fecha) return '';
   if (fecha.includes('-') && fecha.length >= 10) return fecha.slice(0, 10);
   const parts = fecha.split('/');
@@ -293,7 +293,7 @@ export function eliminarHistorial(idx) {
   }
 
   state.historial.splice(idx, 1);
-  saveData();
+  gsSaveHistorial();
   document.getElementById('cnt-hist').textContent = state.historial.length;
   renderHistorial();
   notify('Registro eliminado del historial');
