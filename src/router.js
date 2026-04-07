@@ -8,11 +8,8 @@ export function showPage(name, el) {
   // Lazy-render pages on navigation
   if (name === 'proveedores' && window.renderProveedores) window.renderProveedores();
   if (name === 'nomina' && window.renderNomina) window.renderNomina();
-  if (name === 'historial') {
-    if (window.renderHistorial) window.renderHistorial();
-    const btn = document.getElementById('btn-confirmar-hist');
-    if (btn) btn.style.display = state.pendientesConfirmacion && state.pendientesConfirmacion.length ? 'inline-flex' : 'none';
-  }
+  if (name === 'confirmar' && window.renderConfirmarPagos) window.renderConfirmarPagos();
+  if (name === 'historial' && window.renderHistorial) window.renderHistorial();
   if (name === 'solicitudes' && window.renderSolicitudes) window.renderSolicitudes();
   if (name === 'facturas' && window.renderFacturas) window.renderFacturas();
   if (name === 'factura-pagos' && window.renderFacturaPagos) window.renderFacturaPagos();
