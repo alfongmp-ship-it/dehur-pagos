@@ -4,8 +4,8 @@ import { tipoBadge } from '../ui/badges.js';
 import { fmt } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
-import { abrirModalConfirmarPagos } from './historial.js';
-import { saveData, gsSaveProyectos, gsSaveCuentasPropias } from '../services/google-sync.js';
+import { saveData, gsSavePendientes, gsSaveProyectos, gsSaveCuentasPropias } from '../services/google-sync.js';
+import { showPage } from '../router.js';
 import { saveProy } from '../config/proyectos.js';
 
 // ---- PAGO / COLA ----
@@ -306,6 +306,9 @@ export function generarArchivo() {
   renderCola();
   document.getElementById('cnt-cola').textContent = 0;
   document.getElementById('st-cola').textContent = 0;
-  setTimeout(() => { abrirModalConfirmarPagos(); }, 700);
+  gsSavePendientes();
+  setTimeout(() => {
+    showPage('confirmar', document.getElementById('nav-confirmar'));
+  }, 700);
 }
 
