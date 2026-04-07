@@ -1,9 +1,8 @@
 import { state } from '../state.js';
 import { fmt, dl } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
-import { cerrar } from '../ui/modal.js';
 import { proyTag, catTag } from '../ui/badges.js';
-import { saveData, gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveTraspasos, gsSaveFacturas, gsSaveFacturaPagos } from '../services/google-sync.js';
+import { gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveTraspasos } from '../services/google-sync.js';
 import { saveProy } from '../config/proyectos.js';
 
 export function renderHistorial() {
@@ -103,120 +102,6 @@ function getFilteredHistorial() {
     if (fh2 && h.fecha > fh2) return false;
     return true;
   });
-}
-
-export function renderModalConf() {
-  const tbody = document.getElementById('tbody-conf');
-  state.pendientesConfirmacion.forEach(d => { if (d.confirmado === undefined) d.confirmado = true; });
-  const total = state.pendientesConfirmacion.reduce((s, d) => s + d.importe, 0);
-  const selTotal = state.pendientesConfirmacion.filter(d => d.confirmado).reduce((s, d) => s + d.importe, 0);
-
-  document.getElementById('conf-resumen').innerHTML =
-    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;">' +
-    '<div style="font-size:11px;color:var(--muted);margin-bottom:4px;">TOTAL GENERADO</div>' +
-    '<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:700;">' + fmt(total) + '</div></div>' +
-    '<div style="background:rgba(39,174,96,.08);border:1px solid rgba(39,174,96,.3);border-radius:10px;padding:14px;">' +
-    '<div style="font-size:11px;color:var(--muted);margin-bottom:4px;">CONFIRMADO A REGISTRAR</div>' +
-    '<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:700;color:var(--green);">' + fmt(selTotal) + '</div></div>';
-
-  tbody.innerHTML = state.pendientesConfirmacion.map((d, i) =>
-    '<tr><td><input type="checkbox" ' + (d.confirmado ? 'checked' : '') + ' onchange="pendientesConfirmacion[' + i + '].confirmado=this.checked;renderModalConf()" style="width:14px;height:14px;cursor:pointer;"></td>' +
-    '<td style="font-size:12px;font-weight:500;">' + d.nombre + '</td>' +
-    '<td style="font-size:11px;color:var(--muted);">' + d.concepto + '</td>' +
-    '<td style="font-family:DM Mono,monospace;font-size:12px;font-weight:600;text-align:right;">' + fmt(d.importe) + '</td>' +
-    '<td>' + proyTag(d.proyecto) + '</td></tr>'
-  ).join('');
-}
-
-export function toggleAllConf(v) {
-  state.pendientesConfirmacion.forEach(d => d.confirmado = v);
-  renderModalConf();
-}
-
-export function abrirModalConfirmarPagos() {
-  if (!state.pendientesConfirmacion.length) { notify('No hay pagos pendientes de confirmar', 'error'); return; }
-  renderModalConf();
-  document.getElementById('modal-confirmar-pagos').classList.add('open');
-}
-
-export function confirmarPagos() {
-  const confirmados = state.pendientesConfirmacion.filter(d => d.confirmado);
-  if (!confirmados.length) { notify('Selecciona al menos un pago confirmado', 'error'); return; }
-  const fecha = new Date().toLocaleDateString('es-MX');
-  confirmados.forEach(d => {
-    state.historial.unshift({ fecha, nombre: d.nombre, concepto: d.concepto, importe: d.importe, proyecto: d.cuenta_cargo || d.proyecto, banco: d.banco, tipo: d.tipo || d.cuenta, proveedor_id: d.proveedor_id || '', factura_id: d.factura_id || '', cuenta_origen: d.cuenta_cargo || '', tipo_registro: 'Pago', partida: d.partida || '' });
-  });
-  document.getElementById('cnt-hist').textContent = state.historial.length;
-  saveData(confirmados.length);
-
-  // Registrar pagos a facturas y actualizar saldos de facturas
-  let factChanged = false;
-  confirmados.forEach(d => {
-    if (!d.factura_id) return;
-    const factId = parseInt(d.factura_id);
-    const fact = state.facturas.find(f => f.factura_id === factId);
-    if (!fact) return;
-
-    // Crear registro en factura_pagos
-    const fpId = state.facturaPagos.reduce((max, fp) => Math.max(max, fp.factura_pago_id), 0) + 1;
-    state.facturaPagos.push({
-      factura_pago_id: fpId,
-      factura_id: factId,
-      pago_id: d.id || 0,
-      proveedor_id: parseInt(d.proveedor_id) || 0,
-      monto_aplicado: d.importe,
-      fecha_pago: fecha,
-      estatus: 'aplicado',
-      observaciones: d.concepto || ''
-    });
-
-    // Actualizar factura
-    fact.monto_pagado = (fact.monto_pagado || 0) + d.importe;
-    fact.saldo_pendiente = Math.max(0, fact.monto_total - fact.monto_pagado);
-    if (fact.saldo_pendiente <= 0) {
-      fact.estatus_factura = 'pagada';
-      fact.fecha_pago_total = new Date().toISOString().split('T')[0];
-    } else if (fact.monto_pagado > 0) {
-      fact.estatus_factura = 'parcial';
-    }
-    factChanged = true;
-  });
-  if (factChanged) {
-    gsSaveFacturas();
-    gsSaveFacturaPagos();
-    if (window.renderFacturas) window.renderFacturas();
-    if (window.renderFacturaPagos) window.renderFacturaPagos();
-    document.getElementById('cnt-fact').textContent = state.facturas.length;
-    document.getElementById('cnt-fp').textContent = state.facturaPagos.length;
-  }
-
-  // Restar saldo del proyecto por cada pago confirmado
-  const todayISO = new Date().toISOString().split('T')[0];
-  let saldoChanged = false;
-  confirmados.forEach(d => {
-    const proyNombre = d.cuenta_cargo || d.proyecto;
-    if (!proyNombre || !d.importe) return;
-    const p = state.proyectos.find(x => x.nombre === proyNombre);
-    if (!p || !p.ultima_act_saldo) return;
-    if (todayISO >= p.ultima_act_saldo.slice(0, 10)) {
-      p.saldo = (p.saldo || 0) - d.importe;
-      saldoChanged = true;
-    }
-  });
-  if (saldoChanged) {
-    saveProy(state.proyectos);
-    gsSaveProyectos();
-    if (window.renderCuentasPropias) window.renderCuentasPropias();
-    if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
-    if (window.renderHeaderBadges) window.renderHeaderBadges();
-  }
-
-  notify('✅ ' + confirmados.length + ' pago(s) registrados en historial');
-  state.pendientesConfirmacion = [];
-  const btnConf = document.getElementById('btn-confirmar-hist');
-  if (btnConf) btnConf.style.display = 'none';
-  cerrar('modal-confirmar-pagos');
-  renderHistorial();
 }
 
 // ---- ELIMINAR REGISTRO DE HISTORIAL ----
