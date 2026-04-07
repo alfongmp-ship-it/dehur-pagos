@@ -39,6 +39,9 @@
     <div class="nav-item" id="nav-dispersion" onclick="showPage('dispersion',this)">
       <span>⚡</span> Dispersión <span class="nav-count" id="cnt-cola">0</span>
     </div>
+    <div class="nav-item" id="nav-confirmar" onclick="showPage('confirmar',this)">
+      <span>✅</span> Confirmar Pagos <span class="nav-count" id="cnt-confirmar">0</span>
+    </div>
     <div class="nav-item" id="nav-historial" onclick="showPage('historial',this)">
       <span>📋</span> Historial <span class="nav-count" id="cnt-hist">0</span>
     </div>
@@ -154,13 +157,33 @@
       </div>
     </div>
 
+    <!-- ===== CONFIRMAR PAGOS ===== -->
+    <div id="page-confirmar" style="display:none">
+      <div class="page-header">
+        <div><div class="page-title">Confirmar Pagos</div><div class="page-subtitle">Verifica contra el banco qué pagos fueron procesados</div></div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;cursor:pointer;">
+            <input type="checkbox" id="chk-conf-all" onchange="toggleAllConf(this.checked)" checked style="width:14px;height:14px;cursor:pointer;"> Seleccionar todos
+          </label>
+          <button class="btn btn-primary" onclick="confirmarPagos()" style="background:var(--green);">✅ Registrar confirmados en Historial</button>
+        </div>
+      </div>
+      <div id="conf-resumen-page"></div>
+      <div class="info-box" style="margin-bottom:12px;">Marca los pagos que el banco <strong>sí procesó</strong>. Solo los marcados pasarán al historial.</div>
+      <div class="table-wrap">
+        <div style="display:grid;grid-template-columns:32px 1fr 1fr auto 100px 40px;gap:10px;padding:11px 16px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;">
+          <div></div><div>Beneficiario</div><div>Concepto</div><div>Proyecto</div><div style="text-align:right">Importe</div><div></div>
+        </div>
+        <div id="confirmar-lista"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">✅</div><div>Sin pagos pendientes de confirmar</div></div></div>
+      </div>
+    </div>
+
     <!-- ===== HISTORIAL ===== -->
     <div id="page-historial" style="display:none">
       <div class="page-header">
         <div><div class="page-title">Historial de Pagos</div><div class="page-subtitle">Registro de dispersiones generadas</div></div>
         <div style="display:flex;gap:8px;">
           <button class="btn btn-ghost" onclick="exportarHistorial()">⬇ Exportar CSV</button>
-          <button class="btn btn-primary" id="btn-confirmar-hist" onclick="abrirModalConfirmarPagos()" style="display:none;">✅ Confirmar pagos pendientes</button>
         </div>
       </div>
       <div style="margin-bottom:10px;">
@@ -780,33 +803,6 @@
 
 <!-- MODAL GENERAR EXCEL BBVA -->
 
-<!-- MODAL CONFIRMACION DE PAGOS -->
-<div class="modal-overlay" id="modal-confirmar-pagos">
-  <div class="modal" style="width:680px;max-height:90vh;overflow-y:auto;">
-    <div class="modal-header">
-      <div class="modal-title">✅ Confirmar Pagos Realizados</div>
-      <button class="modal-close" onclick="cerrar('modal-confirmar-pagos')">✕</button>
-    </div>
-    <div class="info-box" style="margin-bottom:16px;">Marca los pagos que el banco <strong>sí procesó</strong>. Solo estos quedarán registrados en el historial.</div>
-    <div id="conf-resumen" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;"></div>
-    <div class="table-wrap" style="max-height:320px;overflow-y:auto;">
-      <table>
-        <thead><tr>
-          <th style="width:32px;"><input type="checkbox" id="chk-conf-all" onchange="toggleAllConf(this.checked)" style="width:14px;height:14px;cursor:pointer;"></th>
-          <th>Beneficiario</th>
-          <th>Concepto</th>
-          <th style="text-align:right">Importe</th>
-          <th>Proyecto</th>
-        </tr></thead>
-        <tbody id="tbody-conf"></tbody>
-      </table>
-    </div>
-    <div class="form-actions" style="margin-top:18px;">
-      <button class="btn btn-ghost" onclick="cerrar('modal-confirmar-pagos')">Cerrar sin guardar</button>
-      <button class="btn btn-primary" onclick="confirmarPagos()" style="padding:10px 28px;background:var(--green);">✅ Registrar pagos confirmados</button>
-    </div>
-  </div>
-</div>
 
 <!-- MODAL NOMINA A DISPERSION -->
 <div class="modal-overlay" id="modal-nom-disp">
