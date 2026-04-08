@@ -14,6 +14,127 @@ const TIPO_COLORS = {
   'General':    'rgba(150,150,150,.15);color:#aaa'
 };
 
+let chartSaldos = null;
+
+const CARD_COLORS = ['#c8a96e', '#5a9be0', '#4caf7d', '#e07a3a', '#9b7fe8', '#3498db', '#27ae60', '#e05a5a'];
+
+function getColorForCuenta(index) {
+  return CARD_COLORS[index % CARD_COLORS.length];
+}
+
+export function renderPosicionDia() {
+  const container = document.getElementById('posicion-dia');
+  const cardsEl = document.getElementById('pos-cards');
+  const fechaEl = document.getElementById('pos-fecha');
+  if (!container || !cardsEl) return;
+
+  const proyActivos = state.proyectos.filter(p => p.activo !== false && p.cuenta);
+  const cpActivas = state.cuentasPropias.filter(c => c.activo !== false);
+  const todas = [
+    ...proyActivos.map(p => ({ id: p.id, nombre: p.nombre, saldo: parseFloat(p.saldo) || 0, tipo: 'proyecto', color: p.color || '#c8a96e', ult: p.ultima_act_saldo || '' })),
+    ...cpActivas.map((c, i) => ({ id: c.cuenta_id, nombre: c.nombre, saldo: parseFloat(c.saldo) || 0, tipo: 'propia', color: getColorForCuenta(proyActivos.length + i), ult: c.ultima_actualizacion || '' }))
+  ];
+
+  if (!todas.length) { container.style.display = 'none'; return; }
+
+  container.style.display = 'block';
+  const total = todas.reduce((s, c) => s + c.saldo, 0);
+
+  // Fecha más reciente
+  const fechas = todas.map(c => c.ult).filter(Boolean).sort().reverse();
+  fechaEl.textContent = fechas.length ? fechas[0] : '';
+
+  // Determinar grid columns
+  const cols = Math.min(todas.length + 1, 5);
+  cardsEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+
+  // Card de total + cards por cuenta
+  cardsEl.innerHTML =
+    `<div class="stat-card" style="border-left:3px solid var(--accent);">
+      <div class="stat-label">Saldo Total</div>
+      <div class="stat-value stat-accent">${fmt(total)}</div>
+      <div class="stat-sub">${todas.length} cuentas activas</div>
+    </div>` +
+    todas.map(c =>
+      `<div class="stat-card" style="border-left:3px solid ${c.color};">
+        <div class="stat-label">${c.nombre}</div>
+        <div class="stat-value" style="color:${c.color};font-size:20px;">${fmt(c.saldo)}</div>
+        <div class="stat-sub">${c.ult || 'Sin actualizar'}</div>
+      </div>`
+    ).join('');
+
+  // Gráfica de evolución
+  renderChartSaldos(todas);
+}
+
+function renderChartSaldos(cuentasActuales) {
+  const canvas = document.getElementById('chart-saldos');
+  if (!canvas || typeof Chart === 'undefined') return;
+
+  const hist = state.historialSaldos;
+  if (!hist.length) {
+    canvas.parentElement.style.display = 'none';
+    return;
+  }
+  canvas.parentElement.style.display = 'block';
+
+  // Agrupar por fecha (solo la parte de fecha, sin hora)
+  const fechasSet = [...new Set(hist.map(h => h.fecha.split(' ')[0]))].sort();
+
+  // Obtener IDs únicos de cuentas en el historial
+  const cuentaIds = [...new Set(hist.map(h => h.cuenta_id))];
+
+  // Colores: buscar en cuentas actuales o asignar
+  const colorMap = {};
+  cuentasActuales.forEach(c => { colorMap[String(c.id)] = c.color; });
+
+  // Dataset por cuenta
+  const datasets = cuentaIds.map(id => {
+    const nombre = hist.find(h => h.cuenta_id === id)?.cuenta_nombre || id;
+    const color = colorMap[id] || '#888';
+    const data = fechasSet.map(f => {
+      const registros = hist.filter(h => h.cuenta_id === id && h.fecha.startsWith(f));
+      return registros.length ? registros[registros.length - 1].saldo : null;
+    });
+    return { label: nombre, data, borderColor: color, backgroundColor: color + '22', tension: 0.3, pointRadius: 3, borderWidth: 2, spanGaps: true };
+  });
+
+  // Dataset de total
+  const totalData = fechasSet.map(f => {
+    const registros = hist.filter(h => h.fecha.startsWith(f));
+    if (!registros.length) return null;
+    const ultimo = registros[registros.length - 1];
+    return ultimo.saldo_total;
+  });
+  datasets.unshift({ label: 'Total', data: totalData, borderColor: '#c8a96e', backgroundColor: 'rgba(200,169,110,.1)', tension: 0.3, pointRadius: 4, borderWidth: 3, borderDash: [6, 3], spanGaps: true });
+
+  if (chartSaldos) chartSaldos.destroy();
+
+  chartSaldos = new Chart(canvas, {
+    type: 'line',
+    data: { labels: fechasSet, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#aaa', font: { size: 11 }, boxWidth: 12, padding: 15 } },
+        tooltip: {
+          callbacks: {
+            label: ctx => ctx.dataset.label + ': $' + (ctx.parsed.y || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })
+          }
+        }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,.05)' }, ticks: { color: '#888', font: { size: 10 } } },
+        y: {
+          grid: { color: 'rgba(255,255,255,.05)' },
+          ticks: { color: '#888', font: { size: 10 }, callback: v => '$' + (v / 1000).toFixed(0) + 'k' }
+        }
+      }
+    }
+  });
+}
+
 function tipoBadge(tipo) {
   const style = TIPO_COLORS[tipo] || TIPO_COLORS['General'];
   return `<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:600;background:${style};">${tipo}</span>`;
@@ -78,6 +199,7 @@ export function renderCuentasPropias() {
   tb.innerHTML = [...filasProyectos, ...filasExtra].join('');
   document.getElementById('cp-subtitulo').textContent = `${total} cuenta${total !== 1 ? 's' : ''} (${filasProyectos.length} dispersión · ${filasExtra.length} adicionales)`;
   document.getElementById('cnt-cp').textContent = total;
+  renderPosicionDia();
 }
 
 function populateCuentaSelects() {

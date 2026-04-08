@@ -1,6 +1,6 @@
 import { state } from '../state.js';
 import { notify } from '../ui/notify.js';
-import { gsReadSheet, gsClearAndWrite, gsAppendRow } from './google-sheets.js';
+import { gsReadSheet, gsWriteRange, gsClearAndWrite, gsAppendRow } from './google-sheets.js';
 
 export async function gsLoadAll() {
   try {
@@ -311,9 +311,19 @@ export async function saveData(count = 1) {
   } catch (e) { console.error('saveData error', e); }
 }
 
+const HS_HEADERS = ['fecha', 'cuenta_id', 'cuenta_nombre', 'cuenta_tipo', 'saldo', 'saldo_total'];
+let hsHeadersOk = false;
+
 export async function gsAppendHistorialSaldo(registro) {
   if (!state.gsToken) return;
   try {
+    if (!hsHeadersOk) {
+      const rows = await gsReadSheet('historial_saldos');
+      if (!rows.length || rows[0][0] !== 'fecha') {
+        await gsWriteRange('historial_saldos!A1', [HS_HEADERS]);
+      }
+      hsHeadersOk = true;
+    }
     await gsAppendRow('historial_saldos', [
       registro.fecha, registro.cuenta_id, registro.cuenta_nombre,
       registro.cuenta_tipo, registro.saldo, registro.saldo_total
