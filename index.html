@@ -523,8 +523,15 @@
         <button class="btn btn-primary" onclick="abrirNuevaCuenta()">+ Nueva Cuenta</button>
       </div>
 
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Tipo</th><th>Nombre</th><th>Banco</th><th>CLABE</th><th>N° Cuenta</th><th>Proyecto</th><th style="text-align:right">Saldo</th><th>Última Act.</th><th style="text-align:right">Acciones</th></tr></thead>
+          <tbody id="tbody-cp"></tbody>
+        </table>
+      </div>
+
       <!-- Posición del Día -->
-      <div id="posicion-dia" style="display:none">
+      <div id="posicion-dia" style="display:none;margin-top:28px;">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
           <span style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--fg);">Posición del Día</span>
           <span style="font-size:12px;color:var(--muted);" id="pos-fecha"></span>
@@ -534,13 +541,6 @@
           <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:500;margin-bottom:10px;">Evolución de Saldos</div>
           <canvas id="chart-saldos" height="220"></canvas>
         </div>
-      </div>
-
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Tipo</th><th>Nombre</th><th>Banco</th><th>CLABE</th><th>N° Cuenta</th><th>Proyecto</th><th style="text-align:right">Saldo</th><th>Última Act.</th><th style="text-align:right">Acciones</th></tr></thead>
-          <tbody id="tbody-cp"></tbody>
-        </table>
       </div>
     </div>
 
