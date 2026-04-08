@@ -3,7 +3,7 @@ import { fmt } from '../ui/format.js';
 import { proyTag } from '../ui/badges.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
-import { gsSaveCreditos, gsSavePagares, gsSavePagosPagare, saveData } from '../services/google-sync.js';
+import { gsSaveCreditos, gsSavePagares, gsSavePagosPagare, gsSaveHistorial, saveData } from '../services/google-sync.js';
 
 // ===== RENDER PRINCIPAL =====
 export function renderCreditos() {
@@ -142,6 +142,7 @@ function renderFechasPago(pagos) {
         <td style="padding:6px 8px;text-align:right;white-space:nowrap;">
           <button class="btn btn-ghost" style="font-size:10px;padding:2px 6px;" onclick="event.stopPropagation();editarFechaPago(${pp.pago_id})">Editar</button>
           ${pp.estatus !== 'Pagado' ? `<button class="btn btn-ghost" style="font-size:10px;padding:2px 6px;" onclick="event.stopPropagation();marcarPagoPagado(${pp.pago_id})">Marcar pagado</button>` : ''}
+          <button class="btn btn-ghost" style="font-size:10px;padding:2px 6px;color:var(--red);" onclick="event.stopPropagation();eliminarPagoPagare(${pp.pago_id})">Borrar</button>
         </td>
       </tr>`;
     }).join('')}</tbody>
@@ -421,4 +422,48 @@ export function marcarPagoPagado(pagoId) {
   renderCreditos();
   if (window.renderHistorial) window.renderHistorial();
   notify(`Pago de ${fmt(pp.monto_intereses)} marcado como pagado`);
+}
+
+export function eliminarPagoPagare(pagoId) {
+  const pp = state.pagosPagare.find(x => x.pago_id === pagoId);
+  if (!pp) return;
+  if (!confirm(`¿Eliminar este pago de ${fmt(pp.monto_intereses)}?`)) return;
+
+  const p = state.pagares.find(x => x.pagare_id === pp.pagare_id);
+  const c = state.creditos.find(x => x.credito_id === pp.credito_id);
+
+  // Si estaba pagado, revertir saldo y quitar del historial
+  if (pp.estatus === 'Pagado') {
+    const cuentaPago = c?.cuenta_pago || '';
+    if (cuentaPago) {
+      const proy = state.proyectos.find(x => x.nombre === cuentaPago);
+      if (proy) {
+        proy.saldo = (proy.saldo || 0) + pp.monto_intereses;
+      } else {
+        const extra = state.cuentasPropias.find(x => x.nombre === cuentaPago);
+        if (extra) extra.saldo = (extra.saldo || 0) + pp.monto_intereses;
+      }
+      if (window.renderCuentasPropias) window.renderCuentasPropias();
+      if (window.renderHeaderBadges) window.renderHeaderBadges();
+    }
+
+    // Buscar y eliminar del historial
+    const numPagare = p?.numero_pagare || '';
+    const banco = c?.banco || '';
+    const idx = state.historial.findIndex(h =>
+      h.tipo_registro === 'Crédito' &&
+      h.nombre === `${banco} – Pagaré ${numPagare}` &&
+      h.importe === pp.monto_intereses
+    );
+    if (idx !== -1) state.historial.splice(idx, 1);
+    document.getElementById('cnt-hist').textContent = state.historial.length;
+    gsSaveHistorial();
+  }
+
+  // Eliminar el pago
+  state.pagosPagare = state.pagosPagare.filter(x => x.pago_id !== pagoId);
+  gsSavePagosPagare();
+  renderCreditos();
+  if (window.renderHistorial) window.renderHistorial();
+  notify('Pago eliminado');
 }
