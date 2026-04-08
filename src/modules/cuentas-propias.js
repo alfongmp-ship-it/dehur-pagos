@@ -3,7 +3,7 @@ import { fmt } from '../ui/format.js';
 import { proyTag } from '../ui/badges.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
-import { gsSaveCuentasPropias, gsSaveProyectos } from '../services/google-sync.js';
+import { gsSaveCuentasPropias, gsSaveProyectos, gsAppendHistorialSaldo } from '../services/google-sync.js';
 import { saveProy } from '../config/proyectos.js';
 
 const TIPO_COLORS = {
@@ -149,6 +149,15 @@ export function actualizarSaldoCuenta(proyId) {
   document.getElementById('modal-saldo').classList.add('open');
 }
 
+function registrarSaldoEnHistorial(cuentaId, nombre, tipo, saldo, ts) {
+  const totalProy = state.proyectos.reduce((s, p) => s + (parseFloat(p.saldo) || 0), 0);
+  const totalPropias = state.cuentasPropias.reduce((s, c) => s + (parseFloat(c.saldo) || 0), 0);
+  const saldoTotal = totalProy + totalPropias;
+  const registro = { fecha: ts, cuenta_id: String(cuentaId), cuenta_nombre: nombre, cuenta_tipo: tipo, saldo, saldo_total: saldoTotal };
+  state.historialSaldos.push(registro);
+  gsAppendHistorialSaldo(registro);
+}
+
 export function guardarSaldoCuenta() {
   const saldo = parseFloat(document.getElementById('saldo-monto').value) || 0;
   const now = new Date();
@@ -165,6 +174,7 @@ export function guardarSaldoCuenta() {
     cerrar('modal-saldo');
     renderCuentasPropias();
     gsSaveCuentasPropias();
+    registrarSaldoEnHistorial(c.cuenta_id, c.nombre, 'propia', saldo, ts);
     if (window.renderHeaderBadges) window.renderHeaderBadges();
     notify('Saldo actualizado');
   } else {
@@ -180,6 +190,7 @@ export function guardarSaldoCuenta() {
     if (window.renderHeaderBadges) window.renderHeaderBadges();
     notify('Saldo actualizado');
     gsSaveProyectos();
+    registrarSaldoEnHistorial(p.id, p.nombre, 'proyecto', saldo, ts);
   }
 }
 

@@ -10,6 +10,7 @@ export const state = {
   facturas: [],
   facturaPagos: [],
   cuentasPropias: [],
+  historialSaldos: [],
   traspasos: [],
   creditos: [],
   pagares: [],

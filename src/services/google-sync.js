@@ -160,6 +160,19 @@ export async function gsLoadAll() {
       }));
     }
 
+    // Load historial_saldos
+    const hsRows = await gsReadSheet('historial_saldos');
+    if (hsRows && hsRows.length > 1) {
+      state.historialSaldos = hsRows.slice(1).filter(r => r[0]).map(r => ({
+        fecha: r[0] || '',
+        cuenta_id: r[1] || '',
+        cuenta_nombre: r[2] || '',
+        cuenta_tipo: r[3] || '',
+        saldo: parseFloat(r[4]) || 0,
+        saldo_total: parseFloat(r[5]) || 0
+      }));
+    }
+
     // Load traspasos
     const tRows = await gsReadSheet('traspasos');
     if (tRows && tRows.length > 1) {
@@ -296,6 +309,16 @@ export async function saveData(count = 1) {
       await gsAppendRow('historial_pagos', [h.proveedor_id || '', h.factura_id || '', h.fecha, h.nombre, h.banco, h.tipo, h.concepto, h.importe, h.proyecto, h.cuenta_origen || '', h.tipo_registro || 'Pago', h.partida || '']);
     }
   } catch (e) { console.error('saveData error', e); }
+}
+
+export async function gsAppendHistorialSaldo(registro) {
+  if (!state.gsToken) return;
+  try {
+    await gsAppendRow('historial_saldos', [
+      registro.fecha, registro.cuenta_id, registro.cuenta_nombre,
+      registro.cuenta_tipo, registro.saldo, registro.saldo_total
+    ]);
+  } catch (e) { console.error('gsAppendHistorialSaldo', e); }
 }
 
 export async function gsSavePendientes() {
