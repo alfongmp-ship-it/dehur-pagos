@@ -5,6 +5,68 @@ import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { gsSaveFacturas, gsSaveFacturaPagos } from '../services/google-sync.js';
 
+function diasAlVencimiento(fechaVenc) {
+  if (!fechaVenc) return null;
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const venc = new Date(fechaVenc + 'T00:00:00');
+  if (isNaN(venc)) return null;
+  return Math.ceil((venc - hoy) / 86400000);
+}
+
+function vencimientoBadge(f) {
+  if (f.estatus_factura === 'pagada' || f.estatus_factura === 'cancelada') return '';
+  const dias = diasAlVencimiento(f.fecha_vencimiento);
+  if (dias === null) return '';
+  if (dias < 0) return `<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:600;background:rgba(224,90,90,.15);color:#e05a5a;">Vencida ${Math.abs(dias)}d</span>`;
+  if (dias <= 7) return `<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:600;background:rgba(224,122,58,.15);color:#e07a3a;">Vence ${dias}d</span>`;
+  return '';
+}
+
+function vencimientoColor(f) {
+  if (f.estatus_factura === 'pagada' || f.estatus_factura === 'cancelada') return 'var(--muted)';
+  const dias = diasAlVencimiento(f.fecha_vencimiento);
+  if (dias === null) return 'var(--muted)';
+  if (dias < 0) return '#e05a5a';
+  if (dias <= 7) return '#e07a3a';
+  return 'var(--muted)';
+}
+
+function renderFactStats() {
+  const el = document.getElementById('fact-stats');
+  if (!el) return;
+
+  const pendientes = state.facturas.filter(f => f.estatus_factura === 'pendiente' || f.estatus_factura === 'parcial');
+  const vencidas = pendientes.filter(f => { const d = diasAlVencimiento(f.fecha_vencimiento); return d !== null && d < 0; });
+  const porVencer = pendientes.filter(f => { const d = diasAlVencimiento(f.fecha_vencimiento); return d !== null && d >= 0 && d <= 7; });
+  const montoVencido = vencidas.reduce((s, f) => s + f.saldo_pendiente, 0);
+  const montoPorVencer = porVencer.reduce((s, f) => s + f.saldo_pendiente, 0);
+
+  if (!pendientes.length) { el.style.display = 'none'; return; }
+  el.style.display = '';
+
+  el.innerHTML = `
+    <div class="stat-card" style="border-left:3px solid var(--red);">
+      <div class="stat-label">Vencidas</div>
+      <div class="stat-value" style="color:var(--red);">${vencidas.length}</div>
+      <div class="stat-sub">${fmt(montoVencido)} pendiente</div>
+    </div>
+    <div class="stat-card" style="border-left:3px solid var(--orange);">
+      <div class="stat-label">Vencen en 7 d</div>
+      <div class="stat-value" style="color:var(--orange);">${porVencer.length}</div>
+      <div class="stat-sub">${fmt(montoPorVencer)} pendiente</div>
+    </div>
+    <div class="stat-card" style="border-left:3px solid var(--accent);">
+      <div class="stat-label">Pendientes</div>
+      <div class="stat-value stat-accent">${pendientes.length}</div>
+      <div class="stat-sub">${fmt(pendientes.reduce((s, f) => s + f.saldo_pendiente, 0))} total</div>
+    </div>
+    <div class="stat-card" style="border-left:3px solid var(--green);">
+      <div class="stat-label">Al corriente</div>
+      <div class="stat-value stat-green">${pendientes.length - vencidas.length - porVencer.length}</div>
+      <div class="stat-sub">Sin urgencia</div>
+    </div>`;
+}
+
 export function renderFacturas() {
   const tb = document.getElementById('tbody-fact');
   if (!tb) return;
@@ -17,6 +79,7 @@ export function renderFacturas() {
   }
 
   refreshFactProyectos();
+  renderFactStats();
 
   if (!state.facturas.length) {
     tb.innerHTML = '<tr><td colspan="11"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🧾</div><div>Sin facturas registradas</div></div></td></tr>';
@@ -38,12 +101,14 @@ export function renderFacturas() {
   tb.innerHTML = fil.map(f => {
     const provNombre = f.nombre_proveedor || f.razon_social || `ID ${f.proveedor_id}`;
     const estBadge = estatusBadge(f.estatus_factura);
+    const vBadge = vencimientoBadge(f);
+    const vColor = vencimientoColor(f);
     return `<tr>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${f.factura_id}</td>
       <td style="font-size:11px;">${f.numero_factura || '—'}</td>
       <td><div style="font-weight:500;font-size:12px;">${provNombre}</div><div style="font-size:10px;color:var(--muted);">${f.razon_social && f.nombre_proveedor ? f.razon_social : ''}</div></td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${f.fecha_factura}</td>
-      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${f.fecha_vencimiento || '—'}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;color:${vColor};font-weight:${vColor !== 'var(--muted)' ? '600' : '400'};">${f.fecha_vencimiento || '—'} ${vBadge}</td>
       <td style="font-family:'DM Mono',monospace;font-weight:500;text-align:right;">${fmt(f.monto_total)}</td>
       <td style="font-family:'DM Mono',monospace;text-align:right;color:var(--green);">${fmt(f.monto_pagado)}</td>
       <td style="font-family:'DM Mono',monospace;font-weight:500;text-align:right;color:${f.saldo_pendiente > 0 ? 'var(--accent)' : 'var(--muted)'};">${fmt(f.saldo_pendiente)}</td>
