@@ -56,6 +56,9 @@
     <div class="nav-item" id="nav-cuentas-propias" onclick="showPage('cuentas-propias',this)">
       <span>🏦</span> Cuentas Propias <span class="nav-count" id="cnt-cp">0</span>
     </div>
+    <div class="nav-item" id="nav-posicion-saldos" onclick="showPage('posicion-saldos',this)">
+      <span>📈</span> Posición de Saldos
+    </div>
     <div class="nav-item" id="nav-traspasos" onclick="showPage('traspasos',this)">
       <span>↔</span> Traspasos y Préstamos <span class="nav-count" id="cnt-traspasos">0</span>
     </div>
@@ -530,17 +533,20 @@
         </table>
       </div>
 
-      <!-- Posición del Día -->
-      <div id="posicion-dia" style="display:none;margin-top:28px;">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
-          <span style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--fg);">Posición del Día</span>
-          <span style="font-size:12px;color:var(--muted);" id="pos-fecha"></span>
+    </div>
+
+    <!-- ===== POSICIÓN DE SALDOS ===== -->
+    <div id="page-posicion-saldos" style="display:none">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Posición de Saldos</div>
+          <div class="page-subtitle" id="pos-fecha"></div>
         </div>
-        <div id="pos-cards" style="display:grid;gap:14px;margin-bottom:20px;"></div>
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:24px;">
-          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:500;margin-bottom:10px;">Evolución de Saldos</div>
-          <canvas id="chart-saldos" height="220"></canvas>
-        </div>
+      </div>
+      <div id="pos-cards" style="display:grid;gap:14px;margin-bottom:20px;"></div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:500;margin-bottom:10px;">Evolución de Saldos</div>
+        <canvas id="chart-saldos" height="260"></canvas>
       </div>
     </div>
 
