@@ -16,6 +16,7 @@ export function showPage(name, el) {
   if (name === 'config' && window.renderConfigProyectos) window.renderConfigProyectos();
   if (name === 'cuentas-propias' && window.renderCuentasPropias) window.renderCuentasPropias();
   if (name === 'posicion-saldos' && window.renderPosicionSaldos) window.renderPosicionSaldos();
+  if (name === 'resumen-costos' && window.renderResumenCostos) window.renderResumenCostos();
   if (name === 'traspasos' && window.renderTraspasos) window.renderTraspasos();
   if (name === 'resumen-traspasos' && window.renderResumenTraspasos) window.renderResumenTraspasos();
   if (name === 'creditos' && window.renderCreditos) window.renderCreditos();
