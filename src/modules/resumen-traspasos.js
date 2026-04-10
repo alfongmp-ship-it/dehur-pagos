@@ -1,5 +1,6 @@
 import { state } from '../state.js';
 import { fmt } from '../ui/format.js';
+import { proyectoMatch } from '../config/proyectos.js';
 
 function tipoBadge(tipo) {
   if (!tipo) return '';
@@ -34,7 +35,7 @@ function getFilters() {
 function applyFilters(lista, filters) {
   return lista.filter(t => {
     if (filters.tipo && t.tipo !== filters.tipo) return false;
-    if (filters.proyecto && t.proyecto_origen !== filters.proyecto && t.proyecto_destino !== filters.proyecto) return false;
+    if (filters.proyecto && !proyectoMatch(t.proyecto_origen, filters.proyecto) && !proyectoMatch(t.proyecto_destino, filters.proyecto)) return false;
     if (filters.estatus && t.estatus !== filters.estatus) return false;
     if (filters.desde && t.fecha < filters.desde) return false;
     if (filters.hasta && t.fecha > filters.hasta) return false;

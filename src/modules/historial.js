@@ -3,7 +3,7 @@ import { fmt, dl } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { proyTag, catTag } from '../ui/badges.js';
 import { gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveTraspasos } from '../services/google-sync.js';
-import { saveProy } from '../config/proyectos.js';
+import { saveProy, proyectoMatch } from '../config/proyectos.js';
 
 export function renderHistorial() {
   const el = document.getElementById('historial-lista');
@@ -96,7 +96,7 @@ function getFilteredHistorial() {
       const prov = h.proveedor_id ? state.proveedores.find(p => p.id === parseInt(h.proveedor_id)) : null;
       if (!prov || prov.categoria !== fc) return false;
     }
-    if (fp && h.proyecto !== fp) return false;
+    if (fp && !proyectoMatch(h.proyecto, fp)) return false;
     if (fpart && (h.partida || '') !== fpart) return false;
     if (fd && h.fecha < fd) return false;
     if (fh2 && h.fecha > fh2) return false;

@@ -14,3 +14,25 @@ export function loadProyectos() {
 export function saveProy(proyectos) {
   try { localStorage.setItem('dt_proyectos', JSON.stringify(proyectos)); } catch(e) {}
 }
+
+// Normaliza un nombre de proyecto: minúsculas, sin acentos, trim.
+// Útil para comparar nombres del catálogo (largos, ej. "Privada del Paraíso")
+// contra nombres registrados históricamente (cortos, ej. "Paraíso").
+function normalizar(nombre) {
+  if (!nombre) return '';
+  return nombre.toString().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .trim();
+}
+
+// Compara dos nombres de proyecto de forma tolerante: igualdad por substring
+// bidireccional sobre nombres normalizados. Permite que "Privada del Paraíso"
+// (catálogo) matchee "Paraíso" (registro), y "Concentradora DT" matchee "DT".
+export function proyectoMatch(a, b) {
+  const ca = normalizar(a);
+  const cb = normalizar(b);
+  if (!ca && !cb) return true;
+  if (!ca || !cb) return false;
+  if (ca === cb) return true;
+  return ca.includes(cb) || cb.includes(ca);
+}

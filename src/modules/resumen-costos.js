@@ -1,6 +1,7 @@
 import { state } from '../state.js';
 import { fmt } from '../ui/format.js';
 import { proyTag } from '../ui/badges.js';
+import { proyectoMatch } from '../config/proyectos.js';
 
 let chartProyecto = null;
 let chartPartida = null;
@@ -87,7 +88,7 @@ function getFiltered() {
   const fp = document.getElementById('rc-proyecto')?.value || '';
   const fpart = document.getElementById('rc-partida')?.value || '';
   return state.historial.filter(h => {
-    if (fp && h.proyecto !== fp) return false;
+    if (fp && !proyectoMatch(h.proyecto, fp)) return false;
     if (fpart && (h.partida || 'Sin partida') !== fpart) return false;
     if (fd && h.fecha < fd) return false;
     if (fh && h.fecha > fh) return false;

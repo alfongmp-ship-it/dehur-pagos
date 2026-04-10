@@ -4,6 +4,7 @@ import { proyTag } from '../ui/badges.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { gsSaveFacturas, gsSaveFacturaPagos } from '../services/google-sync.js';
+import { proyectoMatch } from '../config/proyectos.js';
 
 function diasAlVencimiento(fechaVenc) {
   if (!fechaVenc) return null;
@@ -130,7 +131,7 @@ function getFilteredFacturas() {
       if (!(/^\d+$/.test(q) ? String(f.factura_id) === q || String(f.proveedor_id) === q : provNombre.includes(q) || (f.numero_factura || '').toLowerCase().includes(q) || (f.nombre_proveedor || '').toLowerCase().includes(q))) return false;
     }
     if (fe && f.estatus_factura !== fe) return false;
-    if (fp && f.proyecto !== fp) return false;
+    if (fp && !proyectoMatch(f.proyecto, fp)) return false;
     return true;
   });
 }
