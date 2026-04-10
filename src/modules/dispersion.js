@@ -180,6 +180,7 @@ export function filtrarNomDisp() {
 
 export function agregarNominaACola() {
   const proyecto = document.getElementById('qnom-proy').value;
+  if (!proyecto) { notify('Selecciona un proyecto', 'error'); return; }
   let count = 0;
   state.empleados.forEach(e => {
     const chk = document.getElementById('chk-' + e.id);

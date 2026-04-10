@@ -10,6 +10,15 @@ export function refreshProyectosEnSelects() {
     ).join('');
     if (cur) el.value = cur;
   });
+  const qnom = document.getElementById('qnom-proy');
+  if (qnom) {
+    const cur = qnom.value;
+    qnom.innerHTML = '<option value="">Selecciona proyecto…</option>' +
+      state.proyectos.filter(p => p.activo).map(p =>
+        `<option value="${p.nombre}">${p.nombre}</option>`
+      ).join('');
+    if (cur) qnom.value = cur;
+  }
   const fp = document.getElementById('f-proy');
   if (fp) {
     const cur = fp.value;
