@@ -1,5 +1,4 @@
 import { state } from '../state.js';
-import { getTipo } from '../config/bancos.js';
 import { tipoBadge } from '../ui/badges.js';
 import { fmt } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
@@ -263,6 +262,25 @@ export function quickAdd(src, id) {
   document.getElementById('modal-pago').classList.add('open');
 }
 
+// Decide qué cuenta escribir en el archivo de dispersión BBVA según el banco
+// del beneficiario. Origen siempre es BBVA (los proyectos son BBVA).
+// - Destino BBVA  → "Mismo Banco" + cuenta corta (fallback: CLABE si sólo hay eso)
+// - Destino otro  → "Interbancarios" + CLABE forzosa
+function resolverCuentaAbono(proveedor) {
+  const bancoDestino = (proveedor.banco || '').trim().toUpperCase();
+  const esDestinoBBVA = bancoDestino === 'BBVA' || bancoDestino === 'BBVA BANCOMER';
+  const cuenta = proveedor.cuenta || '';
+  const clabe = proveedor.clabe || '';
+
+  if (esDestinoBBVA) {
+    const ctaCorta = cuenta.length !== 18 ? cuenta : '';
+    return { tipo: 'Mismo Banco', cuenta: ctaCorta || cuenta || clabe };
+  }
+
+  const clabeFinal = clabe || (cuenta.length === 18 ? cuenta : '');
+  return { tipo: 'Interbancarios', cuenta: clabeFinal || cuenta };
+}
+
 // ---- GENERAR ARCHIVO BBVA (XLSX formato SIM) ----
 export function generarArchivo() {
   if (!window.XLSX) { notify('Cargando librería, intenta en 2 segundos', 'error'); return; }
@@ -282,8 +300,8 @@ export function generarArchivo() {
   ];
   const data = [headers];
   state.cola.forEach(item => {
-    const tipo = getTipo(item.proveedor.cuenta) === 'CLABE' ? 'Interbancarios' : 'Mismo Banco';
-    data.push([tipo, cargo, item.proveedor.cuenta, item.importe, item.concepto, '', 'Pesos', item.proveedor.nombre, '', '', '', '', '', '']);
+    const { tipo, cuenta: ctaAbono } = resolverCuentaAbono(item.proveedor);
+    data.push([tipo, cargo, ctaAbono, item.importe, item.concepto, '', 'Pesos', item.proveedor.nombre, '', '', '', '', '', '']);
   });
   const ws = XLSX.utils.aoa_to_sheet(data);
   XLSX.utils.book_append_sheet(wb, ws, 'Dispersión');
