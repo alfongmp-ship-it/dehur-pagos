@@ -98,8 +98,11 @@ function getFilteredHistorial() {
     }
     if (fp && !proyectoMatch(h.proyecto, fp)) return false;
     if (fpart && (h.partida || '') !== fpart) return false;
-    if (fd && h.fecha < fd) return false;
-    if (fh2 && h.fecha > fh2) return false;
+    if (fd || fh2) {
+      const iso = parseFechaHist(h.fecha);
+      if (fd && iso < fd) return false;
+      if (fh2 && iso > fh2) return false;
+    }
     return true;
   });
 }

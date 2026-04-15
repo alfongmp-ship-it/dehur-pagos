@@ -2,6 +2,7 @@ import { state } from '../state.js';
 import { fmt } from '../ui/format.js';
 import { proyTag } from '../ui/badges.js';
 import { proyectoMatch } from '../config/proyectos.js';
+import { parseFechaHist } from './historial.js';
 
 let chartProyecto = null;
 let chartPartida = null;
@@ -90,8 +91,11 @@ function getFiltered() {
   return state.historial.filter(h => {
     if (fp && !proyectoMatch(h.proyecto, fp)) return false;
     if (fpart && (h.partida || 'Sin partida') !== fpart) return false;
-    if (fd && h.fecha < fd) return false;
-    if (fh && h.fecha > fh) return false;
+    if (fd || fh) {
+      const iso = parseFechaHist(h.fecha);
+      if (fd && iso < fd) return false;
+      if (fh && iso > fh) return false;
+    }
     return true;
   });
 }
