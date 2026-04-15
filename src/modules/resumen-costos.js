@@ -151,7 +151,8 @@ function renderCards(data) {
   if (!cards) return;
 
   const total = data.reduce((s, h) => s + (parseFloat(h.importe) || 0), 0);
-  const porBenef = groupBy(data, h => h.nombre || '—');
+  const pagosReales = data.filter(h => h.tipo_registro === 'Pago');
+  const porBenef = groupBy(pagosReales, h => h.nombre || '—');
   const sortedBenef = Object.entries(porBenef).sort((a, b) => b[1] - a[1]);
   const [benefTop, benefTopMonto] = sortedBenef[0] || ['—', 0];
   const benefTopTrunc = benefTop.length > 22 ? benefTop.slice(0, 20) + '…' : benefTop;
