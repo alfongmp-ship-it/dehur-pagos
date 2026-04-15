@@ -277,6 +277,25 @@ function renderTendencia(data) {
   });
   const values = rango.map(iso => porDia[iso] || 0);
 
+  const valueLabelsPlugin = {
+    id: 'valueLabels',
+    afterDatasetsDraw(chart) {
+      const { ctx } = chart;
+      const meta = chart.getDatasetMeta(0);
+      ctx.save();
+      ctx.font = '600 10px "DM Mono", monospace';
+      ctx.fillStyle = '#e8e8e8';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      meta.data.forEach((point, i) => {
+        const v = chart.data.datasets[0].data[i];
+        if (!v) return;
+        ctx.fillText(fmt(v), point.x, point.y - 6);
+      });
+      ctx.restore();
+    }
+  };
+
   chartTendencia = new Chart(canvas, {
     type: 'line',
     data: {
@@ -288,12 +307,14 @@ function renderTendencia(data) {
         backgroundColor: 'rgba(200,169,110,0.15)',
         fill: true,
         tension: 0.25,
-        pointRadius: 2,
+        pointRadius: 3,
         pointHoverRadius: 5,
         borderWidth: 2
       }]
     },
+    plugins: [valueLabelsPlugin],
     options: {
+      layout: { padding: { top: 18 } },
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
