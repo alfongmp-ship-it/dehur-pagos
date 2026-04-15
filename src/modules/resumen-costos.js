@@ -83,11 +83,7 @@ function refreshSelects() {
   }
 }
 
-function getFiltered() {
-  const fd = document.getElementById('rc-desde')?.value || '';
-  const fh = document.getElementById('rc-hasta')?.value || '';
-  const fp = document.getElementById('rc-proyecto')?.value || '';
-  const fpart = document.getElementById('rc-partida')?.value || '';
+function filterHistorial(fd, fh, fp, fpart) {
   return state.historial.filter(h => {
     if (fp && !proyectoMatch(h.proyecto, fp)) return false;
     if (fpart && (h.partida || 'Sin partida') !== fpart) return false;
@@ -98,6 +94,37 @@ function getFiltered() {
     }
     return true;
   });
+}
+
+function getFiltered() {
+  const fd = document.getElementById('rc-desde')?.value || '';
+  const fh = document.getElementById('rc-hasta')?.value || '';
+  const fp = document.getElementById('rc-proyecto')?.value || '';
+  const fpart = document.getElementById('rc-partida')?.value || '';
+  return filterHistorial(fd, fh, fp, fpart);
+}
+
+function shiftISODate(iso, deltaDays) {
+  const d = new Date(iso + 'T12:00:00');
+  d.setDate(d.getDate() + deltaDays);
+  return d.toISOString().slice(0, 10);
+}
+
+function calcVariacion(totalActual) {
+  const fd = document.getElementById('rc-desde')?.value || '';
+  const fh = document.getElementById('rc-hasta')?.value || '';
+  const fp = document.getElementById('rc-proyecto')?.value || '';
+  const fpart = document.getElementById('rc-partida')?.value || '';
+  if (!fd || !fh) return null;
+  const msDia = 86400000;
+  const dias = Math.round((new Date(fh) - new Date(fd)) / msDia) + 1;
+  const prevHasta = shiftISODate(fd, -1);
+  const prevDesde = shiftISODate(fd, -dias);
+  const prev = filterHistorial(prevDesde, prevHasta, fp, fpart);
+  const totalPrev = prev.reduce((s, h) => s + (parseFloat(h.importe) || 0), 0);
+  if (totalPrev <= 0) return { totalPrev: 0, delta: totalActual, pct: null };
+  const delta = totalActual - totalPrev;
+  return { totalPrev, delta, pct: (delta / totalPrev) * 100 };
 }
 
 function groupBy(arr, keyFn) {
@@ -124,12 +151,27 @@ function renderCards(data) {
   if (!cards) return;
 
   const total = data.reduce((s, h) => s + (parseFloat(h.importe) || 0), 0);
-  const porProy = groupBy(data, h => h.proyecto || '—');
-  const porPart = groupBy(data, h => h.partida || 'Sin partida');
-  const sortedProy = Object.entries(porProy).sort((a, b) => b[1] - a[1]);
-  const sortedPart = Object.entries(porPart).sort((a, b) => b[1] - a[1]);
-  const [proyTop, proyTopMonto] = sortedProy[0] || ['—', 0];
-  const [partTop, partTopMonto] = sortedPart[0] || ['—', 0];
+  const porBenef = groupBy(data, h => h.nombre || '—');
+  const sortedBenef = Object.entries(porBenef).sort((a, b) => b[1] - a[1]);
+  const [benefTop, benefTopMonto] = sortedBenef[0] || ['—', 0];
+  const benefTopTrunc = benefTop.length > 22 ? benefTop.slice(0, 20) + '…' : benefTop;
+
+  const variacion = calcVariacion(total);
+  let varValue, varSub, varColor;
+  if (!variacion) {
+    varValue = '—';
+    varSub = 'Selecciona un rango de fechas';
+    varColor = 'var(--muted)';
+  } else if (variacion.pct === null) {
+    varValue = variacion.delta > 0 ? '+∞%' : '—';
+    varSub = `Sin datos previos · ${fmt(variacion.totalPrev)}`;
+    varColor = 'var(--muted)';
+  } else {
+    const signo = variacion.pct >= 0 ? '+' : '';
+    varValue = `${signo}${variacion.pct.toFixed(1)}%`;
+    varSub = `${signo}${fmt(variacion.delta)} vs ${fmt(variacion.totalPrev)}`;
+    varColor = variacion.pct >= 0 ? '#e05a5a' : '#4caf7d';
+  }
 
   cards.innerHTML = `
     <div class="stat-card">
@@ -143,14 +185,14 @@ function renderCards(data) {
       <div class="stat-sub">Registros filtrados</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">Proyecto Top</div>
-      <div class="stat-value stat-green" style="font-size:16px;">${proyTop}</div>
-      <div class="stat-sub">${fmt(proyTopMonto)}</div>
+      <div class="stat-label">Beneficiario Top</div>
+      <div class="stat-value stat-green" style="font-size:16px;" title="${benefTop}">${benefTopTrunc}</div>
+      <div class="stat-sub">${fmt(benefTopMonto)}</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">Partida Top</div>
-      <div class="stat-value stat-orange" style="font-size:16px;">${partTop}</div>
-      <div class="stat-sub">${fmt(partTopMonto)}</div>
+      <div class="stat-label">Variación vs periodo anterior</div>
+      <div class="stat-value" style="font-size:18px;color:${varColor};">${varValue}</div>
+      <div class="stat-sub">${varSub}</div>
     </div>
   `;
 }
