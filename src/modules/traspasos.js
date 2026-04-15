@@ -4,7 +4,6 @@ import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { gsSaveTraspasos, saveData, gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveMovimientosInternos } from '../services/google-sync.js';
 import { saveProy } from '../config/proyectos.js';
-import { revertirSaldo, parseFechaHist } from './historial.js';
 
 function getAllCuentas() {
   const deProy = state.proyectos.filter(p => p.activo !== false && p.cuenta).map(p => ({
@@ -209,47 +208,8 @@ export function guardarTraspaso() {
   } else {
     state.traspasos.push(obj);
 
-    // Registrar en historial y mover saldos para todos los traspasos completados
-    const noHistorial = document.getElementById('tr-no-historial')?.checked;
-    if (obj.estatus === 'completado' && o?.proyecto) {
-      if (!noHistorial) {
-        const fechaHist = new Date(fecha + 'T12:00:00').toLocaleDateString('es-MX');
-        state.historial.unshift({
-          fecha: fechaHist,
-          nombre: d.nombre,
-          concepto: obj.concepto || `${obj.tipo} a ${d.nombre}`,
-          importe: monto,
-          proyecto: o.proyecto,
-          banco: 'BBVA',
-          tipo: obj.tipo,
-          proveedor_id: '',
-          factura_id: '',
-          cuenta_origen: o.proyecto,
-          cuenta_destino: d?.proyecto || '',
-          tipo_registro: 'Traspaso',
-          partida: partida || ''
-        });
-        saveData();
-        const cntHist = document.getElementById('cnt-hist');
-        if (cntHist) cntHist.textContent = state.historial.length;
-        if (window.renderHistorial) window.renderHistorial();
-      }
-
-      if (noHistorial) {
-        state.movimientosInternos.push({
-          id: state.movimientosInternos.reduce((max, m) => Math.max(max, m.id || 0), 0) + 1,
-          fecha: fecha,
-          tipo: tipo,
-          origen: o?.nombre || '',
-          destino: d?.nombre || '',
-          monto: monto,
-          concepto: obj.concepto || '',
-          referencia: obj.referencia || ''
-        });
-        gsSaveMovimientosInternos();
-      }
-
-      // Helper: buscar cuenta por ID y tipo, ajustar saldo
+    if (obj.estatus === 'completado') {
+      // Ajuste de saldos bancarios SIEMPRE (aplica a Aportación, Préstamo y Traspaso)
       const todayISO = new Date().toISOString().split('T')[0];
       let saldoProyChanged = false;
       let saldoExtraChanged = false;
@@ -273,17 +233,52 @@ export function guardarTraspaso() {
       ajustarSaldo(origenId, o?.tipo, -monto);
       ajustarSaldo(destinoId, d?.tipo, monto);
 
-      if (saldoProyChanged) {
-        saveProy(state.proyectos);
-        gsSaveProyectos();
-      }
-      if (saldoExtraChanged) {
-        gsSaveCuentasPropias();
-      }
+      if (saldoProyChanged) { saveProy(state.proyectos); gsSaveProyectos(); }
+      if (saldoExtraChanged) { gsSaveCuentasPropias(); }
       if (saldoProyChanged || saldoExtraChanged) {
         if (window.renderCuentasPropias) window.renderCuentasPropias();
         if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
         if (window.renderHeaderBadges) window.renderHeaderBadges();
+      }
+
+      // Registro contable: solo Aportación genera costo en historial.
+      // Préstamo y Traspaso son movimientos internos (sin costo).
+      const noHistorial = document.getElementById('tr-no-historial')?.checked;
+      const registrarHistorial = obj.tipo === 'Aportación' && o?.proyecto && !noHistorial;
+
+      if (registrarHistorial) {
+        const fechaHist = new Date(fecha + 'T12:00:00').toLocaleDateString('es-MX');
+        state.historial.unshift({
+          fecha: fechaHist,
+          nombre: d.nombre,
+          concepto: obj.concepto || `${obj.tipo} a ${d.nombre}`,
+          importe: monto,
+          proyecto: o.proyecto,
+          banco: 'BBVA',
+          tipo: obj.tipo,
+          proveedor_id: '',
+          factura_id: '',
+          cuenta_origen: o.proyecto,
+          cuenta_destino: d?.proyecto || '',
+          tipo_registro: 'Traspaso',
+          partida: partida || ''
+        });
+        saveData();
+        const cntHist = document.getElementById('cnt-hist');
+        if (cntHist) cntHist.textContent = state.historial.length;
+        if (window.renderHistorial) window.renderHistorial();
+      } else {
+        state.movimientosInternos.push({
+          id: state.movimientosInternos.reduce((max, m) => Math.max(max, m.id || 0), 0) + 1,
+          fecha: fecha,
+          tipo: tipo,
+          origen: o?.nombre || '',
+          destino: d?.nombre || '',
+          monto: monto,
+          concepto: obj.concepto || '',
+          referencia: obj.referencia || ''
+        });
+        gsSaveMovimientosInternos();
       }
     }
   }
@@ -300,32 +295,54 @@ export function eliminarTraspaso(id) {
   if (!t) return;
   if (!confirm('¿Eliminar este registro?')) return;
 
-  // Buscar y eliminar historial correspondiente
   if (t.estatus === 'completado') {
-    const hi = state.historial.findIndex(h =>
-      h.tipo_registro === 'Traspaso' &&
-      h.cuenta_origen === t.proyecto_origen &&
-      h.nombre === t.cuenta_destino_nombre &&
-      h.importe === t.monto
-    );
-    if (hi !== -1) {
-      const h = state.historial[hi];
-      const fechaISO = parseFechaHist(h.fecha);
-      let saldoChanged = false;
-      if (revertirSaldo(h.cuenta_origen, +h.importe, fechaISO)) saldoChanged = true;
-      if (revertirSaldo(h.cuenta_destino, -h.importe, fechaISO)) saldoChanged = true;
-      if (saldoChanged) {
-        saveProy(state.proyectos);
-        gsSaveProyectos();
-        gsSaveCuentasPropias();
-        if (window.renderCuentasPropias) window.renderCuentasPropias();
-        if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
-        if (window.renderHeaderBadges) window.renderHeaderBadges();
+    // Revertir saldos directamente desde los datos del traspaso (no dependen de historial)
+    const todayISO = new Date().toISOString().split('T')[0];
+    let saldoProyChanged = false;
+    let saldoExtraChanged = false;
+
+    function ajustarSaldo(cuentaId, cuentaTipo, delta) {
+      if (cuentaTipo === 'proyecto') {
+        const proy = state.proyectos.find(x => x.id === cuentaId);
+        if (proy && proy.ultima_act_saldo && todayISO >= proy.ultima_act_saldo.slice(0, 10)) {
+          proy.saldo = (proy.saldo || 0) + delta;
+          saldoProyChanged = true;
+        }
+      } else {
+        const extra = state.cuentasPropias.find(x => String(x.cuenta_id) === String(cuentaId));
+        if (extra && extra.ultima_actualizacion && todayISO >= extra.ultima_actualizacion.slice(0, 10)) {
+          extra.saldo = (extra.saldo || 0) + delta;
+          saldoExtraChanged = true;
+        }
       }
-      state.historial.splice(hi, 1);
-      gsSaveHistorial();
-      document.getElementById('cnt-hist').textContent = state.historial.length;
-      if (window.renderHistorial) window.renderHistorial();
+    }
+
+    ajustarSaldo(t.cuenta_origen_id, t.cuenta_origen_tipo, +t.monto);
+    ajustarSaldo(t.cuenta_destino_id, t.cuenta_destino_tipo, -t.monto);
+
+    if (saldoProyChanged) { saveProy(state.proyectos); gsSaveProyectos(); }
+    if (saldoExtraChanged) { gsSaveCuentasPropias(); }
+    if (saldoProyChanged || saldoExtraChanged) {
+      if (window.renderCuentasPropias) window.renderCuentasPropias();
+      if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
+      if (window.renderHeaderBadges) window.renderHeaderBadges();
+    }
+
+    // Solo Aportación tiene entrada en historial que haya que eliminar
+    if (t.tipo === 'Aportación') {
+      const hi = state.historial.findIndex(h =>
+        h.tipo_registro === 'Traspaso' &&
+        h.cuenta_origen === t.proyecto_origen &&
+        h.nombre === t.cuenta_destino_nombre &&
+        h.importe === t.monto
+      );
+      if (hi !== -1) {
+        state.historial.splice(hi, 1);
+        gsSaveHistorial();
+        const cntHist = document.getElementById('cnt-hist');
+        if (cntHist) cntHist.textContent = state.historial.length;
+        if (window.renderHistorial) window.renderHistorial();
+      }
     }
   }
 
