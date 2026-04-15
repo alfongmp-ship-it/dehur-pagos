@@ -6,6 +6,7 @@ import { parseFechaHist } from './historial.js';
 
 let chartProyecto = null;
 let chartPartida = null;
+let chartTendencia = null;
 let rcInitialized = false;
 
 const CARD_COLORS = ['#c8a96e', '#5a9be0', '#4caf7d', '#e07a3a', '#9b7fe8', '#3498db', '#27ae60', '#e05a5a'];
@@ -29,12 +30,15 @@ export function renderResumenCostos() {
   renderSubtitulo(data);
   renderCards(data);
   renderCharts(data);
+  renderTendencia(data);
+  renderTop5(data);
   renderTabla(data);
 }
 
 function destruirCharts() {
   if (chartProyecto) { chartProyecto.destroy(); chartProyecto = null; }
   if (chartPartida) { chartPartida.destroy(); chartPartida = null; }
+  if (chartTendencia) { chartTendencia.destroy(); chartTendencia = null; }
 }
 
 function initOnce() {
@@ -151,11 +155,6 @@ function renderCards(data) {
   if (!cards) return;
 
   const total = data.reduce((s, h) => s + (parseFloat(h.importe) || 0), 0);
-  const pagosReales = data.filter(h => h.tipo_registro === 'Pago');
-  const porBenef = groupBy(pagosReales, h => h.nombre || '—');
-  const sortedBenef = Object.entries(porBenef).sort((a, b) => b[1] - a[1]);
-  const [benefTop, benefTopMonto] = sortedBenef[0] || ['—', 0];
-  const benefTopTrunc = benefTop.length > 22 ? benefTop.slice(0, 20) + '…' : benefTop;
 
   const variacion = calcVariacion(total);
   let varValue, varSub, varColor;
@@ -186,16 +185,137 @@ function renderCards(data) {
       <div class="stat-sub">Registros filtrados</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">Beneficiario Top</div>
-      <div class="stat-value stat-green" style="font-size:16px;" title="${benefTop}">${benefTopTrunc}</div>
-      <div class="stat-sub">${fmt(benefTopMonto)}</div>
-    </div>
-    <div class="stat-card">
       <div class="stat-label">Variación vs periodo anterior</div>
       <div class="stat-value" style="font-size:18px;color:${varColor};">${varValue}</div>
       <div class="stat-sub">${varSub}</div>
     </div>
   `;
+}
+
+function renderTop5(data) {
+  const cont = document.getElementById('rc-top5');
+  if (!cont) return;
+  const pagosReales = data.filter(h => h.tipo_registro === 'Pago');
+  const total = pagosReales.reduce((s, h) => s + (parseFloat(h.importe) || 0), 0);
+  const porBenef = groupBy(pagosReales, h => h.nombre || '—');
+  const top = Object.entries(porBenef).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+  if (!top.length || total <= 0) {
+    cont.innerHTML = '<div class="empty-state" style="padding:20px 0;"><div style="font-size:28px;margin-bottom:8px;opacity:.4">👥</div><div style="font-size:12px;">Sin pagos en el rango</div></div>';
+    return;
+  }
+
+  const maxMonto = top[0][1];
+  cont.innerHTML = top.map(([nombre, monto], i) => {
+    const pct = (monto / total) * 100;
+    const barPct = (monto / maxMonto) * 100;
+    const color = CARD_COLORS[i % CARD_COLORS.length];
+    const nombreTrunc = nombre.length > 24 ? nombre.slice(0, 22) + '…' : nombre;
+    return `
+      <div title="${nombre}">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;gap:8px;">
+          <span style="font-size:12px;font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${nombreTrunc}</span>
+          <span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:600;color:${color};white-space:nowrap;">${fmt(monto)}</span>
+        </div>
+        <div style="height:6px;background:var(--surface2);border-radius:3px;overflow:hidden;">
+          <div style="height:100%;width:${barPct}%;background:${color};"></div>
+        </div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px;">${pct.toFixed(1)}% del total pagado</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderTendencia(data) {
+  const canvas = document.getElementById('rc-chart-tendencia');
+  if (!canvas) return;
+  const wrapper = canvas.parentElement;
+
+  if (chartTendencia) { chartTendencia.destroy(); chartTendencia = null; }
+
+  if (!data.length) {
+    canvas.style.display = 'none';
+    let placeholder = wrapper.querySelector('.rc-empty-chart');
+    if (!placeholder) {
+      placeholder = document.createElement('div');
+      placeholder.className = 'rc-empty-chart empty-state';
+      placeholder.style.cssText = 'position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;';
+      placeholder.innerHTML = '<div style="font-size:32px;margin-bottom:10px;opacity:.4">📈</div><div>Sin datos en el rango</div>';
+      wrapper.appendChild(placeholder);
+    }
+    return;
+  }
+  const placeholder = wrapper.querySelector('.rc-empty-chart');
+  if (placeholder) placeholder.remove();
+  canvas.style.display = '';
+
+  if (typeof Chart === 'undefined') return;
+
+  // Agrupar por día ISO
+  const porDia = {};
+  for (const h of data) {
+    const iso = parseFechaHist(h.fecha);
+    if (!iso) continue;
+    porDia[iso] = (porDia[iso] || 0) + (parseFloat(h.importe) || 0);
+  }
+  const dias = Object.keys(porDia).sort();
+  if (!dias.length) return;
+
+  // Rellenar días faltantes con 0 para que la línea sea continua
+  const primero = dias[0];
+  const ultimo = dias[dias.length - 1];
+  const rango = [];
+  const d0 = new Date(primero + 'T12:00:00');
+  const dN = new Date(ultimo + 'T12:00:00');
+  for (let d = new Date(d0); d <= dN; d.setDate(d.getDate() + 1)) {
+    rango.push(d.toISOString().slice(0, 10));
+  }
+
+  const labels = rango.map(iso => {
+    const [, m, dd] = iso.split('-');
+    return `${dd}/${m}`;
+  });
+  const values = rango.map(iso => porDia[iso] || 0);
+
+  chartTendencia = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Gasto diario',
+        data: values,
+        borderColor: '#c8a96e',
+        backgroundColor: 'rgba(200,169,110,0.15)',
+        fill: true,
+        tension: 0.25,
+        pointRadius: 2,
+        pointHoverRadius: 5,
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => fmt(ctx.parsed.y)
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: '#aaa', font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 12 },
+          grid: { color: 'rgba(255,255,255,0.04)' }
+        },
+        y: {
+          ticks: { color: '#aaa', font: { size: 10 }, callback: v => fmt(v) },
+          grid: { color: 'rgba(255,255,255,0.04)' }
+        }
+      }
+    }
+  });
 }
 
 function renderCharts(data) {
