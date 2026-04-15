@@ -1,4 +1,4 @@
-import { state } from '../state.js';
+import { state, esConcentradora } from '../state.js';
 import { fmt } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { proyTag } from '../ui/badges.js';
@@ -70,7 +70,8 @@ export function confirmarPagos() {
   if (!confirmados.length) { notify('Selecciona al menos un pago confirmado', 'error'); return; }
   const fecha = new Date().toLocaleDateString('es-MX');
   confirmados.forEach(d => {
-    state.historial.unshift({ fecha, nombre: d.nombre, concepto: d.concepto, importe: d.importe, proyecto: d.cuenta_cargo || d.proyecto, banco: d.banco, tipo: d.tipo || d.cuenta, proveedor_id: d.proveedor_id || '', factura_id: d.factura_id || '', cuenta_origen: d.cuenta_cargo || '', tipo_registro: 'Pago', partida: d.partida || '' });
+    const proyectoHist = esConcentradora(d.cuenta_cargo) ? '' : (d.cuenta_cargo || d.proyecto);
+    state.historial.unshift({ fecha, nombre: d.nombre, concepto: d.concepto, importe: d.importe, proyecto: proyectoHist, banco: d.banco, tipo: d.tipo || d.cuenta, proveedor_id: d.proveedor_id || '', factura_id: d.factura_id || '', cuenta_origen: d.cuenta_cargo || '', tipo_registro: 'Pago', partida: d.partida || '' });
   });
   document.getElementById('cnt-hist').textContent = state.historial.length;
   gsSaveHistorial();
@@ -114,22 +115,37 @@ export function confirmarPagos() {
     document.getElementById('cnt-fp').textContent = state.facturaPagos.length;
   }
 
-  // Restar saldo del proyecto por cada pago confirmado
+  // Restar saldo de la cuenta origen (proyecto o cuenta propia/concentradora)
   const todayISO = new Date().toISOString().split('T')[0];
-  let saldoChanged = false;
+  let saldoChangedProy = false;
+  let saldoChangedExtra = false;
   confirmados.forEach(d => {
-    const proyNombre = d.cuenta_cargo || d.proyecto;
-    if (!proyNombre || !d.importe) return;
-    const p = state.proyectos.find(x => x.nombre === proyNombre);
-    if (!p || !p.ultima_act_saldo) return;
-    if (todayISO >= p.ultima_act_saldo.slice(0, 10)) {
-      p.saldo = (p.saldo || 0) - d.importe;
-      saldoChanged = true;
+    const ctaNombre = d.cuenta_cargo || d.proyecto;
+    if (!ctaNombre || !d.importe) return;
+    const p = state.proyectos.find(x => x.nombre === ctaNombre);
+    if (p && p.ultima_act_saldo) {
+      if (todayISO >= p.ultima_act_saldo.slice(0, 10)) {
+        p.saldo = (p.saldo || 0) - d.importe;
+        saldoChangedProy = true;
+      }
+      return;
+    }
+    const extra = state.cuentasPropias.find(x => x.nombre === ctaNombre);
+    if (extra && extra.ultima_actualizacion) {
+      if (todayISO >= extra.ultima_actualizacion.slice(0, 10)) {
+        extra.saldo = (extra.saldo || 0) - d.importe;
+        saldoChangedExtra = true;
+      }
     }
   });
-  if (saldoChanged) {
+  if (saldoChangedProy) {
     saveProy(state.proyectos);
     gsSaveProyectos();
+  }
+  if (saldoChangedExtra) {
+    gsSaveCuentasPropias();
+  }
+  if (saldoChangedProy || saldoChangedExtra) {
     if (window.renderCuentasPropias) window.renderCuentasPropias();
     if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
     if (window.renderHeaderBadges) window.renderHeaderBadges();

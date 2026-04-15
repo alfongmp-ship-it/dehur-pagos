@@ -31,3 +31,9 @@ export const state = {
   gsToken: null,
   gsUser: null,
 };
+
+export function esConcentradora(nombreCuenta) {
+  if (!nombreCuenta) return false;
+  const c = state.cuentasPropias.find(x => x.nombre === nombreCuenta);
+  return !!(c && c.es_concentradora);
+}

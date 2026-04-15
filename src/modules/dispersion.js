@@ -1,4 +1,4 @@
-import { state } from '../state.js';
+import { state, esConcentradora } from '../state.js';
 import { tipoBadge } from '../ui/badges.js';
 import { fmt } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
@@ -129,7 +129,9 @@ export function confirmarPagoDirecto() {
   // Buscar el proyecto real de la cuenta
   const proy = state.proyectos.find(x => x.nombre === cuentaNombre);
   const extra = state.cuentasPropias.find(x => x.nombre === cuentaNombre);
-  const proyectoReal = proy ? proy.nombre : (extra?.proyecto || cuentaNombre);
+  const proyectoReal = esConcentradora(cuentaNombre)
+    ? ''
+    : (proy ? proy.nombre : (extra?.proyecto || cuentaNombre));
 
   const fecha = new Date().toLocaleDateString('es-MX');
   state.historial.unshift({
