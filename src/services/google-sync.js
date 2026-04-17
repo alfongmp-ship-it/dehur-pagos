@@ -1,6 +1,7 @@
 import { state } from '../state.js';
 import { notify } from '../ui/notify.js';
 import { gsReadSheet, gsWriteRange, gsClearAndWrite, gsAppendRow } from './google-sheets.js';
+import { normalizeBanco } from '../config/bancos.js';
 
 export async function gsLoadAll() {
   try {
@@ -11,7 +12,7 @@ export async function gsLoadAll() {
         id: parseInt(r[0]) || 0,
         nombre: r[1] || '',
         rfc: r[2] || '',
-        banco: r[3] || '',
+        banco: normalizeBanco(r[3] || ''),
         tipo_cuenta: (r[6] || '').replace(/\D/g, '').length === 18 ? 'CLABE' : 'Cuenta',
         cuenta: r[5] || '',
         clabe: r[6] || '',
@@ -39,7 +40,7 @@ export async function gsLoadAll() {
         factura_id: r[2] || '',
         nombre: r[3] || '',
         cuenta: r[4] || '',
-        banco: r[5] || '',
+        banco: normalizeBanco(r[5] || ''),
         tipo: r[6] || '',
         concepto: r[7] || '',
         importe: parseFloat(r[8]) || 0,
@@ -79,7 +80,7 @@ export async function gsLoadAll() {
         factura_id: r[1] || '',
         fecha: r[2] || '',
         nombre: r[3] || '',
-        banco: r[4] || '',
+        banco: normalizeBanco(r[4] || ''),
         tipo: r[5] || '',
         concepto: r[6] || '',
         importe: parseFloat(r[7]) || 0,

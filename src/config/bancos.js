@@ -5,6 +5,12 @@ export function getBanco(c) {
   return c && c.length >= 3 ? BANCOS[c.substring(0, 3)] || `Banco(${c.substring(0, 3)})` : 'BBVA';
 }
 
+export function normalizeBanco(v) {
+  if (!v) return v;
+  const m = v.match(/^Banco\((\d{3})\)$/);
+  return m ? (BANCOS[m[1]] || v) : v;
+}
+
 export function getTipo(c) {
   if (c.length === 18) return 'CLABE';
   return 'Cuenta';
