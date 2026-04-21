@@ -2,7 +2,7 @@ import { state } from '../state.js';
 import { fmt } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
-import { gsSaveTraspasos, gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveMovimientosInternos } from '../services/google-sync.js';
+import { gsSaveTraspasos, saveData, gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveMovimientosInternos } from '../services/google-sync.js';
 import { saveProy } from '../config/proyectos.js';
 
 function getAllCuentas() {
@@ -263,7 +263,7 @@ export function guardarTraspaso() {
           tipo_registro: 'Traspaso',
           partida: partida || ''
         });
-        gsSaveHistorial();
+        saveData();
         const cntHist = document.getElementById('cnt-hist');
         if (cntHist) cntHist.textContent = state.historial.length;
         if (window.renderHistorial) window.renderHistorial();

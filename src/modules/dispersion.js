@@ -3,7 +3,7 @@ import { tipoBadge } from '../ui/badges.js';
 import { fmt } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
-import { gsSaveHistorial, gsSavePendientes, gsSaveProyectos, gsSaveCuentasPropias } from '../services/google-sync.js';
+import { saveData, gsSavePendientes, gsSaveProyectos, gsSaveCuentasPropias } from '../services/google-sync.js';
 import { showPage } from '../router.js';
 import { saveProy } from '../config/proyectos.js';
 
@@ -143,7 +143,7 @@ export function confirmarPagoDirecto() {
   });
 
   document.getElementById('cnt-hist').textContent = state.historial.length;
-  gsSaveHistorial();
+  saveData(1);
 
   // Ajustar saldo de la cuenta origen (reusar proy/extra de arriba)
   const todayISO = new Date().toISOString().split('T')[0];
