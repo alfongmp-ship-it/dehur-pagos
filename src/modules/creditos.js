@@ -3,7 +3,7 @@ import { fmt } from '../ui/format.js';
 import { proyTag } from '../ui/badges.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
-import { gsSaveCreditos, gsSavePagares, gsSavePagosPagare, gsSaveHistorial, saveData } from '../services/google-sync.js';
+import { gsSaveCreditos, gsSavePagares, gsSavePagosPagare, gsSaveHistorial } from '../services/google-sync.js';
 
 // ===== RENDER PRINCIPAL =====
 export function renderCreditos() {
@@ -417,7 +417,7 @@ export function marcarPagoPagado(pagoId) {
     if (window.renderHeaderBadges) window.renderHeaderBadges();
   }
 
-  saveData();
+  gsSaveHistorial();
   gsSavePagosPagare();
   renderCreditos();
   if (window.renderHistorial) window.renderHistorial();
