@@ -5,7 +5,6 @@ import { proyectoMatch } from '../config/proyectos.js';
 import { parseFechaHist } from './historial.js';
 
 let chartProyecto = null;
-let chartPartida = null;
 let chartTendencia = null;
 let rcInitialized = false;
 
@@ -32,12 +31,12 @@ export function renderResumenCostos() {
   renderCharts(data);
   renderTendencia(data);
   renderTop5(data);
+  renderListaPartidas(data);
   renderTabla(data);
 }
 
 function destruirCharts() {
   if (chartProyecto) { chartProyecto.destroy(); chartProyecto = null; }
-  if (chartPartida) { chartPartida.destroy(); chartPartida = null; }
   if (chartTendencia) { chartTendencia.destroy(); chartTendencia = null; }
 }
 
@@ -341,7 +340,6 @@ function renderTendencia(data) {
 
 function renderCharts(data) {
   const gruposProy = groupBy(data, h => h.proyecto || '—');
-  const gruposPart = groupBy(data, h => h.partida || 'Sin partida');
 
   renderDoughnut(
     'rc-chart-proyecto',
@@ -350,13 +348,38 @@ function renderCharts(data) {
     'proyecto',
     data.length === 0
   );
-  renderDoughnut(
-    'rc-chart-partida',
-    gruposPart,
-    (_, i) => CARD_COLORS[i % CARD_COLORS.length],
-    'partida',
-    data.length === 0
-  );
+}
+
+function renderListaPartidas(data) {
+  const cont = document.getElementById('rc-lista-partidas');
+  if (!cont) return;
+  const total = data.reduce((s, h) => s + (parseFloat(h.importe) || 0), 0);
+  const porPartida = groupBy(data, h => h.partida || 'Sin partida');
+  const sorted = Object.entries(porPartida).sort((a, b) => b[1] - a[1]);
+
+  if (!sorted.length || total <= 0) {
+    cont.innerHTML = '<div class="empty-state" style="padding:20px 0;"><div style="font-size:28px;margin-bottom:8px;opacity:.4">📊</div><div style="font-size:12px;">Sin datos en el rango</div></div>';
+    return;
+  }
+
+  const maxMonto = sorted[0][1];
+  cont.innerHTML = sorted.map(([partida, monto], i) => {
+    const pct = (monto / total) * 100;
+    const barPct = (monto / maxMonto) * 100;
+    const color = CARD_COLORS[i % CARD_COLORS.length];
+    return `
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;gap:8px;">
+          <span style="font-size:12px;font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${partida}</span>
+          <span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:600;color:${color};white-space:nowrap;">${fmt(monto)}</span>
+        </div>
+        <div style="height:6px;background:var(--surface2);border-radius:3px;overflow:hidden;">
+          <div style="height:100%;width:${barPct}%;background:${color};"></div>
+        </div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px;">${pct.toFixed(1)}% del total</div>
+      </div>
+    `;
+  }).join('');
 }
 
 function renderDoughnut(canvasId, grupos, colorFn, refKey, isEmpty) {
@@ -366,7 +389,6 @@ function renderDoughnut(canvasId, grupos, colorFn, refKey, isEmpty) {
 
   // Limpiar instancia previa
   if (refKey === 'proyecto' && chartProyecto) { chartProyecto.destroy(); chartProyecto = null; }
-  if (refKey === 'partida' && chartPartida) { chartPartida.destroy(); chartPartida = null; }
 
   if (isEmpty || Object.keys(grupos).length === 0) {
     canvas.style.display = 'none';
@@ -414,7 +436,6 @@ function renderDoughnut(canvasId, grupos, colorFn, refKey, isEmpty) {
   });
 
   if (refKey === 'proyecto') chartProyecto = instance;
-  else chartPartida = instance;
 }
 
 function renderTabla(data) {
