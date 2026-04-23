@@ -8,7 +8,7 @@ import { setupModalCloseHandlers, cerrar } from './ui/modal.js';
 import { notify } from './ui/notify.js';
 import { renderHeaderBadges, renderCuentaDispSelect, actualizarDisplaySaldo } from './ui/header.js';
 import { refreshProyectosEnSelects } from './ui/nav.js';
-import { renderProveedores, abrirNuevoProveedor, editarProv, validarCuentaProv, guardarProveedor, exportarCSV, toggleSubcat } from './modules/proveedores.js';
+import { renderProveedores, abrirNuevoProveedor, editarProv, validarCuentaProv, guardarProveedor, exportarCSV, toggleSubcat, toggleSinCuenta } from './modules/proveedores.js';
 import { renderNomina, abrirNuevoEmpleado, editarEmp, updateTipoEmp, validarCuentaEmp, guardarEmpleado, exportarNomina } from './modules/nomina.js';
 import { renderHistorial, exportarHistorial, eliminarHistorial } from './modules/historial.js';
 import { renderConfirmarPagos, toggleConfPago, toggleAllConf, confirmarPagos, eliminarPendiente } from './modules/confirmar-pagos.js';
@@ -97,6 +97,7 @@ window.validarCuentaProv = validarCuentaProv;
 window.guardarProveedor = guardarProveedor;
 window.exportarCSV = exportarCSV;
 window.toggleSubcat = toggleSubcat;
+window.toggleSinCuenta = toggleSinCuenta;
 
 // Nómina
 window.renderNomina = renderNomina;

@@ -66,6 +66,9 @@ export function editarProv(id) {
   toggleSubcat();
   document.getElementById('p-subcat').value = p.subcategoria || '';
   document.getElementById('p-activo').value = p.activo ? 'true' : 'false';
+  const sinCuenta = !p.cuenta && !p.clabe;
+  document.getElementById('p-sin-cuenta').checked = sinCuenta;
+  toggleSinCuenta();
   validarCuentaProv();
   document.querySelectorAll('#modal-prov .proyecto-pill').forEach(pp =>
     pp.classList.toggle('selected', p.proyectos.includes(pp.dataset.p))
@@ -84,7 +87,23 @@ function limpiarFormProv() {
   document.getElementById('field-subcat').style.display = 'none';
   document.getElementById('p-activo').value = 'true';
   document.getElementById('p-cuenta-status').textContent = '';
+  document.getElementById('p-sin-cuenta').checked = false;
+  toggleSinCuenta();
   document.querySelectorAll('#modal-prov .proyecto-pill').forEach(pp => pp.classList.remove('selected'));
+}
+
+export function toggleSinCuenta() {
+  const sinCuenta = document.getElementById('p-sin-cuenta').checked;
+  const display = sinCuenta ? 'none' : '';
+  document.getElementById('field-cuenta').style.display = display;
+  document.getElementById('field-clabe').style.display = display;
+  document.getElementById('field-banco').style.display = display;
+  if (sinCuenta) {
+    document.getElementById('p-cuenta').value = '';
+    document.getElementById('p-clabe').value = '';
+    document.getElementById('p-banco').value = '';
+    document.getElementById('p-cuenta-status').textContent = '';
+  }
 }
 
 export function validarCuentaProv() {
@@ -101,11 +120,12 @@ export function guardarProveedor() {
   const nombre = document.getElementById('p-nombre').value.trim().toUpperCase();
   const cuenta = document.getElementById('p-cuenta').value.trim();
   const clabe = document.getElementById('p-clabe').value.trim();
+  const sinCuenta = document.getElementById('p-sin-cuenta').checked;
   if (!nombre) { notify('El nombre es obligatorio', 'error'); return; }
-  if (!cuenta && !clabe) { notify('Ingresa al menos un número de cuenta o CLABE', 'error'); return; }
-  if (clabe && clabe.length !== 18) { notify('CLABE debe tener 18 dígitos', 'error'); return; }
-  const tipo = clabe.length === 18 ? 'CLABE' : 'Cuenta';
-  const banco = clabe.length === 18 ? getBanco(clabe) : (document.getElementById('p-banco').value || 'BBVA');
+  if (!sinCuenta && !cuenta && !clabe) { notify('Ingresa al menos un número de cuenta o CLABE', 'error'); return; }
+  if (!sinCuenta && clabe && clabe.length !== 18) { notify('CLABE debe tener 18 dígitos', 'error'); return; }
+  const tipo = sinCuenta ? 'N/A' : (clabe.length === 18 ? 'CLABE' : 'Cuenta');
+  const banco = sinCuenta ? 'N/A' : (clabe.length === 18 ? getBanco(clabe) : (document.getElementById('p-banco').value || 'BBVA'));
   const projs = [...document.querySelectorAll('#modal-prov .proyecto-pill.selected')].map(p => p.dataset.p);
   const existing = state.editProvId ? state.proveedores.find(p => p.id === state.editProvId) : null;
   const obj = {

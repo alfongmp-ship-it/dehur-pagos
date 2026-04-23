@@ -803,9 +803,10 @@
       <div class="field"><label>RFC</label><input id="p-rfc" placeholder="Opcional"></div>
       <div class="field"><label>Categoría</label><select id="p-cat" onchange="toggleSubcat()"><option>General</option><option>Nomina</option><option>Proveedor</option><option>Obra</option><option>Contratista</option><option>Acreedor</option><option>Socio</option></select></div>
       <div class="field" id="field-subcat" style="display:none;"><label>Subcategoría</label><select id="p-subcat"><option value="">—</option><option>Estructura</option><option>Instalaciones</option><option>Acabados</option><option>Herrería</option><option>Impermeabilización</option><option>Electricidad</option><option>Plomería</option><option>Otros</option></select></div>
-      <div class="field"><label>Número de cuenta</label><input id="p-cuenta" placeholder="Opcional" style="font-family:'DM Mono',monospace;"></div>
-      <div class="field"><label>CLABE Interbancaria (18 dígitos)</label><input id="p-clabe" placeholder="000000000000000000" maxlength="18" oninput="validarCuentaProv()" style="font-family:'DM Mono',monospace;"><div id="p-cuenta-status"></div></div>
-      <div class="field"><label>Banco detectado</label><input id="p-banco" readonly style="color:var(--muted)"></div>
+      <div class="field span2"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="p-sin-cuenta" onchange="toggleSinCuenta()" style="width:auto;margin:0;"> Sin cuenta bancaria (ej. comisiones, cargos automáticos)</label></div>
+      <div class="field" id="field-cuenta"><label>Número de cuenta</label><input id="p-cuenta" placeholder="Opcional" style="font-family:'DM Mono',monospace;"></div>
+      <div class="field" id="field-clabe"><label>CLABE Interbancaria (18 dígitos)</label><input id="p-clabe" placeholder="000000000000000000" maxlength="18" oninput="validarCuentaProv()" style="font-family:'DM Mono',monospace;"><div id="p-cuenta-status"></div></div>
+      <div class="field" id="field-banco"><label>Banco detectado</label><input id="p-banco" readonly style="color:var(--muted)"></div>
       <div class="field"><label>Estado</label><select id="p-activo"><option value="true">Activo</option><option value="false">Inactivo</option></select></div>
       <div class="field span2"><label>Proyectos</label><div><span id="pills-placeholder" style="font-size:11px;color:var(--muted);">Cargando proyectos...</span></div></div>
     </div>
