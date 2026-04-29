@@ -6,6 +6,24 @@ import { cerrar } from '../ui/modal.js';
 import { saveData, gsSavePendientes, gsSaveProyectos, gsSaveCuentasPropias } from '../services/google-sync.js';
 import { showPage } from '../router.js';
 import { saveProy } from '../config/proyectos.js';
+import { getSubPartidas } from '../config/sub-partidas.js';
+
+export function togglePagoSubPartida() {
+  const partida = document.getElementById('pago-partida')?.value || '';
+  const wrap = document.getElementById('pago-sub-partida-wrap');
+  const sel = document.getElementById('pago-sub-partida');
+  if (!wrap || !sel) return;
+  const opciones = getSubPartidas(partida);
+  if (opciones.length) {
+    sel.innerHTML = '<option value="">— selecciona —</option>' +
+      opciones.map(o => `<option value="${o}">${o}</option>`).join('');
+    wrap.style.display = '';
+  } else {
+    sel.innerHTML = '';
+    sel.value = '';
+    wrap.style.display = 'none';
+  }
+}
 
 // ---- PAGO / COLA ----
 export function abrirPagoRapido(src, id) {
@@ -34,6 +52,7 @@ export function abrirModalPago() {
   document.getElementById('pago-concepto').value = '';
   document.getElementById('pago-importe').value = '';
   document.getElementById('pago-partida').value = '';
+  togglePagoSubPartida();
   // Poblar cuenta origen: proyectos BBVA + cuentas adicionales
   const sel = document.getElementById('pago-cuenta-origen');
   if (sel) {
@@ -104,11 +123,12 @@ export function agregarACola() {
   const concepto = document.getElementById('pago-concepto').value.trim();
   const importe = parseFloat(document.getElementById('pago-importe').value);
   const partida = document.getElementById('pago-partida')?.value.trim() || '';
+  const sub_partida = document.getElementById('pago-sub-partida')?.value || '';
   const ctaVal = document.getElementById('pago-cuenta-origen')?.value || '';
   const proyecto = ctaVal.replace(/^proy:|^extra:/, '');
   if (!concepto) { notify('El concepto es obligatorio', 'error'); return; }
   if (!importe || importe <= 0) { notify('Ingresa un importe válido', 'error'); return; }
-  state.cola.push({ id: Date.now(), proveedor: state.pagoP, concepto, importe, proyecto, partida, proveedor_id: String(state.pagoP.id || ''), factura_id: '' });
+  state.cola.push({ id: Date.now(), proveedor: state.pagoP, concepto, importe, proyecto, partida, sub_partida, proveedor_id: String(state.pagoP.id || ''), factura_id: '' });
   cerrar('modal-pago');
   renderCola();
   document.getElementById('cnt-cola').textContent = state.cola.length;
@@ -121,6 +141,7 @@ export function confirmarPagoDirecto() {
   const concepto = document.getElementById('pago-concepto').value.trim();
   const importe = parseFloat(document.getElementById('pago-importe').value);
   const partida = document.getElementById('pago-partida')?.value.trim() || '';
+  const sub_partida = document.getElementById('pago-sub-partida')?.value || '';
   const ctaVal = document.getElementById('pago-cuenta-origen')?.value || '';
   const cuentaNombre = ctaVal.replace(/^proy:|^extra:/, '');
   if (!concepto) { notify('El concepto es obligatorio', 'error'); return; }
@@ -139,7 +160,7 @@ export function confirmarPagoDirecto() {
     proyecto: proyectoReal, banco: state.pagoP.banco,
     tipo: state.pagoP.tipo_cuenta || 'Cuenta',
     proveedor_id: String(state.pagoP.id || ''), factura_id: '',
-    cuenta_origen: cuentaNombre, tipo_registro: 'Pago', partida
+    cuenta_origen: cuentaNombre, tipo_registro: 'Pago', partida, sub_partida
   });
 
   document.getElementById('cnt-hist').textContent = state.historial.length;
@@ -318,7 +339,7 @@ export function generarArchivo() {
     id: item.id, proveedor_id: item.proveedor_id || item.proveedor.id || '', factura_id: item.factura_id || '',
     nombre: item.proveedor.nombre, cuenta: item.proveedor.cuenta,
     banco: item.proveedor.banco, tipo: item.proveedor.tipo_cuenta,
-    concepto: item.concepto, importe: item.importe, proyecto: item.proyecto, partida: item.partida || '',
+    concepto: item.concepto, importe: item.importe, proyecto: item.proyecto, partida: item.partida || '', sub_partida: item.sub_partida || '',
     cuenta_cargo: proySel.nombre,
     fechaGen: fd, seleccionado: true, tieneInfo: true
   }));

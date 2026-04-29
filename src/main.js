@@ -12,7 +12,7 @@ import { renderProveedores, abrirNuevoProveedor, editarProv, validarCuentaProv, 
 import { renderNomina, abrirNuevoEmpleado, editarEmp, updateTipoEmp, validarCuentaEmp, guardarEmpleado, exportarNomina } from './modules/nomina.js';
 import { renderHistorial, exportarHistorial, eliminarHistorial } from './modules/historial.js';
 import { renderConfirmarPagos, toggleConfPago, toggleAllConf, confirmarPagos, eliminarPendiente } from './modules/confirmar-pagos.js';
-import { renderCola, abrirPagoRapido, abrirModalPago, buscarModal, selPago, agregarACola, confirmarPagoDirecto, checkCuentaOrigenPago, abrirModalNominaDisp, filtrarNomDisp, agregarNominaACola, qDel, limpiarCola, buscarRapido, quickAdd, generarArchivo } from './modules/dispersion.js';
+import { renderCola, abrirPagoRapido, abrirModalPago, buscarModal, selPago, agregarACola, confirmarPagoDirecto, checkCuentaOrigenPago, abrirModalNominaDisp, filtrarNomDisp, agregarNominaACola, qDel, limpiarCola, buscarRapido, quickAdd, generarArchivo, togglePagoSubPartida } from './modules/dispersion.js';
 import { handleSolDrop, handleSolFile, descargarPlantilla, parsearSolicitud, renderSolicitudes, toggleSol, seleccionarTodosSol, nuevaSolicitud, abrirVincular, renderVincBusqueda, seleccionarProvExistente, renderVincTipo, validarVincCuenta, confirmarNuevoProv, enviarACola } from './modules/solicitudes.js';
 import { renderFacturas, renderFacturaPagos, abrirNuevaFactura, editarFactura, guardarFactura, filtrarProvFactura, selProvFactura, eliminarPagoFactura } from './modules/facturas.js';
 import { renderTraspasos, abrirNuevoTraspaso, editarTraspaso, guardarTraspaso, eliminarTraspaso, actualizarTipoDetectado, togglePartidaTraspaso } from './modules/traspasos.js';
@@ -159,6 +159,7 @@ window.quickAdd = quickAdd;
 window.generarArchivo = generarArchivo;
 window.confirmarPagoDirecto = confirmarPagoDirecto;
 window.checkCuentaOrigenPago = checkCuentaOrigenPago;
+window.togglePagoSubPartida = togglePagoSubPartida;
 // Solicitudes
 window.handleSolDrop = handleSolDrop;
 window.handleSolFile = handleSolFile;

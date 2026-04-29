@@ -871,7 +871,8 @@
       <div class="field span2"><label>Cuenta Origen *</label><select id="pago-cuenta-origen" onchange="checkCuentaOrigenPago()"></select></div>
       <div class="field span2"><label>Concepto *</label><input id="pago-concepto" placeholder="Ej: MATERIALES SEM 10 FAC 12345"></div>
       <div class="field"><label>Importe *</label><div style="position:relative;"><span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted);">$</span><input type="number" id="pago-importe" placeholder="0.00" step="0.01" min="0" style="padding-left:24px;"></div></div>
-      <div class="field"><label>Partida</label><input id="pago-partida" placeholder="Opcional"></div>
+      <div class="field"><label>Partida</label><input id="pago-partida" placeholder="Opcional" oninput="togglePagoSubPartida()"></div>
+      <div class="field" id="pago-sub-partida-wrap" style="display:none;"><label>Sub-partida</label><select id="pago-sub-partida"></select></div>
     </div>
     <div id="pago-info-no-bbva" style="display:none;background:rgba(52,152,219,.1);border:1px solid rgba(52,152,219,.3);border-radius:8px;padding:10px;margin-bottom:12px;font-size:11px;color:#3498db;">ℹ Esta cuenta no es BBVA — el pago se registrará directamente en historial sin generar archivo de dispersión.</div>
     <div class="form-actions"><button class="btn btn-ghost" onclick="cerrar('modal-pago')">Cancelar</button><button class="btn btn-primary" id="btn-pago-action" onclick="agregarACola()">Agregar a Cola ⚡</button></div>

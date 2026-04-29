@@ -48,7 +48,8 @@ export async function gsLoadAll() {
         partida: r[10] || '',
         cuenta_cargo: r[11] || '',
         fechaGen: r[12] || '',
-        confirmado: r[13] !== 'false'
+        confirmado: r[13] !== 'false',
+        sub_partida: r[14] || ''
       }));
     }
 
@@ -87,7 +88,8 @@ export async function gsLoadAll() {
         proyecto: r[8] || '',
         cuenta_origen: r[9] || '',
         tipo_registro: r[10] || 'Pago',
-        partida: r[11] || ''
+        partida: r[11] || '',
+        sub_partida: r[12] || ''
       }));
     }
 
@@ -307,7 +309,7 @@ export async function saveData(count = 1) {
     const n = Math.min(count, state.historial.length);
     for (let i = 0; i < n; i++) {
       const h = state.historial[i];
-      await gsAppendRow('historial_pagos', [h.proveedor_id || '', h.factura_id || '', h.fecha, h.nombre, h.banco, h.tipo, h.concepto, h.importe, h.proyecto, h.cuenta_origen || '', h.tipo_registro || 'Pago', h.partida || '']);
+      await gsAppendRow('historial_pagos', [h.proveedor_id || '', h.factura_id || '', h.fecha, h.nombre, h.banco, h.tipo, h.concepto, h.importe, h.proyecto, h.cuenta_origen || '', h.tipo_registro || 'Pago', h.partida || '', h.sub_partida || '']);
     }
   } catch (e) { console.error('saveData error', e); }
 }
@@ -338,12 +340,12 @@ export async function gsSavePendientes() {
     const rows = state.pendientesConfirmacion.map(p => [
       p.id, p.proveedor_id || '', p.factura_id || '', p.nombre, p.cuenta || '',
       p.banco, p.tipo, p.concepto, p.importe, p.proyecto, p.partida || '',
-      p.cuenta_cargo || '', p.fechaGen || '', p.confirmado
+      p.cuenta_cargo || '', p.fechaGen || '', p.confirmado, p.sub_partida || ''
     ]);
     await gsClearAndWrite('pendientes_confirmacion', rows, [
       'id', 'proveedor_id', 'factura_id', 'nombre', 'cuenta', 'banco',
       'tipo', 'concepto', 'importe', 'proyecto', 'partida', 'cuenta_cargo',
-      'fechaGen', 'confirmado'
+      'fechaGen', 'confirmado', 'sub_partida'
     ]);
   } catch (e) { console.error('gsSavePendientes', e); }
 }
@@ -354,12 +356,12 @@ export async function gsSaveHistorial() {
     const rows = state.historial.map(h => [
       h.proveedor_id || '', h.factura_id || '', h.fecha, h.nombre, h.banco,
       h.tipo, h.concepto, h.importe, h.proyecto, h.cuenta_origen || '',
-      h.tipo_registro || 'Pago', h.partida || ''
+      h.tipo_registro || 'Pago', h.partida || '', h.sub_partida || ''
     ]);
     await gsClearAndWrite('historial_pagos', rows, [
       'proveedor_id', 'factura_id', 'fecha', 'nombre', 'banco',
       'tipo', 'concepto', 'importe', 'proyecto', 'cuenta_origen',
-      'tipo_registro', 'partida'
+      'tipo_registro', 'partida', 'sub_partida'
     ]);
   } catch (e) { console.error('gsSaveHistorial', e); }
 }
