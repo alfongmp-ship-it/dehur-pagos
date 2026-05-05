@@ -207,13 +207,16 @@
         <select class="filter-select" id="fh-partida" onchange="renderHistorial()">
           <option value="">Todas las partidas</option>
         </select>
+        <select class="filter-select" id="fh-subpartida" onchange="renderHistorial()">
+          <option value="">Todas las sub-partidas</option>
+        </select>
         <input type="date" class="filter-select" id="fh-desde" onchange="renderHistorial()" title="Desde">
         <input type="date" class="filter-select" id="fh-hasta" onchange="renderHistorial()" title="Hasta">
       </div>
       <div id="hist-subtitulo" style="font-size:11px;color:var(--muted);margin-bottom:6px;"></div>
       <div class="table-wrap">
-        <div style="display:grid;grid-template-columns:60px 60px 90px 110px 1fr 80px 70px 65px 80px 110px 95px 80px 40px;gap:10px;padding:11px 16px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;">
-          <div>ID Prov</div><div>ID Fact</div><div>Fecha</div><div>Origen</div><div>Beneficiario</div><div>Tipo</div><div>Categoría</div><div>Subcat.</div><div>Partida</div><div>Concepto</div><div style="text-align:right">Importe</div><div>Proyecto</div><div></div>
+        <div style="display:grid;grid-template-columns:60px 60px 90px 110px 1fr 80px 70px 65px 80px 85px 90px 95px 80px 40px;gap:10px;padding:11px 16px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;">
+          <div>ID Prov</div><div>ID Fact</div><div>Fecha</div><div>Origen</div><div>Beneficiario</div><div>Tipo</div><div>Categoría</div><div>Subcat.</div><div>Partida</div><div>Sub-partida</div><div>Concepto</div><div style="text-align:right">Importe</div><div>Proyecto</div><div></div>
         </div>
         <div id="historial-lista"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">📋</div><div>Sin registros aún</div></div></div>
       </div>
@@ -594,6 +597,13 @@
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;">
           <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:500;margin-bottom:10px;">Distribución por Partida</div>
           <div id="rc-lista-partidas" style="display:flex;flex-direction:column;gap:10px;max-height:280px;overflow:auto;"></div>
+        </div>
+      </div>
+
+      <div id="rc-bloque-subpartidas" style="display:none;margin-bottom:20px;">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;">
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:500;margin-bottom:10px;">Distribución por Sub-partida</div>
+          <div id="rc-lista-subpartidas" style="display:flex;flex-direction:column;gap:10px;max-height:280px;overflow:auto;"></div>
         </div>
       </div>
 

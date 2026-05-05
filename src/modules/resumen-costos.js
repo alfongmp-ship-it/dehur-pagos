@@ -32,6 +32,7 @@ export function renderResumenCostos() {
   renderTendencia(data);
   renderTop5(data);
   renderListaPartidas(data);
+  renderListaSubPartidas(data);
   renderTabla(data);
 }
 
@@ -371,6 +372,37 @@ function renderListaPartidas(data) {
       <div>
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;gap:8px;">
           <span style="font-size:12px;font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${partida}</span>
+          <span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:600;color:${color};white-space:nowrap;">${fmt(monto)}</span>
+        </div>
+        <div style="height:6px;background:var(--surface2);border-radius:3px;overflow:hidden;">
+          <div style="height:100%;width:${barPct}%;background:${color};"></div>
+        </div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px;">${pct.toFixed(1)}% del total</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderListaSubPartidas(data) {
+  const wrap = document.getElementById('rc-bloque-subpartidas');
+  const cont = document.getElementById('rc-lista-subpartidas');
+  if (!wrap || !cont) return;
+  const conSub = data.filter(h => h.sub_partida);
+  if (!conSub.length) { wrap.style.display = 'none'; return; }
+  const total = conSub.reduce((s, h) => s + (parseFloat(h.importe) || 0), 0);
+  const porSub = groupBy(conSub, h => h.sub_partida);
+  const sorted = Object.entries(porSub).sort((a, b) => b[1] - a[1]);
+  if (!sorted.length || total <= 0) { wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+  const maxMonto = sorted[0][1];
+  cont.innerHTML = sorted.map(([sub, monto], i) => {
+    const pct = (monto / total) * 100;
+    const barPct = (monto / maxMonto) * 100;
+    const color = CARD_COLORS[i % CARD_COLORS.length];
+    return `
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;gap:8px;">
+          <span style="font-size:12px;font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${sub}</span>
           <span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:600;color:${color};white-space:nowrap;">${fmt(monto)}</span>
         </div>
         <div style="height:6px;background:var(--surface2);border-radius:3px;overflow:hidden;">

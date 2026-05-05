@@ -18,6 +18,7 @@ export function renderHistorial() {
 
   refreshHistProyectos();
   refreshHistPartidas();
+  refreshHistSubPartidas();
   if (!state.historial.length) {
     el.innerHTML = `<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">📋</div><div>Sin registros aún</div></div>`;
     document.getElementById('hist-subtitulo').textContent = '';
@@ -45,7 +46,7 @@ export function renderHistorial() {
     const prov = (h.proveedor_id && h.tipo_registro !== 'Traspaso' && h.tipo_registro !== 'Crédito') ? state.proveedores.find(p => p.id === parseInt(h.proveedor_id)) : null;
     const tipoProv = prov?.categoria || '—';
     const subcat = (prov?.categoria === 'Proveedor' && prov?.subcategoria) ? prov.subcategoria : '—';
-    return `<div class="hist-row"><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.proveedor_id || '—'}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.factura_id || '—'}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.fecha}</div><div style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${h.cuenta_origen || '—'}</div><div><div style="font-weight:500;font-size:12px;">${h.nombre}</div><div style="font-size:11px;color:var(--muted);">${h.banco} · ${h.tipo}</div></div><div>${trBadge}</div><div style="font-size:11px;color:var(--muted);">${tipoProv}</div><div style="font-size:11px;color:var(--muted);">${subcat}</div><div style="font-size:11px;color:var(--muted);">${h.partida || '—'}</div><div style="font-size:11px;color:var(--muted);">${h.concepto.substring(0, 35)}</div><div style="font-family:'DM Mono',monospace;font-weight:500;color:var(--accent);text-align:right;">${fmt(h.importe)}</div><div>${proyTag(h.proyecto)}</div><div style="text-align:right;"><button class="btn btn-ghost btn-sm" onclick="eliminarHistorial(${state.historial.indexOf(h)})" style="color:#e74c3c;font-size:11px;padding:2px 6px;" title="Eliminar">✕</button></div></div>`;
+    return `<div class="hist-row"><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.proveedor_id || '—'}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.factura_id || '—'}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.fecha}</div><div style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${h.cuenta_origen || '—'}</div><div><div style="font-weight:500;font-size:12px;">${h.nombre}</div><div style="font-size:11px;color:var(--muted);">${h.banco} · ${h.tipo}</div></div><div>${trBadge}</div><div style="font-size:11px;color:var(--muted);">${tipoProv}</div><div style="font-size:11px;color:var(--muted);">${subcat}</div><div style="font-size:11px;color:var(--muted);">${h.partida || '—'}</div><div style="font-size:11px;color:var(--muted);">${h.sub_partida || '—'}</div><div style="font-size:11px;color:var(--muted);">${h.concepto.substring(0, 35)}</div><div style="font-family:'DM Mono',monospace;font-weight:500;color:var(--accent);text-align:right;">${fmt(h.importe)}</div><div>${proyTag(h.proyecto)}</div><div style="text-align:right;"><button class="btn btn-ghost btn-sm" onclick="eliminarHistorial(${state.historial.indexOf(h)})" style="color:#e74c3c;font-size:11px;padding:2px 6px;" title="Eliminar">✕</button></div></div>`;
   }).join('');
 }
 
@@ -67,17 +68,26 @@ function refreshHistPartidas() {
   sel.value = val;
 }
 
+function refreshHistSubPartidas() {
+  const sel = document.getElementById('fh-subpartida');
+  if (!sel) return;
+  const val = sel.value;
+  const subs = [...new Set(state.historial.map(h => h.sub_partida).filter(s => s))].sort();
+  sel.innerHTML = '<option value="">Todas las sub-partidas</option>' + subs.map(s => `<option>${s}</option>`).join('');
+  sel.value = val;
+}
+
 export function exportarHistorial() {
   if (!state.historial.length) { notify('Sin historial', 'error'); return; }
   const data = getFilteredHistorial();
   if (!data.length) { notify('Sin registros con los filtros actuales', 'error'); return; }
-  let csv = 'ID Prov,ID Fact,Fecha,Origen,Beneficiario,Banco,Tipo Cuenta,Tipo,Categoria,Subcategoria,Partida,Concepto,Importe,Proyecto\n';
+  let csv = 'ID Prov,ID Fact,Fecha,Origen,Beneficiario,Banco,Tipo Cuenta,Tipo,Categoria,Subcategoria,Partida,Sub-partida,Concepto,Importe,Proyecto\n';
   csv += data.map(h => {
     const prov = (h.proveedor_id && h.tipo_registro !== 'Traspaso' && h.tipo_registro !== 'Crédito') ? state.proveedores.find(p => p.id === parseInt(h.proveedor_id)) : null;
     const tipo = h.tipo_registro === 'Crédito' ? 'Crédito' : h.tipo_registro === 'Traspaso' ? (h.tipo === 'Préstamo' ? 'Préstamo' : 'Aportación') : 'Pago';
     const categoria = prov?.categoria || '';
     const subcat = (prov?.categoria === 'Proveedor' && prov?.subcategoria) ? prov.subcategoria : '';
-    return `${h.proveedor_id || ''},${h.factura_id || ''},${h.fecha},"${h.cuenta_origen || ''}","${h.nombre}",${h.banco},${h.tipo},${tipo},${categoria},${subcat},"${h.partida || ''}","${h.concepto}",${h.importe},"${h.proyecto}"`;
+    return `${h.proveedor_id || ''},${h.factura_id || ''},${h.fecha},"${h.cuenta_origen || ''}","${h.nombre}",${h.banco},${h.tipo},${tipo},${categoria},${subcat},"${h.partida || ''}","${h.sub_partida || ''}","${h.concepto}",${h.importe},"${h.proyecto}"`;
   }).join('\n');
   dl(csv, 'historial_pagos_dehur.csv');
   notify('Historial exportado (' + data.length + ' registros)');
@@ -88,6 +98,7 @@ function getFilteredHistorial() {
   const fc = document.getElementById('fh-cat')?.value || '';
   const fp = document.getElementById('fh-proy')?.value || '';
   const fpart = document.getElementById('fh-partida')?.value || '';
+  const fsub = document.getElementById('fh-subpartida')?.value || '';
   const fd = document.getElementById('fh-desde')?.value || '';
   const fh2 = document.getElementById('fh-hasta')?.value || '';
   return state.historial.filter(h => {
@@ -98,6 +109,7 @@ function getFilteredHistorial() {
     }
     if (fp && !proyectoMatch(h.proyecto, fp)) return false;
     if (fpart && (h.partida || '') !== fpart) return false;
+    if (fsub && (h.sub_partida || '') !== fsub) return false;
     if (fd || fh2) {
       const iso = parseFechaHist(h.fecha);
       if (fd && iso < fd) return false;
