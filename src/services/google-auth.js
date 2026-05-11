@@ -40,8 +40,6 @@ export function gsLogin() {
         await gsLoadAll();
         renderAuthStatus();
         notify('✅ Conectado a Google Sheets');
-        const { startRealtimePolling } = await import('./realtime-poll.js');
-        startRealtimePolling();
       }
     } catch (e) { /* cross-origin, still loading */ }
   }, 500);
@@ -101,8 +99,6 @@ export function checkOAuthCallback() {
         await gsLoadAll();
         renderAuthStatus();
         notify('✅ Conectado a Google Sheets');
-        const { startRealtimePolling } = await import('./realtime-poll.js');
-        startRealtimePolling();
       })();
     }
   }
