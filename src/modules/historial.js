@@ -100,6 +100,7 @@ export function exportarHistorial() {
 function getFilteredHistorial() {
   const q = (document.getElementById('buscar-hist')?.value || '').toLowerCase();
   const fc = document.getElementById('fh-cat')?.value || '';
+  const ft = document.getElementById('fh-tipo')?.value || '';
   const fp = document.getElementById('fh-proy')?.value || '';
   const fpart = document.getElementById('fh-partida')?.value || '';
   const fsub = document.getElementById('fh-subpartida')?.value || '';
@@ -110,6 +111,12 @@ function getFilteredHistorial() {
     if (fc) {
       const prov = h.proveedor_id ? state.proveedores.find(p => p.id === parseInt(h.proveedor_id)) : null;
       if (!prov || prov.categoria !== fc) return false;
+    }
+    if (ft) {
+      const tipoLabel = h.tipo_registro === 'Crédito' ? 'Crédito'
+                      : h.tipo_registro !== 'Traspaso' ? 'Pago'
+                      : (h.tipo || 'Traspaso');
+      if (tipoLabel !== ft) return false;
     }
     if (fp && !proyectoMatch(h.proyecto, fp)) return false;
     if (fpart && (h.partida || '') !== fpart) return false;
