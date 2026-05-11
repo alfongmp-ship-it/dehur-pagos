@@ -21,48 +21,61 @@
 }
 
 [data-theme="light"] {
-  --bg: #f4f4f2;
+  --bg: #e8e5de;
   --surface: #ffffff;
-  --surface2: #ecebe8;
-  --border: #d8d5d0;
+  --surface2: #ddd9d0;
+  --border: #b8b3a8;
   --accent: #a8884a;
   --accent2: #8c6f37;
   --text: #1a1916;
-  --muted: #6b6660;
+  --muted: #5a564f;
   --green: #2e8556;
   --red: #c83e3e;
   --blue: #2e6fb8;
   --purple: #6f4fcc;
   --orange: #c8601e;
-  --row-hover: rgba(0,0,0,.035);
-  --row-border-soft: rgba(0,0,0,.1);
-  --shadow-color: rgba(0,0,0,.08);
-  --modal-backdrop: rgba(0,0,0,.45);
+  --row-hover: rgba(0,0,0,.05);
+  --row-border-soft: rgba(0,0,0,.18);
+  --shadow-color: rgba(0,0,0,.1);
+  --modal-backdrop: rgba(0,0,0,.5);
   --on-accent: #ffffff;
 }
 
-/* Light mode: refinamientos de contraste para badges, nav-count y balance chips */
+/* Light mode: badges TIPO CUENTA con saturación visible */
 [data-theme="light"] .tipo-badge-clabe {
-  background: rgba(46,133,86,.18);
-  border-color: rgba(46,133,86,.5);
+  background: rgba(46,133,86,.28);
+  border-color: rgba(46,133,86,.7);
+  color: #1f5e3c;
 }
 [data-theme="light"] .tipo-badge-bbva {
-  background: rgba(46,111,184,.18);
-  border-color: rgba(46,111,184,.5);
+  background: rgba(46,111,184,.25);
+  border-color: rgba(46,111,184,.7);
+  color: #1d4f8a;
 }
 [data-theme="light"] .tipo-badge-corta {
-  background: rgba(200,96,30,.18);
-  border-color: rgba(200,96,30,.5);
+  background: rgba(200,96,30,.25);
+  border-color: rgba(200,96,30,.7);
+  color: #8e4515;
 }
+
+/* Light mode: nav counts con peso visual */
 [data-theme="light"] .nav-count {
-  background: #e2dfd8;
-  color: var(--text);
-  font-weight: 500;
+  background: #c4bfb4;
+  color: #1a1916;
+  font-weight: 600;
 }
-[data-theme="light"] .header-right .badge {
-  border-color: #c4c0b8;
-  background: #f4f2ee;
-}
+
+/* Light mode: tags de categoría / proyecto con identidad clara */
+[data-theme="light"] .tag { font-weight: 600; }
+[data-theme="light"] .tag-obra      { background: rgba(46,111,184,.22); color: #1d4f8a; }
+[data-theme="light"] .tag-nomina    { background: rgba(46,133,86,.22); color: #1f5e3c; }
+[data-theme="light"] .tag-impuesto  { background: rgba(200,62,62,.22); color: #8a2828; }
+[data-theme="light"] .tag-fijo      { background: rgba(111,79,204,.22); color: #4a3590; }
+[data-theme="light"] .tag-prestamo  { background: rgba(200,96,30,.22); color: #8e4515; }
+[data-theme="light"] .tag-general   { background: rgba(0,0,0,.08); color: #3a3630; }
+[data-theme="light"] .tag-paraiso   { background: rgba(168,136,74,.22); color: #6d572b; }
+[data-theme="light"] .tag-entorno   { background: rgba(46,111,184,.22); color: #1d4f8a; }
+[data-theme="light"] .tag-dt        { background: rgba(46,133,86,.22); color: #1f5e3c; }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
