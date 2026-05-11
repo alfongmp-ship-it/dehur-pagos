@@ -12,6 +12,34 @@
 <link rel="stylesheet" href="./styles/responsive.css">
 <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  // Aplicar tema antes del primer paint para evitar flash.
+  (function(){
+    try {
+      var t = localStorage.getItem('dt-theme') || 'dark';
+      if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    } catch(e) {}
+  })();
+  function toggleTheme(){
+    var cur = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+    var next = cur === 'light' ? 'dark' : 'light';
+    if (next === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    else document.documentElement.removeAttribute('data-theme');
+    try { localStorage.setItem('dt-theme', next); } catch(e) {}
+  }
+</script>
+<style>
+  .theme-toggle {
+    background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+    width: 34px; height: 34px; border-radius: 8px; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 16px; transition: all .15s;
+  }
+  .theme-toggle:hover { border-color: var(--accent); color: var(--accent); }
+  .theme-toggle .icon-light { display: none; }
+  [data-theme="light"] .theme-toggle .icon-dark { display: none; }
+  [data-theme="light"] .theme-toggle .icon-light { display: inline; }
+</style>
 </head>
 <body>
 <header class="header">
@@ -22,6 +50,9 @@
   <div style="display:flex;align-items:center;gap:16px;">
     <div id="gs-auth-status"></div>
     <div class="header-right" id="header-badges"></div>
+    <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Cambiar tema (claro/oscuro)" aria-label="Cambiar tema">
+      <span class="icon-dark">☀️</span><span class="icon-light">🌙</span>
+    </button>
   </div>
 </header>
 
