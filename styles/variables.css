@@ -35,10 +35,33 @@
   --purple: #6f4fcc;
   --orange: #c8601e;
   --row-hover: rgba(0,0,0,.035);
-  --row-border-soft: rgba(0,0,0,.06);
+  --row-border-soft: rgba(0,0,0,.1);
   --shadow-color: rgba(0,0,0,.08);
   --modal-backdrop: rgba(0,0,0,.45);
   --on-accent: #ffffff;
+}
+
+/* Light mode: refinamientos de contraste para badges, nav-count y balance chips */
+[data-theme="light"] .tipo-badge-clabe {
+  background: rgba(46,133,86,.18);
+  border-color: rgba(46,133,86,.5);
+}
+[data-theme="light"] .tipo-badge-bbva {
+  background: rgba(46,111,184,.18);
+  border-color: rgba(46,111,184,.5);
+}
+[data-theme="light"] .tipo-badge-corta {
+  background: rgba(200,96,30,.18);
+  border-color: rgba(200,96,30,.5);
+}
+[data-theme="light"] .nav-count {
+  background: #e2dfd8;
+  color: var(--text);
+  font-weight: 500;
+}
+[data-theme="light"] .header-right .badge {
+  border-color: #c4c0b8;
+  background: #f4f2ee;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
