@@ -32,8 +32,7 @@ export function renderResumenEjecutivo() {
   renderKPIs(periodo);
   renderTendencia(periodo);
   renderDistribuciones(periodo);
-  renderPosicionCreditos();
-  renderPagaresProximos();
+  renderPrestamos(periodo);
   renderTopBeneficiarios(periodo);
   renderObservaciones(periodo);
 }
@@ -121,14 +120,6 @@ function renderEncabezado(periodo) {
   }
 }
 
-function calcularSaldosActuales() {
-  const proyActivos = state.proyectos.filter(p => p.activo !== false && p.cuenta);
-  const cpActivas = state.cuentasPropias.filter(c => c.activo !== false);
-  const totalProy = proyActivos.reduce((s, p) => s + (parseFloat(p.saldo) || 0), 0);
-  const totalCP = cpActivas.reduce((s, c) => s + (parseFloat(c.saldo) || 0), 0);
-  return { totalProy, totalCP, total: totalProy + totalCP, cuentas: [...proyActivos.map(p => ({ nombre: p.nombre, saldo: parseFloat(p.saldo) || 0, color: p.color || '#c8a96e' })), ...cpActivas.map(c => ({ nombre: c.nombre, saldo: parseFloat(c.saldo) || 0, color: '#5a9be0' }))] };
-}
-
 function calcularEgresos(periodo) {
   const pagos = state.historial.filter(h => {
     if (h.tipo_registro !== 'Pago') return false;
@@ -151,25 +142,33 @@ function calcularEgresosPrevios(periodo) {
   return calcularEgresos(prevP).total;
 }
 
-function calcularCreditos() {
-  const activos = state.creditos.filter(c => c.activo !== false);
-  let autorizado = 0, dispuesto = 0;
-  activos.forEach(c => {
-    autorizado += parseFloat(c.monto_autorizado) || 0;
-    const pgs = state.pagares.filter(p => p.credito_id === c.credito_id && p.activo !== false);
-    dispuesto += pgs.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
-  });
-  return { autorizado, dispuesto, disponible: autorizado - dispuesto, lineas: activos.length };
+// Saldos netos de préstamos entre proyectos (toda la historia, no solo período)
+function calcularSaldosNetosPrestamos() {
+  const pares = {};
+  for (const t of state.traspasos) {
+    if (t.tipo !== 'Préstamo') continue;
+    const a = t.proyecto_origen;
+    const b = t.proyecto_destino;
+    if (!a || !b || a === b) continue;
+    const [k1, k2] = [a, b].sort();
+    const key = `${k1}|||${k2}`;
+    if (!pares[key]) pares[key] = { a: k1, b: k2, neto: 0 };
+    if (a === k1) pares[key].neto += parseFloat(t.monto) || 0;
+    else pares[key].neto -= parseFloat(t.monto) || 0;
+  }
+  return Object.values(pares).filter(p => Math.abs(p.neto) > 0.01);
+}
+
+function calcularTotalPrestamosVivos() {
+  return calcularSaldosNetosPrestamos().reduce((s, p) => s + Math.abs(p.neto), 0);
 }
 
 function renderKPIs(periodo) {
   const cont = document.getElementById('re-kpis');
   if (!cont) return;
 
-  const saldos = calcularSaldosActuales();
   const egresos = calcularEgresos(periodo);
   const prev = calcularEgresosPrevios(periodo);
-  const creditos = calcularCreditos();
 
   let varHTML = '<span style="color:var(--muted);font-size:11px;">Sin datos previos</span>';
   if (prev !== null && prev > 0) {
@@ -180,37 +179,36 @@ function renderKPIs(periodo) {
     varHTML = `<span style="color:${color};font-size:11px;font-weight:600;">${signo}${pct.toFixed(1)}% vs período anterior</span>`;
   }
 
-  // Pagarés próximos a vencer (30 días)
-  const hoy = new Date();
-  const en30 = new Date(hoy); en30.setDate(en30.getDate() + 30);
-  const pagaresVigentes = state.pagares.filter(p => p.activo !== false && p.estatus === 'Vigente');
-  const proximos = pagaresVigentes.filter(p => {
-    if (!p.fecha_vencimiento) return false;
-    const v = new Date(p.fecha_vencimiento);
-    return v >= hoy && v <= en30;
-  });
-  const montoProximos = proximos.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
+  // Egreso por proyecto (período) incluyendo pagos + préstamos salientes
+  const egresoPorProy = egresoPorProyecto(periodo);
+  const topProy = Object.entries(egresoPorProy).sort((a, b) => b[1] - a[1])[0];
+  const totalProy = Object.values(egresoPorProy).reduce((s, v) => s + v, 0);
+  const topProyPct = topProy && totalProy > 0 ? (topProy[1] / totalProy) * 100 : 0;
+
+  // Préstamos vivos (toda la historia)
+  const prestamosVivos = calcularTotalPrestamosVivos();
+  const paresPrestamos = calcularSaldosNetosPrestamos().length;
 
   cont.innerHTML = `
     <div class="re-kpi">
-      <div class="re-kpi-label">Saldo Total Líquido</div>
-      <div class="re-kpi-value" style="color:var(--accent);">${fmt(saldos.total)}</div>
-      <div class="re-kpi-sub">${saldos.cuentas.length} cuentas activas</div>
-    </div>
-    <div class="re-kpi">
       <div class="re-kpi-label">Egresos del Período</div>
       <div class="re-kpi-value" style="color:#e07a3a;">${fmt(egresos.total)}</div>
-      <div class="re-kpi-sub">${egresos.pagos.length} pagos · ${varHTML}</div>
+      <div class="re-kpi-sub">${varHTML}</div>
     </div>
     <div class="re-kpi">
-      <div class="re-kpi-label">Líneas de Crédito</div>
-      <div class="re-kpi-value" style="color:#9b7fe8;">${fmt(creditos.dispuesto)}</div>
-      <div class="re-kpi-sub">${creditos.lineas} líneas · Disponible ${fmt(creditos.disponible)}</div>
+      <div class="re-kpi-label">Operaciones de Pago</div>
+      <div class="re-kpi-value" style="color:#5a9be0;">${egresos.pagos.length}</div>
+      <div class="re-kpi-sub">Pagos registrados en el período</div>
     </div>
     <div class="re-kpi">
-      <div class="re-kpi-label">Vencimientos 30 días</div>
-      <div class="re-kpi-value" style="color:${proximos.length ? '#e05a5a' : 'var(--muted)'};">${fmt(montoProximos)}</div>
-      <div class="re-kpi-sub">${proximos.length} pagaré${proximos.length !== 1 ? 's' : ''} próximo${proximos.length !== 1 ? 's' : ''}</div>
+      <div class="re-kpi-label">Mayor Egreso por Proyecto</div>
+      <div class="re-kpi-value" style="color:var(--accent);font-size:16px;">${topProy ? topProy[0] : '—'}</div>
+      <div class="re-kpi-sub">${topProy ? fmt(topProy[1]) + ' · ' + topProyPct.toFixed(1) + '%' : 'Sin pagos'}</div>
+    </div>
+    <div class="re-kpi">
+      <div class="re-kpi-label">Préstamos entre Proyectos</div>
+      <div class="re-kpi-value" style="color:#9b7fe8;">${fmt(prestamosVivos)}</div>
+      <div class="re-kpi-sub">${paresPrestamos} relación${paresPrestamos !== 1 ? 'es' : ''} pendiente${paresPrestamos !== 1 ? 's' : ''}</div>
     </div>
   `;
 }
@@ -269,20 +267,36 @@ function renderTendencia(periodo) {
   });
 }
 
-function renderDistribuciones(periodo) {
-  const pagos = state.historial.filter(h => h.tipo_registro === 'Pago' && dentroPeriodo(parseFechaHist(h.fecha), periodo));
-
-  // Proyecto - doughnut
-  const porProyecto = {};
-  pagos.forEach(h => {
-    const p = h.proyecto || 'Sin proyecto';
-    porProyecto[p] = (porProyecto[p] || 0) + (parseFloat(h.importe) || 0);
+// Egreso total por proyecto en el período: pagos + préstamos salientes (proyecto_origen)
+function egresoPorProyecto(periodo) {
+  const grupos = {};
+  // Pagos
+  state.historial.forEach(h => {
+    if (h.tipo_registro !== 'Pago') return;
+    const iso = parseFechaHist(h.fecha);
+    if (!dentroPeriodo(iso, periodo)) return;
+    const k = h.proyecto || 'Sin proyecto';
+    grupos[k] = (grupos[k] || 0) + (parseFloat(h.importe) || 0);
   });
-  renderProyectoChart(porProyecto);
+  // Préstamos salientes (dinero que sale del proyecto origen)
+  state.traspasos.forEach(t => {
+    if (t.tipo !== 'Préstamo') return;
+    if (!t.fecha || !dentroPeriodo(t.fecha, periodo)) return;
+    const k = t.proyecto_origen || 'Sin proyecto';
+    grupos[k] = (grupos[k] || 0) + (parseFloat(t.monto) || 0);
+  });
+  return grupos;
+}
 
-  // Partida - barras horizontales (top 8)
+function renderDistribuciones(periodo) {
+  renderProyectoChart(egresoPorProyecto(periodo));
+
+  // Partida (solo pagos, los traspasos no tienen partida)
   const porPartida = {};
-  pagos.forEach(h => {
+  state.historial.forEach(h => {
+    if (h.tipo_registro !== 'Pago') return;
+    const iso = parseFechaHist(h.fecha);
+    if (!dentroPeriodo(iso, periodo)) return;
     const k = h.partida || 'Sin partida';
     porPartida[k] = (porPartida[k] || 0) + (parseFloat(h.importe) || 0);
   });
@@ -304,7 +318,7 @@ function renderProyectoChart(grupos) {
 
   const labels = entries.map(e => e[0]);
   const values = entries.map(e => e[1]);
-  const colors = labels.map(l => state.proyectos.find(p => p.nombre === l)?.color || PALETA[labels.indexOf(l) % PALETA.length]);
+  const colors = labels.map((l, i) => state.proyectos.find(p => p.nombre === l)?.color || PALETA[i % PALETA.length]);
 
   chartProyectoPie = new Chart(canvas, {
     type: 'doughnut',
@@ -351,84 +365,68 @@ function renderPartidaChart(grupos) {
   });
 }
 
-function renderPosicionCreditos() {
-  const cont = document.getElementById('re-creditos');
-  if (!cont) return;
-
-  const activos = state.creditos.filter(c => c.activo !== false);
-  if (!activos.length) {
-    cont.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:14px 0;text-align:center;">Sin líneas de crédito registradas</div>';
-    return;
-  }
-
-  cont.innerHTML = `
-    <div class="re-table">
-      <div class="re-table-head" style="grid-template-columns:1.5fr 90px 1fr 1fr 1fr;">
-        <div>Línea / Banco</div>
-        <div style="text-align:center;">Tasa</div>
-        <div style="text-align:right;">Autorizado</div>
-        <div style="text-align:right;">Dispuesto</div>
-        <div style="text-align:right;">Disponible</div>
-      </div>
-      ${activos.map(c => {
-        const pgs = state.pagares.filter(p => p.credito_id === c.credito_id && p.activo !== false);
-        const dispuesto = pgs.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
-        const disp = (parseFloat(c.monto_autorizado) || 0) - dispuesto;
-        const pctUso = c.monto_autorizado > 0 ? (dispuesto / c.monto_autorizado) * 100 : 0;
-        return `
-          <div class="re-table-row" style="grid-template-columns:1.5fr 90px 1fr 1fr 1fr;">
-            <div>
-              <div style="font-weight:600;font-size:12px;">${c.nombre}</div>
-              <div style="font-size:10px;color:var(--muted);">${c.banco} · ${c.tipo_credito}${c.proyecto ? ' · ' + c.proyecto : ''}</div>
-              <div style="height:4px;background:var(--surface2);border-radius:2px;margin-top:6px;overflow:hidden;">
-                <div style="height:100%;width:${pctUso}%;background:${pctUso > 80 ? '#e05a5a' : '#c8a96e'};"></div>
-              </div>
-            </div>
-            <div style="text-align:center;font-family:'DM Mono',monospace;font-size:11px;">${c.tasa_base || 0}%</div>
-            <div style="text-align:right;font-family:'DM Mono',monospace;font-size:11px;">${fmt(parseFloat(c.monto_autorizado) || 0)}</div>
-            <div style="text-align:right;font-family:'DM Mono',monospace;font-size:11px;color:#e07a3a;">${fmt(dispuesto)}</div>
-            <div style="text-align:right;font-family:'DM Mono',monospace;font-size:11px;color:#4caf7d;font-weight:600;">${fmt(disp)}</div>
-          </div>
-        `;
-      }).join('')}
-    </div>
-  `;
+function renderPrestamos(periodo) {
+  renderSaldosNetos();
+  renderPrestamosRecientes(periodo);
 }
 
-function renderPagaresProximos() {
-  const cont = document.getElementById('re-pagares');
+function renderSaldosNetos() {
+  const cont = document.getElementById('re-saldos-netos');
   if (!cont) return;
 
-  const hoy = new Date();
-  const en60 = new Date(hoy); en60.setDate(en60.getDate() + 60);
-  const proximos = state.pagares
-    .filter(p => p.activo !== false && p.estatus === 'Vigente' && p.fecha_vencimiento)
-    .filter(p => {
-      const v = new Date(p.fecha_vencimiento);
-      return v >= hoy && v <= en60;
-    })
-    .sort((a, b) => (a.fecha_vencimiento || '').localeCompare(b.fecha_vencimiento || ''))
-    .slice(0, 6);
-
-  if (!proximos.length) {
-    cont.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:14px 0;text-align:center;">Sin vencimientos en los próximos 60 días</div>';
+  const saldos = calcularSaldosNetosPrestamos();
+  if (!saldos.length) {
+    cont.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:14px 0;text-align:center;">Sin préstamos pendientes entre proyectos</div>';
     return;
   }
 
-  cont.innerHTML = proximos.map(p => {
-    const credito = state.creditos.find(c => c.credito_id === p.credito_id);
-    const dias = Math.ceil((new Date(p.fecha_vencimiento) - hoy) / 86400000);
-    const urgColor = dias <= 7 ? '#e05a5a' : dias <= 30 ? '#e07a3a' : 'var(--muted)';
+  // Ordenar por monto descendente
+  saldos.sort((a, b) => Math.abs(b.neto) - Math.abs(a.neto));
+
+  cont.innerHTML = saldos.map(s => {
+    const deudor = s.neto > 0 ? s.b : s.a;
+    const acreedor = s.neto > 0 ? s.a : s.b;
+    const monto = Math.abs(s.neto);
     return `
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;">
-        <div style="flex:1;min-width:0;">
-          <div style="font-weight:500;">${credito?.nombre || '—'} · Pagaré ${p.numero_pagare}</div>
-          <div style="font-size:10px;color:var(--muted);">Vence ${p.fecha_vencimiento} · <span style="color:${urgColor};font-weight:600;">${dias} día${dias !== 1 ? 's' : ''}</span></div>
+      <div class="re-prestamo-row">
+        <div style="flex:1;font-size:12px;">
+          <span style="font-weight:600;color:#e05a5a;">${deudor}</span>
+          <span style="color:var(--muted);margin:0 6px;font-size:11px;">debe a</span>
+          <span style="font-weight:600;color:#4caf7d;">${acreedor}</span>
         </div>
-        <div style="font-family:'DM Mono',monospace;font-weight:600;color:var(--accent);">${fmt(parseFloat(p.monto) || 0)}</div>
+        <div style="font-family:'DM Mono',monospace;font-weight:700;color:var(--accent);font-size:14px;">${fmt(monto)}</div>
       </div>
     `;
   }).join('');
+}
+
+function renderPrestamosRecientes(periodo) {
+  const cont = document.getElementById('re-prestamos-recientes');
+  if (!cont) return;
+
+  const prestamos = state.traspasos
+    .filter(t => t.tipo === 'Préstamo' && t.fecha && dentroPeriodo(t.fecha, periodo))
+    .sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''))
+    .slice(0, 6);
+
+  if (!prestamos.length) {
+    cont.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:14px 0;text-align:center;">Sin préstamos en el período seleccionado</div>';
+    return;
+  }
+
+  cont.innerHTML = prestamos.map(t => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:500;">
+          <span style="color:#e05a5a;">${t.proyecto_origen || '—'}</span>
+          <span style="color:var(--muted);margin:0 4px;">→</span>
+          <span style="color:#4caf7d;">${t.proyecto_destino || '—'}</span>
+        </div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px;">${t.fecha} · ${t.concepto || 'Sin concepto'}</div>
+      </div>
+      <div style="font-family:'DM Mono',monospace;font-weight:600;color:var(--accent);">${fmt(parseFloat(t.monto) || 0)}</div>
+    </div>
+  `).join('');
 }
 
 function renderTopBeneficiarios(periodo) {
@@ -474,23 +472,31 @@ function renderObservaciones(periodo) {
   if (!cont) return;
 
   const obs = [];
-  const saldos = calcularSaldosActuales();
   const egresos = calcularEgresos(periodo);
-  const creditos = calcularCreditos();
+  const egresoPorProy = egresoPorProyecto(periodo);
+  const topProy = Object.entries(egresoPorProy).sort((a, b) => b[1] - a[1])[0];
+  const totalProy = Object.values(egresoPorProy).reduce((s, v) => s + v, 0);
+  const saldosNetos = calcularSaldosNetosPrestamos();
 
-  if (saldos.total > 0) obs.push(`Posición líquida actual de <strong>${fmt(saldos.total)}</strong> distribuida en ${saldos.cuentas.length} cuentas activas.`);
-  if (egresos.total > 0) obs.push(`Egresos del período por <strong>${fmt(egresos.total)}</strong> en <strong>${egresos.pagos.length}</strong> operaciones.`);
-  if (creditos.lineas > 0) {
-    const pctUso = creditos.autorizado > 0 ? (creditos.dispuesto / creditos.autorizado) * 100 : 0;
-    obs.push(`Uso de líneas de crédito: <strong>${pctUso.toFixed(1)}%</strong> (${fmt(creditos.dispuesto)} de ${fmt(creditos.autorizado)} autorizados).`);
+  if (egresos.total > 0) obs.push(`Egresos del período por <strong>${fmt(egresos.total)}</strong> en <strong>${egresos.pagos.length}</strong> operaciones de pago.`);
+  if (topProy && totalProy > 0) {
+    const pct = (topProy[1] / totalProy) * 100;
+    obs.push(`El proyecto <strong>${topProy[0]}</strong> concentró <strong>${pct.toFixed(1)}%</strong> del egreso (${fmt(topProy[1])}).`);
+  }
+  if (saldosNetos.length) {
+    const total = saldosNetos.reduce((s, p) => s + Math.abs(p.neto), 0);
+    obs.push(`Existen <strong>${saldosNetos.length}</strong> relación${saldosNetos.length !== 1 ? 'es' : ''} de préstamo entre proyectos por un total neto de <strong>${fmt(total)}</strong>.`);
+    const mayor = [...saldosNetos].sort((a, b) => Math.abs(b.neto) - Math.abs(a.neto))[0];
+    const deudor = mayor.neto > 0 ? mayor.b : mayor.a;
+    const acreedor = mayor.neto > 0 ? mayor.a : mayor.b;
+    obs.push(`Mayor saldo: <strong>${deudor}</strong> debe a <strong>${acreedor}</strong> <strong>${fmt(Math.abs(mayor.neto))}</strong>.`);
   }
 
-  const hoy = new Date();
-  const en30 = new Date(hoy); en30.setDate(en30.getDate() + 30);
-  const vencen30 = state.pagares.filter(p => p.activo !== false && p.estatus === 'Vigente' && p.fecha_vencimiento && new Date(p.fecha_vencimiento) >= hoy && new Date(p.fecha_vencimiento) <= en30);
-  if (vencen30.length) {
-    const monto = vencen30.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
-    obs.push(`<strong>${vencen30.length}</strong> pagaré${vencen30.length !== 1 ? 's' : ''} vence${vencen30.length !== 1 ? 'n' : ''} en los próximos 30 días por <strong>${fmt(monto)}</strong>.`);
+  // Préstamos del período
+  const prestPeriodo = state.traspasos.filter(t => t.tipo === 'Préstamo' && t.fecha && dentroPeriodo(t.fecha, periodo));
+  if (prestPeriodo.length) {
+    const monto = prestPeriodo.reduce((s, t) => s + (parseFloat(t.monto) || 0), 0);
+    obs.push(`Durante el período se otorgaron <strong>${prestPeriodo.length}</strong> préstamo${prestPeriodo.length !== 1 ? 's' : ''} entre proyectos por <strong>${fmt(monto)}</strong>.`);
   }
 
   if (!obs.length) {
@@ -503,19 +509,25 @@ function renderObservaciones(periodo) {
 
 function exportarCSV() {
   const periodo = obtenerPeriodo();
-  const saldos = calcularSaldosActuales();
   const egresos = calcularEgresos(periodo);
-  const creditos = calcularCreditos();
+  const egresoPorProy = egresoPorProyecto(periodo);
+  const saldosNetos = calcularSaldosNetosPrestamos();
 
   let csv = 'Resumen Ejecutivo Dehur Territorial\n';
   csv += `Periodo,${periodo.desde || '—'} a ${periodo.hasta || '—'}\n\n`;
   csv += 'Indicador,Valor\n';
-  csv += `Saldo Total Liquido,${saldos.total.toFixed(2)}\n`;
   csv += `Egresos del Periodo,${egresos.total.toFixed(2)}\n`;
-  csv += `Numero de Pagos,${egresos.pagos.length}\n`;
-  csv += `Lineas de Credito Autorizado,${creditos.autorizado.toFixed(2)}\n`;
-  csv += `Dispuesto,${creditos.dispuesto.toFixed(2)}\n`;
-  csv += `Disponible,${creditos.disponible.toFixed(2)}\n`;
+  csv += `Numero de Pagos,${egresos.pagos.length}\n\n`;
+  csv += 'Proyecto,Egreso del Periodo\n';
+  Object.entries(egresoPorProy).sort((a, b) => b[1] - a[1]).forEach(([p, v]) => {
+    csv += `"${p}",${v.toFixed(2)}\n`;
+  });
+  csv += '\nDeudor,Acreedor,Monto Neto\n';
+  saldosNetos.forEach(s => {
+    const deudor = s.neto > 0 ? s.b : s.a;
+    const acreedor = s.neto > 0 ? s.a : s.b;
+    csv += `"${deudor}","${acreedor}",${Math.abs(s.neto).toFixed(2)}\n`;
+  });
 
   const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);

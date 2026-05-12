@@ -145,6 +145,18 @@
 }
 .re-table-row:last-child { border-bottom: none; }
 
+.re-prestamo-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: rgba(155,127,232,0.08);
+  border: 1px solid rgba(155,127,232,0.2);
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+.re-prestamo-row:last-child { margin-bottom: 0; }
+
 .re-footer {
   margin-top: 22px;
   padding-top: 14px;
@@ -228,6 +240,11 @@
 
   /* Asegurar que los colores de Chart.js se imprimen */
   canvas { max-width: 100% !important; }
+
+  .re-prestamo-row {
+    background: #f4f0ff !important;
+    border-color: #d0c4f0 !important;
+  }
 }
 
 /* Responsivo */
