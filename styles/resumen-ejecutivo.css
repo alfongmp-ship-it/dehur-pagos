@@ -1,0 +1,237 @@
+/* === Resumen Ejecutivo — estilos del reporte y print === */
+
+.re-report {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 28px 32px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* Cabecera del informe */
+.re-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding-bottom: 18px;
+  margin-bottom: 22px;
+  border-bottom: 2px solid var(--accent);
+}
+.re-brand { display: flex; align-items: center; gap: 14px; }
+.re-logo-mark {
+  width: 52px; height: 52px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-family: 'Syne', sans-serif;
+  font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 10px;
+  font-size: 20px;
+}
+.re-brand-name {
+  font-family: 'Syne', sans-serif;
+  font-weight: 800;
+  font-size: 22px;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+.re-brand-sub {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.re-meta { text-align: right; }
+.re-periodo {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+}
+.re-generado {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+.re-confidencial {
+  margin-top: 8px;
+  display: inline-block;
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  background: rgba(200,169,110,0.12);
+  color: var(--accent);
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(200,169,110,0.35);
+}
+
+/* KPIs */
+.re-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.re-kpi {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  border-left: 3px solid var(--accent);
+}
+.re-kpi-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.re-kpi-value {
+  font-family: 'DM Mono', monospace;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.re-kpi-sub {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 6px;
+}
+
+/* Tarjetas / filas */
+.re-row {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.re-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+}
+.re-card-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+/* Mini-tabla créditos */
+.re-table { display: flex; flex-direction: column; }
+.re-table-head {
+  display: grid;
+  gap: 10px;
+  padding: 8px 10px;
+  background: rgba(0,0,0,0.15);
+  border-radius: 6px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.re-table-row {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+}
+.re-table-row:last-child { border-bottom: none; }
+
+.re-footer {
+  margin-top: 22px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  text-align: center;
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* === PRINT STYLES === */
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm 12mm;
+  }
+
+  /* Forzar tema claro para impresión */
+  html, body {
+    background: #ffffff !important;
+    color: #1a1916 !important;
+  }
+
+  /* Ocultar todo lo que no sea el reporte */
+  .header,
+  .sidebar,
+  .no-print,
+  .page-header,
+  .modal-overlay,
+  .nav-item,
+  #gs-auth-status,
+  .theme-toggle { display: none !important; }
+
+  .layout, .main { display: block !important; padding: 0 !important; margin: 0 !important; }
+  body, html { padding: 0 !important; margin: 0 !important; }
+
+  /* Mostrar solo la página del resumen ejecutivo */
+  [id^="page-"] { display: none !important; }
+  #page-resumen-ejecutivo { display: block !important; }
+
+  /* Reporte en modo impreso */
+  .re-report {
+    background: #ffffff !important;
+    border: none !important;
+    padding: 0 !important;
+    max-width: 100% !important;
+    box-shadow: none !important;
+  }
+
+  .re-header { border-bottom: 2px solid #a8884a !important; }
+  .re-brand-name { color: #1a1916 !important; }
+  .re-brand-sub, .re-periodo, .re-generado { color: #5a564f !important; }
+  .re-logo-mark { background: #a8884a !important; color: #ffffff !important; }
+
+  .re-kpi,
+  .re-card,
+  .re-table-head {
+    background: #fafaf8 !important;
+    border: 1px solid #d8d2c4 !important;
+    color: #1a1916 !important;
+    page-break-inside: avoid;
+  }
+  .re-kpi { border-left: 3px solid #a8884a !important; }
+  .re-kpi-label,
+  .re-card-title,
+  .re-kpi-sub { color: #5a564f !important; }
+  .re-kpi-value { color: #1a1916 !important; }
+
+  .re-row { page-break-inside: avoid; }
+  .re-card { page-break-inside: avoid; }
+  .re-confidencial {
+    background: rgba(168,136,74,0.15) !important;
+    color: #6d572b !important;
+    border-color: rgba(168,136,74,0.5) !important;
+  }
+  .re-footer {
+    color: #5a564f !important;
+    border-top-color: #d8d2c4 !important;
+  }
+
+  /* Asegurar que los colores de Chart.js se imprimen */
+  canvas { max-width: 100% !important; }
+}
+
+/* Responsivo */
+@media (max-width: 980px) {
+  .re-kpis { grid-template-columns: repeat(2, 1fr); }
+  .re-row { grid-template-columns: 1fr !important; }
+}

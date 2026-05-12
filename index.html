@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="./styles/components.css">
 <link rel="stylesheet" href="./styles/pages.css">
 <link rel="stylesheet" href="./styles/responsive.css">
+<link rel="stylesheet" href="./styles/resumen-ejecutivo.css">
 <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
@@ -99,6 +100,9 @@
     </div>
     <div class="nav-item" id="nav-resumen-costos" onclick="showPage('resumen-costos',this)">
       <span>💰</span> Resumen de Costos
+    </div>
+    <div class="nav-item" id="nav-resumen-ejecutivo" onclick="showPage('resumen-ejecutivo',this)">
+      <span>📑</span> Resumen Ejecutivo
     </div>
     <div class="nav-item" id="nav-traspasos" onclick="showPage('traspasos',this)">
       <span>↔</span> Traspasos y Préstamos <span class="nav-count" id="cnt-traspasos">0</span>
@@ -658,6 +662,99 @@
           <div>Fecha</div><div>Beneficiario</div><div>Proyecto</div><div>Partida</div><div>Concepto</div><div style="text-align:right">Importe</div>
         </div>
         <div id="rc-tabla"></div>
+      </div>
+    </div>
+
+    <!-- ===== RESUMEN EJECUTIVO ===== -->
+    <div id="page-resumen-ejecutivo" style="display:none">
+      <div class="page-header no-print">
+        <div>
+          <div class="page-title">Resumen Ejecutivo</div>
+          <div class="page-subtitle">Informe para socios · imprime o exporta una imagen profesional de la situación actual</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <select class="filter-select" id="re-preset" title="Período rápido">
+            <option value="">Período rápido…</option>
+            <option value="mes">Mes actual</option>
+            <option value="trim">Trimestre actual</option>
+            <option value="ytd">Año en curso (YTD)</option>
+            <option value="ult30">Últimos 30 días</option>
+            <option value="ult90">Últimos 90 días</option>
+          </select>
+          <input type="date" class="filter-select" id="re-desde" title="Desde">
+          <input type="date" class="filter-select" id="re-hasta" title="Hasta">
+          <button class="btn btn-ghost" id="re-btn-csv">⬇ CSV</button>
+          <button class="btn btn-primary" id="re-btn-imprimir">🖨 Imprimir / PDF</button>
+        </div>
+      </div>
+
+      <!-- Reporte imprimible -->
+      <div id="re-reporte" class="re-report">
+        <div class="re-header">
+          <div class="re-brand">
+            <div class="re-logo-mark">DT</div>
+            <div>
+              <div class="re-brand-name">Dehur Territorial</div>
+              <div class="re-brand-sub">Resumen Ejecutivo</div>
+            </div>
+          </div>
+          <div class="re-meta">
+            <div id="re-subtitulo" class="re-periodo">Periodo: —</div>
+            <div id="re-generado" class="re-generado">Generado el —</div>
+            <div class="re-confidencial">CONFIDENCIAL · Uso interno · Socios</div>
+          </div>
+        </div>
+
+        <div id="re-contenido">
+          <!-- KPIs -->
+          <div id="re-kpis" class="re-kpis"></div>
+
+          <!-- Tendencia 6 meses + Distribución por proyecto -->
+          <div class="re-row" style="grid-template-columns: 1.4fr 1fr;">
+            <div class="re-card">
+              <div class="re-card-title">Tendencia de Egresos — últimos 6 meses</div>
+              <div style="position:relative;height:220px;"><canvas id="re-chart-tendencia"></canvas></div>
+            </div>
+            <div class="re-card">
+              <div class="re-card-title">Distribución por Proyecto (período)</div>
+              <div style="position:relative;height:220px;"><canvas id="re-chart-proyecto"></canvas></div>
+            </div>
+          </div>
+
+          <!-- Partidas + Top Beneficiarios -->
+          <div class="re-row" style="grid-template-columns: 1.4fr 1fr;">
+            <div class="re-card">
+              <div class="re-card-title">Egresos por Partida (Top 8 — período)</div>
+              <div style="position:relative;height:240px;"><canvas id="re-chart-partida"></canvas></div>
+            </div>
+            <div class="re-card">
+              <div class="re-card-title">Top 5 Beneficiarios (período)</div>
+              <div id="re-top-benef" style="margin-top:8px;"></div>
+            </div>
+          </div>
+
+          <!-- Créditos -->
+          <div class="re-card" style="margin-top:16px;">
+            <div class="re-card-title">Posición de Líneas de Crédito</div>
+            <div id="re-creditos"></div>
+          </div>
+
+          <!-- Pagarés + Observaciones -->
+          <div class="re-row" style="grid-template-columns: 1fr 1fr;margin-top:16px;">
+            <div class="re-card">
+              <div class="re-card-title">Vencimientos próximos (60 días)</div>
+              <div id="re-pagares" style="margin-top:6px;"></div>
+            </div>
+            <div class="re-card">
+              <div class="re-card-title">Observaciones</div>
+              <div id="re-observaciones" style="margin-top:6px;"></div>
+            </div>
+          </div>
+
+          <div class="re-footer">
+            Reporte generado automáticamente desde el Core de Pagos · Dehur Territorial
+          </div>
+        </div>
       </div>
     </div>
 

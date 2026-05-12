@@ -21,6 +21,7 @@ import { calcularClabeProy, selColor, abrirModalProyecto, guardarProyecto, toggl
 import { renderCuentasPropias, abrirNuevaCuenta, editarCuenta, editarCuentaProyecto, guardarCuenta, actualizarSaldoCuenta, guardarSaldoCuenta, actualizarSaldoExtra } from './modules/cuentas-propias.js';
 import { renderPosicionSaldos } from './modules/posicion-saldos.js';
 import { renderResumenCostos } from './modules/resumen-costos.js';
+import { renderResumenEjecutivo } from './modules/resumen-ejecutivo.js';
 import { renderCreditos, seleccionarCredito, abrirNuevoCredito, editarCredito, guardarCredito, abrirNuevaDisposicion, guardarDisposicion, editarPagare, togglePagare, abrirNuevaFechaPago, editarFechaPago, guardarFechaPago, marcarPagoPagado, eliminarPagoPagare } from './modules/creditos.js';
 import { gsLogin, gsLogout, renderAuthStatus, checkOAuthCallback } from './services/google-auth.js';
 import { gsLoadAll, gsSaveProveedores, gsSaveEmpleados, gsSaveProyectos, gsSaveAlias, gsSaveCuentasPropias, gsSaveTraspasos, gsSaveCreditos, gsSavePagares, gsSavePagosPagare, gsSaveMovimientosInternos } from './services/google-sync.js';
@@ -192,6 +193,9 @@ window.renderPosicionSaldos = renderPosicionSaldos;
 
 // Resumen de Costos
 window.renderResumenCostos = renderResumenCostos;
+
+// Resumen Ejecutivo
+window.renderResumenEjecutivo = renderResumenEjecutivo;
 
 // Créditos
 window.renderCreditos = renderCreditos;
