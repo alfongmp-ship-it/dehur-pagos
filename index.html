@@ -711,11 +711,14 @@
         </div>
 
         <div id="re-contenido">
+          <!-- Pestañas por proyecto -->
+          <div id="re-tabs" class="re-tabs"></div>
+
           <!-- KPIs -->
           <div id="re-kpis" class="re-kpis"></div>
 
           <!-- Tendencia 6 meses + Distribución por proyecto -->
-          <div class="re-row" style="grid-template-columns: 1.4fr 1fr;">
+          <div id="re-fila-tendencia" class="re-row" style="grid-template-columns: 1.4fr 1fr;">
             <div class="re-card">
               <div class="re-card-title">Tendencia de Egresos — últimos 6 meses</div>
               <div style="position:relative;height:220px;"><canvas id="re-chart-tendencia"></canvas></div>

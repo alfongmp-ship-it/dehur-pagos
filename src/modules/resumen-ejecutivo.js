@@ -7,6 +7,7 @@ let chartGastoMensual = null;
 let chartProyectoPie = null;
 let chartPartidaBar = null;
 let reInitialized = false;
+let proyectoActivo = ''; // '' = Total · si tiene valor, es el nombre del proyecto
 
 const PALETA = ['#c8a96e', '#5a9be0', '#4caf7d', '#e07a3a', '#9b7fe8', '#e05a5a', '#27ae60', '#3498db'];
 
@@ -28,6 +29,7 @@ export function renderResumenEjecutivo() {
   initOnce();
 
   const periodo = obtenerPeriodo();
+  renderTabs();
   renderEncabezado(periodo);
   renderKPIs(periodo);
   renderTendencia(periodo);
@@ -35,6 +37,28 @@ export function renderResumenEjecutivo() {
   renderPrestamos(periodo);
   renderTopBeneficiarios(periodo);
   renderObservaciones(periodo);
+}
+
+function renderTabs() {
+  const cont = document.getElementById('re-tabs');
+  if (!cont) return;
+  const proyectos = state.proyectos.filter(p => p.activo !== false);
+  const tabs = [{ id: '', nombre: 'Total', color: '#c8a96e' }, ...proyectos.map(p => ({ id: p.nombre, nombre: p.nombre, color: p.color || '#888' }))];
+  cont.innerHTML = tabs.map(t => {
+    const isActive = proyectoActivo === t.id;
+    return `<button class="re-tab${isActive ? ' active' : ''}" data-id="${t.id.replace(/"/g, '&quot;')}" style="${isActive ? `border-color:${t.color};color:${t.color};` : ''}">${t.nombre}</button>`;
+  }).join('');
+  cont.querySelectorAll('.re-tab').forEach(b => {
+    b.addEventListener('click', () => {
+      proyectoActivo = b.dataset.id;
+      renderResumenEjecutivo();
+    });
+  });
+}
+
+function dentroProyecto(proyectoCampo) {
+  if (!proyectoActivo) return true;
+  return proyectoMatch(proyectoCampo, proyectoActivo);
 }
 
 function destruirCharts() {
@@ -112,7 +136,10 @@ function formatearFechaLarga(iso) {
 
 function renderEncabezado(periodo) {
   const sub = document.getElementById('re-subtitulo');
-  if (sub) sub.textContent = `Periodo: ${formatearFechaLarga(periodo.desde)} — ${formatearFechaLarga(periodo.hasta)}`;
+  if (sub) {
+    const ambito = proyectoActivo ? `Proyecto: ${proyectoActivo}` : 'Consolidado (todos los proyectos)';
+    sub.innerHTML = `<div style="font-weight:600;">${ambito}</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">Periodo: ${formatearFechaLarga(periodo.desde)} — ${formatearFechaLarga(periodo.hasta)}</div>`;
+  }
   const gen = document.getElementById('re-generado');
   if (gen) {
     const ahora = new Date();
@@ -121,10 +148,10 @@ function renderEncabezado(periodo) {
 }
 
 function calcularEgresos(periodo) {
-  // Total de movimientos en el período (todo el historial, igual que Resumen de Costos)
-  const movimientos = state.historial.filter(h => dentroPeriodo(parseFechaHist(h.fecha), periodo));
+  const movimientos = state.historial.filter(h =>
+    dentroPeriodo(parseFechaHist(h.fecha), periodo) && dentroProyecto(h.proyecto)
+  );
   const total = movimientos.reduce((s, h) => s + (parseFloat(h.importe) || 0), 0);
-  // Pagos específicamente (para el conteo de operaciones)
   const pagos = movimientos.filter(h => h.tipo_registro === 'Pago');
   return { pagos, movimientos, total };
 }
@@ -155,7 +182,11 @@ function calcularSaldosNetosPrestamos() {
     if (a === k1) pares[key].neto += parseFloat(t.monto) || 0;
     else pares[key].neto -= parseFloat(t.monto) || 0;
   }
-  return Object.values(pares).filter(p => Math.abs(p.neto) > 0.01);
+  return Object.values(pares).filter(p => {
+    if (Math.abs(p.neto) <= 0.01) return false;
+    if (proyectoActivo) return proyectoMatch(p.a, proyectoActivo) || proyectoMatch(p.b, proyectoActivo);
+    return true;
+  });
 }
 
 function calcularTotalPrestamosVivos() {
@@ -178,15 +209,36 @@ function renderKPIs(periodo) {
     varHTML = `<span style="color:${color};font-size:11px;font-weight:600;">${signo}${pct.toFixed(1)}% vs período anterior</span>`;
   }
 
-  // Egreso por proyecto (período) incluyendo pagos + préstamos salientes
+  // Egreso por proyecto (período)
   const egresoPorProy = egresoPorProyecto(periodo);
   const topProy = Object.entries(egresoPorProy).sort((a, b) => b[1] - a[1])[0];
   const totalProy = Object.values(egresoPorProy).reduce((s, v) => s + v, 0);
   const topProyPct = topProy && totalProy > 0 ? (topProy[1] / totalProy) * 100 : 0;
 
-  // Préstamos vivos (toda la historia)
-  const prestamosVivos = calcularTotalPrestamosVivos();
-  const paresPrestamos = calcularSaldosNetosPrestamos().length;
+  // Préstamos vivos (filtrados por proyecto si aplica)
+  const saldosNetos = calcularSaldosNetosPrestamos();
+  const prestamosVivos = saldosNetos.reduce((s, p) => s + Math.abs(p.neto), 0);
+  const paresPrestamos = saldosNetos.length;
+
+  // Tercera KPI: cuando no hay proyecto, muestra el proyecto con mayor egreso;
+  // cuando hay proyecto activo, muestra el monto promedio por operación.
+  let tercerKpi;
+  if (proyectoActivo) {
+    const promedio = egresos.pagos.length ? egresos.total / egresos.pagos.length : 0;
+    tercerKpi = `
+      <div class="re-kpi-label">Ticket Promedio</div>
+      <div class="re-kpi-value" style="color:var(--accent);">${fmt(promedio)}</div>
+      <div class="re-kpi-sub">Por operación de pago</div>
+    `;
+  } else {
+    tercerKpi = `
+      <div class="re-kpi-label">Mayor Egreso por Proyecto</div>
+      <div class="re-kpi-value" style="color:var(--accent);font-size:16px;">${topProy ? topProy[0] : '—'}</div>
+      <div class="re-kpi-sub">${topProy ? fmt(topProy[1]) + ' · ' + topProyPct.toFixed(1) + '%' : 'Sin pagos'}</div>
+    `;
+  }
+
+  const labelPrestamos = proyectoActivo ? 'Préstamos del Proyecto' : 'Préstamos entre Proyectos';
 
   cont.innerHTML = `
     <div class="re-kpi">
@@ -199,13 +251,9 @@ function renderKPIs(periodo) {
       <div class="re-kpi-value" style="color:#5a9be0;">${egresos.pagos.length}</div>
       <div class="re-kpi-sub">Pagos registrados en el período</div>
     </div>
+    <div class="re-kpi">${tercerKpi}</div>
     <div class="re-kpi">
-      <div class="re-kpi-label">Mayor Egreso por Proyecto</div>
-      <div class="re-kpi-value" style="color:var(--accent);font-size:16px;">${topProy ? topProy[0] : '—'}</div>
-      <div class="re-kpi-sub">${topProy ? fmt(topProy[1]) + ' · ' + topProyPct.toFixed(1) + '%' : 'Sin pagos'}</div>
-    </div>
-    <div class="re-kpi">
-      <div class="re-kpi-label">Préstamos entre Proyectos</div>
+      <div class="re-kpi-label">${labelPrestamos}</div>
       <div class="re-kpi-value" style="color:#9b7fe8;">${fmt(prestamosVivos)}</div>
       <div class="re-kpi-sub">${paresPrestamos} relación${paresPrestamos !== 1 ? 'es' : ''} pendiente${paresPrestamos !== 1 ? 's' : ''}</div>
     </div>
@@ -229,6 +277,7 @@ function renderTendencia(periodo) {
   const valores = meses.map(m => {
     const total = state.historial.reduce((s, h) => {
       if (h.tipo_registro !== 'Pago') return s;
+      if (!dentroProyecto(h.proyecto)) return s;
       const iso = parseFechaHist(h.fecha);
       if (!iso) return s;
       const [y, mm] = iso.split('-').map(Number);
@@ -273,6 +322,7 @@ function egresoPorProyecto(periodo) {
   state.historial.forEach(h => {
     const iso = parseFechaHist(h.fecha);
     if (!dentroPeriodo(iso, periodo)) return;
+    if (!dentroProyecto(h.proyecto)) return;
     const k = h.proyecto || 'Sin proyecto';
     grupos[k] = (grupos[k] || 0) + (parseFloat(h.importe) || 0);
   });
@@ -280,12 +330,19 @@ function egresoPorProyecto(periodo) {
 }
 
 function renderDistribuciones(periodo) {
+  // Si hay proyecto filtrado, ocultar la doughnut por proyecto y expandir tendencia.
+  const cardProy = document.getElementById('re-chart-proyecto')?.closest('.re-card');
+  const filaTendencia = document.getElementById('re-fila-tendencia');
+  if (cardProy) cardProy.style.display = proyectoActivo ? 'none' : '';
+  if (filaTendencia) filaTendencia.style.gridTemplateColumns = proyectoActivo ? '1fr' : '1.4fr 1fr';
+
   renderProyectoChart(egresoPorProyecto(periodo));
 
   // Partida (solo pagos, los traspasos no tienen partida)
   const porPartida = {};
   state.historial.forEach(h => {
     if (h.tipo_registro !== 'Pago') return;
+    if (!dentroProyecto(h.proyecto)) return;
     const iso = parseFechaHist(h.fecha);
     if (!dentroPeriodo(iso, periodo)) return;
     const k = h.partida || 'Sin partida';
@@ -397,6 +454,7 @@ function renderSubPartidas(periodo) {
 
   const pagos = state.historial.filter(h => {
     if (!dentroPeriodo(parseFechaHist(h.fecha), periodo)) return false;
+    if (!dentroProyecto(h.proyecto)) return false;
     return !!h.sub_partida;
   });
   const total = pagos.reduce((s, h) => s + (parseFloat(h.importe) || 0), 0);
@@ -435,7 +493,7 @@ function renderTopBeneficiarios(periodo) {
   const cont = document.getElementById('re-top-benef');
   if (!cont) return;
 
-  const pagos = state.historial.filter(h => h.tipo_registro === 'Pago' && dentroPeriodo(parseFechaHist(h.fecha), periodo));
+  const pagos = state.historial.filter(h => h.tipo_registro === 'Pago' && dentroPeriodo(parseFechaHist(h.fecha), periodo) && dentroProyecto(h.proyecto));
   const porBenef = {};
   pagos.forEach(h => {
     const k = h.nombre || '—';
@@ -480,8 +538,9 @@ function renderObservaciones(periodo) {
   const totalProy = Object.values(egresoPorProy).reduce((s, v) => s + v, 0);
   const saldosNetos = calcularSaldosNetosPrestamos();
 
-  if (egresos.total > 0) obs.push(`Egresos del período por <strong>${fmt(egresos.total)}</strong> en <strong>${egresos.pagos.length}</strong> operaciones de pago.`);
-  if (topProy && totalProy > 0) {
+  const ambito = proyectoActivo ? ` para <strong>${proyectoActivo}</strong>` : '';
+  if (egresos.total > 0) obs.push(`Egresos del período${ambito} por <strong>${fmt(egresos.total)}</strong> en <strong>${egresos.pagos.length}</strong> operaciones de pago.`);
+  if (!proyectoActivo && topProy && totalProy > 0) {
     const pct = (topProy[1] / totalProy) * 100;
     obs.push(`El proyecto <strong>${topProy[0]}</strong> concentró <strong>${pct.toFixed(1)}%</strong> del egreso (${fmt(topProy[1])}).`);
   }
