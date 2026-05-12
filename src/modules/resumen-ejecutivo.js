@@ -12,16 +12,20 @@ const PALETA = ['#c8a96e', '#5a9be0', '#4caf7d', '#e07a3a', '#9b7fe8', '#e05a5a'
 
 export function renderResumenEjecutivo() {
   const cont = document.getElementById('re-contenido');
+  const empty = document.getElementById('re-empty-state');
   if (!cont) return;
 
   if (!state.gsToken) {
-    cont.innerHTML = '<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔒</div><div>Conecta Google Sheets para generar el resumen ejecutivo</div></div>';
+    cont.style.display = 'none';
+    if (empty) empty.style.display = '';
     destruirCharts();
     return;
   }
 
+  cont.style.display = '';
+  if (empty) empty.style.display = 'none';
+
   initOnce();
-  cont.innerHTML = ''; // limpiar empty-state si existía
 
   const periodo = obtenerPeriodo();
   renderEncabezado(periodo);
