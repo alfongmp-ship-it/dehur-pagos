@@ -220,6 +220,18 @@ function renderKPIs(periodo) {
   const prestamosVivos = saldosNetos.reduce((s, p) => s + Math.abs(p.neto), 0);
   const paresPrestamos = saldosNetos.length;
 
+  // Posición neta del proyecto (deudor / acreedor)
+  let posicionNeta = 0;
+  if (proyectoActivo) {
+    saldosNetos.forEach(s => {
+      const acreedor = s.neto > 0 ? s.a : s.b;
+      const deudor = s.neto > 0 ? s.b : s.a;
+      const monto = Math.abs(s.neto);
+      if (proyectoMatch(acreedor, proyectoActivo)) posicionNeta += monto;
+      if (proyectoMatch(deudor, proyectoActivo)) posicionNeta -= monto;
+    });
+  }
+
   // Tercera KPI: cuando no hay proyecto, muestra el proyecto con mayor egreso;
   // cuando hay proyecto activo, muestra el monto promedio por operación.
   let tercerKpi;
@@ -238,7 +250,35 @@ function renderKPIs(periodo) {
     `;
   }
 
-  const labelPrestamos = proyectoActivo ? 'Préstamos del Proyecto' : 'Préstamos entre Proyectos';
+  // Cuarta KPI: en Total muestra préstamos entre proyectos; en proyecto, su deuda neta
+  let cuartaKpi;
+  if (proyectoActivo) {
+    if (posicionNeta < -0.01) {
+      cuartaKpi = `
+        <div class="re-kpi-label">Deuda Neta</div>
+        <div class="re-kpi-value" style="color:#e05a5a;">${fmt(Math.abs(posicionNeta))}</div>
+        <div class="re-kpi-sub">El proyecto debe a otros proyectos</div>
+      `;
+    } else if (posicionNeta > 0.01) {
+      cuartaKpi = `
+        <div class="re-kpi-label">Saldo a Favor</div>
+        <div class="re-kpi-value" style="color:#4caf7d;">${fmt(posicionNeta)}</div>
+        <div class="re-kpi-sub">Otros proyectos le deben</div>
+      `;
+    } else {
+      cuartaKpi = `
+        <div class="re-kpi-label">Deuda Neta</div>
+        <div class="re-kpi-value" style="color:var(--muted);">${fmt(0)}</div>
+        <div class="re-kpi-sub">Sin saldos pendientes</div>
+      `;
+    }
+  } else {
+    cuartaKpi = `
+      <div class="re-kpi-label">Préstamos entre Proyectos</div>
+      <div class="re-kpi-value" style="color:#9b7fe8;">${fmt(prestamosVivos)}</div>
+      <div class="re-kpi-sub">${paresPrestamos} relación${paresPrestamos !== 1 ? 'es' : ''} pendiente${paresPrestamos !== 1 ? 's' : ''}</div>
+    `;
+  }
 
   cont.innerHTML = `
     <div class="re-kpi">
@@ -252,11 +292,7 @@ function renderKPIs(periodo) {
       <div class="re-kpi-sub">Pagos registrados en el período</div>
     </div>
     <div class="re-kpi">${tercerKpi}</div>
-    <div class="re-kpi">
-      <div class="re-kpi-label">${labelPrestamos}</div>
-      <div class="re-kpi-value" style="color:#9b7fe8;">${fmt(prestamosVivos)}</div>
-      <div class="re-kpi-sub">${paresPrestamos} relación${paresPrestamos !== 1 ? 'es' : ''} pendiente${paresPrestamos !== 1 ? 's' : ''}</div>
-    </div>
+    <div class="re-kpi">${cuartaKpi}</div>
   `;
 }
 
