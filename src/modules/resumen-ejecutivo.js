@@ -310,9 +310,9 @@ function renderTendencia(periodo) {
     meses.push({ year: d.getFullYear(), month: d.getMonth(), label: d.toLocaleDateString('es-MX', { month: 'short', year: '2-digit' }) });
   }
 
+  // Suma todo el historial (mismo criterio que la KPI "Egresos del Período")
   const valores = meses.map(m => {
     const total = state.historial.reduce((s, h) => {
-      if (h.tipo_registro !== 'Pago') return s;
       if (!dentroProyecto(h.proyecto)) return s;
       const iso = parseFechaHist(h.fecha);
       if (!iso) return s;
