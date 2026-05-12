@@ -121,13 +121,12 @@ function renderEncabezado(periodo) {
 }
 
 function calcularEgresos(periodo) {
-  const pagos = state.historial.filter(h => {
-    if (h.tipo_registro !== 'Pago') return false;
-    const iso = parseFechaHist(h.fecha);
-    return dentroPeriodo(iso, periodo);
-  });
-  const total = pagos.reduce((s, h) => s + (parseFloat(h.importe) || 0), 0);
-  return { pagos, total };
+  // Total de movimientos en el período (todo el historial, igual que Resumen de Costos)
+  const movimientos = state.historial.filter(h => dentroPeriodo(parseFechaHist(h.fecha), periodo));
+  const total = movimientos.reduce((s, h) => s + (parseFloat(h.importe) || 0), 0);
+  // Pagos específicamente (para el conteo de operaciones)
+  const pagos = movimientos.filter(h => h.tipo_registro === 'Pago');
+  return { pagos, movimientos, total };
 }
 
 function calcularEgresosPrevios(periodo) {
@@ -267,23 +266,15 @@ function renderTendencia(periodo) {
   });
 }
 
-// Egreso total por proyecto en el período: pagos + préstamos salientes (proyecto_origen)
+// Egreso total por proyecto en el período: mismo cálculo que Resumen de Costos
+// — suma todo el historial filtrado por fecha y agrupado por h.proyecto
 function egresoPorProyecto(periodo) {
   const grupos = {};
-  // Pagos
   state.historial.forEach(h => {
-    if (h.tipo_registro !== 'Pago') return;
     const iso = parseFechaHist(h.fecha);
     if (!dentroPeriodo(iso, periodo)) return;
     const k = h.proyecto || 'Sin proyecto';
     grupos[k] = (grupos[k] || 0) + (parseFloat(h.importe) || 0);
-  });
-  // Préstamos salientes (dinero que sale del proyecto origen)
-  state.traspasos.forEach(t => {
-    if (t.tipo !== 'Préstamo') return;
-    if (!t.fecha || !dentroPeriodo(t.fecha, periodo)) return;
-    const k = t.proyecto_origen || 'Sin proyecto';
-    grupos[k] = (grupos[k] || 0) + (parseFloat(t.monto) || 0);
   });
   return grupos;
 }
