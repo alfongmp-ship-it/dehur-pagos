@@ -404,7 +404,7 @@ function renderSubPartidas(periodo) {
   pagos.forEach(h => {
     porSub[h.sub_partida] = (porSub[h.sub_partida] || 0) + (parseFloat(h.importe) || 0);
   });
-  const sorted = Object.entries(porSub).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const sorted = Object.entries(porSub).sort((a, b) => b[1] - a[1]);
 
   if (!sorted.length || total <= 0) {
     cont.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:14px 0;text-align:center;">Sin sub-partidas registradas en el período</div>';

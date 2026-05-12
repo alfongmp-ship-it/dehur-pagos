@@ -245,6 +245,12 @@
     background: #f4f0ff !important;
     border-color: #d0c4f0 !important;
   }
+
+  /* Al imprimir, mostrar toda la lista de sub-partidas sin scroll */
+  #re-lista-subpartidas {
+    max-height: none !important;
+    overflow: visible !important;
+  }
 }
 
 /* Responsivo */
