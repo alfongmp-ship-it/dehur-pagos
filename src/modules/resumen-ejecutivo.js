@@ -374,10 +374,9 @@ function renderDistribuciones(periodo) {
 
   renderProyectoChart(egresoPorProyecto(periodo));
 
-  // Partida (solo pagos, los traspasos no tienen partida)
+  // Partida — todo el historial (mismo criterio que Resumen de Costos / KPI)
   const porPartida = {};
   state.historial.forEach(h => {
-    if (h.tipo_registro !== 'Pago') return;
     if (!dentroProyecto(h.proyecto)) return;
     const iso = parseFechaHist(h.fecha);
     if (!dentroPeriodo(iso, periodo)) return;
