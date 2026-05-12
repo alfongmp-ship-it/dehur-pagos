@@ -358,7 +358,7 @@ function renderPartidaChart(grupos) {
 
 function renderPrestamos(periodo) {
   renderSaldosNetos();
-  renderPrestamosRecientes(periodo);
+  renderSubPartidas(periodo);
 }
 
 function renderSaldosNetos() {
@@ -391,33 +391,44 @@ function renderSaldosNetos() {
   }).join('');
 }
 
-function renderPrestamosRecientes(periodo) {
-  const cont = document.getElementById('re-prestamos-recientes');
+function renderSubPartidas(periodo) {
+  const cont = document.getElementById('re-lista-subpartidas');
   if (!cont) return;
 
-  const prestamos = state.traspasos
-    .filter(t => t.tipo === 'Préstamo' && t.fecha && dentroPeriodo(t.fecha, periodo))
-    .sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''))
-    .slice(0, 6);
+  const pagos = state.historial.filter(h => {
+    if (!dentroPeriodo(parseFechaHist(h.fecha), periodo)) return false;
+    return !!h.sub_partida;
+  });
+  const total = pagos.reduce((s, h) => s + (parseFloat(h.importe) || 0), 0);
+  const porSub = {};
+  pagos.forEach(h => {
+    porSub[h.sub_partida] = (porSub[h.sub_partida] || 0) + (parseFloat(h.importe) || 0);
+  });
+  const sorted = Object.entries(porSub).sort((a, b) => b[1] - a[1]).slice(0, 8);
 
-  if (!prestamos.length) {
-    cont.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:14px 0;text-align:center;">Sin préstamos en el período seleccionado</div>';
+  if (!sorted.length || total <= 0) {
+    cont.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:14px 0;text-align:center;">Sin sub-partidas registradas en el período</div>';
     return;
   }
 
-  cont.innerHTML = prestamos.map(t => `
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;">
-      <div style="flex:1;min-width:0;">
-        <div style="font-weight:500;">
-          <span style="color:#e05a5a;">${t.proyecto_origen || '—'}</span>
-          <span style="color:var(--muted);margin:0 4px;">→</span>
-          <span style="color:#4caf7d;">${t.proyecto_destino || '—'}</span>
+  const maxV = sorted[0][1];
+  cont.innerHTML = sorted.map(([sub, monto], i) => {
+    const pct = (monto / total) * 100;
+    const barPct = (monto / maxV) * 100;
+    const color = PALETA[i % PALETA.length];
+    return `
+      <div style="margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;">
+          <span style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:65%;">${sub}</span>
+          <span style="font-family:'DM Mono',monospace;font-weight:600;color:${color};">${fmt(monto)}</span>
         </div>
-        <div style="font-size:10px;color:var(--muted);margin-top:2px;">${t.fecha} · ${t.concepto || 'Sin concepto'}</div>
+        <div style="height:4px;background:var(--surface2);border-radius:2px;overflow:hidden;">
+          <div style="height:100%;width:${barPct}%;background:${color};"></div>
+        </div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px;">${pct.toFixed(1)}% del total con sub-partida</div>
       </div>
-      <div style="font-family:'DM Mono',monospace;font-weight:600;color:var(--accent);">${fmt(parseFloat(t.monto) || 0)}</div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
 function renderTopBeneficiarios(periodo) {
@@ -481,13 +492,6 @@ function renderObservaciones(periodo) {
     const deudor = mayor.neto > 0 ? mayor.b : mayor.a;
     const acreedor = mayor.neto > 0 ? mayor.a : mayor.b;
     obs.push(`Mayor saldo: <strong>${deudor}</strong> debe a <strong>${acreedor}</strong> <strong>${fmt(Math.abs(mayor.neto))}</strong>.`);
-  }
-
-  // Préstamos del período
-  const prestPeriodo = state.traspasos.filter(t => t.tipo === 'Préstamo' && t.fecha && dentroPeriodo(t.fecha, periodo));
-  if (prestPeriodo.length) {
-    const monto = prestPeriodo.reduce((s, t) => s + (parseFloat(t.monto) || 0), 0);
-    obs.push(`Durante el período se otorgaron <strong>${prestPeriodo.length}</strong> préstamo${prestPeriodo.length !== 1 ? 's' : ''} entre proyectos por <strong>${fmt(monto)}</strong>.`);
   }
 
   if (!obs.length) {
