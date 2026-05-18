@@ -24,9 +24,21 @@ export async function gsAppendRow(sheet, row) {
   return gsFetch(`https://sheets.googleapis.com/v4/spreadsheets/${GS_SPREADSHEET_ID}/values/${encodeURIComponent(sheet)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, 'POST', { values: [row] });
 }
 
+// Sobrescribe una hoja de forma SEGURA: escribe primero y limpia los sobrantes
+// después. Un fallo de escritura nunca vacía la hoja (los datos previos quedan
+// intactos). Antes hacía clear+write, lo que podía dejar la hoja vacía si la
+// escritura fallaba tras el clear.
 export async function gsClearAndWrite(sheet, rows, headers) {
-  await gsFetch(`https://sheets.googleapis.com/v4/spreadsheets/${GS_SPREADSHEET_ID}/values/${encodeURIComponent(sheet)}:clear`, 'POST', {});
-  await gsWriteRange(sheet + '!A1', [headers, ...rows]);
+  const values = [headers, ...rows];
+  // 1) Escribir/sobrescribir primero. values.update es atómico del lado de
+  //    Google: aplica todo o lanza error. Si lanza, los datos viejos siguen ahí.
+  await gsWriteRange(sheet + '!A1', values);
+  // 2) Limpiar filas viejas sobrantes por debajo de los datos nuevos. Si esto
+  //    falla, solo quedan filas de más (no es pérdida de datos).
+  try {
+    const primeraSobrante = values.length + 1; // fila 1-indexed siguiente a los datos
+    await gsFetch(`https://sheets.googleapis.com/v4/spreadsheets/${GS_SPREADSHEET_ID}/values/${encodeURIComponent(sheet + '!A' + primeraSobrante + ':ZZ')}:clear`, 'POST', {});
+  } catch (e) { console.error('gsClearAndWrite limpieza de sobrantes', e); }
 }
 
 export async function gsInitSheets() {

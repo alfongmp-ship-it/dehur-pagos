@@ -436,6 +436,9 @@ export async function gsSavePendientes() {
 
 export async function gsSaveHistorial() {
   if (!state.gsToken) return;
+  // Salvaguarda: nunca sobrescribir el historial con cero filas (evita vaciarlo
+  // por accidente si el estado en memoria está vacío).
+  if (!state.historial.length) return;
   try {
     ensureHistorialIds();
     const rows = state.historial.map(h => [
