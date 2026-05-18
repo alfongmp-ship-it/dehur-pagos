@@ -3,10 +3,65 @@ import { notify } from '../ui/notify.js';
 import { gsReadSheet, gsWriteRange, gsClearAndWrite, gsAppendRow } from './google-sheets.js';
 import { normalizeBanco } from '../config/bancos.js';
 
+// ===== BLINDAJE CONTRA PÉRDIDA DE DATOS =====
+// Entidades con función de guardado que sobrescribe su hoja completa.
+const ENTIDADES_GUARDABLES = [
+  'proveedores', 'empleados', 'historial', 'proyectos', 'facturas', 'facturaPagos',
+  'cuentasPropias', 'traspasos', 'creditos', 'pagares', 'pagosPagare',
+  'movimientosInternos', 'pendientesConfirmacion', 'unidades', 'presupuestoUnidad',
+  'costoAsignaciones'
+];
+const ETIQUETA = {
+  proveedores: 'Proveedores', empleados: 'Empleados', historial: 'Historial de pagos',
+  proyectos: 'Proyectos', facturas: 'Facturas', facturaPagos: 'Pagos de facturas',
+  cuentasPropias: 'Cuentas propias', traspasos: 'Traspasos', creditos: 'Créditos',
+  pagares: 'Pagarés', pagosPagare: 'Pagos de pagaré', movimientosInternos: 'Movimientos internos',
+  pendientesConfirmacion: 'Pagos por confirmar', unidades: 'Unidades',
+  presupuestoUnidad: 'Presupuestos', costoAsignaciones: 'Asignaciones de costo'
+};
+
+// Lee una hoja y marca si la entidad cargó con éxito. `gsReadSheet` devuelve
+// null SOLO ante error de lectura (una hoja vacía devuelve []), así que null
+// marca la entidad como NO cargada y bloquea su guardado esta sesión.
+async function leerHoja(sheet, entidad) {
+  const rows = await gsReadSheet(sheet);
+  state.cargado[entidad] = (rows !== null);
+  return rows;
+}
+
+// Decide si se permite guardar una entidad. Bloquea si no se cargó esta sesión
+// (evita sobrescribir la hoja con datos vacíos por una carga fallida) y pide
+// confirmación si el guardado dejaría la hoja sin ningún registro.
+function guardarPermitido(entidad, arr, puedeVaciarse = false) {
+  if (state.cargado[entidad] !== true) {
+    notify(`Guardado bloqueado: "${ETIQUETA[entidad] || entidad}" no se cargó correctamente esta sesión. Recarga la página antes de guardar.`, 'error');
+    return false;
+  }
+  if (!puedeVaciarse && (!arr || arr.length === 0)) {
+    return confirm(`Vas a guardar "${ETIQUETA[entidad] || entidad}" SIN NINGÚN registro.\n\nSi no es intencional, presiona Cancelar para no perder datos.\n\n¿Continuar de todos modos?`);
+  }
+  return true;
+}
+
+// Muestra u oculta el banner de advertencia según haya entidades sin cargar.
+function actualizarBannerCarga() {
+  const banner = document.getElementById('data-warning-banner');
+  if (!banner) return;
+  const fallos = ENTIDADES_GUARDABLES.filter(e => state.cargado[e] !== true);
+  if (fallos.length) {
+    banner.textContent = '⚠ No se cargaron correctamente: ' + fallos.map(e => ETIQUETA[e] || e).join(', ')
+      + '. Recarga la página y vuelve a conectar. El guardado de esos datos está bloqueado por seguridad para no sobrescribirlos.';
+    banner.style.display = '';
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
 export async function gsLoadAll() {
+  state.cargado = {};
   try {
     // Load proveedores from Sheets (Sheets is source of truth)
-    const pRows = await gsReadSheet('proveedores');
+    const pRows = await leerHoja('proveedores', 'proveedores');
     if (pRows && pRows.length > 1) {
       const loaded = pRows.slice(1).filter(r => r[0]).map(r => ({
         id: parseInt(r[0]) || 0,
@@ -27,12 +82,12 @@ export async function gsLoadAll() {
         state.proveedores = loaded;
         document.getElementById('cnt-prov').textContent = loaded.length;
       }
-    } else if (state.proveedores.length) {
+    } else if (pRows !== null && state.proveedores.length) {
       await gsSaveProveedores();
     }
 
     // Load pendientes confirmacion
-    const pcRows = await gsReadSheet('pendientes_confirmacion');
+    const pcRows = await leerHoja('pendientes_confirmacion', 'pendientesConfirmacion');
     if (pcRows && pcRows.length > 1) {
       state.pendientesConfirmacion = pcRows.slice(1).filter(r => r[0]).map(r => ({
         id: parseInt(r[0]) || Date.now(),
@@ -54,7 +109,7 @@ export async function gsLoadAll() {
     }
 
     // Load empleados
-    const eRows = await gsReadSheet('empleados');
+    const eRows = await leerHoja('empleados', 'empleados');
     if (eRows && eRows.length > 1) {
       state.empleados = eRows.slice(1).filter(r => r[0]).map(r => ({
         id: parseInt(r[0]) || 0,
@@ -68,13 +123,13 @@ export async function gsLoadAll() {
         rfc: r[8] || '',
         activo: r[9] !== 'false'
       }));
-    } else if (state.empleados.length) {
+    } else if (eRows !== null && state.empleados.length) {
       // Hoja vacía — auto-popular desde JSON seed
       await gsSaveEmpleados();
     }
 
     // Load historial
-    const hRows = await gsReadSheet('historial_pagos');
+    const hRows = await leerHoja('historial_pagos', 'historial');
     if (hRows && hRows.length > 1) {
       state.historial = hRows.slice(1).filter(r => r[0] || r[2]).map(r => ({
         proveedor_id: r[0] || '',
@@ -100,7 +155,7 @@ export async function gsLoadAll() {
     }
 
     // Load proyectos
-    const prRows = await gsReadSheet('proyectos');
+    const prRows = await leerHoja('proyectos', 'proyectos');
     if (prRows && prRows.length > 1) {
       const loaded = prRows.slice(1).filter(r => r[0]).map(r => ({
         id: r[0] || '',
@@ -130,7 +185,7 @@ export async function gsLoadAll() {
     }
 
     // Load facturas
-    const fRows = await gsReadSheet('facturas');
+    const fRows = await leerHoja('facturas', 'facturas');
     if (fRows && fRows.length > 1) {
       state.facturas = fRows.slice(1).filter(r => r[0]).map(r => ({
         factura_id: parseInt(r[0]) || 0,
@@ -153,7 +208,7 @@ export async function gsLoadAll() {
     }
 
     // Load cuentas_propias
-    const cpRows = await gsReadSheet('cuentas_propias');
+    const cpRows = await leerHoja('cuentas_propias', 'cuentasPropias');
     if (cpRows && cpRows.length > 1) {
       state.cuentasPropias = cpRows.slice(1).filter(r => r[0]).map(r => ({
         cuenta_id: parseInt(r[0]) || 0,
@@ -183,7 +238,7 @@ export async function gsLoadAll() {
     }
 
     // Load traspasos
-    const tRows = await gsReadSheet('traspasos');
+    const tRows = await leerHoja('traspasos', 'traspasos');
     if (tRows && tRows.length > 1) {
       state.traspasos = tRows.slice(1).filter(r => r[0]).map(r => ({
         traspaso_id: parseInt(r[0]) || 0,
@@ -206,7 +261,7 @@ export async function gsLoadAll() {
     }
 
     // Load creditos
-    const crRows = await gsReadSheet('creditos');
+    const crRows = await leerHoja('creditos', 'creditos');
     if (crRows && crRows.length > 1) {
       state.creditos = crRows.slice(1).filter(r => r[0]).map(r => ({
         credito_id: parseInt(r[0]) || 0,
@@ -223,7 +278,7 @@ export async function gsLoadAll() {
     }
 
     // Load pagares
-    const pgRows = await gsReadSheet('pagares');
+    const pgRows = await leerHoja('pagares', 'pagares');
     if (pgRows && pgRows.length > 1) {
       state.pagares = pgRows.slice(1).filter(r => r[0]).map(r => ({
         pagare_id: parseInt(r[0]) || 0,
@@ -239,7 +294,7 @@ export async function gsLoadAll() {
     }
 
     // Load pagos_pagare
-    const ppRows = await gsReadSheet('pagos_pagare');
+    const ppRows = await leerHoja('pagos_pagare', 'pagosPagare');
     if (ppRows && ppRows.length > 1) {
       state.pagosPagare = ppRows.slice(1).filter(r => r[0]).map(r => ({
         pago_id: parseInt(r[0]) || 0,
@@ -254,7 +309,7 @@ export async function gsLoadAll() {
     }
 
     // Load movimientos_internos
-    const miRows = await gsReadSheet('movimientos_internos');
+    const miRows = await leerHoja('movimientos_internos', 'movimientosInternos');
     if (miRows && miRows.length > 1) {
       state.movimientosInternos = miRows.slice(1).filter(r => r[0]).map(r => ({
         id: parseInt(r[0]) || 0,
@@ -269,7 +324,7 @@ export async function gsLoadAll() {
     }
 
     // Load factura_pagos
-    const fpRows = await gsReadSheet('factura_pagos');
+    const fpRows = await leerHoja('factura_pagos', 'facturaPagos');
     if (fpRows && fpRows.length > 1) {
       state.facturaPagos = fpRows.slice(1).filter(r => r[0]).map(r => ({
         factura_pago_id: parseInt(r[0]) || 0,
@@ -284,7 +339,7 @@ export async function gsLoadAll() {
     }
 
     // Load unidades (costos fiscales)
-    const uRows = await gsReadSheet('unidades');
+    const uRows = await leerHoja('unidades', 'unidades');
     if (uRows && uRows.length > 1) {
       state.unidades = uRows.slice(1).filter(r => r[0]).map(r => ({
         unidad_id: parseInt(r[0]) || 0,
@@ -301,7 +356,7 @@ export async function gsLoadAll() {
     }
 
     // Load presupuesto_unidad
-    const buRows = await gsReadSheet('presupuesto_unidad');
+    const buRows = await leerHoja('presupuesto_unidad', 'presupuestoUnidad');
     if (buRows && buRows.length > 1) {
       state.presupuestoUnidad = buRows.slice(1).filter(r => r[0]).map(r => ({
         presupuesto_id: parseInt(r[0]) || 0,
@@ -316,7 +371,7 @@ export async function gsLoadAll() {
     }
 
     // Load costo_asignaciones
-    const caRows = await gsReadSheet('costo_asignaciones');
+    const caRows = await leerHoja('costo_asignaciones', 'costoAsignaciones');
     if (caRows && caRows.length > 1) {
       state.costoAsignaciones = caRows.slice(1).filter(r => r[0]).map(r => ({
         asignacion_id: parseInt(r[0]) || 0,
@@ -356,6 +411,9 @@ export async function gsLoadAll() {
   } catch (e) {
     console.error('gsLoadAll error', e);
     notify('Error cargando datos: ' + e.message, 'error');
+  } finally {
+    // Aviso visible si alguna hoja no cargó (y bloqueo de su guardado).
+    actualizarBannerCarga();
   }
 }
 
@@ -406,7 +464,7 @@ export async function gsAppendHistorialSaldo(registro) {
   try {
     if (!hsHeadersOk) {
       const rows = await gsReadSheet('historial_saldos');
-      if (!rows.length || rows[0][0] !== 'fecha') {
+      if (!rows || !rows.length || rows[0][0] !== 'fecha') {
         await gsWriteRange('historial_saldos!A1', [HS_HEADERS]);
       }
       hsHeadersOk = true;
@@ -420,6 +478,8 @@ export async function gsAppendHistorialSaldo(registro) {
 
 export async function gsSavePendientes() {
   if (!state.gsToken) return;
+  // Los pagos por confirmar se vacían de forma normal al confirmar la cola.
+  if (!guardarPermitido('pendientesConfirmacion', state.pendientesConfirmacion, true)) return;
   try {
     const rows = state.pendientesConfirmacion.map(p => [
       p.id, p.proveedor_id || '', p.factura_id || '', p.nombre, p.cuenta || '',
@@ -436,6 +496,7 @@ export async function gsSavePendientes() {
 
 export async function gsSaveHistorial() {
   if (!state.gsToken) return;
+  if (!guardarPermitido('historial', state.historial, true)) return;
   // Salvaguarda: nunca sobrescribir el historial con cero filas (evita vaciarlo
   // por accidente si el estado en memoria está vacío).
   if (!state.historial.length) return;
@@ -456,6 +517,7 @@ export async function gsSaveHistorial() {
 
 export async function gsSaveUnidades() {
   if (!state.gsToken) return;
+  if (!guardarPermitido('unidades', state.unidades)) return;
   try {
     const rows = state.unidades.map(u => [
       u.unidad_id, u.proyecto, u.nombre, u.tipo || '', u.indiviso_pct || 0,
@@ -470,6 +532,7 @@ export async function gsSaveUnidades() {
 
 export async function gsSavePresupuestoUnidad() {
   if (!state.gsToken) return;
+  if (!guardarPermitido('presupuestoUnidad', state.presupuestoUnidad)) return;
   try {
     const rows = state.presupuestoUnidad.map(p => [
       p.presupuesto_id, p.unidad_id, p.partida || '', p.sub_partida || '',
@@ -484,6 +547,7 @@ export async function gsSavePresupuestoUnidad() {
 
 export async function gsSaveCostoAsignaciones() {
   if (!state.gsToken) return;
+  if (!guardarPermitido('costoAsignaciones', state.costoAsignaciones)) return;
   try {
     const rows = state.costoAsignaciones.map(a => [
       a.asignacion_id, a.pago_id, a.unidad_id, a.proyecto || '', a.metodo || 'directo',
@@ -498,6 +562,7 @@ export async function gsSaveCostoAsignaciones() {
 
 export async function gsSaveProveedores() {
   if (!state.gsToken) return;
+  if (!guardarPermitido('proveedores', state.proveedores)) return;
   try {
     const rows = state.proveedores.map(p => [p.id, p.nombre, p.rfc || '', p.banco, p.tipo_cuenta, p.cuenta, p.clabe || '', p.categoria, p.subcategoria || '', (p.proyectos || []).join('|'), p.activo, p.bloqueada_para_pago || false]);
     await gsClearAndWrite('proveedores', rows, ['proveedor_id', 'nombre', 'rfc', 'banco', 'tipo_cuenta', 'cuenta', 'clabe', 'categoria', 'Subcategoria', 'proyectos', 'activo', 'bloqueada_para_pago']);
@@ -515,6 +580,7 @@ export async function gsSaveAlias(nombreOriginal, provId) {
 
 export async function gsSaveEmpleados() {
   if (!state.gsToken) return;
+  if (!guardarPermitido('empleados', state.empleados)) return;
   try {
     const rows = state.empleados.map(e => [e.id, e.nombre, e.puesto || '', e.empresa || '', e.banco, e.tipo_cuenta, e.cuenta, e.clabe || '', e.rfc || '', e.activo]);
     await gsClearAndWrite('empleados', rows, ['id', 'nombre', 'puesto', 'empresa', 'banco', 'tipo_cuenta', 'cuenta', 'clabe', 'rfc', 'activo']);
@@ -524,6 +590,7 @@ export async function gsSaveEmpleados() {
 
 export async function gsSaveFacturas() {
   if (!state.gsToken) return;
+  if (!guardarPermitido('facturas', state.facturas)) return;
   try {
     const rows = state.facturas.map(f => [f.factura_id, f.numero_factura || '', f.razon_social || '', f.proveedor_id, f.nombre_proveedor || '', f.fecha_factura, f.fecha_vencimiento || '', f.fecha_pago_total || '', f.monto_total, f.monto_pagado, f.saldo_pendiente, f.estatus_factura, f.proyecto, f.observaciones, f.activo, f.uuid || '']);
     await gsClearAndWrite('facturas', rows, ['factura_id', 'Numero_Fcatura', 'razon_social', 'proveedor_id', 'nombre_proveedor', 'fecha_factura', 'fecha_vencimiento', 'fecha_pago_total', 'monto_total', 'monto_pagado', 'saldo_pendiente', 'estatus_factura', 'proyecto', 'observaciones', 'activo', 'uuid']);
@@ -532,6 +599,7 @@ export async function gsSaveFacturas() {
 
 export async function gsSaveFacturaPagos() {
   if (!state.gsToken) return;
+  if (!guardarPermitido('facturaPagos', state.facturaPagos)) return;
   try {
     const rows = state.facturaPagos.map(fp => [fp.factura_pago_id, fp.factura_id, fp.pago_id, fp.proveedor_id, fp.monto_aplicado, fp.fecha_pago, fp.estatus, fp.observaciones]);
     await gsClearAndWrite('factura_pagos', rows, ['factura_pago_id', 'factura_id', 'pago_id', 'proveedor_id', 'monto_aplicado', 'fecha_pago', 'estatus', 'observaciones']);
@@ -540,6 +608,7 @@ export async function gsSaveFacturaPagos() {
 
 export async function gsSaveCuentasPropias() {
   if (!state.gsToken) return;
+  if (!guardarPermitido('cuentasPropias', state.cuentasPropias)) return;
   try {
     const rows = state.cuentasPropias.map(c => [c.cuenta_id, c.nombre, c.banco, c.clabe || '', c.numero_cuenta || '', c.proyecto || '', c.tipo || 'General', c.saldo, c.ultima_actualizacion || '', c.activo]);
     await gsClearAndWrite('cuentas_propias', rows, ['cuenta_id', 'nombre', 'banco', 'clabe', 'numero_cuenta', 'proyecto', 'tipo', 'saldo', 'ultima_actualizacion', 'activo']);
@@ -548,6 +617,7 @@ export async function gsSaveCuentasPropias() {
 
 export async function gsSaveTraspasos() {
   if (!state.gsToken) return;
+  if (!guardarPermitido('traspasos', state.traspasos)) return;
   try {
     const rows = state.traspasos.map(t => [
       t.traspaso_id, t.tipo,
@@ -566,6 +636,7 @@ export async function gsSaveTraspasos() {
 
 export async function gsSaveCreditos() {
   if (!state.gsToken) return;
+  if (!guardarPermitido('creditos', state.creditos)) return;
   try {
     const rows = state.creditos.map(c => [
       c.credito_id, c.nombre, c.banco, c.tipo_credito, c.monto_autorizado,
@@ -580,6 +651,7 @@ export async function gsSaveCreditos() {
 
 export async function gsSavePagares() {
   if (!state.gsToken) return;
+  if (!guardarPermitido('pagares', state.pagares)) return;
   try {
     const rows = state.pagares.map(p => [
       p.pagare_id, p.credito_id, p.numero_pagare, p.monto,
@@ -594,6 +666,7 @@ export async function gsSavePagares() {
 
 export async function gsSavePagosPagare() {
   if (!state.gsToken) return;
+  if (!guardarPermitido('pagosPagare', state.pagosPagare)) return;
   try {
     const rows = state.pagosPagare.map(p => [
       p.pago_id, p.pagare_id, p.credito_id, p.fecha_pago,
@@ -608,12 +681,14 @@ export async function gsSavePagosPagare() {
 
 export async function gsSaveMovimientosInternos() {
   if (!state.gsToken) return;
+  if (!guardarPermitido('movimientosInternos', state.movimientosInternos)) return;
   const rows = state.movimientosInternos.map(m => [m.id, m.fecha, m.tipo, m.origen, m.destino, m.monto, m.concepto, m.referencia]);
   await gsClearAndWrite('movimientos_internos', rows, ['id', 'fecha', 'tipo', 'origen', 'destino', 'monto', 'concepto', 'referencia']);
 }
 
 export async function gsSaveProyectos() {
   if (!state.gsToken) return;
+  if (!guardarPermitido('proyectos', state.proyectos)) return;
   try {
     const rows = state.proyectos.map(p => [p.id, p.nombre, p.empresa || '', p.cuenta || '', p.clabe || '', p.color || '', p.activo, p.saldo || 0, p.ultima_act_saldo || '', p.es_concentradora || false]);
     await gsClearAndWrite('proyectos', rows, ['id', 'nombre', 'empresa', 'cuenta', 'clabe', 'color', 'activo', 'saldo', 'ultima_act_saldo', 'es_concentradora']);

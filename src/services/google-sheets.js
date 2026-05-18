@@ -9,11 +9,17 @@ export async function gsFetch(url, method = 'GET', body = null) {
   return r.json();
 }
 
+// Devuelve las filas de la hoja, o `null` si la LECTURA falló (error de red/API).
+// Distinguir null (fallo) de [] (hoja vacía legítima) es clave para el blindaje:
+// nunca se debe sobrescribir una hoja cuya lectura falló.
 export async function gsReadSheet(sheet) {
   try {
     const r = await gsFetch(`https://sheets.googleapis.com/v4/spreadsheets/${GS_SPREADSHEET_ID}/values/${encodeURIComponent(sheet)}`);
     return r.values || [];
-  } catch (e) { return []; }
+  } catch (e) {
+    console.error('gsReadSheet error', sheet, e);
+    return null;
+  }
 }
 
 export async function gsWriteRange(range, values) {

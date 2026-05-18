@@ -24,6 +24,9 @@ export const state = {
   nextPresupuestoId: 1,
   nextAsignacionId: 1,
   histSeq: 1,
+  // Blindaje: marca qué entidades se cargaron OK desde Sheets esta sesión.
+  // Una entidad no cargada NO se puede guardar (evita sobrescribir con vacío).
+  cargado: {},
   creditoTabActivo: null,
   editProvId: null,
   editCuentaId: null,
