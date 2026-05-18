@@ -2,7 +2,7 @@ import { state } from '../state.js';
 import { fmt, dl } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { proyTag, catTag } from '../ui/badges.js';
-import { gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveTraspasos } from '../services/google-sync.js';
+import { gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveTraspasos, purgarAsignacionesDePago } from '../services/google-sync.js';
 import { saveProy, proyectoMatch } from '../config/proyectos.js';
 
 export function renderHistorial() {
@@ -205,7 +205,10 @@ export function eliminarHistorial(idx) {
 
   state.historial.splice(idx, 1);
   gsSaveHistorial();
+  // Limpiar asignaciones de costo fiscal ligadas a este pago (evita huérfanas)
+  if (h.id) purgarAsignacionesDePago(h.id);
   document.getElementById('cnt-hist').textContent = state.historial.length;
   renderHistorial();
+  if (window.renderCostosFiscales) window.renderCostosFiscales();
   notify('Registro eliminado del historial');
 }

@@ -22,6 +22,7 @@ import { renderCuentasPropias, abrirNuevaCuenta, editarCuenta, editarCuentaProye
 import { renderPosicionSaldos } from './modules/posicion-saldos.js';
 import { renderResumenCostos } from './modules/resumen-costos.js';
 import { renderResumenEjecutivo } from './modules/resumen-ejecutivo.js';
+import { renderCostosFiscales, abrirNuevaUnidad, editarUnidad, guardarUnidad, toggleUnidad, abrirLoteUnidades, guardarLoteUnidades, cfLimpiarHuerfanas, abrirAsignarCosto, reasignarCosto, eliminarAsignacionCosto, cfCambiarMetodo, cfPreviewReparto, guardarAsignacionCosto, cfAgregarPartidaPresup, guardarPresupuestoUnidad, cfVerUnidad } from './modules/costos-fiscales.js';
 import { renderCreditos, seleccionarCredito, abrirNuevoCredito, editarCredito, guardarCredito, abrirNuevaDisposicion, guardarDisposicion, editarPagare, togglePagare, abrirNuevaFechaPago, editarFechaPago, guardarFechaPago, marcarPagoPagado, eliminarPagoPagare } from './modules/creditos.js';
 import { gsLogin, gsLogout, renderAuthStatus, checkOAuthCallback } from './services/google-auth.js';
 import { gsLoadAll, gsSaveProveedores, gsSaveEmpleados, gsSaveProyectos, gsSaveAlias, gsSaveCuentasPropias, gsSaveTraspasos, gsSaveCreditos, gsSavePagares, gsSavePagosPagare, gsSaveMovimientosInternos } from './services/google-sync.js';
@@ -196,6 +197,25 @@ window.renderResumenCostos = renderResumenCostos;
 
 // Resumen Ejecutivo
 window.renderResumenEjecutivo = renderResumenEjecutivo;
+
+// Costos Fiscales por Unidad
+window.renderCostosFiscales = renderCostosFiscales;
+window.abrirNuevaUnidad = abrirNuevaUnidad;
+window.editarUnidad = editarUnidad;
+window.guardarUnidad = guardarUnidad;
+window.toggleUnidad = toggleUnidad;
+window.abrirLoteUnidades = abrirLoteUnidades;
+window.guardarLoteUnidades = guardarLoteUnidades;
+window.cfLimpiarHuerfanas = cfLimpiarHuerfanas;
+window.abrirAsignarCosto = abrirAsignarCosto;
+window.reasignarCosto = reasignarCosto;
+window.eliminarAsignacionCosto = eliminarAsignacionCosto;
+window.cfCambiarMetodo = cfCambiarMetodo;
+window.cfPreviewReparto = cfPreviewReparto;
+window.guardarAsignacionCosto = guardarAsignacionCosto;
+window.cfAgregarPartidaPresup = cfAgregarPartidaPresup;
+window.guardarPresupuestoUnidad = guardarPresupuestoUnidad;
+window.cfVerUnidad = cfVerUnidad;
 
 // Créditos
 window.renderCreditos = renderCreditos;

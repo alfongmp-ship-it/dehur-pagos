@@ -89,8 +89,14 @@ export async function gsLoadAll() {
         cuenta_origen: r[9] || '',
         tipo_registro: r[10] || 'Pago',
         partida: r[11] || '',
-        sub_partida: r[12] || ''
+        sub_partida: r[12] || '',
+        id: r[13] || ''
       }));
+      // Backfill de IDs estables para la capa de costos fiscales.
+      // Si se asignó algún ID nuevo, se persiste una sola vez (migración idempotente).
+      if (ensureHistorialIds()) {
+        await gsSaveHistorial();
+      }
     }
 
     // Load proyectos
@@ -277,6 +283,55 @@ export async function gsLoadAll() {
       }));
     }
 
+    // Load unidades (costos fiscales)
+    const uRows = await gsReadSheet('unidades');
+    if (uRows && uRows.length > 1) {
+      state.unidades = uRows.slice(1).filter(r => r[0]).map(r => ({
+        unidad_id: parseInt(r[0]) || 0,
+        proyecto: r[1] || '',
+        nombre: r[2] || '',
+        tipo: r[3] || '',
+        indiviso_pct: parseFloat(r[4]) || 0,
+        superficie_m2: parseFloat(r[5]) || 0,
+        estatus: r[6] || 'En obra',
+        orden: parseInt(r[7]) || 0,
+        activo: r[8] !== 'false' && r[8] !== 'FALSE'
+      }));
+      state.nextUnidadId = state.unidades.reduce((m, u) => Math.max(m, u.unidad_id), 0) + 1;
+    }
+
+    // Load presupuesto_unidad
+    const buRows = await gsReadSheet('presupuesto_unidad');
+    if (buRows && buRows.length > 1) {
+      state.presupuestoUnidad = buRows.slice(1).filter(r => r[0]).map(r => ({
+        presupuesto_id: parseInt(r[0]) || 0,
+        unidad_id: parseInt(r[1]) || 0,
+        partida: r[2] || '',
+        sub_partida: r[3] || '',
+        monto_presupuestado: parseFloat(r[4]) || 0,
+        costo_inicial: parseFloat(r[5]) || 0,
+        notas: r[6] || ''
+      }));
+      state.nextPresupuestoId = state.presupuestoUnidad.reduce((m, p) => Math.max(m, p.presupuesto_id), 0) + 1;
+    }
+
+    // Load costo_asignaciones
+    const caRows = await gsReadSheet('costo_asignaciones');
+    if (caRows && caRows.length > 1) {
+      state.costoAsignaciones = caRows.slice(1).filter(r => r[0]).map(r => ({
+        asignacion_id: parseInt(r[0]) || 0,
+        pago_id: r[1] || '',
+        unidad_id: parseInt(r[2]) || 0,
+        proyecto: r[3] || '',
+        metodo: r[4] || 'directo',
+        monto_asignado: parseFloat(r[5]) || 0,
+        factor: parseFloat(r[6]) || 0,
+        fecha_asignacion: r[7] || '',
+        partida_override: r[8] || ''
+      }));
+      state.nextAsignacionId = state.costoAsignaciones.reduce((m, a) => Math.max(m, a.asignacion_id), 0) + 1;
+    }
+
     // Recalcular nextId con el máximo entre proveedores y empleados
     const maxProv = state.proveedores.reduce((max, p) => Math.max(max, p.id || 0), 0);
     const maxEmp = state.empleados.reduce((max, e) => Math.max(max, e.id || 0), 0);
@@ -294,6 +349,7 @@ export async function gsLoadAll() {
     if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
     if (window.renderHeaderBadges) window.renderHeaderBadges();
     if (window.refreshProyectosEnSelects) window.refreshProyectosEnSelects();
+    if (window.renderCostosFiscales) window.renderCostosFiscales();
     document.getElementById('cnt-hist').textContent = state.historial.length;
     document.getElementById('cnt-fact').textContent = state.facturas.length;
     document.getElementById('cnt-fp').textContent = state.facturaPagos.length;
@@ -303,13 +359,41 @@ export async function gsLoadAll() {
   }
 }
 
+// Asigna un ID único y estable a cada registro del historial que no lo tenga.
+// Nunca sobrescribe un ID existente -> garantiza estabilidad de referencias.
+// Devuelve true si asignó al menos un ID nuevo.
+export function ensureHistorialIds() {
+  let maxId = 0;
+  state.historial.forEach(h => {
+    const n = parseInt(h.id, 10);
+    if (!isNaN(n) && n > maxId) maxId = n;
+  });
+  if (maxId >= (state.histSeq || 1)) state.histSeq = maxId + 1;
+  let changed = false;
+  state.historial.forEach(h => {
+    if (!h.id) { h.id = String(state.histSeq++); changed = true; }
+  });
+  return changed;
+}
+
+// Elimina las asignaciones de costo ligadas a un pago borrado (evita huérfanas).
+export async function purgarAsignacionesDePago(pagoId) {
+  if (!pagoId || !state.gsToken) return;
+  const antes = state.costoAsignaciones.length;
+  state.costoAsignaciones = state.costoAsignaciones.filter(a => String(a.pago_id) !== String(pagoId));
+  if (state.costoAsignaciones.length !== antes) {
+    await gsSaveCostoAsignaciones();
+  }
+}
+
 export async function saveData(count = 1) {
   if (!state.gsToken) return;
   try {
+    ensureHistorialIds();
     const n = Math.min(count, state.historial.length);
     for (let i = 0; i < n; i++) {
       const h = state.historial[i];
-      await gsAppendRow('historial_pagos', [h.proveedor_id || '', h.factura_id || '', h.fecha, h.nombre, h.banco, h.tipo, h.concepto, h.importe, h.proyecto, h.cuenta_origen || '', h.tipo_registro || 'Pago', h.partida || '', h.sub_partida || '']);
+      await gsAppendRow('historial_pagos', [h.proveedor_id || '', h.factura_id || '', h.fecha, h.nombre, h.banco, h.tipo, h.concepto, h.importe, h.proyecto, h.cuenta_origen || '', h.tipo_registro || 'Pago', h.partida || '', h.sub_partida || '', h.id || '']);
     }
   } catch (e) { console.error('saveData error', e); }
 }
@@ -353,17 +437,60 @@ export async function gsSavePendientes() {
 export async function gsSaveHistorial() {
   if (!state.gsToken) return;
   try {
+    ensureHistorialIds();
     const rows = state.historial.map(h => [
       h.proveedor_id || '', h.factura_id || '', h.fecha, h.nombre, h.banco,
       h.tipo, h.concepto, h.importe, h.proyecto, h.cuenta_origen || '',
-      h.tipo_registro || 'Pago', h.partida || '', h.sub_partida || ''
+      h.tipo_registro || 'Pago', h.partida || '', h.sub_partida || '', h.id || ''
     ]);
     await gsClearAndWrite('historial_pagos', rows, [
       'proveedor_id', 'factura_id', 'fecha', 'nombre', 'banco',
       'tipo', 'concepto', 'importe', 'proyecto', 'cuenta_origen',
-      'tipo_registro', 'partida', 'sub_partida'
+      'tipo_registro', 'partida', 'sub_partida', 'id'
     ]);
   } catch (e) { console.error('gsSaveHistorial', e); }
+}
+
+export async function gsSaveUnidades() {
+  if (!state.gsToken) return;
+  try {
+    const rows = state.unidades.map(u => [
+      u.unidad_id, u.proyecto, u.nombre, u.tipo || '', u.indiviso_pct || 0,
+      u.superficie_m2 || 0, u.estatus || 'En obra', u.orden || 0, u.activo
+    ]);
+    await gsClearAndWrite('unidades', rows, [
+      'unidad_id', 'proyecto', 'nombre', 'tipo', 'indiviso_pct',
+      'superficie_m2', 'estatus', 'orden', 'activo'
+    ]);
+  } catch (e) { console.error('gsSaveUnidades', e); }
+}
+
+export async function gsSavePresupuestoUnidad() {
+  if (!state.gsToken) return;
+  try {
+    const rows = state.presupuestoUnidad.map(p => [
+      p.presupuesto_id, p.unidad_id, p.partida || '', p.sub_partida || '',
+      p.monto_presupuestado || 0, p.costo_inicial || 0, p.notas || ''
+    ]);
+    await gsClearAndWrite('presupuesto_unidad', rows, [
+      'presupuesto_id', 'unidad_id', 'partida', 'sub_partida',
+      'monto_presupuestado', 'costo_inicial', 'notas'
+    ]);
+  } catch (e) { console.error('gsSavePresupuestoUnidad', e); }
+}
+
+export async function gsSaveCostoAsignaciones() {
+  if (!state.gsToken) return;
+  try {
+    const rows = state.costoAsignaciones.map(a => [
+      a.asignacion_id, a.pago_id, a.unidad_id, a.proyecto || '', a.metodo || 'directo',
+      a.monto_asignado || 0, a.factor || 0, a.fecha_asignacion || '', a.partida_override || ''
+    ]);
+    await gsClearAndWrite('costo_asignaciones', rows, [
+      'asignacion_id', 'pago_id', 'unidad_id', 'proyecto', 'metodo',
+      'monto_asignado', 'factor', 'fecha_asignacion', 'partida_override'
+    ]);
+  } catch (e) { console.error('gsSaveCostoAsignaciones', e); }
 }
 
 export async function gsSaveProveedores() {
