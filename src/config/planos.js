@@ -5,6 +5,7 @@
 // Ejemplo:
 //   'Privada del Paraíso': { img: './assets/planos/paraiso.jpg' },
 export const PLANOS = {
+  'Privada del Paraíso': { img: './assets/planos/paraiso.png' },
 };
 
 // Devuelve la config de plano de un proyecto, o null si aún no tiene.
