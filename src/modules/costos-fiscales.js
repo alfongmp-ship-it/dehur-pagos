@@ -1021,7 +1021,7 @@ function renderChartUnidad(partidas) {
 }
 
 // ========== TAB: PLANO VISUAL ==========
-let cfPinArrastrado = false; // evita colocar pin tras soltar un arrastre
+let cfFormaArrastrada = false; // evita colocar pin tras soltar un arrastre
 
 function colorDePin(u) {
   if (cfPlanoColor === 'estatus') return ESTATUS_COLOR[u.estatus] || '#888';
@@ -1125,7 +1125,6 @@ function renderPlanoFormas() {
           title="${nombre}">
           ${editZonas ? `
             <span class="cf-zona-label">${nombre}</span>
-            <span class="cf-zona-x" data-uid="${u.unidad_id}">✕</span>
             <span class="cf-zona-handle nw" data-corner="nw"></span>
             <span class="cf-zona-handle ne" data-corner="ne"></span>
             <span class="cf-zona-handle sw" data-corner="sw"></span>
@@ -1136,9 +1135,7 @@ function renderPlanoFormas() {
       // Pin (fallback)
       const pinTitle = editZonas ? 'Clic para convertir a zona' : nombre;
       return `<div class="cf-pin${editPines ? ' editable' : ''}${editZonas ? ' convertir' : ''}" data-uid="${u.unidad_id}"
-        style="left:${u.plano_x}%;top:${u.plano_y}%;background:${color};" title="${pinTitle}">
-        ${editPines ? '<span class="cf-pin-x">✕</span>' : ''}
-      </div>`;
+        style="left:${u.plano_x}%;top:${u.plano_y}%;background:${color};" title="${pinTitle}"></div>`;
     }).join('');
 }
 
@@ -1168,9 +1165,9 @@ function setupPlanoInteraction() {
 
   if (cfPlanoModo === 'editor') {
     if (cfPlanoEditMode === 'pines') {
-      // Colocar pin con clic sobre el plano
+      // Colocar pin con clic sobre el plano vacío
       cont.addEventListener('click', e => {
-        if (cfPinArrastrado) { cfPinArrastrado = false; return; }
+        if (cfFormaArrastrada) { cfFormaArrastrada = false; return; }
         if (e.target.closest('.cf-pin') || e.target.closest('.cf-zona')) return;
         const sinUbicar = unidadesDeProyecto().filter(u => u.plano_x == null || u.plano_y == null);
         if (!sinUbicar.length) { notify('Todas las casas ya están ubicadas', 'error'); return; }
@@ -1182,12 +1179,14 @@ function setupPlanoInteraction() {
       });
       cont.querySelectorAll('.cf-pin').forEach(pin => {
         const uid = parseInt(pin.dataset.uid);
-        const xBtn = pin.querySelector('.cf-pin-x');
-        if (xBtn) xBtn.addEventListener('click', e => { e.stopPropagation(); cfQuitarPin(uid); });
         pin.addEventListener('mousedown', e => {
-          if (e.target.classList.contains('cf-pin-x')) return;
           e.preventDefault();
           iniciarDragPin(uid, pin, cont);
+        });
+        pin.addEventListener('click', e => {
+          if (cfFormaArrastrada) { cfFormaArrastrada = false; return; }
+          e.stopPropagation();
+          abrirPopupForma(uid, pin);
         });
       });
     } else if (cfPlanoEditMode === 'zonas') {
@@ -1199,11 +1198,9 @@ function setupPlanoInteraction() {
           cfConvertirPinAZona(uid);
         });
       });
-      // Zonas: drag para mover, handles para redimensionar, ✕ para quitar
+      // Zonas: drag para mover, handles para redimensionar, clic para popup
       cont.querySelectorAll('.cf-zona').forEach(zona => {
         const uid = parseInt(zona.dataset.uid);
-        const xBtn = zona.querySelector('.cf-zona-x');
-        if (xBtn) xBtn.addEventListener('click', e => { e.stopPropagation(); cfQuitarZona(uid); });
         zona.querySelectorAll('.cf-zona-handle').forEach(h => {
           h.addEventListener('mousedown', e => {
             e.stopPropagation();
@@ -1212,9 +1209,15 @@ function setupPlanoInteraction() {
           });
         });
         zona.addEventListener('mousedown', e => {
-          if (e.target.classList.contains('cf-zona-handle') || e.target.classList.contains('cf-zona-x')) return;
+          if (e.target.classList.contains('cf-zona-handle')) return;
           e.preventDefault();
           iniciarMoverZona(uid, zona, cont, e);
+        });
+        zona.addEventListener('click', e => {
+          if (cfFormaArrastrada) { cfFormaArrastrada = false; return; }
+          if (e.target.classList.contains('cf-zona-handle')) return;
+          e.stopPropagation();
+          abrirPopupForma(uid, zona);
         });
       });
       // Drag-to-draw sobre el plano vacío → siguiente casa sin zona
@@ -1256,7 +1259,7 @@ function iniciarDragPin(uid, pin, cont) {
   function soltar() {
     document.removeEventListener('mousemove', mover);
     document.removeEventListener('mouseup', soltar);
-    if (movido) cfPinArrastrado = true;
+    if (movido) cfFormaArrastrada = true;
   }
   document.addEventListener('mousemove', mover);
   document.addEventListener('mouseup', soltar);
@@ -1318,7 +1321,9 @@ function iniciarMoverZona(uid, zonaEl, cont, eDown) {
   const offsetY = ((eDown.clientY - rect.top) / rect.height) * 100 - u.plano_y;
   const halfW = u.plano_w / 2;
   const halfH = u.plano_h / 2;
+  let movido = false;
   function mover(ev) {
+    movido = true;
     const mx = ((ev.clientX - rect.left) / rect.width) * 100 - offsetX;
     const my = ((ev.clientY - rect.top) / rect.height) * 100 - offsetY;
     const x = Math.max(halfW, Math.min(100 - halfW, mx));
@@ -1331,6 +1336,7 @@ function iniciarMoverZona(uid, zonaEl, cont, eDown) {
   function soltar() {
     document.removeEventListener('mousemove', mover);
     document.removeEventListener('mouseup', soltar);
+    if (movido) cfFormaArrastrada = true;
   }
   document.addEventListener('mousemove', mover);
   document.addEventListener('mouseup', soltar);
@@ -1350,7 +1356,9 @@ function iniciarResizeZona(uid, corner, cont) {
   else if (corner === 'sw') { fixX = u.plano_x + halfW; fixY = u.plano_y - halfH; }
   else { fixX = u.plano_x - halfW; fixY = u.plano_y - halfH; } // 'se'
 
+  let movido = false;
   function mover(ev) {
+    movido = true;
     const cx = Math.max(0, Math.min(100, ((ev.clientX - rect.left) / rect.width) * 100));
     const cy = Math.max(0, Math.min(100, ((ev.clientY - rect.top) / rect.height) * 100));
     const w = Math.max(0.5, Math.abs(cx - fixX));
@@ -1367,6 +1375,7 @@ function iniciarResizeZona(uid, corner, cont) {
   function soltar() {
     document.removeEventListener('mousemove', mover);
     document.removeEventListener('mouseup', soltar);
+    if (movido) cfFormaArrastrada = true;
   }
   document.addEventListener('mousemove', mover);
   document.addEventListener('mouseup', soltar);
@@ -1396,6 +1405,89 @@ function cfConvertirPinAZona(uid) {
   if (u.plano_y - u.plano_h / 2 < 0) u.plano_y = u.plano_h / 2;
   if (u.plano_y + u.plano_h / 2 > 100) u.plano_y = 100 - u.plano_h / 2;
   renderPanel();
+}
+
+// Popup contextual al hacer clic sobre un pin o una zona en modo editor.
+// Reemplaza visualmente al ✕ colgante. Anclado al elemento clickeado.
+function popupOutsideClick(e) {
+  const popup = document.getElementById('cf-plano-popup');
+  if (popup && !popup.contains(e.target)) cerrarPopupForma();
+}
+function popupEscHandler(e) {
+  if (e.key === 'Escape') cerrarPopupForma();
+}
+
+function cerrarPopupForma() {
+  const popup = document.getElementById('cf-plano-popup');
+  if (popup) popup.remove();
+  document.removeEventListener('mousedown', popupOutsideClick);
+  document.removeEventListener('keydown', popupEscHandler);
+}
+
+function abrirPopupForma(uid, refEl) {
+  const u = unidadById(uid);
+  if (!u) return;
+  cerrarPopupForma();
+
+  const esZona = u.plano_w > 0 && u.plano_h > 0;
+  const nombre = (u.nombre || '—').replace(/</g, '&lt;');
+  const tipo = (u.tipo || '').replace(/</g, '&lt;');
+  const estatus = (u.estatus || '—').replace(/</g, '&lt;');
+
+  const popup = document.createElement('div');
+  popup.id = 'cf-plano-popup';
+  popup.className = 'cf-plano-popup';
+  popup.innerHTML = `
+    <div class="cf-popup-header">
+      <span class="cf-popup-dot" style="background:${colorDePin(u)};"></span>
+      <span class="cf-popup-nombre">${nombre}</span>
+      <button class="cf-popup-close" type="button" title="Cerrar">✕</button>
+    </div>
+    <div class="cf-popup-datos">
+      ${tipo ? `<div><span>Tipo:</span> ${tipo}</div>` : ''}
+      <div><span>Estatus:</span> ${estatus}</div>
+      <div><span>Indiviso:</span> ${(u.indiviso_pct || 0).toFixed(2)}%</div>
+      ${u.superficie_m2 ? `<div><span>Superficie:</span> ${u.superficie_m2} m²</div>` : ''}
+    </div>
+    <div class="cf-popup-acciones">
+      <button class="btn btn-ghost btn-sm" type="button" data-action="editar">✏️ Editar</button>
+      <button class="btn btn-ghost btn-sm" type="button" data-action="quitar" style="color:var(--red);">🗑️ Quitar del plano</button>
+    </div>`;
+  document.body.appendChild(popup);
+
+  // Anclar al lado derecho del elemento; si se sale, voltear al lado izquierdo.
+  const r = refEl.getBoundingClientRect();
+  popup.style.position = 'fixed';
+  popup.style.left = (r.right + 8) + 'px';
+  popup.style.top = r.top + 'px';
+  // Clamp dentro del viewport tras medir
+  setTimeout(() => {
+    const pr = popup.getBoundingClientRect();
+    if (pr.right > window.innerWidth - 8) {
+      popup.style.left = Math.max(8, r.left - pr.width - 8) + 'px';
+    }
+    if (pr.bottom > window.innerHeight - 8) {
+      popup.style.top = (window.innerHeight - pr.height - 8) + 'px';
+    }
+    if (parseFloat(popup.style.top) < 8) popup.style.top = '8px';
+  }, 0);
+
+  popup.querySelector('.cf-popup-close').addEventListener('click', cerrarPopupForma);
+  popup.querySelector('[data-action="editar"]').addEventListener('click', () => {
+    cerrarPopupForma();
+    editarUnidad(uid);
+  });
+  popup.querySelector('[data-action="quitar"]').addEventListener('click', () => {
+    cerrarPopupForma();
+    if (esZona) cfQuitarZona(uid);
+    else cfQuitarPin(uid);
+  });
+
+  // Cerrar al hacer clic fuera o con ESC (en el próximo tick para no atrapar el clic actual)
+  setTimeout(() => {
+    document.addEventListener('mousedown', popupOutsideClick);
+    document.addEventListener('keydown', popupEscHandler);
+  }, 0);
 }
 
 function mostrarTooltipPin(uid, pin) {
