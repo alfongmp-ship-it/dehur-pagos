@@ -364,7 +364,8 @@ function renderAsignarTab(panel) {
       </table>
     </div>` : '<div class="empty-state" style="margin-bottom:24px;"><div style="font-size:28px;opacity:.4;margin-bottom:8px;">✅</div><div>Todos los pagos de ' + cfProyecto + ' están asignados</div></div>'}
 
-    <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;margin-bottom:10px;">Pagos ya asignados</div>
+    <button id="cf-btn-asignados" class="btn btn-ghost" onclick="cfToggleAsignados()" style="margin-bottom:12px;">▸ Ver pagos ya asignados (${asignados.length})</button>
+    <div id="cf-asignados-wrap" style="display:none;">
     ${asignados.length ? `
     <div class="table-wrap">
       <table>
@@ -389,7 +390,21 @@ function renderAsignarTab(panel) {
         }).join('')}</tbody>
       </table>
     </div>` : '<div style="color:var(--muted);font-size:12px;padding:10px 0;">Aún no hay pagos asignados.</div>'}
+    </div>
   `;
+}
+
+// Muestra u oculta la sección de pagos ya asignados.
+export function cfToggleAsignados() {
+  const wrap = document.getElementById('cf-asignados-wrap');
+  const btn = document.getElementById('cf-btn-asignados');
+  if (!wrap) return;
+  const visible = wrap.style.display !== 'none';
+  wrap.style.display = visible ? 'none' : '';
+  if (btn) {
+    const n = pagosAsignados().length;
+    btn.textContent = (visible ? '▸ Ver' : '▾ Ocultar') + ` pagos ya asignados (${n})`;
+  }
 }
 
 export async function cfLimpiarHuerfanas() {
