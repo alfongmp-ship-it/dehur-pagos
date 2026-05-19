@@ -102,13 +102,13 @@ function desglosePorPartida(unidadId) {
   return out;
 }
 
-// Un movimiento del historial cuenta como costo asignable a unidades:
-// los Pagos y las Aportaciones (dinero que entra a la obra). Los Préstamos,
-// Traspasos y Créditos NO son costo de construcción de una casa.
+// Un movimiento del historial cuenta como costo asignable a unidades.
+// Se EXCLUYEN únicamente los Traspasos internos y los Préstamos entre
+// proyectos (no son costo de construcción). Todo lo demás —Pagos,
+// Aportaciones, Créditos— sí es costo asignable a una casa.
 function esCostoAsignable(h) {
-  if (h.tipo_registro === 'Pago') return true;
-  if (h.tipo_registro === 'Traspaso' && h.tipo === 'Aportación') return true;
-  return false;
+  if (h.tipo_registro === 'Traspaso' && h.tipo !== 'Aportación') return false;
+  return true;
 }
 
 function pagosSinAsignar() {
