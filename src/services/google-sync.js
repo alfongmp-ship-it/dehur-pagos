@@ -352,7 +352,9 @@ export async function gsLoadAll() {
         orden: parseInt(r[7]) || 0,
         activo: r[8] !== 'false' && r[8] !== 'FALSE',
         plano_x: (r[9] === undefined || r[9] === '') ? null : parseFloat(r[9]),
-        plano_y: (r[10] === undefined || r[10] === '') ? null : parseFloat(r[10])
+        plano_y: (r[10] === undefined || r[10] === '') ? null : parseFloat(r[10]),
+        plano_w: (r[11] === undefined || r[11] === '') ? null : parseFloat(r[11]),
+        plano_h: (r[12] === undefined || r[12] === '') ? null : parseFloat(r[12])
       }));
       state.nextUnidadId = state.unidades.reduce((m, u) => Math.max(m, u.unidad_id), 0) + 1;
     }
@@ -524,11 +526,13 @@ export async function gsSaveUnidades() {
     const rows = state.unidades.map(u => [
       u.unidad_id, u.proyecto, u.nombre, u.tipo || '', u.indiviso_pct || 0,
       u.superficie_m2 || 0, u.estatus || 'En obra', u.orden || 0, u.activo,
-      u.plano_x == null ? '' : u.plano_x, u.plano_y == null ? '' : u.plano_y
+      u.plano_x == null ? '' : u.plano_x, u.plano_y == null ? '' : u.plano_y,
+      u.plano_w == null ? '' : u.plano_w, u.plano_h == null ? '' : u.plano_h
     ]);
     await gsClearAndWrite('unidades', rows, [
       'unidad_id', 'proyecto', 'nombre', 'tipo', 'indiviso_pct',
-      'superficie_m2', 'estatus', 'orden', 'activo', 'plano_x', 'plano_y'
+      'superficie_m2', 'estatus', 'orden', 'activo', 'plano_x', 'plano_y',
+      'plano_w', 'plano_h'
     ]);
   } catch (e) { console.error('gsSaveUnidades', e); }
 }

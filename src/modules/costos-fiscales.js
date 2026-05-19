@@ -18,8 +18,9 @@ let cfTab = 'unidades';     // sub-pestaña: unidades | asignar | presupuestos |
 let cfUnidadDetalle = null; // unidad_id seleccionada en presupuestos/reportes
 let cfPagoAsignar = null;   // pago_id en proceso de asignación
 let cfChartUnidad = null;
-let cfPlanoModo = 'vista';  // 'vista' | 'editor'
-let cfPlanoColor = 'avance'; // 'avance' | 'estatus'
+let cfPlanoModo = 'vista';      // 'vista' | 'editor'
+let cfPlanoColor = 'avance';     // 'avance' | 'estatus'
+let cfPlanoEditMode = 'pines';   // 'pines' | 'zonas'  — solo en modo editor
 
 const ESTATUS_COLOR = {
   'En obra': '#e07a3a',
@@ -1026,7 +1027,11 @@ function colorDePin(u) {
   if (cfPlanoColor === 'estatus') return ESTATUS_COLOR[u.estatus] || '#888';
   const real = costoRealUnidad(u.unidad_id);
   const presu = presupuestoTotalUnidad(u.unidad_id);
-  return avanceColor(avancePct(real, presu));
+  const pct = avancePct(real, presu);
+  if (pct === null) return '#7a7570';
+  if (pct > 100) return '#e05a5a';
+  if (pct >= 90) return '#e07a3a';
+  return '#4caf7d';
 }
 
 function renderPlanoTab(panel) {
@@ -1041,20 +1046,38 @@ function renderPlanoTab(panel) {
   }
   const unidades = unidadesDeProyecto();
   const sinUbicar = unidades.filter(u => u.plano_x == null || u.plano_y == null);
+  const sinZona = unidades.filter(u => !(u.plano_w > 0 && u.plano_h > 0));
   const editor = cfPlanoModo === 'editor';
+  const editPines = editor && cfPlanoEditMode === 'pines';
+  const editZonas = editor && cfPlanoEditMode === 'zonas';
+
+  let indicador = '';
+  let hint = '';
+  if (editPines) {
+    indicador = sinUbicar.length
+      ? `Faltan <strong>${sinUbicar.length}</strong> · Siguiente: <strong>${sinUbicar[0].nombre}</strong> — haz clic en el plano para ubicarla`
+      : 'Todas las casas tienen pin ✓';
+    hint = 'Clic sobre el plano para colocar el siguiente pin · arrastra un pin para moverlo · ✕ lo quita · no olvides Guardar.';
+  } else if (editZonas) {
+    indicador = sinZona.length
+      ? `<strong>${sinZona.length}</strong> sin zona · Siguiente: <strong>${sinZona[0].nombre}</strong> — clic-arrastra sobre el plano para dibujarla`
+      : 'Todas las casas tienen zona ✓';
+    hint = 'Clic-arrastra sobre el plano para dibujar una zona · clic en un pin lo convierte en zona · arrastra una zona para moverla, sus esquinas para redimensionarla, ✕ para quitarla.';
+  }
 
   panel.innerHTML = `
     <div class="cf-plano-toolbar">
       <div class="cf-plano-modos">
         <button class="cf-plano-btn${!editor ? ' active' : ''}" data-modo="vista">👁 Vista</button>
-        <button class="cf-plano-btn${editor ? ' active' : ''}" data-modo="editor">✏️ Editar pines</button>
+        <button class="cf-plano-btn${editor ? ' active' : ''}" data-modo="editor">✏️ Editar</button>
       </div>
       ${editor ? `
-        <div class="cf-plano-editor-info">
-          ${sinUbicar.length
-            ? `Faltan <strong>${sinUbicar.length}</strong> · Siguiente: <strong>${sinUbicar[0].nombre}</strong> — haz clic en el plano para ubicarla`
-            : 'Todas las casas están ubicadas ✓'}
+        <div class="cf-plano-modos">
+          <span style="font-size:11px;color:var(--muted);">Edit:</span>
+          <button class="cf-plano-btn${editPines ? ' active' : ''}" data-editmode="pines">📍 Pines</button>
+          <button class="cf-plano-btn${editZonas ? ' active' : ''}" data-editmode="zonas">▭ Zonas</button>
         </div>
+        <div class="cf-plano-editor-info">${indicador}</div>
         <button class="btn btn-primary btn-sm" id="cf-plano-guardar">💾 Guardar</button>
       ` : `
         <div class="cf-plano-color">
@@ -1065,35 +1088,66 @@ function renderPlanoTab(panel) {
         <div id="cf-plano-leyenda" class="cf-plano-leyenda"></div>
       `}
     </div>
-    ${!editor && sinUbicar.length ? `<div style="font-size:11px;color:var(--orange);margin-bottom:8px;">⚠ ${sinUbicar.length} casa(s) sin ubicar en el plano (usa "Editar pines").</div>` : ''}
-    <div class="cf-plano-cont${editor ? ' editor' : ''}" id="cf-plano-cont">
-      <img src="${plano.img}" class="cf-plano-img" alt="Plano ${cfProyecto}">
+    ${!editor && sinUbicar.length ? `<div style="font-size:11px;color:var(--orange);margin-bottom:8px;">⚠ ${sinUbicar.length} casa(s) sin ubicar en el plano (usa "Editar").</div>` : ''}
+    <div class="cf-plano-cont${editor ? ' editor' : ''}${editZonas ? ' zonas' : ''}" id="cf-plano-cont">
+      <img src="${plano.img}" class="cf-plano-img" alt="Plano ${cfProyecto}" draggable="false">
       <div id="cf-plano-pins"></div>
+      <div id="cf-plano-fantasma" class="cf-zona-fantasma" style="display:none;"></div>
       <div id="cf-plano-tooltip" class="cf-plano-tooltip" style="display:none;"></div>
     </div>
     ${editor
-      ? '<div style="font-size:11px;color:var(--muted);margin-top:8px;">Arrastra un pin para moverlo · usa la ✕ del pin para quitarlo · no olvides Guardar.</div>'
+      ? `<div style="font-size:11px;color:var(--muted);margin-top:8px;">${hint}</div>`
       : '<div id="cf-detalle-unidad" style="margin-top:16px;"></div>'}
   `;
-  renderPlanoPins();
+  renderPlanoFormas();
   setupPlanoInteraction();
 }
 
-function renderPlanoPins() {
+// Renderiza pines y zonas. Una casa con plano_w/plano_h se dibuja como rectángulo;
+// si solo tiene plano_x/plano_y se dibuja como pin (compatibilidad).
+function renderPlanoFormas() {
   const cont = document.getElementById('cf-plano-pins');
   if (!cont) return;
   const editor = cfPlanoModo === 'editor';
+  const editZonas = editor && cfPlanoEditMode === 'zonas';
+  const editPines = editor && cfPlanoEditMode === 'pines';
   cont.innerHTML = unidadesDeProyecto()
     .filter(u => u.plano_x != null && u.plano_y != null)
-    .map(u => `<div class="cf-pin${editor ? ' editable' : ''}" data-uid="${u.unidad_id}"
-        style="left:${u.plano_x}%;top:${u.plano_y}%;background:${colorDePin(u)};" title="${(u.nombre || '').replace(/"/g, '')}">
-        ${editor ? '<span class="cf-pin-x">✕</span>' : ''}
-      </div>`).join('');
+    .map(u => {
+      const color = colorDePin(u);
+      const nombre = (u.nombre || '').replace(/"/g, '');
+      // Zona (rectángulo)
+      if (u.plano_w != null && u.plano_h != null && u.plano_w > 0 && u.plano_h > 0) {
+        const left = u.plano_x - u.plano_w / 2;
+        const top = u.plano_y - u.plano_h / 2;
+        return `<div class="cf-zona${editZonas ? ' editable' : ''}" data-uid="${u.unidad_id}"
+          style="left:${left}%;top:${top}%;width:${u.plano_w}%;height:${u.plano_h}%;border-color:${color};background:${color}33;"
+          title="${nombre}">
+          ${editZonas ? `
+            <span class="cf-zona-label">${nombre}</span>
+            <span class="cf-zona-x" data-uid="${u.unidad_id}">✕</span>
+            <span class="cf-zona-handle nw" data-corner="nw"></span>
+            <span class="cf-zona-handle ne" data-corner="ne"></span>
+            <span class="cf-zona-handle sw" data-corner="sw"></span>
+            <span class="cf-zona-handle se" data-corner="se"></span>
+          ` : ''}
+        </div>`;
+      }
+      // Pin (fallback)
+      const pinTitle = editZonas ? 'Clic para convertir a zona' : nombre;
+      return `<div class="cf-pin${editPines ? ' editable' : ''}${editZonas ? ' convertir' : ''}" data-uid="${u.unidad_id}"
+        style="left:${u.plano_x}%;top:${u.plano_y}%;background:${color};" title="${pinTitle}">
+        ${editPines ? '<span class="cf-pin-x">✕</span>' : ''}
+      </div>`;
+    }).join('');
 }
 
 function setupPlanoInteraction() {
   document.querySelectorAll('.cf-plano-btn[data-modo]').forEach(b => {
     b.addEventListener('click', () => { cfPlanoModo = b.dataset.modo; renderPanel(); });
+  });
+  document.querySelectorAll('.cf-plano-btn[data-editmode]').forEach(b => {
+    b.addEventListener('click', () => { cfPlanoEditMode = b.dataset.editmode; renderPanel(); });
   });
   document.querySelectorAll('.cf-plano-btn[data-color]').forEach(b => {
     b.addEventListener('click', () => { cfPlanoColor = b.dataset.color; renderPanel(); });
@@ -1104,34 +1158,77 @@ function setupPlanoInteraction() {
   const cont = document.getElementById('cf-plano-cont');
   if (!cont) return;
 
+  // Hover/tooltip y click (detalle) — funcionan tanto en vista como en editor
+  // (sin estorbar a drag/click-de-edición porque mouseenter/leave son neutros).
+  cont.querySelectorAll('.cf-pin, .cf-zona').forEach(el => {
+    const uid = parseInt(el.dataset.uid);
+    el.addEventListener('mouseenter', () => mostrarTooltipPin(uid, el));
+    el.addEventListener('mouseleave', ocultarTooltipPin);
+  });
+
   if (cfPlanoModo === 'editor') {
-    cont.addEventListener('click', e => {
-      if (cfPinArrastrado) { cfPinArrastrado = false; return; }
-      if (e.target.closest('.cf-pin')) return;
-      const sinUbicar = unidadesDeProyecto().filter(u => u.plano_x == null || u.plano_y == null);
-      if (!sinUbicar.length) { notify('Todas las casas ya están ubicadas', 'error'); return; }
-      const rect = cont.getBoundingClientRect();
-      const u = sinUbicar[0];
-      u.plano_x = r2(Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)));
-      u.plano_y = r2(Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100)));
-      renderPanel();
-    });
-    cont.querySelectorAll('.cf-pin').forEach(pin => {
-      const uid = parseInt(pin.dataset.uid);
-      const xBtn = pin.querySelector('.cf-pin-x');
-      if (xBtn) xBtn.addEventListener('click', e => { e.stopPropagation(); cfQuitarPin(uid); });
-      pin.addEventListener('mousedown', e => {
-        if (e.target.classList.contains('cf-pin-x')) return;
-        e.preventDefault();
-        iniciarDragPin(uid, pin, cont);
+    if (cfPlanoEditMode === 'pines') {
+      // Colocar pin con clic sobre el plano
+      cont.addEventListener('click', e => {
+        if (cfPinArrastrado) { cfPinArrastrado = false; return; }
+        if (e.target.closest('.cf-pin') || e.target.closest('.cf-zona')) return;
+        const sinUbicar = unidadesDeProyecto().filter(u => u.plano_x == null || u.plano_y == null);
+        if (!sinUbicar.length) { notify('Todas las casas ya están ubicadas', 'error'); return; }
+        const rect = cont.getBoundingClientRect();
+        const u = sinUbicar[0];
+        u.plano_x = r2(Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)));
+        u.plano_y = r2(Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100)));
+        renderPanel();
       });
-    });
+      cont.querySelectorAll('.cf-pin').forEach(pin => {
+        const uid = parseInt(pin.dataset.uid);
+        const xBtn = pin.querySelector('.cf-pin-x');
+        if (xBtn) xBtn.addEventListener('click', e => { e.stopPropagation(); cfQuitarPin(uid); });
+        pin.addEventListener('mousedown', e => {
+          if (e.target.classList.contains('cf-pin-x')) return;
+          e.preventDefault();
+          iniciarDragPin(uid, pin, cont);
+        });
+      });
+    } else if (cfPlanoEditMode === 'zonas') {
+      // Clic en pin = convertir a zona
+      cont.querySelectorAll('.cf-pin.convertir').forEach(pin => {
+        const uid = parseInt(pin.dataset.uid);
+        pin.addEventListener('click', e => {
+          e.stopPropagation();
+          cfConvertirPinAZona(uid);
+        });
+      });
+      // Zonas: drag para mover, handles para redimensionar, ✕ para quitar
+      cont.querySelectorAll('.cf-zona').forEach(zona => {
+        const uid = parseInt(zona.dataset.uid);
+        const xBtn = zona.querySelector('.cf-zona-x');
+        if (xBtn) xBtn.addEventListener('click', e => { e.stopPropagation(); cfQuitarZona(uid); });
+        zona.querySelectorAll('.cf-zona-handle').forEach(h => {
+          h.addEventListener('mousedown', e => {
+            e.stopPropagation();
+            e.preventDefault();
+            iniciarResizeZona(uid, h.dataset.corner, cont);
+          });
+        });
+        zona.addEventListener('mousedown', e => {
+          if (e.target.classList.contains('cf-zona-handle') || e.target.classList.contains('cf-zona-x')) return;
+          e.preventDefault();
+          iniciarMoverZona(uid, zona, cont, e);
+        });
+      });
+      // Drag-to-draw sobre el plano vacío → siguiente casa sin zona
+      cont.addEventListener('mousedown', e => {
+        if (e.target.closest('.cf-zona') || e.target.closest('.cf-pin')) return;
+        e.preventDefault();
+        iniciarDibujoZona(cont, e);
+      });
+    }
   } else {
-    cont.querySelectorAll('.cf-pin').forEach(pin => {
-      const uid = parseInt(pin.dataset.uid);
-      pin.addEventListener('mouseenter', () => mostrarTooltipPin(uid, pin));
-      pin.addEventListener('mouseleave', ocultarTooltipPin);
-      pin.addEventListener('click', () => {
+    // Vista: clic abre desglose
+    cont.querySelectorAll('.cf-pin, .cf-zona').forEach(el => {
+      const uid = parseInt(el.dataset.uid);
+      el.addEventListener('click', () => {
         cfUnidadDetalle = uid;
         renderDetalleUnidad(uid);
         const d = document.getElementById('cf-detalle-unidad');
@@ -1163,6 +1260,139 @@ function iniciarDragPin(uid, pin, cont) {
   }
   document.addEventListener('mousemove', mover);
   document.addEventListener('mouseup', soltar);
+}
+
+// Dibuja una nueva zona con drag-to-draw sobre el plano y la asigna a la
+// siguiente casa sin zona. Muestra un rectángulo "fantasma" durante el arrastre.
+function iniciarDibujoZona(cont, eDown) {
+  const sinZona = unidadesDeProyecto().filter(u => !(u.plano_w > 0 && u.plano_h > 0));
+  if (!sinZona.length) { notify('Todas las casas ya tienen zona', 'error'); return; }
+  const u = sinZona[0];
+  const fantasma = document.getElementById('cf-plano-fantasma');
+  const rect = cont.getBoundingClientRect();
+  const startX = ((eDown.clientX - rect.left) / rect.width) * 100;
+  const startY = ((eDown.clientY - rect.top) / rect.height) * 100;
+  let curX = startX, curY = startY;
+  function pintarFantasma() {
+    const left = Math.max(0, Math.min(startX, curX));
+    const top = Math.max(0, Math.min(startY, curY));
+    const w = Math.min(100 - left, Math.abs(curX - startX));
+    const h = Math.min(100 - top, Math.abs(curY - startY));
+    if (!fantasma) return;
+    fantasma.style.left = left + '%';
+    fantasma.style.top = top + '%';
+    fantasma.style.width = w + '%';
+    fantasma.style.height = h + '%';
+    fantasma.style.display = '';
+  }
+  function mover(ev) {
+    curX = Math.max(0, Math.min(100, ((ev.clientX - rect.left) / rect.width) * 100));
+    curY = Math.max(0, Math.min(100, ((ev.clientY - rect.top) / rect.height) * 100));
+    pintarFantasma();
+  }
+  function soltar() {
+    document.removeEventListener('mousemove', mover);
+    document.removeEventListener('mouseup', soltar);
+    if (fantasma) fantasma.style.display = 'none';
+    const w = Math.abs(curX - startX);
+    const h = Math.abs(curY - startY);
+    // descartar rectángulos demasiado pequeños (probable clic accidental)
+    if (w < 0.5 || h < 0.5) return;
+    u.plano_x = r2((startX + curX) / 2);
+    u.plano_y = r2((startY + curY) / 2);
+    u.plano_w = r2(w);
+    u.plano_h = r2(h);
+    renderPanel();
+  }
+  pintarFantasma();
+  document.addEventListener('mousemove', mover);
+  document.addEventListener('mouseup', soltar);
+}
+
+// Mueve una zona existente arrastrando su interior. Mantiene w/h, ajusta x/y.
+function iniciarMoverZona(uid, zonaEl, cont, eDown) {
+  const u = unidadById(uid);
+  if (!u) return;
+  const rect = cont.getBoundingClientRect();
+  const offsetX = ((eDown.clientX - rect.left) / rect.width) * 100 - u.plano_x;
+  const offsetY = ((eDown.clientY - rect.top) / rect.height) * 100 - u.plano_y;
+  const halfW = u.plano_w / 2;
+  const halfH = u.plano_h / 2;
+  function mover(ev) {
+    const mx = ((ev.clientX - rect.left) / rect.width) * 100 - offsetX;
+    const my = ((ev.clientY - rect.top) / rect.height) * 100 - offsetY;
+    const x = Math.max(halfW, Math.min(100 - halfW, mx));
+    const y = Math.max(halfH, Math.min(100 - halfH, my));
+    u.plano_x = r2(x);
+    u.plano_y = r2(y);
+    zonaEl.style.left = (x - halfW) + '%';
+    zonaEl.style.top = (y - halfH) + '%';
+  }
+  function soltar() {
+    document.removeEventListener('mousemove', mover);
+    document.removeEventListener('mouseup', soltar);
+  }
+  document.addEventListener('mousemove', mover);
+  document.addEventListener('mouseup', soltar);
+}
+
+// Redimensiona una zona arrastrando una esquina; la esquina opuesta queda fija.
+function iniciarResizeZona(uid, corner, cont) {
+  const u = unidadById(uid);
+  if (!u) return;
+  const rect = cont.getBoundingClientRect();
+  // Coordenadas iniciales de la esquina FIJA (la opuesta a la que se arrastra)
+  const halfW = u.plano_w / 2;
+  const halfH = u.plano_h / 2;
+  let fixX, fixY;
+  if (corner === 'nw') { fixX = u.plano_x + halfW; fixY = u.plano_y + halfH; }
+  else if (corner === 'ne') { fixX = u.plano_x - halfW; fixY = u.plano_y + halfH; }
+  else if (corner === 'sw') { fixX = u.plano_x + halfW; fixY = u.plano_y - halfH; }
+  else { fixX = u.plano_x - halfW; fixY = u.plano_y - halfH; } // 'se'
+
+  function mover(ev) {
+    const cx = Math.max(0, Math.min(100, ((ev.clientX - rect.left) / rect.width) * 100));
+    const cy = Math.max(0, Math.min(100, ((ev.clientY - rect.top) / rect.height) * 100));
+    const w = Math.max(0.5, Math.abs(cx - fixX));
+    const h = Math.max(0.5, Math.abs(cy - fixY));
+    u.plano_x = r2((fixX + cx) / 2);
+    u.plano_y = r2((fixY + cy) / 2);
+    u.plano_w = r2(w);
+    u.plano_h = r2(h);
+    // re-render solo de las formas (más fluido sin re-render del panel)
+    renderPlanoFormas();
+    // re-conectar handles a su zona (necesario porque innerHTML los reemplaza)
+    setupPlanoInteraction();
+  }
+  function soltar() {
+    document.removeEventListener('mousemove', mover);
+    document.removeEventListener('mouseup', soltar);
+  }
+  document.addEventListener('mousemove', mover);
+  document.addEventListener('mouseup', soltar);
+}
+
+// Quita la zona de una unidad (vuelve a ser pin si tenía plano_x/y).
+function cfQuitarZona(uid) {
+  const u = unidadById(uid);
+  if (!u) return;
+  u.plano_w = null;
+  u.plano_h = null;
+  renderPanel();
+}
+
+// Convierte el pin de una unidad en una zona default (4% × 3%) centrada en el pin.
+function cfConvertirPinAZona(uid) {
+  const u = unidadById(uid);
+  if (!u || u.plano_x == null || u.plano_y == null) return;
+  u.plano_w = 4;
+  u.plano_h = 3;
+  // asegurar que la zona quepa dentro del plano
+  if (u.plano_x - u.plano_w / 2 < 0) u.plano_x = u.plano_w / 2;
+  if (u.plano_x + u.plano_w / 2 > 100) u.plano_x = 100 - u.plano_w / 2;
+  if (u.plano_y - u.plano_h / 2 < 0) u.plano_y = u.plano_h / 2;
+  if (u.plano_y + u.plano_h / 2 > 100) u.plano_y = 100 - u.plano_h / 2;
+  renderPanel();
 }
 
 function mostrarTooltipPin(uid, pin) {
