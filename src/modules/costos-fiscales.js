@@ -1372,10 +1372,13 @@ function iniciarResizeZona(uid, corner, cont) {
   document.addEventListener('mouseup', soltar);
 }
 
-// Quita la zona de una unidad (vuelve a ser pin si tenía plano_x/y).
+// Quita la zona de una unidad por completo: limpia tamaño Y posición, así la
+// casa queda "sin ubicar" en el plano (sin pin colgado).
 function cfQuitarZona(uid) {
   const u = unidadById(uid);
   if (!u) return;
+  u.plano_x = null;
+  u.plano_y = null;
   u.plano_w = null;
   u.plano_h = null;
   renderPanel();
