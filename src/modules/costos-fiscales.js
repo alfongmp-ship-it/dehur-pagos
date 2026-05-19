@@ -450,45 +450,74 @@ function renderMetodoBody() {
   const metodo = metodoSeleccionado();
   const unidades = unidadesDeProyecto();
 
+  if (!unidades.length) {
+    body.innerHTML = '<div class="cf-picker-vacio">No hay casas activas en este proyecto. Crea unidades primero.</div>';
+    cfPreviewReparto();
+    return;
+  }
+
   if (metodo === 'directo') {
     body.innerHTML = `
-      <label style="font-size:12px;color:var(--muted);">Unidad que recibe el costo completo</label>
+      <label style="font-size:12px;color:var(--muted);">Casa que recibe el costo completo</label>
       <select id="asignar-unidad-directo" class="filter-select" style="width:100%;margin-top:4px;" onchange="cfPreviewReparto()">
         ${unidades.map(u => `<option value="${u.unidad_id}">${u.nombre}</option>`).join('')}
       </select>`;
   } else if (metodo === 'equitativo') {
     body.innerHTML = `
-      <label style="font-size:12px;color:var(--muted);">Unidades entre las que se divide en partes iguales</label>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:6px;max-height:170px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:8px;">
+      <div class="cf-picker-tools">
+        <input type="text" class="cf-picker-search" placeholder="🔍 Buscar casa..." oninput="cfFiltrarUnidades()">
+        <button type="button" class="btn btn-ghost btn-sm" onclick="cfSelTodas(true)">Todas</button>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="cfSelTodas(false)">Ninguna</button>
+      </div>
+      <div class="cf-picker cols" id="cf-picker-lista">
         ${unidades.map(u => `
-          <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:3px;">
-            <input type="checkbox" class="cf-unidad-check" value="${u.unidad_id}" onchange="cfPreviewReparto()">
-            ${u.nombre}
-          </label>`).join('')}
-      </div>`;
+          <div class="cf-pick-row" data-nombre="${(u.nombre || '').toLowerCase().replace(/"/g, '')}">
+            <input type="checkbox" class="cf-unidad-check" value="${u.unidad_id}" id="cfchk-${u.unidad_id}" onchange="cfPreviewReparto()">
+            <label for="cfchk-${u.unidad_id}">${u.nombre}</label>
+          </div>`).join('')}
+      </div>
+      <div class="cf-picker-count" id="cf-picker-count"></div>`;
   } else if (metodo === 'custom') {
     const pago = pagoById(cfPagoAsignar);
     body.innerHTML = `
-      <label style="font-size:12px;color:var(--muted);">Escribe cuánto le toca a cada casa. Deja en blanco las que no aplican.</label>
-      <div style="display:flex;justify-content:flex-end;margin:6px 0;">
+      <div class="cf-picker-tools">
+        <input type="text" class="cf-picker-search" placeholder="🔍 Buscar casa..." oninput="cfFiltrarUnidades()">
         <button type="button" class="btn btn-ghost btn-sm" onclick="cfRepartirResto()">Repartir resto entre vacías</button>
       </div>
-      <div style="max-height:190px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:8px;">
+      <div class="cf-picker" id="cf-picker-lista">
         ${unidades.map(u => `
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 2px;">
-            <span style="font-size:12px;">${u.nombre}</span>
+          <div class="cf-pick-row" data-nombre="${(u.nombre || '').toLowerCase().replace(/"/g, '')}">
+            <label>${u.nombre}</label>
             <input type="number" step="0.01" class="cf-custom-monto" data-uid="${u.unidad_id}" placeholder="0.00"
-              oninput="cfPreviewReparto()" style="width:130px;text-align:right;font-family:'DM Mono',monospace;">
+              oninput="cfPreviewReparto()" style="text-align:right;font-family:'DM Mono',monospace;">
           </div>`).join('')}
       </div>
-      <div style="font-size:11px;color:var(--muted);margin-top:6px;">Importe del pago a repartir: <strong>${fmt(pago ? pago.importe : 0)}</strong></div>`;
+      <div class="cf-picker-count">Importe del pago a repartir: <strong>${fmt(pago ? pago.importe : 0)}</strong></div>`;
   } else if (metodo === 'indiviso') {
     body.innerHTML = `
       <div style="font-size:12px;color:var(--muted);background:rgba(155,127,232,.1);border:1px solid rgba(155,127,232,.3);border-radius:8px;padding:10px;">
-        El costo se repartirá entre las <strong>${unidades.length}</strong> unidades activas de ${cfProyecto}
+        El costo se repartirá entre las <strong>${unidades.length}</strong> casas activas de ${cfProyecto}
         según su % de indiviso.
       </div>`;
   }
+  cfPreviewReparto();
+}
+
+// Filtra las casas del picker por nombre según lo escrito en el buscador.
+export function cfFiltrarUnidades() {
+  const lista = document.getElementById('cf-picker-lista');
+  const search = document.querySelector('.cf-picker-search');
+  if (!lista || !search) return;
+  const q = search.value.trim().toLowerCase();
+  lista.querySelectorAll('.cf-pick-row').forEach(row => {
+    const match = !q || (row.dataset.nombre || '').includes(q);
+    row.classList.toggle('oculto', !match);
+  });
+}
+
+// Marca o desmarca todas las casas (método equitativo).
+export function cfSelTodas(valor) {
+  document.querySelectorAll('.cf-unidad-check').forEach(c => { c.checked = valor; });
   cfPreviewReparto();
 }
 
@@ -574,6 +603,13 @@ export function cfRepartirResto() {
 }
 
 export function cfPreviewReparto() {
+  // Contador de selección (método equitativo)
+  const countEl = document.getElementById('cf-picker-count');
+  if (countEl && metodoSeleccionado() === 'equitativo') {
+    const total = document.querySelectorAll('.cf-unidad-check').length;
+    const sel = document.querySelectorAll('.cf-unidad-check:checked').length;
+    countEl.textContent = `${sel} de ${total} casa${total !== 1 ? 's' : ''} seleccionada${sel !== 1 ? 's' : ''}`;
+  }
   const cont = document.getElementById('asignar-preview');
   if (!cont) return;
   const reparto = calcularReparto();

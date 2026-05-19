@@ -1189,24 +1189,29 @@
 
 <!-- MODAL ASIGNAR COSTO A UNIDADES -->
 <div class="modal-overlay" id="modal-asignar-costo">
-  <div class="modal" style="max-width:480px;">
+  <div class="modal" style="width:680px;">
     <div class="modal-header">
       <div class="modal-title">Asignar Costo a Unidades</div>
       <button class="modal-close" onclick="cerrar('modal-asignar-costo')">✕</button>
     </div>
     <div id="asignar-info"></div>
-    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;">
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
-        <input type="radio" name="cf-metodo" value="directo" onchange="cfCambiarMetodo()"> Directo a una unidad
+    <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">¿Cómo se reparte este pago?</div>
+    <div class="cf-metodos">
+      <label class="cf-metodo-opt">
+        <input type="radio" name="cf-metodo" value="directo" onchange="cfCambiarMetodo()">
+        <span><strong>Directo</strong><br><small>El costo completo a una casa</small></span>
       </label>
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
-        <input type="radio" name="cf-metodo" value="equitativo" onchange="cfCambiarMetodo()"> Dividir en partes iguales
+      <label class="cf-metodo-opt">
+        <input type="radio" name="cf-metodo" value="equitativo" onchange="cfCambiarMetodo()">
+        <span><strong>Partes iguales</strong><br><small>Dividido entre varias casas</small></span>
       </label>
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
-        <input type="radio" name="cf-metodo" value="custom" onchange="cfCambiarMetodo()"> Proporción personalizada (monto por casa)
+      <label class="cf-metodo-opt">
+        <input type="radio" name="cf-metodo" value="custom" onchange="cfCambiarMetodo()">
+        <span><strong>Personalizado</strong><br><small>Monto distinto por casa</small></span>
       </label>
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
-        <input type="radio" name="cf-metodo" value="indiviso" onchange="cfCambiarMetodo()"> Área común / indirecto (por indiviso)
+      <label class="cf-metodo-opt">
+        <input type="radio" name="cf-metodo" value="indiviso" onchange="cfCambiarMetodo()">
+        <span><strong>Área común</strong><br><small>Repartido por indiviso</small></span>
       </label>
     </div>
     <div id="asignar-metodo-body"></div>

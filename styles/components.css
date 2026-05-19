@@ -83,6 +83,8 @@ label { font-size: 12px; font-weight: 500; color: var(--muted); }
 input, select { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 13px; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 13px; outline: none; transition: border-color .15s; width: 100%; }
 input:focus, select:focus { border-color: var(--accent); }
 input::placeholder { color: var(--muted); }
+/* Los radios y checkboxes no deben estirarse al 100% como los inputs de texto. */
+input[type="checkbox"], input[type="radio"] { width: auto; accent-color: var(--accent); cursor: pointer; }
 .form-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 22px; }
 
 /* Notifications */
