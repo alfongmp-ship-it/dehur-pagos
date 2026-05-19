@@ -347,25 +347,15 @@ function renderAsignarTab(panel) {
       <div class="stat-card"><div class="stat-label">Asignaciones huérfanas</div><div class="stat-value" style="color:${huerfanas.length ? 'var(--red)' : 'var(--muted)'};">${huerfanas.length}</div><div class="stat-sub">${huerfanas.length ? '<a href="#" onclick="cfLimpiarHuerfanas();return false;" style="color:var(--accent);">Limpiar</a>' : 'Sin problemas'}</div></div>
     </div>
 
-    <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;margin-bottom:10px;">Pendientes de asignar</div>
-    ${pendientes.length ? `
-    <div class="table-wrap" style="margin-bottom:24px;">
-      <table>
-        <thead><tr><th>Fecha</th><th>Beneficiario</th><th>Concepto</th><th>Partida</th><th style="text-align:right">Importe</th><th style="text-align:right">Acción</th></tr></thead>
-        <tbody>${pendientes.map(h => `
-          <tr>
-            <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.fecha || ''}</td>
-            <td style="font-weight:500;">${h.nombre || '—'}</td>
-            <td style="color:var(--muted);font-size:12px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${h.concepto || '—'}</td>
-            <td style="color:var(--muted);font-size:12px;">${h.partida || 'Sin partida'}</td>
-            <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--accent);">${fmt(h.importe || 0)}</td>
-            <td style="text-align:right;"><button class="btn btn-primary btn-sm" onclick="abrirAsignarCosto('${h.id}')">Asignar</button></td>
-          </tr>`).join('')}</tbody>
-      </table>
-    </div>` : '<div class="empty-state" style="margin-bottom:24px;"><div style="font-size:28px;opacity:.4;margin-bottom:8px;">✅</div><div>Todos los pagos de ' + cfProyecto + ' están asignados</div></div>'}
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+      <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;">Pendientes de asignar</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input type="text" id="cf-pend-search" placeholder="🔍 Buscar beneficiario, concepto..." oninput="cfFiltrarPendientes()" style="width:280px;">
+        <button id="cf-btn-asignados" class="btn btn-ghost" onclick="cfToggleAsignados()">▸ Ver pagos ya asignados (${asignados.length})</button>
+      </div>
+    </div>
 
-    <button id="cf-btn-asignados" class="btn btn-ghost" onclick="cfToggleAsignados()" style="margin-bottom:12px;">▸ Ver pagos ya asignados (${asignados.length})</button>
-    <div id="cf-asignados-wrap" style="display:none;">
+    <div id="cf-asignados-wrap" style="display:none;margin-bottom:20px;">
     ${asignados.length ? `
     <div class="table-wrap">
       <table>
@@ -391,7 +381,46 @@ function renderAsignarTab(panel) {
       </table>
     </div>` : '<div style="color:var(--muted);font-size:12px;padding:10px 0;">Aún no hay pagos asignados.</div>'}
     </div>
+
+    ${pendientes.length ? `
+    <div id="cf-pend-count" style="font-size:11px;color:var(--muted);margin-bottom:6px;"></div>
+    <div class="table-wrap cf-tabla-scroll" style="margin-bottom:24px;">
+      <table>
+        <thead><tr><th>Fecha</th><th>Beneficiario</th><th>Concepto</th><th>Partida</th><th style="text-align:right">Importe</th><th style="text-align:right">Acción</th></tr></thead>
+        <tbody id="cf-pend-tbody">${pendientes.map(h => `
+          <tr class="cf-pend-row" data-buscar="${`${h.nombre || ''} ${h.concepto || ''} ${h.partida || ''}`.toLowerCase().replace(/"/g, '')}">
+            <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.fecha || ''}</td>
+            <td style="font-weight:500;">${h.nombre || '—'}</td>
+            <td style="color:var(--muted);font-size:12px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${h.concepto || '—'}</td>
+            <td style="color:var(--muted);font-size:12px;">${h.partida || 'Sin partida'}</td>
+            <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--accent);">${fmt(h.importe || 0)}</td>
+            <td style="text-align:right;"><button class="btn btn-primary btn-sm" onclick="abrirAsignarCosto('${h.id}')">Asignar</button></td>
+          </tr>`).join('')}</tbody>
+      </table>
+    </div>` : '<div class="empty-state" style="margin-bottom:24px;"><div style="font-size:28px;opacity:.4;margin-bottom:8px;">✅</div><div>Todos los pagos de ' + cfProyecto + ' están asignados</div></div>'}
   `;
+  cfFiltrarPendientes();
+}
+
+// Filtra la lista de pagos pendientes por beneficiario, concepto o partida.
+export function cfFiltrarPendientes() {
+  const search = document.getElementById('cf-pend-search');
+  const tbody = document.getElementById('cf-pend-tbody');
+  const countEl = document.getElementById('cf-pend-count');
+  if (!tbody) return;
+  const q = (search ? search.value : '').trim().toLowerCase();
+  const rows = tbody.querySelectorAll('.cf-pend-row');
+  let visibles = 0;
+  rows.forEach(row => {
+    const match = !q || (row.dataset.buscar || '').includes(q);
+    row.style.display = match ? '' : 'none';
+    if (match) visibles++;
+  });
+  if (countEl) {
+    countEl.textContent = q
+      ? `Mostrando ${visibles} de ${rows.length} pagos pendientes`
+      : `${rows.length} pagos pendientes`;
+  }
 }
 
 // Muestra u oculta la sección de pagos ya asignados.
