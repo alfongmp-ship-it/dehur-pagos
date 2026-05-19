@@ -102,10 +102,19 @@ function desglosePorPartida(unidadId) {
   return out;
 }
 
+// Un movimiento del historial cuenta como costo asignable a unidades:
+// los Pagos y las Aportaciones (dinero que entra a la obra). Los Préstamos,
+// Traspasos y Créditos NO son costo de construcción de una casa.
+function esCostoAsignable(h) {
+  if (h.tipo_registro === 'Pago') return true;
+  if (h.tipo_registro === 'Traspaso' && h.tipo === 'Aportación') return true;
+  return false;
+}
+
 function pagosSinAsignar() {
   const asignados = new Set(state.costoAsignaciones.map(a => String(a.pago_id)));
   return state.historial.filter(h =>
-    h.tipo_registro === 'Pago' && h.id &&
+    esCostoAsignable(h) && h.id &&
     proyectoMatch(h.proyecto, cfProyecto) &&
     !asignados.has(String(h.id))
   );
@@ -114,7 +123,7 @@ function pagosSinAsignar() {
 function pagosAsignados() {
   const asignados = new Set(state.costoAsignaciones.map(a => String(a.pago_id)));
   return state.historial.filter(h =>
-    h.tipo_registro === 'Pago' && h.id &&
+    esCostoAsignable(h) && h.id &&
     proyectoMatch(h.proyecto, cfProyecto) &&
     asignados.has(String(h.id))
   );
