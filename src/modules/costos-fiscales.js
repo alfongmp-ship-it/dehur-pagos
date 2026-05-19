@@ -158,6 +158,7 @@ function renderSubTabs() {
   const tabs = [
     { id: 'unidades', label: '🏠 Unidades' },
     { id: 'asignar', label: '🔗 Asignar Pagos' },
+    { id: 'asignados', label: '✅ Pagos Asignados' },
     { id: 'presupuestos', label: '📋 Presupuestos' },
     { id: 'reportes', label: '📊 Costo por Unidad' },
   ];
@@ -178,6 +179,7 @@ function renderPanel() {
   if (!panel) return;
   if (cfTab === 'unidades') renderUnidadesTab(panel);
   else if (cfTab === 'asignar') renderAsignarTab(panel);
+  else if (cfTab === 'asignados') renderAsignadosTab(panel);
   else if (cfTab === 'presupuestos') renderPresupuestosTab(panel);
   else if (cfTab === 'reportes') renderReportesTab(panel);
 }
@@ -349,37 +351,7 @@ function renderAsignarTab(panel) {
 
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
       <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;">Pendientes de asignar</div>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <input type="text" id="cf-pend-search" placeholder="🔍 Buscar beneficiario, concepto..." oninput="cfFiltrarPendientes()" style="width:280px;">
-        <button id="cf-btn-asignados" class="btn btn-ghost" onclick="cfToggleAsignados()">▸ Ver pagos ya asignados (${asignados.length})</button>
-      </div>
-    </div>
-
-    <div id="cf-asignados-wrap" style="display:none;margin-bottom:20px;">
-    ${asignados.length ? `
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Fecha</th><th>Beneficiario</th><th style="text-align:right">Importe</th><th>Reparto</th><th style="text-align:right">Acción</th></tr></thead>
-        <tbody>${asignados.map(h => {
-          const asigs = state.costoAsignaciones.filter(a => String(a.pago_id) === String(h.id));
-          const detalle = asigs.map(a => {
-            const u = unidadById(a.unidad_id);
-            return `${u ? u.nombre : '#' + a.unidad_id}: ${fmt(a.monto_asignado)}`;
-          }).join(' · ');
-          const metodo = asigs[0] ? METODO_LABEL[asigs[0].metodo] || asigs[0].metodo : '';
-          return `<tr>
-            <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.fecha || ''}</td>
-            <td style="font-weight:500;">${h.nombre || '—'}</td>
-            <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--accent);">${fmt(h.importe || 0)}</td>
-            <td style="font-size:11px;color:var(--muted);"><div style="color:var(--text);font-weight:500;">${metodo}</div>${detalle}</td>
-            <td style="text-align:right;white-space:nowrap;">
-              <button class="btn btn-ghost btn-sm" onclick="reasignarCosto('${h.id}')">Reasignar</button>
-              <button class="btn btn-ghost btn-sm" onclick="eliminarAsignacionCosto('${h.id}')" style="color:var(--red);">Quitar</button>
-            </td>
-          </tr>`;
-        }).join('')}</tbody>
-      </table>
-    </div>` : '<div style="color:var(--muted);font-size:12px;padding:10px 0;">Aún no hay pagos asignados.</div>'}
+      <input type="text" id="cf-pend-search" placeholder="🔍 Buscar beneficiario, concepto..." oninput="cfFiltrarPendientes()" style="width:280px;">
     </div>
 
     ${pendientes.length ? `
@@ -423,16 +395,67 @@ export function cfFiltrarPendientes() {
   }
 }
 
-// Muestra u oculta la sección de pagos ya asignados.
-export function cfToggleAsignados() {
-  const wrap = document.getElementById('cf-asignados-wrap');
-  const btn = document.getElementById('cf-btn-asignados');
-  if (!wrap) return;
-  const visible = wrap.style.display !== 'none';
-  wrap.style.display = visible ? 'none' : '';
-  if (btn) {
-    const n = pagosAsignados().length;
-    btn.textContent = (visible ? '▸ Ver' : '▾ Ocultar') + ` pagos ya asignados (${n})`;
+// ========== TAB: PAGOS ASIGNADOS ==========
+function renderAsignadosTab(panel) {
+  const asignados = pagosAsignados();
+  const huerfanas = asignacionesHuerfanas();
+  const totalAsig = asignados.reduce((s, h) => s + (h.importe || 0), 0);
+
+  panel.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+      <div style="font-size:12px;color:var(--muted);">
+        ${asignados.length} pago${asignados.length !== 1 ? 's' : ''} asignado${asignados.length !== 1 ? 's' : ''} · ${fmt(totalAsig)}
+        ${huerfanas.length ? ` · <span style="color:var(--red);">${huerfanas.length} huérfana(s)</span> <a href="#" onclick="cfLimpiarHuerfanas();return false;" style="color:var(--accent);">Limpiar</a>` : ''}
+      </div>
+      <input type="text" id="cf-asig-search" placeholder="🔍 Buscar beneficiario, concepto..." oninput="cfFiltrarAsignados()" style="width:280px;">
+    </div>
+    ${asignados.length ? `
+    <div id="cf-asig-count" style="font-size:11px;color:var(--muted);margin-bottom:6px;"></div>
+    <div class="table-wrap cf-tabla-scroll">
+      <table>
+        <thead><tr><th>Fecha</th><th>Beneficiario</th><th style="text-align:right">Importe</th><th>Reparto</th><th style="text-align:right">Acción</th></tr></thead>
+        <tbody id="cf-asig-tbody">${asignados.map(h => {
+          const asigs = state.costoAsignaciones.filter(a => String(a.pago_id) === String(h.id));
+          const detalle = asigs.map(a => {
+            const u = unidadById(a.unidad_id);
+            return `${u ? u.nombre : '#' + a.unidad_id}: ${fmt(a.monto_asignado)}`;
+          }).join(' · ');
+          const metodo = asigs[0] ? METODO_LABEL[asigs[0].metodo] || asigs[0].metodo : '';
+          return `<tr class="cf-asig-row" data-buscar="${`${h.nombre || ''} ${h.concepto || ''}`.toLowerCase().replace(/"/g, '')}">
+            <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.fecha || ''}</td>
+            <td style="font-weight:500;">${h.nombre || '—'}</td>
+            <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--accent);">${fmt(h.importe || 0)}</td>
+            <td style="font-size:11px;color:var(--muted);"><div style="color:var(--text);font-weight:500;">${metodo}</div>${detalle}</td>
+            <td style="text-align:right;white-space:nowrap;">
+              <button class="btn btn-ghost btn-sm" onclick="reasignarCosto('${h.id}')">Reasignar</button>
+              <button class="btn btn-ghost btn-sm" onclick="eliminarAsignacionCosto('${h.id}')" style="color:var(--red);">Quitar</button>
+            </td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>
+    </div>` : '<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">📭</div><div>Aún no hay pagos asignados en ' + cfProyecto + '</div></div>'}
+  `;
+  cfFiltrarAsignados();
+}
+
+// Filtra la lista de pagos asignados por beneficiario o concepto.
+export function cfFiltrarAsignados() {
+  const search = document.getElementById('cf-asig-search');
+  const tbody = document.getElementById('cf-asig-tbody');
+  const countEl = document.getElementById('cf-asig-count');
+  if (!tbody) return;
+  const q = (search ? search.value : '').trim().toLowerCase();
+  const rows = tbody.querySelectorAll('.cf-asig-row');
+  let visibles = 0;
+  rows.forEach(row => {
+    const match = !q || (row.dataset.buscar || '').includes(q);
+    row.style.display = match ? '' : 'none';
+    if (match) visibles++;
+  });
+  if (countEl) {
+    countEl.textContent = q
+      ? `Mostrando ${visibles} de ${rows.length} pagos asignados`
+      : `${rows.length} pagos asignados`;
   }
 }
 

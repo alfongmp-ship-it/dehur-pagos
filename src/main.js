@@ -22,7 +22,7 @@ import { renderCuentasPropias, abrirNuevaCuenta, editarCuenta, editarCuentaProye
 import { renderPosicionSaldos } from './modules/posicion-saldos.js';
 import { renderResumenCostos } from './modules/resumen-costos.js';
 import { renderResumenEjecutivo } from './modules/resumen-ejecutivo.js';
-import { renderCostosFiscales, abrirNuevaUnidad, editarUnidad, guardarUnidad, toggleUnidad, abrirLoteUnidades, guardarLoteUnidades, cfLimpiarHuerfanas, abrirAsignarCosto, reasignarCosto, eliminarAsignacionCosto, cfCambiarMetodo, cfPreviewReparto, cfRepartirResto, cfFiltrarUnidades, cfSelTodas, cfToggleAsignados, cfFiltrarPendientes, guardarAsignacionCosto, cfAgregarPartidaPresup, guardarPresupuestoUnidad, cfVerUnidad } from './modules/costos-fiscales.js';
+import { renderCostosFiscales, abrirNuevaUnidad, editarUnidad, guardarUnidad, toggleUnidad, abrirLoteUnidades, guardarLoteUnidades, cfLimpiarHuerfanas, abrirAsignarCosto, reasignarCosto, eliminarAsignacionCosto, cfCambiarMetodo, cfPreviewReparto, cfRepartirResto, cfFiltrarUnidades, cfSelTodas, cfFiltrarPendientes, cfFiltrarAsignados, guardarAsignacionCosto, cfAgregarPartidaPresup, guardarPresupuestoUnidad, cfVerUnidad } from './modules/costos-fiscales.js';
 import { renderCreditos, seleccionarCredito, abrirNuevoCredito, editarCredito, guardarCredito, abrirNuevaDisposicion, guardarDisposicion, editarPagare, togglePagare, abrirNuevaFechaPago, editarFechaPago, guardarFechaPago, marcarPagoPagado, eliminarPagoPagare } from './modules/creditos.js';
 import { gsLogin, gsLogout, renderAuthStatus, checkOAuthCallback } from './services/google-auth.js';
 import { gsLoadAll, gsSaveProveedores, gsSaveEmpleados, gsSaveProyectos, gsSaveAlias, gsSaveCuentasPropias, gsSaveTraspasos, gsSaveCreditos, gsSavePagares, gsSavePagosPagare, gsSaveMovimientosInternos } from './services/google-sync.js';
@@ -215,8 +215,8 @@ window.cfPreviewReparto = cfPreviewReparto;
 window.cfRepartirResto = cfRepartirResto;
 window.cfFiltrarUnidades = cfFiltrarUnidades;
 window.cfSelTodas = cfSelTodas;
-window.cfToggleAsignados = cfToggleAsignados;
 window.cfFiltrarPendientes = cfFiltrarPendientes;
+window.cfFiltrarAsignados = cfFiltrarAsignados;
 window.guardarAsignacionCosto = guardarAsignacionCosto;
 window.cfAgregarPartidaPresup = cfAgregarPartidaPresup;
 window.guardarPresupuestoUnidad = guardarPresupuestoUnidad;
