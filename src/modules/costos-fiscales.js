@@ -165,7 +165,11 @@ function renderSubTabs() {
     `<button class="cf-subtab${cfTab === t.id ? ' active' : ''}" data-tab="${t.id}">${t.label}</button>`
   ).join('');
   cont.querySelectorAll('.cf-subtab').forEach(b => {
-    b.addEventListener('click', () => { cfTab = b.dataset.tab; renderPanel(); });
+    b.addEventListener('click', () => {
+      cfTab = b.dataset.tab;
+      cont.querySelectorAll('.cf-subtab').forEach(x => x.classList.toggle('active', x.dataset.tab === cfTab));
+      renderPanel();
+    });
   });
 }
 
