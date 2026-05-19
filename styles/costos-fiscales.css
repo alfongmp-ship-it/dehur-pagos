@@ -105,3 +105,87 @@
   background: var(--surface2);
   z-index: 1;
 }
+
+/* ===== Pestaña Plano ===== */
+.cf-plano-toolbar {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.cf-plano-modos, .cf-plano-color { display: flex; gap: 4px; align-items: center; }
+.cf-plano-btn {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--muted);
+  border-radius: 7px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.cf-plano-btn:hover { border-color: var(--accent); }
+.cf-plano-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(200, 169, 110, .12);
+}
+.cf-plano-editor-info { font-size: 12px; color: var(--muted); }
+.cf-plano-leyenda { display: flex; gap: 12px; flex-wrap: wrap; }
+.cf-ley-item { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 4px; }
+.cf-ley-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+
+.cf-plano-cont {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface2);
+  line-height: 0;
+}
+.cf-plano-cont.editor { cursor: crosshair; }
+.cf-plano-img { display: block; width: 100%; height: auto; }
+
+.cf-pin {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, .55);
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+}
+.cf-pin.editable { cursor: grab; }
+.cf-pin-x {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  width: 15px;
+  height: 15px;
+  background: var(--red);
+  color: #fff;
+  border-radius: 50%;
+  font-size: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.cf-plano-tooltip {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text);
+  pointer-events: none;
+  z-index: 10;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .45);
+}

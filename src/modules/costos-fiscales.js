@@ -8,6 +8,7 @@ import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { proyectoMatch } from '../config/proyectos.js';
 import { ESTATUS_UNIDAD, METODO_LABEL } from '../config/costos-fiscales.js';
+import { planoDeProyecto } from '../config/planos.js';
 import { gsSaveUnidades, gsSavePresupuestoUnidad, gsSaveCostoAsignaciones } from '../services/google-sync.js';
 
 const PALETA = ['#c8a96e', '#5a9be0', '#4caf7d', '#e07a3a', '#9b7fe8', '#e05a5a', '#27ae60', '#3498db'];
@@ -17,6 +18,15 @@ let cfTab = 'unidades';     // sub-pestaña: unidades | asignar | presupuestos |
 let cfUnidadDetalle = null; // unidad_id seleccionada en presupuestos/reportes
 let cfPagoAsignar = null;   // pago_id en proceso de asignación
 let cfChartUnidad = null;
+let cfPlanoModo = 'vista';  // 'vista' | 'editor'
+let cfPlanoColor = 'avance'; // 'avance' | 'estatus'
+
+const ESTATUS_COLOR = {
+  'En obra': '#e07a3a',
+  'Terminada': '#5a9be0',
+  'Entregada': '#4caf7d',
+  'Vendida': '#9b7fe8',
+};
 
 // ---------- utilidades ----------
 function r2(x) { return Math.round((x + Number.EPSILON) * 100) / 100; }
@@ -161,6 +171,7 @@ function renderSubTabs() {
     { id: 'asignados', label: '✅ Pagos Asignados' },
     { id: 'presupuestos', label: '📋 Presupuestos' },
     { id: 'reportes', label: '📊 Costo por Unidad' },
+    { id: 'plano', label: '🗺️ Plano' },
   ];
   cont.innerHTML = tabs.map(t =>
     `<button class="cf-subtab${cfTab === t.id ? ' active' : ''}" data-tab="${t.id}">${t.label}</button>`
@@ -182,6 +193,7 @@ function renderPanel() {
   else if (cfTab === 'asignados') renderAsignadosTab(panel);
   else if (cfTab === 'presupuestos') renderPresupuestosTab(panel);
   else if (cfTab === 'reportes') renderReportesTab(panel);
+  else if (cfTab === 'plano') renderPlanoTab(panel);
 }
 
 // ========== TAB: UNIDADES ==========
@@ -996,4 +1008,197 @@ function renderChartUnidad(partidas) {
       }
     }
   });
+}
+
+// ========== TAB: PLANO VISUAL ==========
+let cfPinArrastrado = false; // evita colocar pin tras soltar un arrastre
+
+function colorDePin(u) {
+  if (cfPlanoColor === 'estatus') return ESTATUS_COLOR[u.estatus] || '#888';
+  const real = costoRealUnidad(u.unidad_id);
+  const presu = presupuestoTotalUnidad(u.unidad_id);
+  return avanceColor(avancePct(real, presu));
+}
+
+function renderPlanoTab(panel) {
+  const plano = planoDeProyecto(cfProyecto);
+  if (!plano) {
+    panel.innerHTML = `<div class="empty-state">
+      <div style="font-size:32px;margin-bottom:10px;opacity:.4">🗺️</div>
+      <div>Aún no hay un plano cargado para <strong>${cfProyecto}</strong>.</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:6px;">Envía la imagen del plano del desarrollo para activar esta vista.</div>
+    </div>`;
+    return;
+  }
+  const unidades = unidadesDeProyecto();
+  const sinUbicar = unidades.filter(u => u.plano_x == null || u.plano_y == null);
+  const editor = cfPlanoModo === 'editor';
+
+  panel.innerHTML = `
+    <div class="cf-plano-toolbar">
+      <div class="cf-plano-modos">
+        <button class="cf-plano-btn${!editor ? ' active' : ''}" data-modo="vista">👁 Vista</button>
+        <button class="cf-plano-btn${editor ? ' active' : ''}" data-modo="editor">✏️ Editar pines</button>
+      </div>
+      ${editor ? `
+        <div class="cf-plano-editor-info">
+          ${sinUbicar.length
+            ? `Faltan <strong>${sinUbicar.length}</strong> · Siguiente: <strong>${sinUbicar[0].nombre}</strong> — haz clic en el plano para ubicarla`
+            : 'Todas las casas están ubicadas ✓'}
+        </div>
+        <button class="btn btn-primary btn-sm" id="cf-plano-guardar">💾 Guardar</button>
+      ` : `
+        <div class="cf-plano-color">
+          <span style="font-size:11px;color:var(--muted);">Color:</span>
+          <button class="cf-plano-btn${cfPlanoColor === 'avance' ? ' active' : ''}" data-color="avance">% Avance</button>
+          <button class="cf-plano-btn${cfPlanoColor === 'estatus' ? ' active' : ''}" data-color="estatus">Estatus</button>
+        </div>
+        <div id="cf-plano-leyenda" class="cf-plano-leyenda"></div>
+      `}
+    </div>
+    ${!editor && sinUbicar.length ? `<div style="font-size:11px;color:var(--orange);margin-bottom:8px;">⚠ ${sinUbicar.length} casa(s) sin ubicar en el plano (usa "Editar pines").</div>` : ''}
+    <div class="cf-plano-cont${editor ? ' editor' : ''}" id="cf-plano-cont">
+      <img src="${plano.img}" class="cf-plano-img" alt="Plano ${cfProyecto}">
+      <div id="cf-plano-pins"></div>
+      <div id="cf-plano-tooltip" class="cf-plano-tooltip" style="display:none;"></div>
+    </div>
+    ${editor
+      ? '<div style="font-size:11px;color:var(--muted);margin-top:8px;">Arrastra un pin para moverlo · usa la ✕ del pin para quitarlo · no olvides Guardar.</div>'
+      : '<div id="cf-detalle-unidad" style="margin-top:16px;"></div>'}
+  `;
+  renderPlanoPins();
+  setupPlanoInteraction();
+}
+
+function renderPlanoPins() {
+  const cont = document.getElementById('cf-plano-pins');
+  if (!cont) return;
+  const editor = cfPlanoModo === 'editor';
+  cont.innerHTML = unidadesDeProyecto()
+    .filter(u => u.plano_x != null && u.plano_y != null)
+    .map(u => `<div class="cf-pin${editor ? ' editable' : ''}" data-uid="${u.unidad_id}"
+        style="left:${u.plano_x}%;top:${u.plano_y}%;background:${colorDePin(u)};" title="${(u.nombre || '').replace(/"/g, '')}">
+        ${editor ? '<span class="cf-pin-x">✕</span>' : ''}
+      </div>`).join('');
+}
+
+function setupPlanoInteraction() {
+  document.querySelectorAll('.cf-plano-btn[data-modo]').forEach(b => {
+    b.addEventListener('click', () => { cfPlanoModo = b.dataset.modo; renderPanel(); });
+  });
+  document.querySelectorAll('.cf-plano-btn[data-color]').forEach(b => {
+    b.addEventListener('click', () => { cfPlanoColor = b.dataset.color; renderPanel(); });
+  });
+  const guardar = document.getElementById('cf-plano-guardar');
+  if (guardar) guardar.addEventListener('click', cfGuardarPlano);
+
+  const cont = document.getElementById('cf-plano-cont');
+  if (!cont) return;
+
+  if (cfPlanoModo === 'editor') {
+    cont.addEventListener('click', e => {
+      if (cfPinArrastrado) { cfPinArrastrado = false; return; }
+      if (e.target.closest('.cf-pin')) return;
+      const sinUbicar = unidadesDeProyecto().filter(u => u.plano_x == null || u.plano_y == null);
+      if (!sinUbicar.length) { notify('Todas las casas ya están ubicadas', 'error'); return; }
+      const rect = cont.getBoundingClientRect();
+      const u = sinUbicar[0];
+      u.plano_x = r2(Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)));
+      u.plano_y = r2(Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100)));
+      renderPanel();
+    });
+    cont.querySelectorAll('.cf-pin').forEach(pin => {
+      const uid = parseInt(pin.dataset.uid);
+      const xBtn = pin.querySelector('.cf-pin-x');
+      if (xBtn) xBtn.addEventListener('click', e => { e.stopPropagation(); cfQuitarPin(uid); });
+      pin.addEventListener('mousedown', e => {
+        if (e.target.classList.contains('cf-pin-x')) return;
+        e.preventDefault();
+        iniciarDragPin(uid, pin, cont);
+      });
+    });
+  } else {
+    cont.querySelectorAll('.cf-pin').forEach(pin => {
+      const uid = parseInt(pin.dataset.uid);
+      pin.addEventListener('mouseenter', () => mostrarTooltipPin(uid, pin));
+      pin.addEventListener('mouseleave', ocultarTooltipPin);
+      pin.addEventListener('click', () => {
+        cfUnidadDetalle = uid;
+        renderDetalleUnidad(uid);
+        const d = document.getElementById('cf-detalle-unidad');
+        if (d) d.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      });
+    });
+    renderLeyendaPlano();
+  }
+}
+
+function iniciarDragPin(uid, pin, cont) {
+  const u = unidadById(uid);
+  if (!u) return;
+  const rect = cont.getBoundingClientRect();
+  let movido = false;
+  function mover(ev) {
+    movido = true;
+    const x = Math.max(0, Math.min(100, ((ev.clientX - rect.left) / rect.width) * 100));
+    const y = Math.max(0, Math.min(100, ((ev.clientY - rect.top) / rect.height) * 100));
+    pin.style.left = x + '%';
+    pin.style.top = y + '%';
+    u.plano_x = r2(x);
+    u.plano_y = r2(y);
+  }
+  function soltar() {
+    document.removeEventListener('mousemove', mover);
+    document.removeEventListener('mouseup', soltar);
+    if (movido) cfPinArrastrado = true;
+  }
+  document.addEventListener('mousemove', mover);
+  document.addEventListener('mouseup', soltar);
+}
+
+function mostrarTooltipPin(uid, pin) {
+  const u = unidadById(uid);
+  const tip = document.getElementById('cf-plano-tooltip');
+  const cont = document.getElementById('cf-plano-cont');
+  if (!u || !tip || !cont) return;
+  const real = costoRealUnidad(u.unidad_id);
+  const presu = presupuestoTotalUnidad(u.unidad_id);
+  const av = avancePct(real, presu);
+  tip.innerHTML = `<strong>${u.nombre}</strong><br>`
+    + `Costo real: ${fmt(real)}<br>`
+    + (presu > 0 ? `Presupuesto: ${fmt(presu)}<br>Avance: ${av.toFixed(1)}%<br>` : 'Sin presupuesto<br>')
+    + `Estatus: ${u.estatus || '—'}`;
+  const pinRect = pin.getBoundingClientRect();
+  const contRect = cont.getBoundingClientRect();
+  tip.style.left = (pinRect.left - contRect.left + pinRect.width / 2) + 'px';
+  tip.style.top = (pinRect.top - contRect.top - 8) + 'px';
+  tip.style.display = '';
+}
+
+function ocultarTooltipPin() {
+  const tip = document.getElementById('cf-plano-tooltip');
+  if (tip) tip.style.display = 'none';
+}
+
+function renderLeyendaPlano() {
+  const el = document.getElementById('cf-plano-leyenda');
+  if (!el) return;
+  const items = cfPlanoColor === 'estatus'
+    ? ESTATUS_UNIDAD.map(e => [e, ESTATUS_COLOR[e] || '#888'])
+    : [['En presupuesto', '#4caf7d'], ['Cerca del límite', '#e07a3a'], ['Sobre presupuesto', '#e05a5a'], ['Sin presupuesto', 'var(--muted)']];
+  el.innerHTML = items.map(([t, c]) =>
+    `<span class="cf-ley-item"><span class="cf-ley-dot" style="background:${c};"></span>${t}</span>`).join('');
+}
+
+function cfQuitarPin(uid) {
+  const u = unidadById(uid);
+  if (!u) return;
+  u.plano_x = null;
+  u.plano_y = null;
+  renderPanel();
+}
+
+async function cfGuardarPlano() {
+  await gsSaveUnidades();
+  notify('Plano guardado');
 }
