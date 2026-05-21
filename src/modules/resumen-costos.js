@@ -3,6 +3,7 @@ import { fmt } from '../ui/format.js';
 import { proyTag } from '../ui/badges.js';
 import { proyectoMatch } from '../config/proyectos.js';
 import { parseFechaHist } from './historial.js';
+import { getPartidasParaSelect } from '../config/sub-partidas.js';
 
 let chartProyecto = null;
 let chartTendencia = null;
@@ -77,10 +78,12 @@ function refreshSelects() {
   const selPart = document.getElementById('rc-partida');
   if (selPart) {
     const val = selPart.value;
-    const partidasReales = [...new Set(state.historial.map(h => h.partida).filter(p => p))].sort();
+    // Partidas del catálogo activo + legacy del historial.
+    const enHistorial = [...new Set(state.historial.map(h => h.partida).filter(Boolean))];
+    const opts = getPartidasParaSelect(enHistorial);
     const haySinPartida = state.historial.some(h => !h.partida);
     let opciones = '<option value="">Todas las partidas</option>';
-    opciones += partidasReales.map(p => `<option>${p}</option>`).join('');
+    opciones += opts.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
     if (haySinPartida) opciones += '<option value="Sin partida">Sin partida</option>';
     selPart.innerHTML = opciones;
     selPart.value = val;
