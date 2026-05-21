@@ -6,17 +6,32 @@ import { cerrar } from '../ui/modal.js';
 import { saveData, gsSavePendientes, gsSaveProyectos, gsSaveCuentasPropias } from '../services/google-sync.js';
 import { showPage } from '../router.js';
 import { saveProy } from '../config/proyectos.js';
-import { getSubPartidas } from '../config/sub-partidas.js';
+import { getSubPartidas, getPartidasCatalogo, subPartidaObligatoria } from '../config/sub-partidas.js';
+
+// Pobla el select de partidas con el catálogo activo. Mantiene el valor actual
+// si sigue siendo válido.
+export function refreshPagoPartidaSelect() {
+  const sel = document.getElementById('pago-partida');
+  if (!sel) return;
+  const actual = sel.value || '';
+  const cat = getPartidasCatalogo();
+  sel.innerHTML = '<option value="">— selecciona —</option>' +
+    cat.map(p => `<option value="${p.partida}">${p.partida}</option>`).join('');
+  if (actual && cat.some(p => p.partida === actual)) sel.value = actual;
+}
 
 export function togglePagoSubPartida() {
   const partida = document.getElementById('pago-partida')?.value || '';
   const wrap = document.getElementById('pago-sub-partida-wrap');
   const sel = document.getElementById('pago-sub-partida');
+  const lbl = document.getElementById('pago-sub-partida-label');
   if (!wrap || !sel) return;
   const opciones = getSubPartidas(partida);
+  const obligatoria = subPartidaObligatoria(partida);
   if (opciones.length) {
-    sel.innerHTML = '<option value="">— selecciona —</option>' +
+    sel.innerHTML = (obligatoria ? '' : '<option value="">— (opcional) —</option>') +
       opciones.map(o => `<option value="${o}">${o}</option>`).join('');
+    if (lbl) lbl.innerHTML = obligatoria ? 'Sub-partida *' : 'Sub-partida';
     wrap.style.display = '';
   } else {
     sel.innerHTML = '';
@@ -51,6 +66,7 @@ export function abrirModalPago() {
   document.getElementById('alerta-tipo').style.display = 'none';
   document.getElementById('pago-concepto').value = '';
   document.getElementById('pago-importe').value = '';
+  refreshPagoPartidaSelect();
   document.getElementById('pago-partida').value = '';
   togglePagoSubPartida();
   // Poblar cuenta origen: proyectos BBVA + cuentas adicionales
@@ -128,6 +144,7 @@ export function agregarACola() {
   const proyecto = ctaVal.replace(/^proy:|^extra:/, '');
   if (!concepto) { notify('El concepto es obligatorio', 'error'); return; }
   if (!importe || importe <= 0) { notify('Ingresa un importe válido', 'error'); return; }
+  if (subPartidaObligatoria(partida) && !sub_partida) { notify('La sub-partida es obligatoria para CONSTRUCCION', 'error'); return; }
   state.cola.push({ id: Date.now(), proveedor: state.pagoP, concepto, importe, proyecto, partida, sub_partida, proveedor_id: String(state.pagoP.id || ''), factura_id: '' });
   cerrar('modal-pago');
   renderCola();
@@ -146,6 +163,7 @@ export function confirmarPagoDirecto() {
   const cuentaNombre = ctaVal.replace(/^proy:|^extra:/, '');
   if (!concepto) { notify('El concepto es obligatorio', 'error'); return; }
   if (!importe || importe <= 0) { notify('Ingresa un importe válido', 'error'); return; }
+  if (subPartidaObligatoria(partida) && !sub_partida) { notify('La sub-partida es obligatoria para CONSTRUCCION', 'error'); return; }
 
   // Buscar el proyecto real de la cuenta
   const proy = state.proyectos.find(x => x.nombre === cuentaNombre);

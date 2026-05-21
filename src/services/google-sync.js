@@ -2,6 +2,7 @@ import { state } from '../state.js';
 import { notify } from '../ui/notify.js';
 import { gsReadSheet, gsWriteRange, gsClearAndWrite, gsAppendRow } from './google-sheets.js';
 import { normalizeBanco } from '../config/bancos.js';
+import { SUB_PARTIDAS_CONSTRUCCION } from '../config/sub-partidas.js';
 
 // ===== BLINDAJE CONTRA PÉRDIDA DE DATOS =====
 // Entidades con función de guardado que sobrescribe su hoja completa.
@@ -9,7 +10,7 @@ const ENTIDADES_GUARDABLES = [
   'proveedores', 'empleados', 'historial', 'proyectos', 'facturas', 'facturaPagos',
   'cuentasPropias', 'traspasos', 'creditos', 'pagares', 'pagosPagare',
   'movimientosInternos', 'pendientesConfirmacion', 'unidades', 'presupuestoUnidad',
-  'costoAsignaciones'
+  'costoAsignaciones', 'partidasCatalogo'
 ];
 const ETIQUETA = {
   proveedores: 'Proveedores', empleados: 'Empleados', historial: 'Historial de pagos',
@@ -17,7 +18,8 @@ const ETIQUETA = {
   cuentasPropias: 'Cuentas propias', traspasos: 'Traspasos', creditos: 'Créditos',
   pagares: 'Pagarés', pagosPagare: 'Pagos de pagaré', movimientosInternos: 'Movimientos internos',
   pendientesConfirmacion: 'Pagos por confirmar', unidades: 'Unidades',
-  presupuestoUnidad: 'Presupuestos', costoAsignaciones: 'Asignaciones de costo'
+  presupuestoUnidad: 'Presupuestos', costoAsignaciones: 'Asignaciones de costo',
+  partidasCatalogo: 'Catálogo de partidas'
 };
 
 // Lee una hoja y marca si la entidad cargó con éxito. `gsReadSheet` devuelve
@@ -391,6 +393,43 @@ export async function gsLoadAll() {
       state.nextAsignacionId = state.costoAsignaciones.reduce((m, a) => Math.max(m, a.asignacion_id), 0) + 1;
     }
 
+    // Load partidas_catalogo (catálogo editable de partidas y subpartidas)
+    const pcatRows = await leerHoja('partidas_catalogo', 'partidasCatalogo');
+    if (pcatRows && pcatRows.length > 1) {
+      state.partidasCatalogo = pcatRows.slice(1).filter(r => r[0] || r[1]).map(r => ({
+        id: r[0] || '',
+        partida: r[1] || '',
+        subpartidas: (r[2] || '').split('|').map(s => s.trim()).filter(Boolean),
+        orden: parseInt(r[3]) || 0,
+        activa: r[4] !== 'false' && r[4] !== 'FALSE' && r[4] !== false
+      }));
+    }
+    // Migración: si la hoja está vacía, sembrar con partidas únicas del
+    // historial + subpartidas hardcoded de CONSTRUCCION. Se ejecuta una vez.
+    if (pcatRows !== null && (!state.partidasCatalogo || state.partidasCatalogo.length === 0)) {
+      const partidasSet = new Set();
+      state.historial.forEach(h => {
+        const p = (h.partida || '').trim();
+        if (p) partidasSet.add(p);
+      });
+      partidasSet.add('CONSTRUCCION');
+      const slug = s => 'p_' + s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 30) + '_' + Date.now();
+      let orden = 0;
+      state.partidasCatalogo = [...partidasSet].map(p => {
+        orden++;
+        const esConstr = p.toLowerCase() === 'construccion' || p.toLowerCase() === 'construcción';
+        return {
+          id: slug(p) + '_' + orden,
+          partida: p,
+          subpartidas: esConstr ? [...SUB_PARTIDAS_CONSTRUCCION] : [],
+          orden,
+          activa: true
+        };
+      });
+      await gsSavePartidasCatalogo();
+    }
+
     // Recalcular nextId con el máximo entre proveedores y empleados
     const maxProv = state.proveedores.reduce((max, p) => Math.max(max, p.id || 0), 0);
     const maxEmp = state.empleados.reduce((max, e) => Math.max(max, e.id || 0), 0);
@@ -409,6 +448,7 @@ export async function gsLoadAll() {
     if (window.renderHeaderBadges) window.renderHeaderBadges();
     if (window.refreshProyectosEnSelects) window.refreshProyectosEnSelects();
     if (window.renderCostosFiscales) window.renderCostosFiscales();
+    if (window.renderConfigPartidas) window.renderConfigPartidas();
     document.getElementById('cnt-hist').textContent = state.historial.length;
     document.getElementById('cnt-fact').textContent = state.facturas.length;
     document.getElementById('cnt-fp').textContent = state.facturaPagos.length;
@@ -691,6 +731,18 @@ export async function gsSaveMovimientosInternos() {
   if (!guardarPermitido('movimientosInternos', state.movimientosInternos)) return;
   const rows = state.movimientosInternos.map(m => [m.id, m.fecha, m.tipo, m.origen, m.destino, m.monto, m.concepto, m.referencia]);
   await gsClearAndWrite('movimientos_internos', rows, ['id', 'fecha', 'tipo', 'origen', 'destino', 'monto', 'concepto', 'referencia']);
+}
+
+export async function gsSavePartidasCatalogo() {
+  if (!state.gsToken) return;
+  if (!guardarPermitido('partidasCatalogo', state.partidasCatalogo, true)) return;
+  try {
+    const rows = state.partidasCatalogo.map(p => [
+      p.id || '', p.partida || '', (p.subpartidas || []).join('|'),
+      p.orden || 0, p.activa === false ? 'false' : 'true'
+    ]);
+    await gsClearAndWrite('partidas_catalogo', rows, ['partida_id', 'partida', 'subpartidas', 'orden', 'activa']);
+  } catch (e) { console.error('gsSavePartidasCatalogo', e); }
 }
 
 export async function gsSaveProyectos() {

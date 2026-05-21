@@ -48,7 +48,7 @@ export async function gsClearAndWrite(sheet, rows, headers) {
 }
 
 export async function gsInitSheets() {
-  const sheetsNeeded = ['proveedores', 'empleados', 'historial_pagos', 'proyectos', 'facturas', 'factura_pagos', 'aliases', 'cuentas_propias', 'traspasos', 'creditos', 'pagares', 'pagos_pagare', 'movimientos_internos', 'pendientes_confirmacion', 'historial_saldos', 'unidades', 'presupuesto_unidad', 'costo_asignaciones'];
+  const sheetsNeeded = ['proveedores', 'empleados', 'historial_pagos', 'proyectos', 'facturas', 'factura_pagos', 'aliases', 'cuentas_propias', 'traspasos', 'creditos', 'pagares', 'pagos_pagare', 'movimientos_internos', 'pendientes_confirmacion', 'historial_saldos', 'unidades', 'presupuesto_unidad', 'costo_asignaciones', 'partidas_catalogo'];
   try {
     const r = await gsFetch(`https://sheets.googleapis.com/v4/spreadsheets/${GS_SPREADSHEET_ID}`);
     const existing = r.sheets.map(s => s.properties.title);
@@ -75,7 +75,8 @@ export async function gsInitSheets() {
         historial_saldos: [['fecha', 'cuenta_id', 'cuenta_nombre', 'cuenta_tipo', 'saldo', 'saldo_total']],
         unidades: [['unidad_id', 'proyecto', 'nombre', 'tipo', 'indiviso_pct', 'superficie_m2', 'estatus', 'orden', 'activo', 'plano_x', 'plano_y', 'plano_w', 'plano_h']],
         presupuesto_unidad: [['presupuesto_id', 'unidad_id', 'partida', 'sub_partida', 'monto_presupuestado', 'costo_inicial', 'notas']],
-        costo_asignaciones: [['asignacion_id', 'pago_id', 'unidad_id', 'proyecto', 'metodo', 'monto_asignado', 'factor', 'fecha_asignacion', 'partida_override']]
+        costo_asignaciones: [['asignacion_id', 'pago_id', 'unidad_id', 'proyecto', 'metodo', 'monto_asignado', 'factor', 'fecha_asignacion', 'partida_override']],
+        partidas_catalogo: [['partida_id', 'partida', 'subpartidas', 'orden', 'activa']]
       };
       for (const sheet of toCreate) {
         await gsWriteRange(sheet + '!A1', headers[sheet]);

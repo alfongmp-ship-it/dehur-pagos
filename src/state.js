@@ -20,6 +20,9 @@ export const state = {
   unidades: [],
   presupuestoUnidad: [],
   costoAsignaciones: [],
+  // Catálogo editable de partidas y subpartidas
+  // Cada item: { id, partida, subpartidas: [string], orden, activa }
+  partidasCatalogo: [],
   nextUnidadId: 1,
   nextPresupuestoId: 1,
   nextAsignacionId: 1,

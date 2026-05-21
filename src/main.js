@@ -18,6 +18,7 @@ import { renderFacturas, renderFacturaPagos, abrirNuevaFactura, editarFactura, g
 import { renderTraspasos, abrirNuevoTraspaso, editarTraspaso, guardarTraspaso, eliminarTraspaso, actualizarTipoDetectado, togglePartidaTraspaso } from './modules/traspasos.js';
 import { renderResumenTraspasos, filtrarResumen } from './modules/resumen-traspasos.js';
 import { calcularClabeProy, selColor, abrirModalProyecto, guardarProyecto, toggleProyecto, renderConfigProyectos } from './modules/config-page.js';
+import { renderConfigPartidas, abrirModalPartida, guardarPartidaCatalogo, togglePartidaCatalogo, eliminarPartidaCatalogo, agregarSubpartidaTmp, eliminarSubpartidaTmp, moverSubpartida } from './modules/config-partidas.js';
 import { renderCuentasPropias, abrirNuevaCuenta, editarCuenta, editarCuentaProyecto, guardarCuenta, actualizarSaldoCuenta, guardarSaldoCuenta, actualizarSaldoExtra } from './modules/cuentas-propias.js';
 import { renderPosicionSaldos } from './modules/posicion-saldos.js';
 import { renderResumenCostos } from './modules/resumen-costos.js';
@@ -62,6 +63,7 @@ async function init() {
   renderHeaderBadges();
   refreshProyectosEnSelects();
   renderAuthStatus();
+  renderConfigPartidas();
 
   // 7. Contadores nav
   document.getElementById('cnt-prov').textContent = state.proveedores.length;
@@ -248,6 +250,16 @@ window.abrirModalProyecto = abrirModalProyecto;
 window.guardarProyecto = guardarProyecto;
 window.toggleProyecto = toggleProyecto;
 window.renderConfigProyectos = renderConfigProyectos;
+
+// Catálogo de Partidas
+window.renderConfigPartidas = renderConfigPartidas;
+window.abrirModalPartida = abrirModalPartida;
+window.guardarPartidaCatalogo = guardarPartidaCatalogo;
+window.togglePartidaCatalogo = togglePartidaCatalogo;
+window.eliminarPartidaCatalogo = eliminarPartidaCatalogo;
+window.agregarSubpartidaTmp = agregarSubpartidaTmp;
+window.eliminarSubpartidaTmp = eliminarSubpartidaTmp;
+window.moverSubpartida = moverSubpartida;
 
 // Google Sheets
 window.gsLogin = gsLogin;
