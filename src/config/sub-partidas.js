@@ -41,17 +41,33 @@ export function getPartidasCatalogo() {
   return (state.partidasCatalogo || []).filter(p => p.activa !== false);
 }
 
+// Reglas de negocio: SOLO CONSTRUCCION tiene subpartidas. Aunque el catálogo
+// permita guardar subpartidas para otras partidas, no se usan en la UI.
 export function getSubPartidas(partida) {
-  const p = norm(partida);
-  if (!p) return [];
-  const item = (state.partidasCatalogo || []).find(x => norm(x.partida) === p && x.activa !== false);
-  if (item && Array.isArray(item.subpartidas)) return item.subpartidas;
-  // Fallback duro: si el catálogo aún no está poblado y se pregunta por
-  // CONSTRUCCION, devolver la semilla. Útil en arranques sin Sheets conectado.
-  if (p === 'construccion') return SUB_PARTIDAS_CONSTRUCCION;
-  return [];
+  if (norm(partida) !== 'construccion') return [];
+  const item = (state.partidasCatalogo || []).find(x => norm(x.partida) === 'construccion' && x.activa !== false);
+  if (item && Array.isArray(item.subpartidas) && item.subpartidas.length) return item.subpartidas;
+  return SUB_PARTIDAS_CONSTRUCCION;
 }
 
 export function subPartidaObligatoria(partida) {
   return norm(partida) === 'construccion';
+}
+
+// Helper: opciones {value,label} para llenar selects en cualquier pantalla.
+// Si includeLegacy es un array, agrega al final las que no estén en el catálogo
+// activo (marcadas como "(legacy)") para no perder valores antiguos del historial.
+export function getPartidasParaSelect(includeLegacy = []) {
+  const activas = getPartidasCatalogo().slice().sort((a, b) => (a.orden || 0) - (b.orden || 0));
+  const opts = activas.map(p => ({ value: p.partida, label: p.partida }));
+  const existentes = new Set(activas.map(p => norm(p.partida)));
+  const extras = [];
+  (includeLegacy || []).forEach(v => {
+    const vv = (v || '').trim();
+    if (!vv) return;
+    if (existentes.has(norm(vv))) return;
+    if (extras.some(e => norm(e.value) === norm(vv))) return;
+    extras.push({ value: vv, label: vv + ' (legacy)' });
+  });
+  return [...opts, ...extras];
 }

@@ -865,8 +865,11 @@
         <label>Nombre de la partida *</label>
         <input id="cat-partida-nombre" placeholder="Ej: CONSTRUCCION, GASTOS ADMINISTRATIVOS...">
       </div>
-      <div class="field span2">
-        <label>Subpartidas <span style="color:var(--muted);font-weight:400;font-size:11px;">(opcional; obligatorias solo si la partida es CONSTRUCCION)</span></label>
+      <div class="field span2" id="cat-partida-sub-wrap">
+        <label>Subpartidas <span style="color:var(--muted);font-weight:400;font-size:11px;">(solo se usan cuando la partida es CONSTRUCCION)</span></label>
+        <div id="cat-partida-sub-aviso" style="display:none;font-size:11px;color:var(--muted);background:rgba(200,169,110,.07);border:1px solid rgba(200,169,110,.2);border-radius:6px;padding:8px 10px;margin-bottom:6px;">
+          Esta partida no es CONSTRUCCION, por lo que sus subpartidas no se mostrarán en el formulario de pago ni en filtros. Puedes capturarlas igual, pero quedarán latentes.
+        </div>
         <div style="display:flex;gap:6px;">
           <input id="cat-partida-sub-input" placeholder="Ej: Cimentacion" style="flex:1;" onkeydown="if(event.key==='Enter'){event.preventDefault();agregarSubpartidaTmp();}">
           <button class="btn btn-ghost btn-sm" onclick="agregarSubpartidaTmp()">+ Agregar</button>

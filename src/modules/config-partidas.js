@@ -51,11 +51,21 @@ export function abrirModalPartida(id) {
   state.editPartidaId = id || null;
   const p = id ? state.partidasCatalogo.find(x => x.id === id) : null;
   document.getElementById('modal-partida-title').textContent = p ? 'Editar Partida' : 'Nueva Partida';
-  document.getElementById('cat-partida-nombre').value = p?.partida || '';
+  const inpNombre = document.getElementById('cat-partida-nombre');
+  inpNombre.value = p?.partida || '';
+  inpNombre.oninput = actualizarAvisoSubpartidas;
   document.getElementById('cat-partida-sub-input').value = '';
   state._editSubpartidas = [...(p?.subpartidas || [])];
   renderEditSubpartidas();
+  actualizarAvisoSubpartidas();
   document.getElementById('modal-partida').classList.add('open');
+}
+
+function actualizarAvisoSubpartidas() {
+  const nombre = (document.getElementById('cat-partida-nombre')?.value || '').trim();
+  const aviso = document.getElementById('cat-partida-sub-aviso');
+  if (!aviso) return;
+  aviso.style.display = normPartida(nombre) === 'construccion' ? 'none' : '';
 }
 
 function renderEditSubpartidas() {
