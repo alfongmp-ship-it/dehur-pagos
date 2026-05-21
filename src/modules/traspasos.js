@@ -4,6 +4,7 @@ import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { gsSaveTraspasos, saveData, gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveMovimientosInternos } from '../services/google-sync.js';
 import { saveProy } from '../config/proyectos.js';
+import { getPartidasParaSelect } from '../config/sub-partidas.js';
 
 function getAllCuentas() {
   const deProy = state.proyectos.filter(p => p.activo !== false && p.cuenta).map(p => ({
@@ -104,7 +105,26 @@ function populateTraspasoSelects() {
 export function togglePartidaTraspaso() {
   const tipo = document.getElementById('tr-tipo-select')?.value;
   const wrap = document.getElementById('tr-partida-wrap');
-  if (wrap) wrap.style.display = tipo === 'Aportación' ? '' : 'none';
+  if (!wrap) return;
+  wrap.style.display = tipo === 'Aportación' ? '' : 'none';
+  if (tipo === 'Aportación') refreshPartidaTraspasoSelect();
+}
+
+function refreshPartidaTraspasoSelect() {
+  const sel = document.getElementById('tr-partida');
+  if (!sel) return;
+  const actual = sel.value || '';
+  // Si editamos un traspaso con una partida que ya no está en el catálogo, la
+  // incluimos como legacy para no perder el valor histórico.
+  const legacy = [];
+  if (state.editTraspasoId) {
+    const t = state.traspasos.find(x => x.traspaso_id === state.editTraspasoId);
+    if (t?.partida) legacy.push(t.partida);
+  }
+  const opts = getPartidasParaSelect(legacy);
+  sel.innerHTML = '<option value="">— selecciona —</option>' +
+    opts.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
+  if (actual && opts.some(o => o.value === actual)) sel.value = actual;
 }
 
 export function actualizarTipoDetectado() {
@@ -155,8 +175,9 @@ export function editarTraspaso(id) {
   document.getElementById('tr-concepto').value = t.concepto || '';
   document.getElementById('tr-referencia').value = t.referencia || '';
   document.getElementById('tr-estatus').value = t.estatus || 'pendiente';
-  document.getElementById('tr-partida').value = t.partida || '';
   togglePartidaTraspaso();
+  // Setear partida después de poblar el select (si es Aportación).
+  document.getElementById('tr-partida').value = t.partida || '';
   document.getElementById('modal-traspaso').classList.add('open');
 }
 
