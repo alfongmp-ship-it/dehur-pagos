@@ -2,6 +2,10 @@ import { state } from '../state.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { gsSavePartidasCatalogo } from '../services/google-sync.js';
+import { SUB_PARTIDAS_CONSTRUCCION } from '../config/sub-partidas.js';
+
+const normPartida = s => (s || '').trim().toLowerCase()
+  .normalize('NFD').replace(/[̀-ͯ]/g, '');
 
 function slugId(nombre) {
   return 'p_' + (nombre || '').toLowerCase()
@@ -161,4 +165,77 @@ export function eliminarPartidaCatalogo(id) {
   gsSavePartidasCatalogo();
   renderConfigPartidas();
   notify('Partida eliminada');
+}
+
+// Detecta entradas falsas: partidas del catálogo cuyo nombre coincide con una
+// subpartida hardcoded de CONSTRUCCION. Las consolidaremos dentro de CONSTRUCCION.
+function detectarEntradasFalsas() {
+  const subsNorm = new Set(SUB_PARTIDAS_CONSTRUCCION.map(normPartida));
+  // "construccion" sí es una partida válida (no la marcamos como falsa aunque
+  // esté en el array hardcoded — está ahí solo como autopopulado del nombre).
+  subsNorm.delete(normPartida('CONSTRUCCION'));
+  return (state.partidasCatalogo || []).filter(p => subsNorm.has(normPartida(p.partida)));
+}
+
+export function previewLimpiarCatalogo() {
+  const falsas = detectarEntradasFalsas();
+  const div = document.getElementById('limpiar-catalogo-preview');
+  const btnConf = document.getElementById('btn-limpiar-catalogo-confirmar');
+  if (!div) return;
+  if (!falsas.length) {
+    div.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:14px 0;">Catálogo limpio: no se encontraron partidas que sean subpartidas de CONSTRUCCION.</div>';
+    if (btnConf) btnConf.style.display = 'none';
+  } else {
+    div.innerHTML = `
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">
+        Se eliminarán ${falsas.length} entrada${falsas.length === 1 ? '' : 's'} del catálogo y se asegurarán como subpartida${falsas.length === 1 ? '' : 's'} de <b>CONSTRUCCION</b>:
+      </div>
+      <div style="max-height:320px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:6px 12px;">
+        ${falsas.map(p => `<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;">${p.partida}${p.activa === false ? ' <span style="color:var(--muted);">(inactiva)</span>' : ''}</div>`).join('')}
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:10px;line-height:1.6;">
+        Esto NO modifica el historial de pagos. Los pagos viejos que tengan estas como "partida" seguirán como están.
+      </div>
+    `;
+    if (btnConf) btnConf.style.display = '';
+  }
+  document.getElementById('modal-limpiar-catalogo').classList.add('open');
+}
+
+export function confirmarLimpiarCatalogo() {
+  const falsas = detectarEntradasFalsas();
+  if (!falsas.length) { cerrar('modal-limpiar-catalogo'); return; }
+
+  // 1. Asegurar que CONSTRUCCION existe y tiene las subpartidas detectadas.
+  let constr = state.partidasCatalogo.find(p => normPartida(p.partida) === 'construccion');
+  if (!constr) {
+    const orden = state.partidasCatalogo.reduce((m, p) => Math.max(m, p.orden || 0), 0) + 1;
+    constr = {
+      id: 'p_construccion_' + Date.now(),
+      partida: 'CONSTRUCCION',
+      subpartidas: [...SUB_PARTIDAS_CONSTRUCCION],
+      orden,
+      activa: true
+    };
+    state.partidasCatalogo.push(constr);
+  } else {
+    const existentes = new Set((constr.subpartidas || []).map(normPartida));
+    // Añadir las subpartidas hardcoded que falten (lista canónica completa).
+    SUB_PARTIDAS_CONSTRUCCION.forEach(s => {
+      if (!existentes.has(normPartida(s))) {
+        constr.subpartidas.push(s);
+        existentes.add(normPartida(s));
+      }
+    });
+  }
+
+  // 2. Eliminar las falsas del catálogo.
+  const idsFalsos = new Set(falsas.map(p => p.id));
+  state.partidasCatalogo = state.partidasCatalogo.filter(p => !idsFalsos.has(p.id));
+
+  // 3. Persistir y refrescar.
+  gsSavePartidasCatalogo();
+  cerrar('modal-limpiar-catalogo');
+  renderConfigPartidas();
+  notify(`Catálogo limpio: ${falsas.length} entrada${falsas.length === 1 ? '' : 's'} consolidada${falsas.length === 1 ? '' : 's'} en CONSTRUCCION`);
 }

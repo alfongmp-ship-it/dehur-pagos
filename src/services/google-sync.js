@@ -407,10 +407,17 @@ export async function gsLoadAll() {
     // Migración: si la hoja está vacía, sembrar con partidas únicas del
     // historial + subpartidas hardcoded de CONSTRUCCION. Se ejecuta una vez.
     if (pcatRows !== null && (!state.partidasCatalogo || state.partidasCatalogo.length === 0)) {
+      const norm = s => (s || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+      // Set normalizado de subpartidas de CONSTRUCCION (sin incluir "CONSTRUCCION"
+      // que también figura en el array como autopopulado del nombre de partida).
+      const subsNorm = new Set(SUB_PARTIDAS_CONSTRUCCION.map(norm));
+      subsNorm.delete(norm('CONSTRUCCION'));
+      // Tomar partidas únicas del historial filtrando las que en realidad son
+      // subpartidas de CONSTRUCCION (datos contaminados de versiones previas).
       const partidasSet = new Set();
       state.historial.forEach(h => {
         const p = (h.partida || '').trim();
-        if (p) partidasSet.add(p);
+        if (p && !subsNorm.has(norm(p))) partidasSet.add(p);
       });
       partidasSet.add('CONSTRUCCION');
       const slug = s => 'p_' + s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
@@ -418,7 +425,7 @@ export async function gsLoadAll() {
       let orden = 0;
       state.partidasCatalogo = [...partidasSet].map(p => {
         orden++;
-        const esConstr = p.toLowerCase() === 'construccion' || p.toLowerCase() === 'construcción';
+        const esConstr = norm(p) === 'construccion';
         return {
           id: slug(p) + '_' + orden,
           partida: p,

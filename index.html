@@ -574,7 +574,10 @@
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;margin-bottom:20px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px;">
             <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;">Catálogo de Partidas y Subpartidas</div>
-            <button class="btn btn-primary btn-sm" onclick="abrirModalPartida(null)">+ Nueva Partida</button>
+            <div style="display:flex;gap:6px;">
+              <button class="btn btn-ghost btn-sm" onclick="previewLimpiarCatalogo()" title="Quitar entradas del catálogo que son subpartidas de CONSTRUCCION">🧹 Limpiar catálogo</button>
+              <button class="btn btn-primary btn-sm" onclick="abrirModalPartida(null)">+ Nueva Partida</button>
+            </div>
           </div>
           <div id="config-partidas-lista"></div>
           <div style="background:rgba(200,169,110,.07);border:1px solid rgba(200,169,110,.2);border-radius:8px;padding:10px 12px;font-size:11px;color:var(--muted);line-height:1.6;margin-top:14px;">
@@ -874,6 +877,21 @@
     <div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end;">
       <button class="btn btn-ghost" onclick="cerrar('modal-partida')">Cancelar</button>
       <button class="btn btn-primary" onclick="guardarPartidaCatalogo()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL LIMPIAR CATÁLOGO DE PARTIDAS -->
+<div class="modal-overlay" id="modal-limpiar-catalogo">
+  <div class="modal" style="max-width:520px;">
+    <div class="modal-header">
+      <div class="modal-title">Limpiar catálogo de partidas</div>
+      <button class="modal-close" onclick="cerrar('modal-limpiar-catalogo')">✕</button>
+    </div>
+    <div id="limpiar-catalogo-preview"></div>
+    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;">
+      <button class="btn btn-ghost" onclick="cerrar('modal-limpiar-catalogo')">Cancelar</button>
+      <button class="btn btn-primary" id="btn-limpiar-catalogo-confirmar" onclick="confirmarLimpiarCatalogo()">Confirmar limpieza</button>
     </div>
   </div>
 </div>
