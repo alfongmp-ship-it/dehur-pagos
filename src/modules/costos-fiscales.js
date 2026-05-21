@@ -45,7 +45,10 @@ function historialIdSet() { return new Set(state.historial.map(h => h.id).filter
 function pagoById(id) { return state.historial.find(h => String(h.id) === String(id)); }
 
 function partidasConocidas() {
+  // Fuente principal: catálogo activo. Se conservan partidas legacy de historial/
+  // presupuestos para no perder valores antiguos en el autocomplete.
   const set = new Set();
+  (state.partidasCatalogo || []).filter(p => p.activa !== false).forEach(p => set.add(p.partida));
   state.historial.forEach(h => { if (h.partida) set.add(h.partida); });
   state.presupuestoUnidad.forEach(p => { if (p.partida) set.add(p.partida); });
   return [...set].sort();
