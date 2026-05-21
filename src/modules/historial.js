@@ -4,6 +4,7 @@ import { notify } from '../ui/notify.js';
 import { proyTag, catTag } from '../ui/badges.js';
 import { gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveTraspasos, purgarAsignacionesDePago } from '../services/google-sync.js';
 import { saveProy, proyectoMatch } from '../config/proyectos.js';
+import { getPartidasParaSelect, SUB_PARTIDAS_CONSTRUCCION } from '../config/sub-partidas.js';
 
 export function renderHistorial() {
   const el = document.getElementById('historial-lista');
@@ -67,8 +68,12 @@ function refreshHistPartidas() {
   const sel = document.getElementById('fh-partida');
   if (!sel) return;
   const val = sel.value;
-  const partidas = [...new Set(state.historial.map(h => h.partida).filter(p => p))].sort();
-  sel.innerHTML = '<option value="">Todas las partidas</option>' + partidas.map(p => `<option>${p}</option>`).join('');
+  // Partidas del catálogo activo + las que aparezcan en historial pero no en
+  // catálogo (legacy) para no perder filtro de pagos viejos.
+  const enHistorial = [...new Set(state.historial.map(h => h.partida).filter(Boolean))];
+  const opts = getPartidasParaSelect(enHistorial);
+  sel.innerHTML = '<option value="">Todas las partidas</option>' +
+    opts.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
   sel.value = val;
 }
 
@@ -76,8 +81,17 @@ function refreshHistSubPartidas() {
   const sel = document.getElementById('fh-subpartida');
   if (!sel) return;
   const val = sel.value;
-  const subs = [...new Set(state.historial.map(h => h.sub_partida).filter(s => s))].sort();
-  sel.innerHTML = '<option value="">Todas las sub-partidas</option>' + subs.map(s => `<option>${s}</option>`).join('');
+  // Catálogo canónico de subpartidas (CONSTRUCCION) + cualquier valor legacy
+  // del historial que no esté en el catálogo.
+  const enHistorial = [...new Set(state.historial.map(h => h.sub_partida).filter(Boolean))];
+  const canonical = new Set(SUB_PARTIDAS_CONSTRUCCION);
+  const ordered = [...SUB_PARTIDAS_CONSTRUCCION];
+  enHistorial.forEach(s => { if (!canonical.has(s)) ordered.push(s + ' (legacy)'); });
+  sel.innerHTML = '<option value="">Todas las sub-partidas</option>' +
+    ordered.map(s => {
+      const value = s.endsWith(' (legacy)') ? s.replace(/ \(legacy\)$/, '') : s;
+      return `<option value="${value}">${s}</option>`;
+    }).join('');
   sel.value = val;
 }
 
