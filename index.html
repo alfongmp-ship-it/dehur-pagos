@@ -574,8 +574,9 @@
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;margin-bottom:20px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px;">
             <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;">Catálogo de Partidas y Subpartidas</div>
-            <div style="display:flex;gap:6px;">
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
               <button class="btn btn-ghost btn-sm" onclick="previewLimpiarCatalogo()" title="Quitar entradas del catálogo que son subpartidas de CONSTRUCCION">🧹 Limpiar catálogo</button>
+              <button class="btn btn-ghost btn-sm" onclick="previewReclasificarHistorial()" title="Mover a sub_partida los pagos cuya partida es realmente una subpartida de CONSTRUCCION">📑 Reclasificar historial</button>
               <button class="btn btn-primary btn-sm" onclick="abrirModalPartida(null)">+ Nueva Partida</button>
             </div>
           </div>
@@ -895,6 +896,21 @@
     <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;">
       <button class="btn btn-ghost" onclick="cerrar('modal-limpiar-catalogo')">Cancelar</button>
       <button class="btn btn-primary" id="btn-limpiar-catalogo-confirmar" onclick="confirmarLimpiarCatalogo()">Confirmar limpieza</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL RECLASIFICAR HISTORIAL -->
+<div class="modal-overlay" id="modal-reclasificar-historial">
+  <div class="modal" style="max-width:560px;">
+    <div class="modal-header">
+      <div class="modal-title">Reclasificar historial</div>
+      <button class="modal-close" onclick="cerrar('modal-reclasificar-historial')">✕</button>
+    </div>
+    <div id="reclasificar-preview"></div>
+    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;">
+      <button class="btn btn-ghost" onclick="cerrar('modal-reclasificar-historial')">Cancelar</button>
+      <button class="btn btn-primary" id="btn-reclasificar-confirmar" onclick="confirmarReclasificarHistorial()">Confirmar reclasificación</button>
     </div>
   </div>
 </div>

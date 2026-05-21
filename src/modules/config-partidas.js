@@ -1,7 +1,7 @@
 import { state } from '../state.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
-import { gsSavePartidasCatalogo } from '../services/google-sync.js';
+import { gsSavePartidasCatalogo, gsSaveHistorial } from '../services/google-sync.js';
 import { SUB_PARTIDAS_CONSTRUCCION } from '../config/sub-partidas.js';
 
 const normPartida = s => (s || '').trim().toLowerCase()
@@ -248,4 +248,112 @@ export function confirmarLimpiarCatalogo() {
   cerrar('modal-limpiar-catalogo');
   renderConfigPartidas();
   notify(`Catálogo limpio: ${falsas.length} entrada${falsas.length === 1 ? '' : 's'} consolidada${falsas.length === 1 ? '' : 's'} en CONSTRUCCION`);
+}
+
+// ============================================================
+// Reclasificar historial: pagos cuya `partida` en realidad es una subpartida
+// de CONSTRUCCION (data legacy de antes del catálogo con jerarquía).
+// ============================================================
+
+// Mapa normalizado → valor canónico de SUB_PARTIDAS_CONSTRUCCION.
+// Ej. "acabados" → "Acabados", "albanileria" → "Albanileria".
+function canonicalSubpartidaMap() {
+  const m = new Map();
+  SUB_PARTIDAS_CONSTRUCCION.forEach(s => {
+    if (normPartida(s) === 'construccion') return;
+    m.set(normPartida(s), s);
+  });
+  return m;
+}
+
+function detectarPagosParaReclasificar() {
+  const mapa = canonicalSubpartidaMap();
+  const candidatos = []; // { idx, h, partidaActual, canonico }
+  const saltados = [];   // { h, motivo }
+  state.historial.forEach((h, idx) => {
+    if (!h.partida) return;
+    if (h.tipo_registro === 'Traspaso' || h.tipo_registro === 'Crédito') return;
+    const norm = normPartida(h.partida);
+    const canonico = mapa.get(norm);
+    if (!canonico) return; // no es subpartida de CONSTRUCCION
+    if (h.sub_partida && normPartida(h.sub_partida) !== norm) {
+      saltados.push({ h, motivo: `ya tiene sub_partida="${h.sub_partida}"` });
+      return;
+    }
+    candidatos.push({ idx, h, partidaActual: h.partida, canonico });
+  });
+  return { candidatos, saltados };
+}
+
+export function previewReclasificarHistorial() {
+  const { candidatos, saltados } = detectarPagosParaReclasificar();
+  const div = document.getElementById('reclasificar-preview');
+  const btnConf = document.getElementById('btn-reclasificar-confirmar');
+  if (!div) return;
+  if (!candidatos.length && !saltados.length) {
+    div.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:14px 0;">Nada que reclasificar: ningún pago tiene en <code>partida</code> un valor que sea una subpartida canónica de CONSTRUCCION.</div>';
+    if (btnConf) btnConf.style.display = 'none';
+    document.getElementById('modal-reclasificar-historial').classList.add('open');
+    return;
+  }
+  // Agrupar candidatos por partida actual.
+  const grupos = {};
+  candidatos.forEach(c => {
+    const key = c.partidaActual + '||' + c.canonico;
+    if (!grupos[key]) grupos[key] = { partidaActual: c.partidaActual, canonico: c.canonico, count: 0 };
+    grupos[key].count++;
+  });
+  const filas = Object.values(grupos).sort((a, b) => b.count - a.count);
+
+  let html = '';
+  if (filas.length) {
+    html += `
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">
+        Se reclasificarán <b>${candidatos.length}</b> pago${candidatos.length === 1 ? '' : 's'}: partida actual → <b>CONSTRUCCION</b> + sub_partida.
+      </div>
+      <div style="max-height:280px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:6px 12px;margin-bottom:10px;">
+        ${filas.map(g => `
+          <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;">
+            <span style="flex:1;"><code>${g.partidaActual}</code> → CONSTRUCCION + <code>${g.canonico}</code></span>
+            <span style="font-family:'DM Mono',monospace;color:var(--accent);">${g.count}</span>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+  if (saltados.length) {
+    html += `
+      <div style="font-size:11px;color:var(--muted);margin-top:10px;">
+        ${saltados.length} pago${saltados.length === 1 ? '' : 's'} se omitirá${saltados.length === 1 ? '' : 'n'} porque ya tiene${saltados.length === 1 ? '' : 'n'} sub_partida con otro valor (no se sobreescribe).
+      </div>
+    `;
+  }
+  html += `
+    <div style="font-size:11px;color:var(--muted);margin-top:10px;line-height:1.6;">
+      Esto modifica registros reales del historial en Google Sheets. Si necesitas revertir, usa Archivo → Historial de versiones en la hoja.
+    </div>
+  `;
+  div.innerHTML = html;
+  if (btnConf) btnConf.style.display = candidatos.length ? '' : 'none';
+  document.getElementById('modal-reclasificar-historial').classList.add('open');
+}
+
+export async function confirmarReclasificarHistorial() {
+  if (!state.gsToken) {
+    notify('Conecta Google Sheets antes de reclasificar el historial', 'error');
+    return;
+  }
+  const { candidatos } = detectarPagosParaReclasificar();
+  if (!candidatos.length) { cerrar('modal-reclasificar-historial'); return; }
+  if (candidatos.length > 100 && !confirm(`Vas a modificar ${candidatos.length} pagos del historial. ¿Continuar?`)) return;
+
+  candidatos.forEach(c => {
+    c.h.sub_partida = c.canonico;
+    c.h.partida = 'CONSTRUCCION';
+  });
+
+  await gsSaveHistorial();
+  cerrar('modal-reclasificar-historial');
+  if (window.renderHistorial) window.renderHistorial();
+  notify(`✓ ${candidatos.length} pago${candidatos.length === 1 ? '' : 's'} reclasificado${candidatos.length === 1 ? '' : 's'} en CONSTRUCCION`);
 }

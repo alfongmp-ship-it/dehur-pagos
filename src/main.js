@@ -18,7 +18,7 @@ import { renderFacturas, renderFacturaPagos, abrirNuevaFactura, editarFactura, g
 import { renderTraspasos, abrirNuevoTraspaso, editarTraspaso, guardarTraspaso, eliminarTraspaso, actualizarTipoDetectado, togglePartidaTraspaso } from './modules/traspasos.js';
 import { renderResumenTraspasos, filtrarResumen } from './modules/resumen-traspasos.js';
 import { calcularClabeProy, selColor, abrirModalProyecto, guardarProyecto, toggleProyecto, renderConfigProyectos } from './modules/config-page.js';
-import { renderConfigPartidas, abrirModalPartida, guardarPartidaCatalogo, togglePartidaCatalogo, eliminarPartidaCatalogo, agregarSubpartidaTmp, eliminarSubpartidaTmp, moverSubpartida, previewLimpiarCatalogo, confirmarLimpiarCatalogo } from './modules/config-partidas.js';
+import { renderConfigPartidas, abrirModalPartida, guardarPartidaCatalogo, togglePartidaCatalogo, eliminarPartidaCatalogo, agregarSubpartidaTmp, eliminarSubpartidaTmp, moverSubpartida, previewLimpiarCatalogo, confirmarLimpiarCatalogo, previewReclasificarHistorial, confirmarReclasificarHistorial } from './modules/config-partidas.js';
 import { renderCuentasPropias, abrirNuevaCuenta, editarCuenta, editarCuentaProyecto, guardarCuenta, actualizarSaldoCuenta, guardarSaldoCuenta, actualizarSaldoExtra } from './modules/cuentas-propias.js';
 import { renderPosicionSaldos } from './modules/posicion-saldos.js';
 import { renderResumenCostos } from './modules/resumen-costos.js';
@@ -262,6 +262,8 @@ window.eliminarSubpartidaTmp = eliminarSubpartidaTmp;
 window.moverSubpartida = moverSubpartida;
 window.previewLimpiarCatalogo = previewLimpiarCatalogo;
 window.confirmarLimpiarCatalogo = confirmarLimpiarCatalogo;
+window.previewReclasificarHistorial = previewReclasificarHistorial;
+window.confirmarReclasificarHistorial = confirmarReclasificarHistorial;
 
 // Google Sheets
 window.gsLogin = gsLogin;
