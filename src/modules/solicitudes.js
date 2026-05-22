@@ -69,17 +69,19 @@ function normCodigo(s) {
   return String(s || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
-// Resuelve un c\u00f3digo de unidad ('101') al unidad_id usando state.unidades filtrado
-// por proyecto del pago. Devuelve null si no existe.
+// Resuelve un c\u00f3digo de unidad ('101') al objeto de unidad usando state.unidades.
+// ESTRICTO: solo busca dentro del proyecto del pago. Si la unidad existe en otro
+// proyecto pero no en el del pago, devuelve null (evita asignar costos cruzados
+// a proyectos equivocados por typos de obra).
 function resolverUnidadPorCodigo(codigo, proyecto) {
   const cod = normCodigo(codigo);
-  if (!cod) return null;
-  const cand = state.unidades.filter(u => u.activo !== false && normCodigo(u.nombre) === cod);
-  if (!cand.length) return null;
-  if (cand.length === 1) return cand[0];
-  // Hay varias unidades con mismo nombre \u2014 preferir la del proyecto del pago.
-  const delProy = cand.find(u => normCodigo(u.proyecto) === normCodigo(proyecto));
-  return delProy || cand[0];
+  const proy = normCodigo(proyecto);
+  if (!cod || !proy) return null;
+  return state.unidades.find(u =>
+    u.activo !== false &&
+    normCodigo(u.nombre) === cod &&
+    normCodigo(u.proyecto) === proy
+  ) || null;
 }
 
 // Parsea las columnas Reparto + Unidades de una fila del Excel.
