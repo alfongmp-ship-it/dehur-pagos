@@ -38,15 +38,16 @@ export function descargarPlantilla() {
   const wb = XLSX.utils.book_new();
   const data = [
     ['DEHUR TERRITORIAL — Solicitud de Pagos'],
-    ['Obra:', '', '', '', '', '', '', '', '', ''],
-    ['Fecha:', '', '', '', '', '', '', '', '', ''],
-    ['Proveedor_ID', 'Factura_ID', 'Proveedor / Contratista', 'Partida', 'Clave', 'Factura', 'OC', 'Importe', 'Proyecto', 'Concepto'],
-    ['', '', '', '', '', '', '', '', '', ''],
+    ['Obra:', '', '', '', '', '', '', '', '', '', '', ''],
+    ['Fecha:', '', '', '', '', '', '', '', '', '', '', ''],
+    ['Proveedor_ID', 'Factura_ID', 'Proveedor / Contratista', 'Partida', 'Clave', 'Factura', 'OC', 'Importe', 'Proyecto', 'Concepto', 'Reparto', 'Unidades'],
+    ['', '', '', '', '', '', '', '', '', '', '', ''],
   ];
   const ws = XLSX.utils.aoa_to_sheet(data);
   ws['!cols'] = [
     { wch: 14 }, { wch: 12 }, { wch: 35 }, { wch: 15 }, { wch: 12 },
-    { wch: 15 }, { wch: 10 }, { wch: 14 }, { wch: 20 }, { wch: 40 }
+    { wch: 15 }, { wch: 10 }, { wch: 14 }, { wch: 20 }, { wch: 40 },
+    { wch: 12 }, { wch: 28 }
   ];
   XLSX.utils.book_append_sheet(wb, ws, 'Solicitud');
   XLSX.writeFile(wb, 'Plantilla_Solicitud_Pagos_Dehur.xlsx');
@@ -63,9 +64,157 @@ function detectarProyecto(sheetName, obra, proyectoFila) {
   return state.proyectos.length ? state.proyectos[0].nombre : texto;
 }
 
+// Normaliza para comparar nombres (case-insensitive, sin acentos).
+function normCodigo(s) {
+  return String(s || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+// Resuelve un c\u00f3digo de unidad ('101') al unidad_id usando state.unidades filtrado
+// por proyecto del pago. Devuelve null si no existe.
+function resolverUnidadPorCodigo(codigo, proyecto) {
+  const cod = normCodigo(codigo);
+  if (!cod) return null;
+  const cand = state.unidades.filter(u => u.activo !== false && normCodigo(u.nombre) === cod);
+  if (!cand.length) return null;
+  if (cand.length === 1) return cand[0];
+  // Hay varias unidades con mismo nombre \u2014 preferir la del proyecto del pago.
+  const delProy = cand.find(u => normCodigo(u.proyecto) === normCodigo(proyecto));
+  return delProy || cand[0];
+}
+
+// Parsea las columnas Reparto + Unidades de una fila del Excel.
+// Devuelve { asignaciones, metodo, errores, warnings }:
+//  - asignaciones: array [{ unidad_id, casa, pct }] (vac\u00edo si no aplica)
+//  - metodo: 'directo' | 'equitativo' | 'indiviso' | 'custom' | null
+//  - errores: array de strings (bloquean carga)
+//  - warnings: array de strings (no bloquean)
+function parseReparto(repartoRaw, unidadesRaw, proyecto) {
+  const errores = [];
+  const warnings = [];
+  let asignaciones = [];
+  let metodo = null;
+
+  const reparto = String(repartoRaw || '').trim().toLowerCase();
+  const unidadesStr = String(unidadesRaw || '').trim();
+
+  // Vac\u00edo expl\u00edcito o blanco: no auto-asignar
+  if (!reparto || reparto === 'vacio' || reparto === 'vac\u00edo') {
+    return { asignaciones: [], metodo: null, errores, warnings };
+  }
+
+  const VALIDOS = ['directo', 'equitativo', 'indiviso', 'custom'];
+  if (!VALIDOS.includes(reparto)) {
+    errores.push(`Reparto='${repartoRaw}' no es v\u00e1lido. Usa: directo, equitativo, indiviso, custom, o d\u00e9jalo vac\u00edo.`);
+    return { asignaciones, metodo, errores, warnings };
+  }
+  metodo = reparto;
+
+  // Helper: separa c\u00f3digos por '/' filtrando vac\u00edos
+  const splitCodigos = s => s.split('/').map(x => x.trim()).filter(Boolean);
+
+  if (metodo === 'indiviso') {
+    if (unidadesStr) warnings.push(`Columna Unidades se ignora cuando Reparto='indiviso' (se reparte entre TODAS las casas del proyecto).`);
+    const delProyecto = state.unidades.filter(u => u.activo !== false && normCodigo(u.proyecto) === normCodigo(proyecto));
+    if (!delProyecto.length) {
+      errores.push(`No hay unidades en el proyecto '${proyecto}' para repartir por indiviso.`);
+      return { asignaciones, metodo, errores, warnings };
+    }
+    const sumaIndiviso = delProyecto.reduce((s, u) => s + (u.indiviso_pct || 0), 0);
+    if (sumaIndiviso <= 0) {
+      errores.push(`Las unidades del proyecto '${proyecto}' no tienen indiviso_pct definido.`);
+      return { asignaciones, metodo, errores, warnings };
+    }
+    // Normalizar a 100% si la suma no es exacta
+    if (Math.abs(sumaIndiviso - 100) > 0.5) {
+      warnings.push(`Suma de indiviso del proyecto '${proyecto}' es ${sumaIndiviso.toFixed(2)}%, se normaliza a 100%.`);
+    }
+    asignaciones = delProyecto.map(u => ({
+      unidad_id: u.unidad_id, casa: u.nombre, pct: (u.indiviso_pct / sumaIndiviso) * 100
+    }));
+    return { asignaciones, metodo, errores, warnings };
+  }
+
+  if (!unidadesStr) {
+    errores.push(`Reparto='${metodo}' requiere la columna Unidades (d\u00e9jala vac\u00eda solo con 'indiviso' o 'vacio').`);
+    return { asignaciones, metodo, errores, warnings };
+  }
+
+  if (metodo === 'directo') {
+    const codigos = splitCodigos(unidadesStr);
+    if (codigos.length !== 1) {
+      errores.push(`Reparto='directo' requiere exactamente 1 unidad (Unidades='${unidadesStr}' tiene ${codigos.length}).`);
+      return { asignaciones, metodo, errores, warnings };
+    }
+    const u = resolverUnidadPorCodigo(codigos[0], proyecto);
+    if (!u) {
+      warnings.push(`Unidad '${codigos[0]}' no existe en el cat\u00e1logo \u2014 no se auto-asignar\u00e1.`);
+      asignaciones = [{ unidad_id: null, casa: codigos[0], pct: 100 }];
+    } else {
+      asignaciones = [{ unidad_id: u.unidad_id, casa: u.nombre, pct: 100 }];
+    }
+    return { asignaciones, metodo, errores, warnings };
+  }
+
+  if (metodo === 'equitativo') {
+    const codigos = splitCodigos(unidadesStr);
+    if (codigos.length < 2) {
+      errores.push(`Reparto='equitativo' requiere 2+ unidades (Unidades='${unidadesStr}' tiene ${codigos.length}).`);
+      return { asignaciones, metodo, errores, warnings };
+    }
+    const pct = 100 / codigos.length;
+    const noEncontradas = [];
+    asignaciones = codigos.map(c => {
+      const u = resolverUnidadPorCodigo(c, proyecto);
+      if (!u) noEncontradas.push(c);
+      return { unidad_id: u?.unidad_id || null, casa: u?.nombre || c, pct };
+    });
+    if (noEncontradas.length) warnings.push(`Unidades no encontradas: ${noEncontradas.join(', ')} \u2014 esas se omitir\u00e1n al auto-asignar.`);
+    return { asignaciones, metodo, errores, warnings };
+  }
+
+  // custom: 'c\u00f3digo:%' separados por '/'
+  if (metodo === 'custom') {
+    const tokens = unidadesStr.split('/').map(t => t.trim()).filter(Boolean);
+    if (!tokens.length) {
+      errores.push(`Reparto='custom' requiere tokens 'c\u00f3digo:%' separados por '/'.`);
+      return { asignaciones, metodo, errores, warnings };
+    }
+    let sumaPct = 0;
+    const noEncontradas = [];
+    asignaciones = tokens.map(tok => {
+      const m = tok.match(/^([^:]+):(.+)$/);
+      if (!m) {
+        errores.push(`Token '${tok}' inv\u00e1lido en custom (formato esperado: 'c\u00f3digo:%').`);
+        return null;
+      }
+      const codigo = m[1].trim();
+      const pct = parseFloat(String(m[2]).replace(/[%\s]/g, ''));
+      if (!isFinite(pct) || pct <= 0) {
+        errores.push(`Porcentaje inv\u00e1lido en '${tok}'.`);
+        return null;
+      }
+      sumaPct += pct;
+      const u = resolverUnidadPorCodigo(codigo, proyecto);
+      if (!u) noEncontradas.push(codigo);
+      return { unidad_id: u?.unidad_id || null, casa: u?.nombre || codigo, pct };
+    }).filter(Boolean);
+    if (errores.length) return { asignaciones: [], metodo, errores, warnings };
+    if (Math.abs(sumaPct - 100) > 0.5) {
+      errores.push(`Suma de % en custom es ${sumaPct.toFixed(2)}, debe ser 100.`);
+      return { asignaciones: [], metodo, errores, warnings };
+    }
+    if (noEncontradas.length) warnings.push(`Unidades no encontradas: ${noEncontradas.join(', ')} \u2014 esas se omitir\u00e1n al auto-asignar.`);
+    return { asignaciones, metodo, errores, warnings };
+  }
+
+  return { asignaciones, metodo, errores, warnings };
+}
+
 export function parsearSolicitud(wb, filename) {
   state.solicitudesData = [];
   let obraGlobal = '';
+  const erroresGlobales = []; // { fila, motivo }
+  const warningsGlobales = []; // strings
 
   // Validate it's Dehur standard template
   const firstSheet = wb.Sheets[wb.SheetNames[0]];
@@ -101,7 +250,8 @@ export function parsearSolicitud(wb, filename) {
       }
     });
 
-    rows.slice(dataStart).forEach(r => {
+    rows.slice(dataStart).forEach((r, rIdx) => {
+      const numeroFila = dataStart + rIdx + 1; // 1-based para el reporte de errores
       const proveedorIdRaw = tieneProvId ? String(r[0] || '').trim() : '';
       const facturaIdRaw = tieneProvId ? String(r[1] || '').trim() : '';
 
@@ -164,19 +314,42 @@ export function parsearSolicitud(wb, filename) {
       }
 
       const nombreFinal = (matchProv && matchMetodo === 'id') ? matchProv.nombre : proveedor;
+      const proyectoDet = detectarProyecto(sheetName, obraGlobal, proyectoFila);
+
+      // Parseo de Reparto / Unidades (columnas 10 y 11 del nuevo template)
+      const repartoRaw = String(r[off + 9] || '').trim();
+      const unidadesRaw = String(r[off + 10] || '').trim();
+      const { asignaciones, metodo: repartoMetodo, errores: errParse, warnings: warnParse } =
+        parseReparto(repartoRaw, unidadesRaw, proyectoDet);
+      errParse.forEach(e => erroresGlobales.push({ fila: numeroFila, motivo: e }));
+      warnParse.forEach(w => warningsGlobales.push(`Fila ${numeroFila}: ${w}`));
+
       state.solicitudesData.push({
         uid: Date.now() + '-' + Math.random(),
         proveedor: nombreFinal, partida, clave, oc, concepto, motivo, importe, flag,
         proveedor_id: proveedorIdRaw, factura_id: facturaIdRaw,
-        esNo, proyecto: detectarProyecto(sheetName, obraGlobal, proyectoFila),
+        esNo, proyecto: proyectoDet,
         semana: sheetName, cuentaEmbebida, bancoEmbebido,
         match: matchProv, matchMetodo, matchScore,
-        vinculadoManual: false, seleccionado: !esNo
+        vinculadoManual: false, seleccionado: !esNo,
+        // Asignación planificada desde el Excel (opcional)
+        asignacionesPlanificadas: asignaciones,
+        repartoMetodo
       });
     });
   });
 
   if (!state.solicitudesData.length) { notify('No se encontraron filas de pago en el archivo', 'error'); return; }
+
+  // Si el Excel trae errores en columnas Reparto/Unidades, bloquear la carga.
+  if (erroresGlobales.length) {
+    state.solicitudesData = [];
+    const detalle = erroresGlobales.slice(0, 6)
+      .map(e => `Fila ${e.fila}: ${e.motivo}`).join('\n');
+    const extra = erroresGlobales.length > 6 ? `\n…y ${erroresGlobales.length - 6} más` : '';
+    notify(`⛔ Carga bloqueada: ${erroresGlobales.length} error${erroresGlobales.length === 1 ? '' : 'es'} en Reparto/Unidades:\n${detalle}${extra}`, 'error');
+    return;
+  }
 
   document.getElementById('sol-filename').textContent = filename;
   const total = state.solicitudesData.reduce((a, s) => a + s.importe, 0);
@@ -201,7 +374,33 @@ export function parsearSolicitud(wb, filename) {
     .map(s => s.partida).filter(Boolean)
     .filter(p => !catalogoNorm.has(norm(p)))
   )];
-  notify(`${state.solicitudesData.length} solicitudes cargadas${sinCuenta ? ' · ⚠ ' + sinCuenta + ' sin cuenta' : ''}${desconocidas.length ? ' · ⚠ partidas fuera del catálogo: ' + desconocidas.join(', ') : ''}`);
+  const warningsTxt = warningsGlobales.length
+    ? `\n⚠ ${warningsGlobales.length} aviso${warningsGlobales.length === 1 ? '' : 's'} de Reparto/Unidades — revisa los badges`
+    : '';
+  notify(`${state.solicitudesData.length} solicitudes cargadas${sinCuenta ? ' · ⚠ ' + sinCuenta + ' sin cuenta' : ''}${desconocidas.length ? ' · ⚠ partidas fuera del catálogo: ' + desconocidas.join(', ') : ''}${warningsTxt}`);
+}
+
+// Devuelve el HTML del badge de asignación para una solicitud (o cadena vacía).
+function badgeAsignacion(s) {
+  if (!s.repartoMetodo) return '';
+  const arr = s.asignacionesPlanificadas || [];
+  const sinResolver = arr.filter(a => !a.unidad_id).map(a => a.casa);
+  let texto = '';
+  if (s.repartoMetodo === 'directo') {
+    const a = arr[0];
+    texto = `🏠 ${a?.casa || '?'}`;
+  } else if (s.repartoMetodo === 'equitativo') {
+    texto = `🏠 ${arr.length} casas equitativo`;
+  } else if (s.repartoMetodo === 'indiviso') {
+    texto = `🏠 indiviso (${arr.length} casas)`;
+  } else if (s.repartoMetodo === 'custom') {
+    const partes = arr.map(a => `${a.casa}:${Math.round(a.pct)}%`).join(' / ');
+    texto = `🏠 custom ${partes}`;
+  }
+  const avisos = sinResolver.length
+    ? `<span style="color:var(--yellow);font-size:10px;margin-left:4px;">⚠ ${sinResolver.join(', ')} no existe</span>`
+    : '';
+  return `<div style="font-size:10px;color:var(--accent);margin-top:3px;">${texto}${avisos}</div>`;
 }
 
 export function renderSolicitudes() {
@@ -324,6 +523,7 @@ export function renderSolicitudes() {
         : '<span style="color:var(--muted);">—</span>'}</td>
       <td style="font-size:11px;color:var(--muted);max-width:240px;">
         <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px;" title="${s.concepto}">${s.concepto}</div>
+        ${badgeAsignacion(s)}
       </td>
       <td>${cuentaHtml}</td>
       <td style="text-align:right;font-family:'DM Mono',monospace;font-size:13px;font-weight:600;color:var(--accent);white-space:nowrap;">${fmt(s.importe)}</td>
@@ -517,7 +717,10 @@ export function enviarACola() {
       proveedor_id: s.proveedor_id || String(prov.id || ''),
       factura_id: s.factura_id || '',
       partida: s.partida || '',
-      origen: 'solicitud'
+      origen: 'solicitud',
+      // Asignación planificada de costos (desde el Excel)
+      asignacionesPlanificadas: s.asignacionesPlanificadas || [],
+      repartoMetodo: s.repartoMetodo || null
     });
   });
 

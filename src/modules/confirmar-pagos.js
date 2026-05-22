@@ -2,7 +2,7 @@ import { state, esConcentradora } from '../state.js';
 import { fmt } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { proyTag } from '../ui/badges.js';
-import { saveData, gsSaveHistorial, gsSavePendientes, gsSaveProyectos, gsSaveCuentasPropias, gsSaveFacturas, gsSaveFacturaPagos } from '../services/google-sync.js';
+import { saveData, gsSaveHistorial, gsSavePendientes, gsSaveProyectos, gsSaveCuentasPropias, gsSaveFacturas, gsSaveFacturaPagos, gsSaveCostoAsignaciones, ensureHistorialIds } from '../services/google-sync.js';
 import { saveProy } from '../config/proyectos.js';
 
 export function renderConfirmarPagos() {
@@ -65,16 +65,50 @@ export function eliminarPendiente(idx) {
   notify('Pago pendiente eliminado');
 }
 
-export function confirmarPagos() {
+export async function confirmarPagos() {
   const confirmados = state.pendientesConfirmacion.filter(d => d.confirmado);
   if (!confirmados.length) { notify('Selecciona al menos un pago confirmado', 'error'); return; }
   const fecha = new Date().toLocaleDateString('es-MX');
+  // Insertamos en historial y mantenemos referencia al objeto recién creado para
+  // poder obtener su `id` estable y crear las asignaciones auto-vinculadas.
+  const insertados = [];
   confirmados.forEach(d => {
     const proyectoHist = esConcentradora(d.cuenta_cargo) ? '' : (d.cuenta_cargo || d.proyecto);
-    state.historial.unshift({ fecha, nombre: d.nombre, concepto: d.concepto, importe: d.importe, proyecto: proyectoHist, banco: d.banco, tipo: d.tipo || d.cuenta, proveedor_id: d.proveedor_id || '', factura_id: d.factura_id || '', cuenta_origen: d.cuenta_cargo || '', tipo_registro: 'Pago', partida: d.partida || '', sub_partida: d.sub_partida || '' });
+    const h = { fecha, nombre: d.nombre, concepto: d.concepto, importe: d.importe, proyecto: proyectoHist, banco: d.banco, tipo: d.tipo || d.cuenta, proveedor_id: d.proveedor_id || '', factura_id: d.factura_id || '', cuenta_origen: d.cuenta_cargo || '', tipo_registro: 'Pago', partida: d.partida || '', sub_partida: d.sub_partida || '' };
+    state.historial.unshift(h);
+    insertados.push({ d, h });
   });
+  // Asegurar IDs estables para poder vincular asignaciones de costos.
+  ensureHistorialIds();
   document.getElementById('cnt-hist').textContent = state.historial.length;
   gsSaveHistorial();
+
+  // Auto-crear asignaciones de costo planificadas desde la solicitud (obra).
+  let asignacionesCreadas = 0;
+  insertados.forEach(({ d, h }) => {
+    if (!d.asignacionesPlanificadas?.length) return;
+    d.asignacionesPlanificadas.forEach(asg => {
+      if (!asg.unidad_id) return; // casa no encontrada en catálogo: se omite
+      const pct = parseFloat(asg.pct) || 0;
+      if (pct <= 0) return;
+      const monto = (d.importe * pct) / 100;
+      state.costoAsignaciones.push({
+        asignacion_id: state.nextAsignacionId++,
+        pago_id: h.id,
+        unidad_id: asg.unidad_id,
+        proyecto: h.proyecto,
+        metodo: d.repartoMetodo || 'custom',
+        monto_asignado: monto,
+        factor: pct / 100,
+        fecha_asignacion: new Date().toISOString().split('T')[0],
+        partida_override: ''
+      });
+      asignacionesCreadas++;
+    });
+  });
+  if (asignacionesCreadas) {
+    await gsSaveCostoAsignaciones();
+  }
 
   // Registrar pagos a facturas y actualizar saldos de facturas
   let factChanged = false;
@@ -155,7 +189,9 @@ export function confirmarPagos() {
   state.pendientesConfirmacion = state.pendientesConfirmacion.filter(d => !d.confirmado);
   gsSavePendientes();
 
-  notify('✅ ' + confirmados.length + ' pago(s) registrados en historial');
+  const extraAsig = asignacionesCreadas ? ` · 🏠 ${asignacionesCreadas} asignación(es) auto-creadas` : '';
+  notify('✅ ' + confirmados.length + ' pago(s) registrados en historial' + extraAsig);
   if (window.renderHistorial) window.renderHistorial();
+  if (window.renderCostosFiscales) window.renderCostosFiscales();
   renderConfirmarPagos();
 }

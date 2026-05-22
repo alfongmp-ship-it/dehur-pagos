@@ -91,23 +91,36 @@ export async function gsLoadAll() {
     // Load pendientes confirmacion
     const pcRows = await leerHoja('pendientes_confirmacion', 'pendientesConfirmacion');
     if (pcRows && pcRows.length > 1) {
-      state.pendientesConfirmacion = pcRows.slice(1).filter(r => r[0]).map(r => ({
-        id: parseInt(r[0]) || Date.now(),
-        proveedor_id: r[1] || '',
-        factura_id: r[2] || '',
-        nombre: r[3] || '',
-        cuenta: r[4] || '',
-        banco: normalizeBanco(r[5] || ''),
-        tipo: r[6] || '',
-        concepto: r[7] || '',
-        importe: parseFloat(r[8]) || 0,
-        proyecto: r[9] || '',
-        partida: r[10] || '',
-        cuenta_cargo: r[11] || '',
-        fechaGen: r[12] || '',
-        confirmado: r[13] !== 'false',
-        sub_partida: r[14] || ''
-      }));
+      state.pendientesConfirmacion = pcRows.slice(1).filter(r => r[0]).map(r => {
+        // Asignación planificada serializada en col 15 (JSON con {a, m}).
+        let asignacionesPlanificadas = [], repartoMetodo = null;
+        if (r[15]) {
+          try {
+            const parsed = JSON.parse(r[15]);
+            asignacionesPlanificadas = Array.isArray(parsed.a) ? parsed.a : [];
+            repartoMetodo = parsed.m || null;
+          } catch (e) { /* JSON corrupto: ignorar */ }
+        }
+        return {
+          id: parseInt(r[0]) || Date.now(),
+          proveedor_id: r[1] || '',
+          factura_id: r[2] || '',
+          nombre: r[3] || '',
+          cuenta: r[4] || '',
+          banco: normalizeBanco(r[5] || ''),
+          tipo: r[6] || '',
+          concepto: r[7] || '',
+          importe: parseFloat(r[8]) || 0,
+          proyecto: r[9] || '',
+          partida: r[10] || '',
+          cuenta_cargo: r[11] || '',
+          fechaGen: r[12] || '',
+          confirmado: r[13] !== 'false',
+          sub_partida: r[14] || '',
+          asignacionesPlanificadas,
+          repartoMetodo
+        };
+      });
     }
 
     // Load empleados
@@ -535,12 +548,13 @@ export async function gsSavePendientes() {
     const rows = state.pendientesConfirmacion.map(p => [
       p.id, p.proveedor_id || '', p.factura_id || '', p.nombre, p.cuenta || '',
       p.banco, p.tipo, p.concepto, p.importe, p.proyecto, p.partida || '',
-      p.cuenta_cargo || '', p.fechaGen || '', p.confirmado, p.sub_partida || ''
+      p.cuenta_cargo || '', p.fechaGen || '', p.confirmado, p.sub_partida || '',
+      JSON.stringify({ a: p.asignacionesPlanificadas || [], m: p.repartoMetodo || null })
     ]);
     await gsClearAndWrite('pendientes_confirmacion', rows, [
       'id', 'proveedor_id', 'factura_id', 'nombre', 'cuenta', 'banco',
       'tipo', 'concepto', 'importe', 'proyecto', 'partida', 'cuenta_cargo',
-      'fechaGen', 'confirmado', 'sub_partida'
+      'fechaGen', 'confirmado', 'sub_partida', 'asignaciones_planificadas'
     ]);
   } catch (e) { console.error('gsSavePendientes', e); }
 }

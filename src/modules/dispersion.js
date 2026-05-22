@@ -359,7 +359,10 @@ export function generarArchivo() {
     banco: item.proveedor.banco, tipo: item.proveedor.tipo_cuenta,
     concepto: item.concepto, importe: item.importe, proyecto: item.proyecto, partida: item.partida || '', sub_partida: item.sub_partida || '',
     cuenta_cargo: proySel.nombre,
-    fechaGen: fd, seleccionado: true, tieneInfo: true
+    fechaGen: fd, seleccionado: true, tieneInfo: true,
+    // Propagación de asignaciones planificadas (desde solicitud)
+    asignacionesPlanificadas: item.asignacionesPlanificadas || [],
+    repartoMetodo: item.repartoMetodo || null
   }));
 
   state.cola = [];
