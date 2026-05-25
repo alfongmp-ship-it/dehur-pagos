@@ -10,7 +10,7 @@ const ENTIDADES_GUARDABLES = [
   'proveedores', 'empleados', 'historial', 'proyectos', 'facturas', 'facturaPagos',
   'cuentasPropias', 'traspasos', 'creditos', 'pagares', 'pagosPagare',
   'movimientosInternos', 'pendientesConfirmacion', 'unidades', 'presupuestoUnidad',
-  'costoAsignaciones', 'partidasCatalogo'
+  'costoAsignaciones', 'partidasCatalogo', 'partidasObra'
 ];
 const ETIQUETA = {
   proveedores: 'Proveedores', empleados: 'Empleados', historial: 'Historial de pagos',
@@ -19,7 +19,8 @@ const ETIQUETA = {
   pagares: 'Pagarés', pagosPagare: 'Pagos de pagaré', movimientosInternos: 'Movimientos internos',
   pendientesConfirmacion: 'Pagos por confirmar', unidades: 'Unidades',
   presupuestoUnidad: 'Presupuestos', costoAsignaciones: 'Asignaciones de costo',
-  partidasCatalogo: 'Catálogo de partidas'
+  partidasCatalogo: 'Catálogo de partidas',
+  partidasObra: 'Catálogo de partidas de obra'
 };
 
 // Lee una hoja y marca si la entidad cargó con éxito. `gsReadSheet` devuelve
@@ -450,6 +451,19 @@ export async function gsLoadAll() {
       await gsSavePartidasCatalogo();
     }
 
+    // Load partidas_obra (catálogo detallado de partidas de Obra)
+    const poRows = await leerHoja('partidas_obra', 'partidasObra');
+    if (poRows && poRows.length > 1) {
+      state.partidasObra = poRows.slice(1).filter(r => r[0] || r[1]).map(r => ({
+        id: r[0] || '',
+        nombre: r[1] || '',
+        proyecto: r[2] || '',
+        subPartidaAdmin: r[3] || '',
+        orden: parseInt(r[4]) || 0,
+        activa: r[5] !== 'false' && r[5] !== 'FALSE' && r[5] !== false
+      }));
+    }
+
     // Recalcular nextId con el máximo entre proveedores y empleados
     const maxProv = state.proveedores.reduce((max, p) => Math.max(max, p.id || 0), 0);
     const maxEmp = state.empleados.reduce((max, e) => Math.max(max, e.id || 0), 0);
@@ -469,6 +483,7 @@ export async function gsLoadAll() {
     if (window.refreshProyectosEnSelects) window.refreshProyectosEnSelects();
     if (window.renderCostosFiscales) window.renderCostosFiscales();
     if (window.renderConfigPartidas) window.renderConfigPartidas();
+    if (window.renderConfigPartidasObra) window.renderConfigPartidasObra();
     document.getElementById('cnt-hist').textContent = state.historial.length;
     document.getElementById('cnt-fact').textContent = state.facturas.length;
     document.getElementById('cnt-fp').textContent = state.facturaPagos.length;
@@ -752,6 +767,18 @@ export async function gsSaveMovimientosInternos() {
   if (!guardarPermitido('movimientosInternos', state.movimientosInternos)) return;
   const rows = state.movimientosInternos.map(m => [m.id, m.fecha, m.tipo, m.origen, m.destino, m.monto, m.concepto, m.referencia]);
   await gsClearAndWrite('movimientos_internos', rows, ['id', 'fecha', 'tipo', 'origen', 'destino', 'monto', 'concepto', 'referencia']);
+}
+
+export async function gsSavePartidasObra() {
+  if (!state.gsToken) return;
+  if (!guardarPermitido('partidasObra', state.partidasObra, true)) return;
+  try {
+    const rows = state.partidasObra.map(p => [
+      p.id || '', p.nombre || '', p.proyecto || '', p.subPartidaAdmin || '',
+      p.orden || 0, p.activa === false ? 'false' : 'true'
+    ]);
+    await gsClearAndWrite('partidas_obra', rows, ['partida_obra_id', 'nombre', 'proyecto', 'sub_partida_admin', 'orden', 'activa']);
+  } catch (e) { console.error('gsSavePartidasObra', e); }
 }
 
 export async function gsSavePartidasCatalogo() {

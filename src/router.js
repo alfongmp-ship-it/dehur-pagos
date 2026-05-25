@@ -13,7 +13,7 @@ export function showPage(name, el) {
   if (name === 'solicitudes' && window.renderSolicitudes) window.renderSolicitudes();
   if (name === 'facturas' && window.renderFacturas) window.renderFacturas();
   if (name === 'factura-pagos' && window.renderFacturaPagos) window.renderFacturaPagos();
-  if (name === 'config') { if (window.renderConfigProyectos) window.renderConfigProyectos(); if (window.renderConfigPartidas) window.renderConfigPartidas(); }
+  if (name === 'config') { if (window.renderConfigProyectos) window.renderConfigProyectos(); if (window.renderConfigPartidas) window.renderConfigPartidas(); if (window.renderConfigPartidasObra) window.renderConfigPartidasObra(); }
   if (name === 'cuentas-propias' && window.renderCuentasPropias) window.renderCuentasPropias();
   if (name === 'posicion-saldos' && window.renderPosicionSaldos) window.renderPosicionSaldos();
   if (name === 'resumen-costos' && window.renderResumenCostos) window.renderResumenCostos();

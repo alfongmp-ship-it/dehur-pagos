@@ -23,6 +23,11 @@ export const state = {
   // Catálogo editable de partidas y subpartidas
   // Cada item: { id, partida, subpartidas: [string], orden, activa }
   partidasCatalogo: [],
+  // Catálogo de partidas de OBRA (presupuesto de construcción) — más detallado
+  // que el de Admin. Modelo "maestro + ajustes por proyecto": proyecto='' aplica
+  // a todos; proyecto con nombre solo aplica a ese.
+  // Cada item: { id, nombre, proyecto, subPartidaAdmin, orden, activa }
+  partidasObra: [],
   nextUnidadId: 1,
   nextPresupuestoId: 1,
   nextAsignacionId: 1,
