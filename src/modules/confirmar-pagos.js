@@ -5,6 +5,50 @@ import { proyTag } from '../ui/badges.js';
 import { saveData, gsSaveHistorial, gsSavePendientes, gsSaveProyectos, gsSaveCuentasPropias, gsSaveFacturas, gsSaveFacturaPagos, gsSaveCostoAsignaciones, ensureHistorialIds } from '../services/google-sync.js';
 import { saveProy } from '../config/proyectos.js';
 
+const _normPart = s => String(s || '').trim().toLowerCase()
+  .normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+// Aplica auto-indiviso a un pago del historial cuya partida Admin no sea
+// CONSTRUCCION y que no tenga aún asignaciones de costo. Devuelve la cantidad
+// de asignaciones creadas (0 si no aplica). El llamador es responsable de
+// invocar gsSaveCostoAsignaciones() después si se creó al menos una.
+export function aplicarAutoIndiviso(h, repartoMetodo) {
+  if (!h || !h.id || !h.proyecto) return 0;
+  if (repartoMetodo === 'vacio') return 0;                     // opt-out explícito
+  const part = _normPart(h.partida);
+  if (!part || part === 'construccion') return 0;              // sin partida o construccion → no aplica
+  // No duplicar si ya hay asignaciones para este pago
+  if (state.costoAsignaciones.some(a => String(a.pago_id) === String(h.id))) return 0;
+
+  const unidades = state.unidades.filter(u => u.activo !== false && u.proyecto === h.proyecto);
+  if (!unidades.length) return 0;
+
+  const sumaInd = unidades.reduce((s, u) => s + (u.indiviso_pct || 0), 0);
+  const usarInd = sumaInd > 0.01;
+  const fecha = new Date().toISOString().split('T')[0];
+
+  let creadas = 0;
+  unidades.forEach(u => {
+    const pct = usarInd
+      ? ((u.indiviso_pct || 0) / sumaInd) * 100
+      : 100 / unidades.length;
+    if (pct <= 0) return;
+    state.costoAsignaciones.push({
+      asignacion_id: state.nextAsignacionId++,
+      pago_id: h.id,
+      unidad_id: u.unidad_id,
+      proyecto: h.proyecto,
+      metodo: usarInd ? 'indiviso' : 'equitativo',
+      monto_asignado: (h.importe * pct) / 100,
+      factor: pct / 100,
+      fecha_asignacion: fecha,
+      partida_override: ''
+    });
+    creadas++;
+  });
+  return creadas;
+}
+
 export function renderConfirmarPagos() {
   const el = document.getElementById('confirmar-lista');
   if (!el) return;
@@ -106,7 +150,16 @@ export async function confirmarPagos() {
       asignacionesCreadas++;
     });
   });
-  if (asignacionesCreadas) {
+
+  // Auto-indiviso para pagos no-construcción sin asignaciones manuales.
+  // El helper internamente verifica que no haya asignaciones ya creadas,
+  // así que es seguro llamarlo siempre. Respeta opt-out (repartoMetodo='vacio').
+  let autoIndivCreadas = 0;
+  insertados.forEach(({ d, h }) => {
+    autoIndivCreadas += aplicarAutoIndiviso(h, d.repartoMetodo);
+  });
+
+  if (asignacionesCreadas || autoIndivCreadas) {
     await gsSaveCostoAsignaciones();
   }
 
@@ -189,7 +242,10 @@ export async function confirmarPagos() {
   state.pendientesConfirmacion = state.pendientesConfirmacion.filter(d => !d.confirmado);
   gsSavePendientes();
 
-  const extraAsig = asignacionesCreadas ? ` · 🏠 ${asignacionesCreadas} asignación(es) auto-creadas` : '';
+  const partes = [];
+  if (asignacionesCreadas) partes.push(`🏠 ${asignacionesCreadas} desde Excel`);
+  if (autoIndivCreadas) partes.push(`🏠 ${autoIndivCreadas} auto-indiviso`);
+  const extraAsig = partes.length ? ' · ' + partes.join(' · ') : '';
   notify('✅ ' + confirmados.length + ' pago(s) registrados en historial' + extraAsig);
   if (window.renderHistorial) window.renderHistorial();
   if (window.renderCostosFiscales) window.renderCostosFiscales();

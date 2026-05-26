@@ -116,9 +116,12 @@ function parseReparto(repartoRaw, unidadesRaw, proyecto) {
   const reparto = String(repartoRaw || '').trim().toLowerCase();
   const unidadesStr = String(unidadesRaw || '').trim();
 
-  // Vac\u00edo expl\u00edcito o blanco: no auto-asignar
-  if (!reparto || reparto === 'vacio' || reparto === 'vac\u00edo') {
+  // Distinguir blanco (no decisi\u00f3n) vs 'vacio' expl\u00edcito (opt-out del auto-indiviso)
+  if (!reparto) {
     return { asignaciones: [], metodo: null, errores, warnings };
+  }
+  if (reparto === 'vacio' || reparto === 'vac\u00edo') {
+    return { asignaciones: [], metodo: 'vacio', errores, warnings };
   }
 
   const VALIDOS = ['directo', 'equitativo', 'indiviso', 'custom'];

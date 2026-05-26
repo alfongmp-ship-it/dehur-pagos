@@ -3,7 +3,8 @@ import { tipoBadge } from '../ui/badges.js';
 import { fmt } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
-import { saveData, gsSavePendientes, gsSaveProyectos, gsSaveCuentasPropias } from '../services/google-sync.js';
+import { saveData, gsSavePendientes, gsSaveProyectos, gsSaveCuentasPropias, gsSaveCostoAsignaciones, ensureHistorialIds } from '../services/google-sync.js';
+import { aplicarAutoIndiviso } from './confirmar-pagos.js';
 import { showPage } from '../router.js';
 import { saveProy } from '../config/proyectos.js';
 import { getSubPartidas, getPartidasCatalogo, subPartidaObligatoria } from '../config/sub-partidas.js';
@@ -184,6 +185,12 @@ export function confirmarPagoDirecto() {
   document.getElementById('cnt-hist').textContent = state.historial.length;
   saveData(1);
 
+  // Auto-indiviso para pagos directos no-construcción (sin repartoMetodo).
+  ensureHistorialIds();
+  const hNuevo = state.historial[0];
+  const autoCreadas = aplicarAutoIndiviso(hNuevo, null);
+  if (autoCreadas) gsSaveCostoAsignaciones();
+
   // Ajustar saldo de la cuenta origen (reusar proy/extra de arriba)
   const todayISO = new Date().toISOString().split('T')[0];
   if (proy && proy.ultima_act_saldo && todayISO >= proy.ultima_act_saldo.slice(0, 10)) {
@@ -198,7 +205,8 @@ export function confirmarPagoDirecto() {
   if (window.renderHistorial) window.renderHistorial();
   if (window.renderCuentasPropias) window.renderCuentasPropias();
   if (window.renderHeaderBadges) window.renderHeaderBadges();
-  notify(`Pago directo registrado: ${state.pagoP.nombre.split(' ')[0]} · ${fmt(importe)}`);
+  const extraAuto = autoCreadas ? ` · 🏠 ${autoCreadas} auto-indiviso` : '';
+  notify(`Pago directo registrado: ${state.pagoP.nombre.split(' ')[0]} · ${fmt(importe)}${extraAuto}`);
 }
 
 // Nómina masiva a cola
