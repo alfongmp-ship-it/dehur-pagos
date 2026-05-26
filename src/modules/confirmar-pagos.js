@@ -101,7 +101,7 @@ export async function confirmarPagos() {
         monto_asignado: monto,
         factor: pct / 100,
         fecha_asignacion: new Date().toISOString().split('T')[0],
-        partida_override: ''
+        partida_override: d.partidaObra || ''
       });
       asignacionesCreadas++;
     });

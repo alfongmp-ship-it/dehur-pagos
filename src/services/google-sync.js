@@ -119,7 +119,8 @@ export async function gsLoadAll() {
           confirmado: r[13] !== 'false',
           sub_partida: r[14] || '',
           asignacionesPlanificadas,
-          repartoMetodo
+          repartoMetodo,
+          partidaObra: r[16] || ''
         };
       });
     }
@@ -586,12 +587,13 @@ export async function gsSavePendientes() {
       p.id, p.proveedor_id || '', p.factura_id || '', p.nombre, p.cuenta || '',
       p.banco, p.tipo, p.concepto, p.importe, p.proyecto, p.partida || '',
       p.cuenta_cargo || '', p.fechaGen || '', p.confirmado, p.sub_partida || '',
-      JSON.stringify({ a: p.asignacionesPlanificadas || [], m: p.repartoMetodo || null })
+      JSON.stringify({ a: p.asignacionesPlanificadas || [], m: p.repartoMetodo || null }),
+      p.partidaObra || ''
     ]);
     await gsClearAndWrite('pendientes_confirmacion', rows, [
       'id', 'proveedor_id', 'factura_id', 'nombre', 'cuenta', 'banco',
       'tipo', 'concepto', 'importe', 'proyecto', 'partida', 'cuenta_cargo',
-      'fechaGen', 'confirmado', 'sub_partida', 'asignaciones_planificadas'
+      'fechaGen', 'confirmado', 'sub_partida', 'asignaciones_planificadas', 'partida_obra'
     ]);
   } catch (e) { console.error('gsSavePendientes', e); }
 }

@@ -362,7 +362,9 @@ export function generarArchivo() {
     fechaGen: fd, seleccionado: true, tieneInfo: true,
     // Propagación de asignaciones planificadas (desde solicitud)
     asignacionesPlanificadas: item.asignacionesPlanificadas || [],
-    repartoMetodo: item.repartoMetodo || null
+    repartoMetodo: item.repartoMetodo || null,
+    // Detalle Obra para partida_override en costoAsignaciones
+    partidaObra: item.partidaObra || ''
   }));
 
   state.cola = [];

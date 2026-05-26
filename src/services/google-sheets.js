@@ -71,7 +71,7 @@ export async function gsInitSheets() {
         pagares: [['pagare_id', 'credito_id', 'numero_pagare', 'monto', 'fecha_disposicion', 'fecha_vencimiento', 'tasa', 'estatus', 'activo']],
         pagos_pagare: [['pago_id', 'pagare_id', 'credito_id', 'fecha_pago', 'monto_intereses', 'concepto', 'estatus', 'fecha_real_pago']],
         movimientos_internos: [['id', 'fecha', 'tipo', 'origen', 'destino', 'monto', 'concepto', 'referencia']],
-        pendientes_confirmacion: [['id', 'proveedor_id', 'factura_id', 'nombre', 'cuenta', 'banco', 'tipo', 'concepto', 'importe', 'proyecto', 'partida', 'cuenta_cargo', 'fechaGen', 'confirmado', 'sub_partida', 'asignaciones_planificadas']],
+        pendientes_confirmacion: [['id', 'proveedor_id', 'factura_id', 'nombre', 'cuenta', 'banco', 'tipo', 'concepto', 'importe', 'proyecto', 'partida', 'cuenta_cargo', 'fechaGen', 'confirmado', 'sub_partida', 'asignaciones_planificadas', 'partida_obra']],
         historial_saldos: [['fecha', 'cuenta_id', 'cuenta_nombre', 'cuenta_tipo', 'saldo', 'saldo_total']],
         unidades: [['unidad_id', 'proyecto', 'nombre', 'tipo', 'indiviso_pct', 'superficie_m2', 'estatus', 'orden', 'activo', 'plano_x', 'plano_y', 'plano_w', 'plano_h']],
         presupuesto_unidad: [['presupuesto_id', 'unidad_id', 'partida', 'sub_partida', 'monto_presupuestado', 'costo_inicial', 'notas']],
