@@ -58,6 +58,13 @@ async function init() {
   const fechaDisp = document.getElementById('fecha-disp');
   if (fechaDisp) fechaDisp.value = new Date().toISOString().split('T')[0];
 
+  // Restaurar preferencia del límite de caracteres del archivo BBVA
+  const bbvaMaxInput = document.getElementById('bbva-concepto-max');
+  if (bbvaMaxInput) {
+    const saved = parseInt(localStorage.getItem('bbva-concepto-max'), 10);
+    if (Number.isFinite(saved) && saved >= 20 && saved <= 200) bbvaMaxInput.value = String(saved);
+  }
+
   // 6. Render inicial
   renderProveedores();
   renderCuentaDispSelect();

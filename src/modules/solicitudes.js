@@ -293,7 +293,7 @@ export function parsearSolicitud(wb, filename) {
 
       const concepto = String(r[off + 8] || '').trim();
       const motivoRaw = (factura ? 'Fac:' + factura + ' ' : '') + concepto;
-      const motivo = motivoRaw.substring(0, 40).trim();
+      const motivo = motivoRaw.trim();
 
       const flag = String(r[off + 7] || '').trim().toUpperCase();
       const esNo = flag === 'NO' || flag === 'N/A' || flag === 'PENDIENTE';
@@ -772,7 +772,7 @@ export function enviarACola() {
     state.cola.push({
       id: Date.now() + Math.random(),
       proveedor: prov,
-      concepto: (s.motivo || s.concepto || '').substring(0, 40),
+      concepto: (s.motivo || s.concepto || ''),
       importe: s.importe,
       proyecto: s.proyecto || '',
       proveedor_id: s.proveedor_id || String(prov.id || ''),

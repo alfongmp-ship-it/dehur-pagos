@@ -332,6 +332,12 @@ export function generarArchivo() {
   const cargo = proySel.cuenta;
   const fechaFn = fecha.replace(/-/g, '');
 
+  // Límite de caracteres para el campo "DETALLE DEL PAGO" del archivo BBVA.
+  // Configurable desde la UI; persistido en localStorage para próximas sesiones.
+  let maxConcepto = parseInt(document.getElementById('bbva-concepto-max')?.value, 10);
+  if (!Number.isFinite(maxConcepto) || maxConcepto < 20 || maxConcepto > 200) maxConcepto = 40;
+  try { localStorage.setItem('bbva-concepto-max', String(maxConcepto)); } catch (e) { /* ignore */ }
+
   const wb = XLSX.utils.book_new();
   const headers = [
     'TIPO DE OPERACIÓN', 'CUENTA CARGO', 'CTA. ABONO O CONVENIO CIE', 'IMPORTE',
@@ -342,7 +348,8 @@ export function generarArchivo() {
   const data = [headers];
   state.cola.forEach(item => {
     const { tipo, cuenta: ctaAbono } = resolverCuentaAbono(item.proveedor);
-    data.push([tipo, cargo, ctaAbono, item.importe, item.concepto, '', 'Pesos', item.proveedor.nombre, '', '', '', '', '', '']);
+    const conceptoTrunc = (item.concepto || '').substring(0, maxConcepto);
+    data.push([tipo, cargo, ctaAbono, item.importe, conceptoTrunc, '', 'Pesos', item.proveedor.nombre, '', '', '', '', '', '']);
   });
   const ws = XLSX.utils.aoa_to_sheet(data);
   XLSX.utils.book_append_sheet(wb, ws, 'Dispersión');

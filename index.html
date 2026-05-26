@@ -199,7 +199,10 @@
             <div style="font-size:12px;color:var(--muted);margin-bottom:5px;">Cuenta origen:</div>
             <select class="filter-select" style="width:100%;margin-bottom:12px;" id="cuenta-disp" onchange="actualizarDisplaySaldo()"></select>
             <div style="font-size:12px;color:var(--muted);margin-bottom:5px;">Fecha aplicación:</div>
-            <input type="date" id="fecha-disp" style="width:100%;margin-bottom:16px;">
+            <input type="date" id="fecha-disp" style="width:100%;margin-bottom:12px;">
+            <div style="font-size:12px;color:var(--muted);margin-bottom:5px;">Máx. caracteres concepto:</div>
+            <input type="number" id="bbva-concepto-max" min="20" max="200" value="40" style="width:100%;margin-bottom:6px;" title="Límite de caracteres del campo 'DETALLE DEL PAGO' en el archivo BBVA. SIM/SPEI suele aceptar 40, algunos formatos hasta 60+. Si el archivo es rechazado, baja el número.">
+            <div style="font-size:10px;color:var(--muted);margin-bottom:14px;line-height:1.4;">El historial guarda el concepto completo; este límite solo aplica al archivo BBVA.</div>
             <button class="btn btn-primary" style="width:100%;padding:12px;" onclick="generarArchivo()">⬇ Generar Archivo BBVA</button>
             <div style="font-size:11px;color:var(--muted);margin-top:8px;text-align:center;">Compatible con SIM BBVA · XLSX</div>
           </div>
