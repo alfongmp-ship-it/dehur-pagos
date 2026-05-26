@@ -20,6 +20,7 @@ import { renderResumenTraspasos, filtrarResumen } from './modules/resumen-traspa
 import { calcularClabeProy, selColor, abrirModalProyecto, guardarProyecto, toggleProyecto, renderConfigProyectos } from './modules/config-page.js';
 import { renderConfigPartidas, abrirModalPartida, guardarPartidaCatalogo, togglePartidaCatalogo, eliminarPartidaCatalogo, agregarSubpartidaTmp, eliminarSubpartidaTmp, moverSubpartida, previewLimpiarCatalogo, confirmarLimpiarCatalogo, previewReclasificarHistorial, confirmarReclasificarHistorial } from './modules/config-partidas.js';
 import { renderConfigPartidasObra, filtrarPartidasObra, abrirModalPartidaObra, guardarPartidaObra, togglePartidaObra, eliminarPartidaObra, actualizarSubpartidaAdminOptions } from './modules/config-partidas-obra.js';
+import { descargarPlantillaPresupuesto, handleSubirPlantillaPresupuesto } from './modules/presupuesto-bulk.js';
 import { renderCuentasPropias, abrirNuevaCuenta, editarCuenta, editarCuentaProyecto, guardarCuenta, actualizarSaldoCuenta, guardarSaldoCuenta, actualizarSaldoExtra } from './modules/cuentas-propias.js';
 import { renderPosicionSaldos } from './modules/posicion-saldos.js';
 import { renderResumenCostos } from './modules/resumen-costos.js';
@@ -282,6 +283,10 @@ window.guardarPartidaObra = guardarPartidaObra;
 window.togglePartidaObra = togglePartidaObra;
 window.eliminarPartidaObra = eliminarPartidaObra;
 window.actualizarSubpartidaAdminOptions = actualizarSubpartidaAdminOptions;
+
+// Captura masiva de presupuesto (Excel)
+window.descargarPlantillaPresupuesto = descargarPlantillaPresupuesto;
+window.handleSubirPlantillaPresupuesto = handleSubirPlantillaPresupuesto;
 
 // Google Sheets
 window.gsLogin = gsLogin;

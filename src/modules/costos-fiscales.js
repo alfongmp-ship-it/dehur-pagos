@@ -782,6 +782,15 @@ function renderPresupuestosTab(panel) {
   }
 
   panel.innerHTML = `
+    <div style="background:rgba(90,155,224,.07);border:1px solid rgba(90,155,224,.2);border-radius:10px;padding:12px 14px;margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+      <div style="font-size:12px;color:var(--muted);">Captura masiva (${cfProyecto}):</div>
+      <button class="btn btn-ghost btn-sm" onclick="descargarPlantillaPresupuesto('${(cfProyecto || '').replace(/'/g, "\\'")}')">📥 Descargar plantilla</button>
+      <label class="btn btn-ghost btn-sm" style="cursor:pointer;">
+        📤 Subir plantilla
+        <input type="file" accept=".xlsx,.xls" style="display:none;" onchange="handleSubirPlantillaPresupuesto(event)">
+      </label>
+      <div style="font-size:11px;color:var(--muted);flex:1;min-width:0;">Excel con 2 hojas (Presupuesto / Costo Inicial). Merge no destructivo.</div>
+    </div>
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">
       <label style="font-size:12px;color:var(--muted);">Unidad:</label>
       <select id="cf-presup-unidad" class="filter-select">
