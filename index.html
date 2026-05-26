@@ -917,9 +917,14 @@
         <div style="font-size:11px;color:var(--muted);margin-top:4px;">"(maestro)" = aplica a todos los proyectos. Si seleccionas uno, esta partida solo aparece para ese proyecto.</div>
       </div>
       <div class="field span2">
-        <label>Sub-partida Admin (CONSTRUCCION)</label>
+        <label>Partida Admin</label>
+        <select id="cat-po-partida-admin" onchange="actualizarSubpartidaAdminOptions('')"></select>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;">A qué partida del catálogo Admin se traduce esta partida obra (para reportes y historial). Puedes dejarla sin mapeo si todavía no decides.</div>
+      </div>
+      <div class="field span2" id="cat-po-subpartida-admin-wrap" style="display:none;">
+        <label>Sub-partida Admin</label>
         <select id="cat-po-subpartida-admin"></select>
-        <div style="font-size:11px;color:var(--muted);margin-top:4px;">A qué sub-partida del Admin se traduce esta partida obra (para reportes y historial). Puedes dejarla sin mapeo si todavía no decides.</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;">Solo aparece si la Partida Admin elegida tiene subpartidas.</div>
       </div>
     </div>
     <div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end;">

@@ -19,7 +19,7 @@ import { renderTraspasos, abrirNuevoTraspaso, editarTraspaso, guardarTraspaso, e
 import { renderResumenTraspasos, filtrarResumen } from './modules/resumen-traspasos.js';
 import { calcularClabeProy, selColor, abrirModalProyecto, guardarProyecto, toggleProyecto, renderConfigProyectos } from './modules/config-page.js';
 import { renderConfigPartidas, abrirModalPartida, guardarPartidaCatalogo, togglePartidaCatalogo, eliminarPartidaCatalogo, agregarSubpartidaTmp, eliminarSubpartidaTmp, moverSubpartida, previewLimpiarCatalogo, confirmarLimpiarCatalogo, previewReclasificarHistorial, confirmarReclasificarHistorial } from './modules/config-partidas.js';
-import { renderConfigPartidasObra, filtrarPartidasObra, abrirModalPartidaObra, guardarPartidaObra, togglePartidaObra, eliminarPartidaObra } from './modules/config-partidas-obra.js';
+import { renderConfigPartidasObra, filtrarPartidasObra, abrirModalPartidaObra, guardarPartidaObra, togglePartidaObra, eliminarPartidaObra, actualizarSubpartidaAdminOptions } from './modules/config-partidas-obra.js';
 import { renderCuentasPropias, abrirNuevaCuenta, editarCuenta, editarCuentaProyecto, guardarCuenta, actualizarSaldoCuenta, guardarSaldoCuenta, actualizarSaldoExtra } from './modules/cuentas-propias.js';
 import { renderPosicionSaldos } from './modules/posicion-saldos.js';
 import { renderResumenCostos } from './modules/resumen-costos.js';
@@ -274,6 +274,7 @@ window.abrirModalPartidaObra = abrirModalPartidaObra;
 window.guardarPartidaObra = guardarPartidaObra;
 window.togglePartidaObra = togglePartidaObra;
 window.eliminarPartidaObra = eliminarPartidaObra;
+window.actualizarSubpartidaAdminOptions = actualizarSubpartidaAdminOptions;
 
 // Google Sheets
 window.gsLogin = gsLogin;

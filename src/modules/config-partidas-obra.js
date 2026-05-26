@@ -14,10 +14,15 @@ function slugId(nombre, proyecto) {
     + '_' + Date.now();
 }
 
-// Devuelve las subpartidas de CONSTRUCCION del catálogo Admin (para el dropdown).
-function subPartidasAdminConstruccion() {
-  const constr = (state.partidasCatalogo || []).find(p => norm(p.partida) === 'construccion');
-  return (constr?.subpartidas || []).slice();
+// Devuelve las partidas activas del catálogo Admin (para el dropdown de partida-admin).
+function partidasAdminActivas() {
+  return (state.partidasCatalogo || []).filter(p => p.activa !== false);
+}
+
+// Devuelve las subpartidas de una partida-admin específica (por nombre normalizado).
+function subPartidasDe(partidaNombre) {
+  const item = (state.partidasCatalogo || []).find(p => norm(p.partida) === norm(partidaNombre));
+  return (item?.subpartidas || []).slice();
 }
 
 // Filtro UI: proyecto activo en el chip ('', '__maestro', o nombre del proyecto).
@@ -45,9 +50,15 @@ export function renderConfigPartidasObra() {
     const badgeProy = p.proyecto
       ? `<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:600;background:rgba(90,155,224,.15);color:var(--blue);">${p.proyecto}</span>`
       : `<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:600;background:rgba(200,169,110,.15);color:var(--accent);">MAESTRO</span>`;
-    const badgeAdmin = p.subPartidaAdmin
-      ? `<span style="font-size:11px;color:var(--muted);">→ ${p.subPartidaAdmin}</span>`
-      : `<span style="font-size:11px;color:var(--yellow);">⚠ sin mapeo</span>`;
+    let badgeAdmin;
+    if (!p.partidaAdmin && !p.subPartidaAdmin) {
+      badgeAdmin = `<span style="font-size:11px;color:var(--yellow);">⚠ sin mapeo</span>`;
+    } else if (p.partidaAdmin && p.subPartidaAdmin) {
+      badgeAdmin = `<span style="font-size:11px;color:var(--muted);">→ ${p.partidaAdmin} / ${p.subPartidaAdmin}</span>`;
+    } else {
+      // partidaAdmin sin sub (caso normal cuando la partida no tiene subpartidas)
+      badgeAdmin = `<span style="font-size:11px;color:var(--muted);">→ ${p.partidaAdmin || p.subPartidaAdmin}</span>`;
+    }
     return `
       <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);">
         <div style="flex:1;min-width:0;">
@@ -99,22 +110,56 @@ export function abrirModalPartidaObra(id) {
   selProy.innerHTML = opts.join('');
   selProy.value = p?.proyecto || '';
 
-  // Dropdown de sub_partida admin (de CONSTRUCCION)
-  const selAdmin = document.getElementById('cat-po-subpartida-admin');
-  const subs = subPartidasAdminConstruccion();
-  selAdmin.innerHTML = '<option value="">— sin mapeo —</option>' +
-    subs.map(s => `<option value="${s}">${s}</option>`).join('');
-  selAdmin.value = p?.subPartidaAdmin || '';
+  // Dropdown de partida admin (todas las activas)
+  const selPartida = document.getElementById('cat-po-partida-admin');
+  const partidas = partidasAdminActivas();
+  selPartida.innerHTML = '<option value="">— sin mapeo —</option>' +
+    partidas.map(x => `<option value="${x.partida}">${x.partida}</option>`).join('');
+  selPartida.value = p?.partidaAdmin || '';
+
+  // Repoblar el dropdown de subpartida según la partida elegida
+  actualizarSubpartidaAdminOptions(p?.subPartidaAdmin || '');
 
   document.getElementById('modal-partida-obra').classList.add('open');
+}
+
+// Repuebla el dropdown de subpartida-admin según la partida-admin seleccionada.
+// Si la partida no tiene subpartidas, oculta el wrap.
+export function actualizarSubpartidaAdminOptions(valorPreseleccionado) {
+  const selPartida = document.getElementById('cat-po-partida-admin');
+  const selSub = document.getElementById('cat-po-subpartida-admin');
+  const wrap = document.getElementById('cat-po-subpartida-admin-wrap');
+  if (!selPartida || !selSub || !wrap) return;
+  const partidaSel = selPartida.value || '';
+  if (!partidaSel) {
+    selSub.innerHTML = '';
+    selSub.value = '';
+    wrap.style.display = 'none';
+    return;
+  }
+  const subs = subPartidasDe(partidaSel);
+  if (!subs.length) {
+    selSub.innerHTML = '';
+    selSub.value = '';
+    wrap.style.display = 'none';
+    return;
+  }
+  selSub.innerHTML = '<option value="">— (sin sub-partida) —</option>' +
+    subs.map(s => `<option value="${s}">${s}</option>`).join('');
+  selSub.value = valorPreseleccionado || '';
+  wrap.style.display = '';
 }
 
 export function guardarPartidaObra() {
   const nombre = (document.getElementById('cat-po-nombre').value || '').trim();
   if (!nombre) { notify('El nombre es obligatorio', 'error'); return; }
   const proyecto = (document.getElementById('cat-po-proyecto').value || '').trim();
-  const subPartidaAdmin = (document.getElementById('cat-po-subpartida-admin').value || '').trim();
+  const partidaAdmin = (document.getElementById('cat-po-partida-admin').value || '').trim();
+  let subPartidaAdmin = (document.getElementById('cat-po-subpartida-admin').value || '').trim();
   const editId = state.editPartidaObraId;
+
+  // Si no hay partidaAdmin, la subpartida no aplica.
+  if (!partidaAdmin) subPartidaAdmin = '';
 
   // Validar duplicado por (nombre + proyecto) (case-insensitive)
   const dup = state.partidasObra.find(p =>
@@ -126,11 +171,19 @@ export function guardarPartidaObra() {
     notify(`Ya existe una partida obra "${nombre}"${proyecto ? ' en ' + proyecto : ' como maestro'}`, 'error');
     return;
   }
-  // Validar sub_partida_admin (si se eligió, debe existir en CONSTRUCCION admin)
+  // Validar partidaAdmin (debe existir y estar activa)
+  if (partidaAdmin) {
+    const partidas = partidasAdminActivas().map(x => norm(x.partida));
+    if (!partidas.includes(norm(partidaAdmin))) {
+      notify(`La partida admin "${partidaAdmin}" no existe o está inactiva`, 'error');
+      return;
+    }
+  }
+  // Validar subPartidaAdmin: solo si la partidaAdmin tiene subpartidas, y debe ser una de ellas.
   if (subPartidaAdmin) {
-    const subs = subPartidasAdminConstruccion().map(norm);
+    const subs = subPartidasDe(partidaAdmin).map(norm);
     if (!subs.includes(norm(subPartidaAdmin))) {
-      notify(`La subpartida admin "${subPartidaAdmin}" no existe en CONSTRUCCION`, 'error');
+      notify(`La sub-partida "${subPartidaAdmin}" no pertenece a "${partidaAdmin}"`, 'error');
       return;
     }
   }
@@ -138,12 +191,12 @@ export function guardarPartidaObra() {
   if (editId) {
     const idx = state.partidasObra.findIndex(p => p.id === editId);
     if (idx >= 0) {
-      state.partidasObra[idx] = { ...state.partidasObra[idx], nombre, proyecto, subPartidaAdmin };
+      state.partidasObra[idx] = { ...state.partidasObra[idx], nombre, proyecto, partidaAdmin, subPartidaAdmin };
     }
   } else {
     const orden = state.partidasObra.reduce((m, p) => Math.max(m, p.orden || 0), 0) + 1;
     state.partidasObra.push({
-      id: slugId(nombre, proyecto), nombre, proyecto, subPartidaAdmin, orden, activa: true
+      id: slugId(nombre, proyecto), nombre, proyecto, partidaAdmin, subPartidaAdmin, orden, activa: true
     });
   }
   gsSavePartidasObra();

@@ -77,7 +77,7 @@ export async function gsInitSheets() {
         presupuesto_unidad: [['presupuesto_id', 'unidad_id', 'partida', 'sub_partida', 'monto_presupuestado', 'costo_inicial', 'notas']],
         costo_asignaciones: [['asignacion_id', 'pago_id', 'unidad_id', 'proyecto', 'metodo', 'monto_asignado', 'factor', 'fecha_asignacion', 'partida_override']],
         partidas_catalogo: [['partida_id', 'partida', 'subpartidas', 'orden', 'activa']],
-        partidas_obra: [['partida_obra_id', 'nombre', 'proyecto', 'sub_partida_admin', 'orden', 'activa']]
+        partidas_obra: [['partida_obra_id', 'nombre', 'proyecto', 'partida_admin', 'sub_partida_admin', 'orden', 'activa']]
       };
       for (const sheet of toCreate) {
         await gsWriteRange(sheet + '!A1', headers[sheet]);

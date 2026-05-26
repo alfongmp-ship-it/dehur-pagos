@@ -452,16 +452,38 @@ export async function gsLoadAll() {
     }
 
     // Load partidas_obra (catálogo detallado de partidas de Obra)
+    // Schema v2: partida_obra_id, nombre, proyecto, partida_admin, sub_partida_admin, orden, activa
+    // Schema v1 (legacy):           ..., proyecto, sub_partida_admin, orden, activa
+    // Detección por header: si la columna 3 (idx 3) del header dice 'partida_admin' es v2.
     const poRows = await leerHoja('partidas_obra', 'partidasObra');
     if (poRows && poRows.length > 1) {
-      state.partidasObra = poRows.slice(1).filter(r => r[0] || r[1]).map(r => ({
-        id: r[0] || '',
-        nombre: r[1] || '',
-        proyecto: r[2] || '',
-        subPartidaAdmin: r[3] || '',
-        orden: parseInt(r[4]) || 0,
-        activa: r[5] !== 'false' && r[5] !== 'FALSE' && r[5] !== false
-      }));
+      const header = poRows[0].map(h => String(h || '').toLowerCase());
+      const esV2 = header[3] === 'partida_admin';
+      state.partidasObra = poRows.slice(1).filter(r => r[0] || r[1]).map(r => {
+        if (esV2) {
+          return {
+            id: r[0] || '',
+            nombre: r[1] || '',
+            proyecto: r[2] || '',
+            partidaAdmin: r[3] || '',
+            subPartidaAdmin: r[4] || '',
+            orden: parseInt(r[5]) || 0,
+            activa: r[6] !== 'false' && r[6] !== 'FALSE' && r[6] !== false
+          };
+        }
+        // Legacy v1: 6 columnas, sub_partida_admin en idx 3.
+        // Si tenía sub_partida_admin → asumir partida_admin = CONSTRUCCION.
+        const subAdmin = r[3] || '';
+        return {
+          id: r[0] || '',
+          nombre: r[1] || '',
+          proyecto: r[2] || '',
+          partidaAdmin: subAdmin ? 'CONSTRUCCION' : '',
+          subPartidaAdmin: subAdmin,
+          orden: parseInt(r[4]) || 0,
+          activa: r[5] !== 'false' && r[5] !== 'FALSE' && r[5] !== false
+        };
+      });
     }
 
     // Recalcular nextId con el máximo entre proveedores y empleados
@@ -774,10 +796,11 @@ export async function gsSavePartidasObra() {
   if (!guardarPermitido('partidasObra', state.partidasObra, true)) return;
   try {
     const rows = state.partidasObra.map(p => [
-      p.id || '', p.nombre || '', p.proyecto || '', p.subPartidaAdmin || '',
+      p.id || '', p.nombre || '', p.proyecto || '',
+      p.partidaAdmin || '', p.subPartidaAdmin || '',
       p.orden || 0, p.activa === false ? 'false' : 'true'
     ]);
-    await gsClearAndWrite('partidas_obra', rows, ['partida_obra_id', 'nombre', 'proyecto', 'sub_partida_admin', 'orden', 'activa']);
+    await gsClearAndWrite('partidas_obra', rows, ['partida_obra_id', 'nombre', 'proyecto', 'partida_admin', 'sub_partida_admin', 'orden', 'activa']);
   } catch (e) { console.error('gsSavePartidasObra', e); }
 }
 
