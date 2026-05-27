@@ -492,6 +492,19 @@ export async function gsLoadAll() {
     const maxEmp = state.empleados.reduce((max, e) => Math.max(max, e.id || 0), 0);
     state.nextId = Math.max(maxProv, maxEmp, state.nextId || 0) + 1;
 
+    // Auto-limpiar asignaciones huérfanas (pago borrado directo en Sheets).
+    // Solo si AMBAS hojas cargaron OK — para no borrar nada si una falló.
+    if (state.cargado.historial === true && state.cargado.costoAsignaciones === true) {
+      const idsHist = new Set(state.historial.map(h => String(h.id)).filter(Boolean));
+      const antesAsig = state.costoAsignaciones.length;
+      state.costoAsignaciones = state.costoAsignaciones.filter(a => idsHist.has(String(a.pago_id)));
+      const eliminadas = antesAsig - state.costoAsignaciones.length;
+      if (eliminadas > 0) {
+        try { await gsSaveCostoAsignaciones(); } catch (e) { console.error('Auto-limpia huérfanas: error guardando', e); }
+        notify(`🧹 Limpieza automática: ${eliminadas} asignación(es) huérfana(s) eliminada(s) (pagos borrados directo en Sheets)`, 'success');
+      }
+    }
+
     // Re-render everything
     if (window.renderCreditos) window.renderCreditos();
     if (window.renderTraspasos) window.renderTraspasos();
