@@ -4,6 +4,32 @@ import { gsReadSheet, gsWriteRange, gsClearAndWrite, gsAppendRow } from './googl
 import { normalizeBanco } from '../config/bancos.js';
 import { SUB_PARTIDAS_CONSTRUCCION } from '../config/sub-partidas.js';
 
+// Parser local de fecha para sort (DD/MM/YYYY o YYYY-MM-DD → ISO).
+function _parseFecha(f) {
+  if (!f) return '';
+  if (f.includes('-') && f.length >= 10) return f.slice(0, 10);
+  const parts = f.split('/');
+  if (parts.length === 3) {
+    const [d, m, y] = parts;
+    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  }
+  return '';
+}
+
+// Ordena state.historial in-place: fecha desc, empate por id desc, inválidas al inicio.
+function sortHistorialByFecha() {
+  state.historial.sort((a, b) => {
+    const isoA = _parseFecha(a.fecha);
+    const isoB = _parseFecha(b.fecha);
+    const invA = !isoA;
+    const invB = !isoB;
+    if (invA && !invB) return -1;
+    if (!invA && invB) return 1;
+    if (isoA !== isoB) return isoB.localeCompare(isoA);
+    return (parseInt(b.id, 10) || 0) - (parseInt(a.id, 10) || 0);
+  });
+}
+
 // ===== BLINDAJE CONTRA PÉRDIDA DE DATOS =====
 // Entidades con función de guardado que sobrescribe su hoja completa.
 const ENTIDADES_GUARDABLES = [
@@ -169,6 +195,8 @@ export async function gsLoadAll() {
       if (ensureHistorialIds()) {
         await gsSaveHistorial();
       }
+      // Ordenar por fecha desc (más reciente arriba) tras cargar.
+      sortHistorialByFecha();
     }
 
     // Load proyectos
@@ -648,6 +676,8 @@ export async function gsSaveHistorial() {
 
   try {
     ensureHistorialIds();
+    // Ordenar por fecha desc antes de persistir (más reciente arriba en Sheets).
+    sortHistorialByFecha();
     const rows = state.historial.map(h => [
       h.proveedor_id || '', h.factura_id || '', h.fecha, h.nombre, h.banco,
       h.tipo, h.concepto, h.importe, h.proyecto, h.cuenta_origen || '',

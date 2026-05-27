@@ -165,6 +165,21 @@ export function revertirSaldo(nombreCuenta, monto, fechaISO) {
   return false;
 }
 
+// Ordena state.historial in-place por fecha descendente (más reciente arriba),
+// con desempate por id descendente. Filas con fecha inválida/vacía van al inicio.
+export function sortHistorialByFecha() {
+  state.historial.sort((a, b) => {
+    const isoA = parseFechaHist(a.fecha);
+    const isoB = parseFechaHist(b.fecha);
+    const invA = !isoA;
+    const invB = !isoB;
+    if (invA && !invB) return -1;
+    if (!invA && invB) return 1;
+    if (isoA !== isoB) return isoB.localeCompare(isoA);
+    return (parseInt(b.id, 10) || 0) - (parseInt(a.id, 10) || 0);
+  });
+}
+
 export function parseFechaHist(fecha) {
   if (!fecha) return '';
   if (fecha.includes('-') && fecha.length >= 10) return fecha.slice(0, 10);
