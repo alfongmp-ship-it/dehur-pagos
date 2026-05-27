@@ -64,6 +64,7 @@ export function renderAuthStatus() {
     const html = '<div style="display:flex;align-items:center;gap:8px;">'
       + '<div style="width:8px;height:8px;border-radius:50%;background:var(--green);"></div>'
       + '<span style="font-size:12px;color:var(--muted);">✅ ' + (state.gsUser.email || 'Conectado') + '</span>'
+      + '<button class="btn btn-ghost btn-sm" onclick="recargarDesdeSheets()" style="font-size:11px;padding:3px 8px;" title="Volver a leer Sheets (sincroniza cambios externos)">🔄 Recargar</button>'
       + '<button class="btn btn-ghost btn-sm" onclick="gsLogout()" style="font-size:11px;padding:3px 8px;">Desconectar</button>'
       + '</div>';
     if (el) el.innerHTML = html;

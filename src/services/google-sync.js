@@ -568,7 +568,10 @@ export async function saveData(count = 1) {
       const h = state.historial[i];
       await gsAppendRow('historial_pagos', [h.proveedor_id || '', h.factura_id || '', h.fecha, h.nombre, h.banco, h.tipo, h.concepto, h.importe, h.proyecto, h.cuenta_origen || '', h.tipo_registro || 'Pago', h.partida || '', h.sub_partida || '', h.id || '']);
     }
-  } catch (e) { console.error('saveData error', e); }
+  } catch (e) {
+    console.error('saveData error', e);
+    notify(`⚠ No pude guardar el pago en Sheets: ${e.message}. Está en memoria pero NO se persistió.`, 'error');
+  }
 }
 
 const HS_HEADERS = ['fecha', 'cuenta_id', 'cuenta_nombre', 'cuenta_tipo', 'saldo', 'saldo_total'];
@@ -617,6 +620,32 @@ export async function gsSaveHistorial() {
   // Salvaguarda: nunca sobrescribir el historial con cero filas (evita vaciarlo
   // por accidente si el estado en memoria está vacío).
   if (!state.historial.length) return;
+
+  // Protección anti-sobrescritura: detectar si Sheets fue modificado por fuera
+  // (ej. usuario metió filas a mano) desde la última carga. Si hay más filas
+  // en remoto que en local, avisar antes de pisar.
+  try {
+    const remoto = await gsReadSheet('historial_pagos');
+    if (remoto !== null && Array.isArray(remoto)) {
+      const remotoCount = Math.max(0, (remoto.length || 0) - 1);
+      const localCount = state.historial.length;
+      // Tolerancia de 5 filas (por casos donde el state ya tiene unas pendientes).
+      if (remotoCount > localCount + 5) {
+        const ok = confirm(
+          `⚠ La hoja historial_pagos tiene ${remotoCount} filas pero la app tiene ${localCount} en memoria.\n\n` +
+          `Es probable que se haya editado directamente en Sheets desde que abriste la app.\n\n` +
+          `Si confirmas, se SOBRESCRIBIRÁ Sheets con la versión local y se perderán esos cambios externos.\n\n` +
+          `RECOMENDACIÓN: cancela aquí, recarga la app con el botón 🔄, y vuelve a confirmar tus pagos.\n\n` +
+          `¿Sobrescribir de todos modos?`
+        );
+        if (!ok) {
+          notify('Guardado cancelado. Usa 🔄 Recargar antes de continuar.', 'error');
+          return;
+        }
+      }
+    }
+  } catch (e) { console.warn('No pude verificar el remoto antes de guardar historial:', e); }
+
   try {
     ensureHistorialIds();
     const rows = state.historial.map(h => [
@@ -629,7 +658,10 @@ export async function gsSaveHistorial() {
       'tipo', 'concepto', 'importe', 'proyecto', 'cuenta_origen',
       'tipo_registro', 'partida', 'sub_partida', 'id'
     ]);
-  } catch (e) { console.error('gsSaveHistorial', e); }
+  } catch (e) {
+    console.error('gsSaveHistorial', e);
+    notify(`⚠ No pude guardar el historial en Sheets: ${e.message}. Tus cambios están en memoria pero NO se persistieron.`, 'error');
+  }
 }
 
 export async function gsSaveUnidades() {

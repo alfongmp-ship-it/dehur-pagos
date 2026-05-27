@@ -297,6 +297,17 @@ window.gsSaveEmpleados = gsSaveEmpleados;
 window.gsSaveProyectos = gsSaveProyectos;
 window.gsSaveAlias = gsSaveAlias;
 
+// Recargar desde Sheets con notify de resumen
+window.recargarDesdeSheets = async function recargarDesdeSheets() {
+  if (!state.gsToken) {
+    notify('Conecta Google Sheets primero', 'error');
+    return;
+  }
+  notify('Recargando desde Sheets...');
+  await gsLoadAll();
+  notify(`✓ Sincronizado: ${state.historial.length} pagos · ${state.proveedores.length} proveedores · ${state.costoAsignaciones.length} asignaciones`, 'success');
+};
+
 // State references for inline onclick in rendered HTML
 window.pendientesConfirmacion = state.pendientesConfirmacion;
 Object.defineProperty(state, 'pendientesConfirmacion', {
