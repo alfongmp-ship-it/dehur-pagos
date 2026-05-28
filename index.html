@@ -244,6 +244,7 @@
       <div class="page-header">
         <div><div class="page-title">Historial de Pagos</div><div class="page-subtitle">Registro de dispersiones generadas</div></div>
         <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost" onclick="abrirImportHistorial()">📥 Importar Excel</button>
           <button class="btn btn-ghost" onclick="exportarHistorial()">⬇ Exportar CSV</button>
         </div>
       </div>
@@ -1378,6 +1379,56 @@
     <div id="asignar-metodo-body"></div>
     <div id="asignar-preview"></div>
     <div class="form-actions"><button class="btn btn-ghost" onclick="cerrar('modal-asignar-costo')">Cancelar</button><button class="btn btn-primary" onclick="guardarAsignacionCosto()">Guardar asignación</button></div>
+  </div>
+</div>
+
+<!-- MODAL: IMPORTAR HISTORIAL DESDE EXCEL -->
+<div class="modal-overlay" id="modal-import-hist">
+  <div class="modal" style="max-width:1100px;width:95vw;">
+    <div class="modal-header">
+      <div class="modal-title">📥 Importar Historial desde Excel</div>
+      <button class="modal-close" onclick="cerrarImportHistorial()">✕</button>
+    </div>
+    <div style="padding:0 4px;">
+      <!-- Estado A: dropzone -->
+      <div id="imp-hist-dropzone-wrap">
+        <div style="background:rgba(200,169,110,.06);border:1px solid rgba(200,169,110,.2);border-radius:8px;padding:12px;margin-bottom:14px;font-size:12px;color:var(--muted);">
+          <strong style="color:var(--text);">Cómo funciona:</strong> descarga la plantilla, llénala en Excel con tus pagos históricos y arrástrala aquí. Antes de importarlos verás un preview con avisos y detección de duplicados.
+        </div>
+        <div style="display:flex;justify-content:center;margin-bottom:14px;">
+          <button class="btn btn-ghost" onclick="descargarPlantillaHistorial()">⬇ Descargar Plantilla</button>
+        </div>
+        <div id="imp-hist-dropzone"
+             style="border:2px dashed var(--border);border-radius:14px;padding:48px 24px;text-align:center;cursor:pointer;transition:all .2s;background:var(--surface);"
+             onclick="document.getElementById('imp-hist-file').click()"
+             ondragover="event.preventDefault();this.style.borderColor='var(--accent)';this.style.background='rgba(200,169,110,.05)'"
+             ondragleave="this.style.borderColor='var(--border)';this.style.background='var(--surface)'"
+             ondrop="handleHistorialDrop(event)">
+          <div style="font-size:36px;margin-bottom:10px;opacity:.5">📥</div>
+          <div style="font-weight:600;font-size:14px;margin-bottom:4px;">Arrastra tu Excel aquí</div>
+          <div style="font-size:12px;color:var(--muted);">o haz clic para seleccionar · Solo se acepta la plantilla descargada arriba</div>
+          <input type="file" id="imp-hist-file" accept=".xlsx,.xls" style="display:none" onchange="if(this.files[0]) handleHistorialFile(this.files[0]); this.value=''">
+        </div>
+      </div>
+
+      <!-- Estado B: preview -->
+      <div id="imp-hist-preview" style="display:none;">
+        <div id="imp-hist-resumen"></div>
+        <div id="imp-hist-validos" style="margin-bottom:14px;"></div>
+        <details style="margin-bottom:10px;">
+          <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--muted);padding:6px 0;">Duplicados sospechosos</summary>
+          <div id="imp-hist-duplicados" style="margin-top:8px;"></div>
+        </details>
+        <details style="margin-bottom:14px;">
+          <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--muted);padding:6px 0;">Filas omitidas</summary>
+          <div id="imp-hist-omitidos" style="margin-top:8px;"></div>
+        </details>
+        <div class="form-actions">
+          <button class="btn btn-ghost" onclick="cerrarImportHistorial()">Cancelar</button>
+          <button class="btn btn-primary" id="imp-hist-confirmar" onclick="confirmarImportHistorial()">Importar seleccionados</button>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
