@@ -135,6 +135,7 @@
           <div class="page-subtitle" id="sub-prov">... registros</div>
         </div>
         <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost" onclick="abrirImportProveedores()">📥 Importar Excel</button>
           <button class="btn btn-ghost" onclick="exportarCSV()">⬇ Exportar CSV</button>
           <button class="btn btn-primary" onclick="abrirNuevoProveedor()">+ Nuevo</button>
         </div>
@@ -340,6 +341,7 @@
       <div class="page-header">
         <div><div class="page-title">Nómina</div><div class="page-subtitle">Empleados importados · Desarrollo y Control ALE · Desarrollo de Hogares Urbanos</div></div>
         <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost" onclick="abrirImportEmpleados()">📥 Importar Excel</button>
           <button class="btn btn-ghost" onclick="exportarNomina()">⬇ Exportar CSV</button>
           <button class="btn btn-primary" onclick="abrirNuevoEmpleado()">+ Nuevo empleado</button>
         </div>
@@ -451,7 +453,10 @@
           <div class="page-title">Traspasos y Préstamos</div>
           <div class="page-subtitle"><span id="cnt-traspasos-sub">0 registros</span></div>
         </div>
-        <button class="btn btn-primary" onclick="abrirNuevoTraspaso()">+ Nuevo</button>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost" onclick="abrirImportTraspasos()">📥 Importar Excel</button>
+          <button class="btn btn-primary" onclick="abrirNuevoTraspaso()">+ Nuevo</button>
+        </div>
       </div>
       <div class="card" style="padding:0;">
         <table class="table">
@@ -1382,50 +1387,50 @@
   </div>
 </div>
 
-<!-- MODAL: IMPORTAR HISTORIAL DESDE EXCEL -->
-<div class="modal-overlay" id="modal-import-hist">
+<!-- MODAL GENERICO: IMPORTAR DESDE EXCEL (compartido por todos los modulos) -->
+<div class="modal-overlay" id="modal-excel-import">
   <div class="modal" style="max-width:1100px;width:95vw;">
     <div class="modal-header">
-      <div class="modal-title">📥 Importar Historial desde Excel</div>
-      <button class="modal-close" onclick="cerrarImportHistorial()">✕</button>
+      <div class="modal-title" id="excel-import-titulo">📥 Importar desde Excel</div>
+      <button class="modal-close" onclick="excelImportCerrar()">✕</button>
     </div>
     <div style="padding:0 4px;">
       <!-- Estado A: dropzone -->
-      <div id="imp-hist-dropzone-wrap">
+      <div id="excel-import-dropzone-wrap">
         <div style="background:rgba(200,169,110,.06);border:1px solid rgba(200,169,110,.2);border-radius:8px;padding:12px;margin-bottom:14px;font-size:12px;color:var(--muted);">
-          <strong style="color:var(--text);">Cómo funciona:</strong> descarga la plantilla, llénala en Excel con tus pagos históricos y arrástrala aquí. Antes de importarlos verás un preview con avisos y detección de duplicados.
+          <strong style="color:var(--text);">Cómo funciona:</strong> descarga la plantilla, llénala en Excel con tus datos y arrástrala aquí. Antes de importarlos verás un preview con avisos y detección de duplicados.
         </div>
         <div style="display:flex;justify-content:center;margin-bottom:14px;">
-          <button class="btn btn-ghost" onclick="descargarPlantillaHistorial()">⬇ Descargar Plantilla</button>
+          <button class="btn btn-ghost" onclick="excelImportDescargarPlantilla()">⬇ Descargar Plantilla</button>
         </div>
-        <div id="imp-hist-dropzone"
+        <div id="excel-import-dropzone"
              style="border:2px dashed var(--border);border-radius:14px;padding:48px 24px;text-align:center;cursor:pointer;transition:all .2s;background:var(--surface);"
-             onclick="document.getElementById('imp-hist-file').click()"
+             onclick="document.getElementById('excel-import-file').click()"
              ondragover="event.preventDefault();this.style.borderColor='var(--accent)';this.style.background='rgba(200,169,110,.05)'"
              ondragleave="this.style.borderColor='var(--border)';this.style.background='var(--surface)'"
-             ondrop="handleHistorialDrop(event)">
+             ondrop="excelImportHandleDrop(event)">
           <div style="font-size:36px;margin-bottom:10px;opacity:.5">📥</div>
           <div style="font-weight:600;font-size:14px;margin-bottom:4px;">Arrastra tu Excel aquí</div>
           <div style="font-size:12px;color:var(--muted);">o haz clic para seleccionar · Solo se acepta la plantilla descargada arriba</div>
-          <input type="file" id="imp-hist-file" accept=".xlsx,.xls" style="display:none" onchange="if(this.files[0]) handleHistorialFile(this.files[0]); this.value=''">
+          <input type="file" id="excel-import-file" accept=".xlsx,.xls" style="display:none" onchange="if(this.files[0]) excelImportHandleFile(this.files[0]); this.value=''">
         </div>
       </div>
 
       <!-- Estado B: preview -->
-      <div id="imp-hist-preview" style="display:none;">
-        <div id="imp-hist-resumen"></div>
-        <div id="imp-hist-validos" style="margin-bottom:14px;"></div>
+      <div id="excel-import-preview" style="display:none;">
+        <div id="excel-import-resumen"></div>
+        <div id="excel-import-validos" style="margin-bottom:14px;"></div>
         <details style="margin-bottom:10px;">
           <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--muted);padding:6px 0;">Duplicados sospechosos</summary>
-          <div id="imp-hist-duplicados" style="margin-top:8px;"></div>
+          <div id="excel-import-duplicados" style="margin-top:8px;"></div>
         </details>
         <details style="margin-bottom:14px;">
           <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--muted);padding:6px 0;">Filas omitidas</summary>
-          <div id="imp-hist-omitidos" style="margin-top:8px;"></div>
+          <div id="excel-import-omitidos" style="margin-top:8px;"></div>
         </details>
         <div class="form-actions">
-          <button class="btn btn-ghost" onclick="cerrarImportHistorial()">Cancelar</button>
-          <button class="btn btn-primary" id="imp-hist-confirmar" onclick="confirmarImportHistorial()">Importar seleccionados</button>
+          <button class="btn btn-ghost" onclick="excelImportCerrar()">Cancelar</button>
+          <button class="btn btn-primary" id="excel-import-confirmar" onclick="excelImportConfirmar()">Importar seleccionados</button>
         </div>
       </div>
     </div>

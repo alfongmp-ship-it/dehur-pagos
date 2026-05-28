@@ -11,7 +11,11 @@ import { refreshProyectosEnSelects } from './ui/nav.js';
 import { renderProveedores, abrirNuevoProveedor, editarProv, validarCuentaProv, guardarProveedor, exportarCSV, toggleSubcat, toggleSinCuenta } from './modules/proveedores.js';
 import { renderNomina, abrirNuevoEmpleado, editarEmp, updateTipoEmp, validarCuentaEmp, guardarEmpleado, exportarNomina } from './modules/nomina.js';
 import { renderHistorial, exportarHistorial, eliminarHistorial } from './modules/historial.js';
-import { descargarPlantillaHistorial, abrirImportHistorial, cerrarImportHistorial, handleHistorialFile, handleHistorialDrop, confirmarImportHistorial, fsImportRefreshTotales } from './modules/historial-import.js';
+import { abrirImportHistorial, descargarPlantillaHistorial } from './modules/historial-import.js';
+import { abrirImportProveedores } from './modules/proveedores-import.js';
+import { abrirImportEmpleados } from './modules/empleados-import.js';
+import { abrirImportTraspasos } from './modules/traspasos-import.js';
+import { excelImportConfirmar, excelImportCerrar, excelImportHandleDrop, excelImportHandleFile, excelImportDescargarPlantilla, excelImportRefreshTotales } from './services/excel-import.js';
 import { renderConfirmarPagos, toggleConfPago, toggleAllConf, confirmarPagos, eliminarPendiente } from './modules/confirmar-pagos.js';
 import { renderCola, abrirPagoRapido, abrirModalPago, buscarModal, selPago, agregarACola, confirmarPagoDirecto, checkCuentaOrigenPago, abrirModalNominaDisp, filtrarNomDisp, agregarNominaACola, qDel, limpiarCola, buscarRapido, quickAdd, generarArchivo, togglePagoSubPartida } from './modules/dispersion.js';
 import { handleSolDrop, handleSolFile, descargarPlantilla, parsearSolicitud, renderSolicitudes, toggleSol, seleccionarTodosSol, nuevaSolicitud, abrirVincular, renderVincBusqueda, seleccionarProvExistente, renderVincTipo, validarVincCuenta, confirmarNuevoProv, enviarACola } from './modules/solicitudes.js';
@@ -151,14 +155,18 @@ window.renderHistorial = renderHistorial;
 window.exportarHistorial = exportarHistorial;
 window.eliminarHistorial = eliminarHistorial;
 
-// Historial - Importar desde Excel
-window.descargarPlantillaHistorial = descargarPlantillaHistorial;
+// Importar desde Excel (framework generico + abridores por modulo)
 window.abrirImportHistorial = abrirImportHistorial;
-window.cerrarImportHistorial = cerrarImportHistorial;
-window.handleHistorialFile = handleHistorialFile;
-window.handleHistorialDrop = handleHistorialDrop;
-window.confirmarImportHistorial = confirmarImportHistorial;
-window.fsImportRefreshTotales = fsImportRefreshTotales;
+window.descargarPlantillaHistorial = descargarPlantillaHistorial;
+window.abrirImportProveedores = abrirImportProveedores;
+window.abrirImportEmpleados = abrirImportEmpleados;
+window.abrirImportTraspasos = abrirImportTraspasos;
+window.excelImportConfirmar = excelImportConfirmar;
+window.excelImportCerrar = excelImportCerrar;
+window.excelImportHandleDrop = excelImportHandleDrop;
+window.excelImportHandleFile = excelImportHandleFile;
+window.excelImportDescargarPlantilla = excelImportDescargarPlantilla;
+window.excelImportRefreshTotales = excelImportRefreshTotales;
 
 // Confirmar Pagos
 window.renderConfirmarPagos = renderConfirmarPagos;
