@@ -24,6 +24,7 @@ import { descargarPlantillaPresupuesto, handleSubirPlantillaPresupuesto } from '
 import { renderCuentasPropias, abrirNuevaCuenta, editarCuenta, editarCuentaProyecto, guardarCuenta, actualizarSaldoCuenta, guardarSaldoCuenta, actualizarSaldoExtra } from './modules/cuentas-propias.js';
 import { renderPosicionSaldos } from './modules/posicion-saldos.js';
 import { renderResumenCostos } from './modules/resumen-costos.js';
+import { renderFlujoSalida, fsAbrirDetalle, fsCerrarDetalle } from './modules/flujo-salida.js';
 import { renderResumenEjecutivo } from './modules/resumen-ejecutivo.js';
 import { renderCostosFiscales, abrirNuevaUnidad, editarUnidad, guardarUnidad, toggleUnidad, abrirLoteUnidades, guardarLoteUnidades, cfLimpiarHuerfanas, abrirAsignarCosto, reasignarCosto, eliminarAsignacionCosto, cfCambiarMetodo, cfPreviewReparto, cfRepartirResto, cfFiltrarUnidades, cfSelTodas, cfFiltrarPendientes, cfFiltrarAsignados, guardarAsignacionCosto, cfAgregarPartidaPresup, guardarPresupuestoUnidad, cfVerUnidad } from './modules/costos-fiscales.js';
 import { renderCreditos, seleccionarCredito, abrirNuevoCredito, editarCredito, guardarCredito, abrirNuevaDisposicion, guardarDisposicion, editarPagare, togglePagare, abrirNuevaFechaPago, editarFechaPago, guardarFechaPago, marcarPagoPagado, eliminarPagoPagare } from './modules/creditos.js';
@@ -206,6 +207,11 @@ window.renderPosicionSaldos = renderPosicionSaldos;
 
 // Resumen de Costos
 window.renderResumenCostos = renderResumenCostos;
+
+// Flujo de Salida por Cuenta y Proyecto
+window.renderFlujoSalida = renderFlujoSalida;
+window.fsAbrirDetalle = fsAbrirDetalle;
+window.fsCerrarDetalle = fsCerrarDetalle;
 
 // Resumen Ejecutivo
 window.renderResumenEjecutivo = renderResumenEjecutivo;

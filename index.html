@@ -104,6 +104,9 @@
     <div class="nav-item" id="nav-resumen-costos" onclick="showPage('resumen-costos',this)">
       <span>💰</span> Resumen de Costos
     </div>
+    <div class="nav-item" id="nav-flujo-salida" onclick="showPage('flujo-salida',this)">
+      <span>💸</span> Flujo de Salida
+    </div>
     <div class="nav-item" id="nav-costos-fiscales" onclick="showPage('costos-fiscales',this)">
       <span>🏠</span> Costos por Unidad
     </div>
@@ -700,6 +703,36 @@
           <div>Fecha</div><div>Beneficiario</div><div>Proyecto</div><div>Partida</div><div>Concepto</div><div style="text-align:right">Importe</div>
         </div>
         <div id="rc-tabla"></div>
+      </div>
+    </div>
+
+    <!-- ===== FLUJO DE SALIDA POR CUENTA Y PROYECTO ===== -->
+    <div id="page-flujo-salida" style="display:none">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Flujo de Salida por Cuenta y Proyecto</div>
+          <div class="page-subtitle" id="fs-subtitulo">0 movimientos de salida</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost" id="fs-btn-csv">⬇ CSV</button>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center;">
+        <input type="date" class="filter-select" id="fs-desde" title="Desde">
+        <input type="date" class="filter-select" id="fs-hasta" title="Hasta">
+        <select class="filter-select" id="fs-cuenta"><option value="">Todas las cuentas</option></select>
+        <select class="filter-select" id="fs-proyecto"><option value="">Todos los proyectos</option></select>
+        <label style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted);cursor:pointer;">
+          <input type="checkbox" id="fs-solo-pagos"> Solo pagos (excluir traspasos/créditos)
+        </label>
+        <button class="btn btn-ghost" id="fs-reset">↺ Mes actual</button>
+      </div>
+
+      <div id="fs-cards" style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px;"></div>
+
+      <div class="table-wrap" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+        <div id="fs-tabla"></div>
       </div>
     </div>
 

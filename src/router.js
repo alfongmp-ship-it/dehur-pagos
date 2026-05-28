@@ -17,6 +17,7 @@ export function showPage(name, el) {
   if (name === 'cuentas-propias' && window.renderCuentasPropias) window.renderCuentasPropias();
   if (name === 'posicion-saldos' && window.renderPosicionSaldos) window.renderPosicionSaldos();
   if (name === 'resumen-costos' && window.renderResumenCostos) window.renderResumenCostos();
+  if (name === 'flujo-salida' && window.renderFlujoSalida) window.renderFlujoSalida();
   if (name === 'resumen-ejecutivo' && window.renderResumenEjecutivo) window.renderResumenEjecutivo();
   if (name === 'costos-fiscales' && window.renderCostosFiscales) window.renderCostosFiscales();
   if (name === 'traspasos' && window.renderTraspasos) window.renderTraspasos();
