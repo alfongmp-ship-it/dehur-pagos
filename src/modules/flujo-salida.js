@@ -7,6 +7,7 @@ import { parseFechaHist } from './historial.js';
 
 const SIN_CUENTA = '(sin cuenta)';
 const SIN_PROYECTO = '(sin proyecto)';
+const PROY_INTERNO = '(Interno)';
 let fsInitialized = false;
 
 export function renderFlujoSalida() {
@@ -60,7 +61,9 @@ function refreshSelects() {
   const selCuenta = document.getElementById('fs-cuenta');
   if (selCuenta) {
     const val = selCuenta.value;
-    const cuentas = [...new Set(state.historial.map(h => h.cuenta_origen).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    const fromHist = state.historial.map(h => h.cuenta_origen).filter(Boolean);
+    const fromInt = (state.movimientosInternos || []).map(m => m.origen).filter(Boolean);
+    const cuentas = [...new Set([...fromHist, ...fromInt])].sort((a, b) => a.localeCompare(b));
     selCuenta.innerHTML = '<option value="">Todas las cuentas</option>' + cuentas.map(c => `<option>${c}</option>`).join('');
     selCuenta.value = val;
   }
@@ -80,10 +83,34 @@ function getFiltered() {
   const fp = document.getElementById('fs-proyecto')?.value || '';
   const soloPagos = !!document.getElementById('fs-solo-pagos')?.checked;
 
-  return state.historial.filter(h => {
+  const desdeHistorial = state.historial.filter(h => {
     if (!h.cuenta_origen) return false;
+    return true;
+  });
+
+  // Mapear movimientosInternos a la misma forma que historial[] para fusionar.
+  // Cada uno es una salida de su cuenta origen (la entrada en destino la lleva
+  // un futuro modulo de entradas, no duplicamos aqui).
+  const desdeInternos = (state.movimientosInternos || []).map(m => ({
+    fecha: m.fecha,
+    nombre: m.destino || '—',
+    concepto: m.concepto || `${m.tipo || 'Interno'} a ${m.destino || ''}`.trim(),
+    importe: +m.monto || 0,
+    proyecto: PROY_INTERNO,
+    banco: '',
+    tipo: m.tipo || 'Interno',
+    cuenta_origen: m.origen || '',
+    tipo_registro: 'Interno',
+    partida: '',
+    sub_partida: '',
+    _interno: true
+  })).filter(h => !!h.cuenta_origen);
+
+  const todo = [...desdeHistorial, ...desdeInternos];
+
+  return todo.filter(h => {
     if (fc && h.cuenta_origen !== fc) return false;
-    if (fp && !proyectoMatch(h.proyecto, fp)) return false;
+    if (fp && !proyectoMatch(h.proyecto, fp) && h.proyecto !== fp) return false;
     if (soloPagos && h.tipo_registro !== 'Pago') return false;
     if (fd || fh) {
       const iso = parseFechaHist(h.fecha);
@@ -126,8 +153,11 @@ function buildPivot(data) {
     return a.localeCompare(b);
   });
   const proyectos = [...proyectosSet].sort((a, b) => {
-    if (a === SIN_PROYECTO) return 1;
-    if (b === SIN_PROYECTO) return -1;
+    // (Interno) y (sin proyecto) siempre al final
+    const aSpec = a === PROY_INTERNO || a === SIN_PROYECTO;
+    const bSpec = b === PROY_INTERNO || b === SIN_PROYECTO;
+    if (aSpec && !bSpec) return 1;
+    if (!aSpec && bSpec) return -1;
     return a.localeCompare(b);
   });
   const matrix = {};
