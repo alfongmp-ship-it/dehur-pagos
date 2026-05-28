@@ -14,21 +14,23 @@ import { getPartidasParaSelect } from '../config/sub-partidas.js';
 const HEADER_ID = 'DEHUR — Importar Historial';
 const TIPOS_VALIDOS = ['Pago', 'Traspaso', 'Crédito'];
 
-// Orden de columnas en la plantilla.
+// Orden de columnas en la plantilla = mismo orden que el Sheet historial_pagos
+// (sin la columna `id`, que generamos automaticamente). Permite copy-paste
+// directo entre Sheet y plantilla.
 const COLS = [
+  'Proveedor ID',
+  'Factura ID',
   'Fecha (DD/MM/YYYY)',
   'Beneficiario',
+  'Banco',
+  'Tipo cuenta',
   'Concepto',
   'Importe',
   'Proyecto',
   'Cuenta origen',
   'Tipo movimiento',
-  'Banco',
-  'Tipo cuenta',
   'Partida',
-  'Sub-partida',
-  'Proveedor ID',
-  'Factura ID'
+  'Sub-partida'
 ];
 
 const norm = s => String(s || '').trim().toLowerCase()
@@ -48,16 +50,31 @@ export function descargarPlantillaHistorial() {
   const titulo = [`${HEADER_ID}`];
   const meta = [`Generado: ${fechaTxt} · Proyectos activos: ${proyectosActivos.length} · Partidas catalogo: ${partidasNombres.length} — borra las filas de ejemplo antes de subir`];
   const headers = COLS.slice();
+  // Ejemplos en el MISMO orden que COLS (= orden del Sheet historial_pagos):
+  // Proveedor ID, Factura ID, Fecha, Beneficiario, Banco, Tipo cuenta, Concepto,
+  // Importe, Proyecto, Cuenta origen, Tipo movimiento, Partida, Sub-partida
   const ejemplos = [
-    ['01/01/2025', 'Proveedor de Ejemplo S.A.', 'Pago de factura A-123', 12500.50, proyectosActivos[0] || 'Paraiso', cuentas[0] || 'Paraiso', 'Pago', 'BBVA', 'CLABE', partidasNombres[0] || 'CONSTRUCCION', '', '', ''],
-    ['15/01/2025', 'Traspaso interno', 'Aportacion entre cuentas propias', 50000, '', cuentas[0] || 'DT', 'Traspaso', 'BBVA', 'Cuenta BBVA', '', '', '', ''],
-    ['20/01/2025', 'Empleado Ejemplo', 'Pago nomina enero', 8500, proyectosActivos[0] || 'Paraiso', cuentas[0] || 'Paraiso', 'Pago', 'BBVA', 'CLABE', 'NOMINA', '', '', '']
+    ['', '', '01/01/2025', 'Proveedor de Ejemplo S.A.', 'BBVA', 'CLABE', 'Pago de factura A-123', 12500.50, proyectosActivos[0] || 'Paraiso', cuentas[0] || 'Paraiso', 'Pago', partidasNombres[0] || 'CONSTRUCCION', ''],
+    ['', '', '15/01/2025', 'Traspaso interno', 'BBVA', 'Cuenta BBVA', 'Aportacion entre cuentas propias', 50000, '', cuentas[0] || 'DT', 'Traspaso', '', ''],
+    ['', '', '20/01/2025', 'Empleado Ejemplo', 'BBVA', 'CLABE', 'Pago nomina enero', 8500, proyectosActivos[0] || 'Paraiso', cuentas[0] || 'Paraiso', 'Pago', 'NOMINA', '']
   ];
   const data = [titulo, meta, headers, ...ejemplos];
   const ws = XLSX.utils.aoa_to_sheet(data);
+  // Anchos en el orden de COLS
   ws['!cols'] = [
-    { wch: 18 }, { wch: 28 }, { wch: 32 }, { wch: 12 }, { wch: 18 }, { wch: 18 },
-    { wch: 16 }, { wch: 10 }, { wch: 12 }, { wch: 18 }, { wch: 18 }, { wch: 12 }, { wch: 12 }
+    { wch: 12 }, // Proveedor ID
+    { wch: 12 }, // Factura ID
+    { wch: 18 }, // Fecha
+    { wch: 28 }, // Beneficiario
+    { wch: 10 }, // Banco
+    { wch: 12 }, // Tipo cuenta
+    { wch: 32 }, // Concepto
+    { wch: 12 }, // Importe
+    { wch: 18 }, // Proyecto
+    { wch: 18 }, // Cuenta origen
+    { wch: 16 }, // Tipo movimiento
+    { wch: 18 }, // Partida
+    { wch: 18 }  // Sub-partida
   ];
   ws['!freeze'] = { xSplit: 0, ySplit: 3 };
 
@@ -237,19 +254,21 @@ function parsearFilas(filas) {
 
   filas.forEach((row, idx) => {
     const numeroFila = idx + 4; // 1-based en el Excel (3 filas de cabecera)
-    const fechaRaw = row[0];
-    const beneficiario = String(row[1] || '').trim();
-    const concepto = String(row[2] || '').trim();
-    const importeRaw = row[3];
-    const proyecto = String(row[4] || '').trim();
-    const cuentaOrigen = String(row[5] || '').trim();
-    const tipoMov = String(row[6] || '').trim() || 'Pago';
-    const banco = String(row[7] || '').trim() || 'BBVA';
-    const tipoCuenta = String(row[8] || '').trim() || (cuentaOrigen ? 'CLABE' : '');
-    const partida = String(row[9] || '').trim();
-    const subPartida = String(row[10] || '').trim();
-    const proveedorId = String(row[11] || '').trim();
-    const facturaId = String(row[12] || '').trim();
+    // Indices alineados con COLS = orden del Sheet historial_pagos
+    const proveedorId = String(row[0] || '').trim();
+    const facturaId = String(row[1] || '').trim();
+    const fechaRaw = row[2];
+    const beneficiario = String(row[3] || '').trim();
+    const banco = String(row[4] || '').trim() || 'BBVA';
+    const tipoCuenta = String(row[5] || '').trim();
+    const concepto = String(row[6] || '').trim();
+    const importeRaw = row[7];
+    const proyecto = String(row[8] || '').trim();
+    const cuentaOrigen = String(row[9] || '').trim();
+    const tipoMov = String(row[10] || '').trim() || 'Pago';
+    const partida = String(row[11] || '').trim();
+    const subPartida = String(row[12] || '').trim();
+    const tipoCuentaFinal = tipoCuenta || (cuentaOrigen ? 'CLABE' : '');
 
     // Fila completamente vacia → ignorar silencioso
     const todoVacio = !fechaRaw && !beneficiario && !concepto && !importeRaw && !proyecto && !cuentaOrigen;
@@ -312,7 +331,7 @@ function parsearFilas(filas) {
       importe: Math.round(importe * 100) / 100,
       proyecto,
       banco,
-      tipo: tipoCuenta,
+      tipo: tipoCuentaFinal,
       proveedor_id: proveedorId,
       factura_id: facturaId,
       cuenta_origen: cuentaOrigen,
