@@ -1,0 +1,1 @@
+(pega aqui tu SERVICE_ROLE KEY de Supabase — JWT que empieza con eyJ...)

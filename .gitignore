@@ -2,13 +2,10 @@ index_real.html
 *.local
 
 # ===== SECRETOS — JAMÁS subir =====
-# Service role keys, passwords de DB, OAuth client secrets.
-# Si necesitas un archivo de ejemplo committed, ponlo en .secrets.example/
+# Carpeta .secrets/ va completa ignorada.
+# Plantillas vacias committed van en .secrets.example/
 .secrets/
 .env
 .env.local
 .env.*.local
 *.pem
-*.key
-service-role-*.txt
-db-password-*.txt
