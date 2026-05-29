@@ -54,25 +54,45 @@ export function onAuthStateChange(cb) {
 // ===== Tenant + rol del usuario logueado =====
 
 // Lee tenant_users + tenants para saber a que tenant pertenece el usuario
-// actual y con que rol. Devuelve null si no esta logueado o no tiene tenant.
+// actual y con que rol.
+//
+// Devuelve:
+//  - null si no hay sesion o si hubo error (consulta consola para detalles)
+//  - { ..., orphan: true } si esta logueado pero sin tenant asignado
+//  - { ..., orphan: false } caso normal
+//
+// IMPORTANTE: hace dos queries separadas en vez de un join PostgREST.
+// El join `tenants(nombre, slug)` puede romper por RLS recursiva sobre
+// tenants — esto lo evita y es mas debuggeable.
 export async function fetchCurrentTenantInfo() {
+  console.log('🔐 fetchCurrentTenantInfo: getSession...');
   const session = await getSession();
-  if (!session) return null;
+  if (!session) {
+    console.log('  → sin sesion');
+    return null;
+  }
+  console.log('  → session OK, user:', session.user.email, 'id:', session.user.id);
 
-  const { data, error } = await ensureClient()
+  const client = ensureClient();
+
+  // ---------- Query 1: tenant_users ----------
+  console.log('🔐 fetchCurrentTenantInfo: query tenant_users...');
+  const { data: tuRow, error: tuError } = await client
     .from('tenant_users')
-    .select('role, tenant_id, activo, tenants(nombre, slug)')
+    .select('role, tenant_id, activo')
     .eq('user_id', session.user.id)
     .eq('activo', true)
     .limit(1)
     .maybeSingle();
 
-  if (error) {
-    console.error('fetchCurrentTenantInfo error', error);
+  if (tuError) {
+    console.error('  → tenant_users error:', tuError);
     return null;
   }
-  if (!data) {
-    console.warn('Usuario logueado pero sin tenant asignado:', session.user.email);
+  console.log('  → tenant_users data:', tuRow);
+
+  if (!tuRow) {
+    console.warn('  → Usuario sin fila en tenant_users (orphan)');
     return {
       userId: session.user.id,
       email: session.user.email,
@@ -83,12 +103,32 @@ export async function fetchCurrentTenantInfo() {
     };
   }
 
-  return {
+  // ---------- Query 2: tenants (solo para el nombre, opcional) ----------
+  console.log('🔐 fetchCurrentTenantInfo: query tenants...');
+  let tenantNombre = '';
+  if (tuRow.tenant_id) {
+    const { data: tRow, error: tError } = await client
+      .from('tenants')
+      .select('nombre')
+      .eq('id', tuRow.tenant_id)
+      .maybeSingle();
+
+    if (tError) {
+      console.warn('  → tenants error (no critico, seguimos sin nombre):', tError);
+    } else {
+      console.log('  → tenants data:', tRow);
+      tenantNombre = tRow?.nombre || '';
+    }
+  }
+
+  const info = {
     userId: session.user.id,
     email: session.user.email,
-    tenantId: data.tenant_id,
-    tenantNombre: data.tenants?.nombre || '',
-    role: data.role,
+    tenantId: tuRow.tenant_id,
+    tenantNombre,
+    role: tuRow.role,
     orphan: false
   };
+  console.log('✓ tenant info ready:', info);
+  return info;
 }

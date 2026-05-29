@@ -7,7 +7,12 @@ import { signIn, signOut, fetchCurrentTenantInfo, onAuthStateChange } from './su
 const APP_SHELL_ID = 'app-shell';
 const AUTH_SCREEN_ID = 'auth-screen';
 
+// Bandera global: signal que la pantalla de login ya esta oculta. Lo usa
+// el safety timeout para saber si todavia debe quejarse.
+let loginHidden = false;
+
 function showLogin(opts = {}) {
+  loginHidden = false;
   const auth = document.getElementById(AUTH_SCREEN_ID);
   const app = document.getElementById(APP_SHELL_ID);
   if (auth) auth.style.display = 'flex';
@@ -16,9 +21,14 @@ function showLogin(opts = {}) {
     const errorEl = document.getElementById('login-error');
     if (errorEl) errorEl.textContent = opts.errorMessage;
   }
+  // Reset boton en caso de que viniera de un estado "Conectando..."
+  const submitBtn = document.getElementById('login-submit');
+  if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Entrar'; }
 }
 
 function hideLogin() {
+  loginHidden = true;
+  console.log('👁 hideLogin');
   const auth = document.getElementById(AUTH_SCREEN_ID);
   const app = document.getElementById(APP_SHELL_ID);
   if (auth) auth.style.display = 'none';
@@ -40,48 +50,80 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+function setLoginButton(text, disabled) {
+  const btn = document.getElementById('login-submit');
+  if (!btn) return;
+  btn.disabled = !!disabled;
+  btn.textContent = text;
+}
+
 // Check inicial al cargar la app. Si hay sesion valida + tenant -> muestra app.
 // Si no -> muestra login.
 export async function initAuthGate(onAuthedCallback) {
+  console.log('🔐 initAuthGate inicio');
   let info;
   try {
     info = await fetchCurrentTenantInfo();
   } catch (e) {
     console.error('initAuthGate error', e);
-    showLogin({ errorMessage: 'Error conectando con Supabase: ' + e.message });
+    showLogin({ errorMessage: 'Error conectando con Supabase: ' + (e.message || e) });
     return false;
   }
 
   if (!info) {
+    console.log('  → sin sesion, mostrando login');
     showLogin();
     return false;
   }
   if (info.orphan) {
+    console.warn('  → orphan, mostrando login con mensaje');
     showLogin({ errorMessage: 'Tu usuario no esta asignado a ningun tenant. Contacta al admin.' });
     return false;
   }
 
   state.session = info;
   hideLogin();
-  if (onAuthedCallback) await onAuthedCallback();
+  if (onAuthedCallback) {
+    console.log('  → invocando bootstrap');
+    await onAuthedCallback();
+  }
   return true;
 }
 
 // Listener de cambios de sesion (logout, refresh, etc.)
 export function setupAuthListener(onAuthedCallback) {
   onAuthStateChange(async (event, session) => {
+    console.log('🔔 onAuthStateChange:', event, session ? '(con session)' : '(sin session)');
     if (event === 'SIGNED_OUT' || !session) {
       state.session = null;
       showLogin();
-    } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-      const info = await fetchCurrentTenantInfo();
+      return;
+    }
+    if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+      let info;
+      try {
+        info = await fetchCurrentTenantInfo();
+      } catch (e) {
+        console.error('  → fetchCurrentTenantInfo lanzo:', e);
+        showLogin({ errorMessage: 'No pude cargar tu tenant: ' + (e.message || e) });
+        return;
+      }
+
       if (info && !info.orphan) {
         state.session = info;
         hideLogin();
-        if (event === 'SIGNED_IN' && onAuthedCallback) await onAuthedCallback();
-      } else if (info?.orphan) {
-        showLogin({ errorMessage: 'Tu usuario no esta asignado a ningun tenant.' });
+        if (event === 'SIGNED_IN' && onAuthedCallback) {
+          try { await onAuthedCallback(); }
+          catch (e) { console.error('  → bootstrap fallo:', e); }
+        }
+        return;
       }
+      if (info?.orphan) {
+        showLogin({ errorMessage: 'Tu usuario no esta asignado a ningun tenant.' });
+        return;
+      }
+      // info === null  →  query fallo, sin mensaje claro
+      showLogin({ errorMessage: 'No pude consultar tu tenant. Revisa la consola (F12) o reintenta.' });
     }
   });
 }
@@ -92,7 +134,6 @@ export async function handleLoginSubmit(event) {
   const emailEl = document.getElementById('login-email');
   const passEl = document.getElementById('login-password');
   const errorEl = document.getElementById('login-error');
-  const submitBtn = document.getElementById('login-submit');
 
   const email = emailEl?.value?.trim();
   const password = passEl?.value;
@@ -101,15 +142,31 @@ export async function handleLoginSubmit(event) {
     return;
   }
   if (errorEl) errorEl.textContent = '';
-  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Conectando...'; }
+  setLoginButton('Conectando...', true);
+
+  // Safety timeout: si en 15s no se completo el flujo (no se llamo hideLogin),
+  // restauramos el boton y mostramos un mensaje. Evita el estado "Conectando..." eterno.
+  loginHidden = false;
+  const safety = setTimeout(() => {
+    if (loginHidden) return;
+    console.warn('⏰ Safety timeout: login no completo en 15s');
+    if (errorEl) errorEl.textContent = 'Sin respuesta del servidor. Revisa tu conexion y reintenta. Abre DevTools (F12) para detalles.';
+    setLoginButton('Entrar', false);
+  }, 15000);
 
   try {
+    console.log('🔐 signIn iniciado para', email);
     await signIn(email, password);
+    console.log('✓ signIn OK — esperando listener para cargar tenant');
+    // Cambiamos el texto para que el usuario sepa que ya pasamos auth y estamos cargando datos
+    setLoginButton('Cargando datos...', true);
     // El onAuthStateChange handler se encarga de cargar tenant info y ocultar login.
+    // El safety timeout arriba garantiza que no se queda mudo si algo falla.
   } catch (e) {
     console.error('login error', e);
+    clearTimeout(safety);
     if (errorEl) errorEl.textContent = e.message || 'Error de login';
-    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Entrar'; }
+    setLoginButton('Entrar', false);
   }
 }
 
