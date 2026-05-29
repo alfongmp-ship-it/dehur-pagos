@@ -182,6 +182,17 @@ insert into public.tenants (nombre, slug)
 values ('Dehur Territorial', 'dehur')
 on conflict (slug) do nothing;
 
+-- ---------- 9. Permisos GRANT al rol authenticated ---------------------------
+-- Necesario porque el proyecto se creo con "Automatically expose new tables"
+-- DESACTIVADO (correcto para seguridad zero-trust). Sin estos GRANT, los
+-- usuarios logueados reciben 403 PostgREST.
+grant usage on schema public to authenticated, anon;
+grant select on public.tenants to authenticated;
+grant select, insert, update, delete on public.tenant_users to authenticated;
+grant execute on function public.current_tenant_id() to authenticated;
+grant execute on function public.current_user_role() to authenticated;
+grant execute on function public.is_admin() to authenticated;
+
 -- ============================================================================
 -- DESPUES DE CORRER ESTE SQL:
 -- 1. Ve a Authentication → Users en el dashboard de Supabase
