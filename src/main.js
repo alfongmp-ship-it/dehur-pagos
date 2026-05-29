@@ -16,7 +16,7 @@ import { abrirImportProveedores } from './modules/proveedores-import.js';
 import { abrirImportEmpleados } from './modules/empleados-import.js';
 import { abrirImportTraspasos } from './modules/traspasos-import.js';
 import { excelImportConfirmar, excelImportCerrar, excelImportHandleDrop, excelImportHandleFile, excelImportDescargarPlantilla, excelImportRefreshTotales } from './services/excel-import.js';
-import { initAuthGate, setupAuthListener, handleLoginSubmit, handleLogout } from './services/auth-gate.js';
+import { initAuthGate, setupAuthListener, handleLoginSubmit, handleLogout, toggleUserMenu } from './services/auth-gate.js';
 import { renderConfirmarPagos, toggleConfPago, toggleAllConf, confirmarPagos, eliminarPendiente } from './modules/confirmar-pagos.js';
 import { renderCola, abrirPagoRapido, abrirModalPago, buscarModal, selPago, agregarACola, confirmarPagoDirecto, checkCuentaOrigenPago, abrirModalNominaDisp, filtrarNomDisp, agregarNominaACola, qDel, limpiarCola, buscarRapido, quickAdd, generarArchivo, togglePagoSubPartida } from './modules/dispersion.js';
 import { handleSolDrop, handleSolFile, descargarPlantilla, parsearSolicitud, renderSolicitudes, toggleSol, seleccionarTodosSol, nuevaSolicitud, abrirVincular, renderVincBusqueda, seleccionarProvExistente, renderVincTipo, validarVincCuenta, confirmarNuevoProv, enviarACola } from './modules/solicitudes.js';
@@ -363,3 +363,4 @@ initAuthGate(bootstrapApp).catch(err => {
 // Login/logout handlers para el HTML
 window.handleLoginSubmit = handleLoginSubmit;
 window.handleLogout = handleLogout;
+window.toggleUserMenu = toggleUserMenu;

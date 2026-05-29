@@ -35,14 +35,72 @@ function hideLogin() {
   if (app) app.style.display = '';
   const errorEl = document.getElementById('login-error');
   if (errorEl) errorEl.textContent = '';
+  renderUserBadge();
+}
+
+// Render compacto del user-badge: avatar (inicial) + chip de rol + flecha.
+// El detalle (email completo + boton Salir) vive en un dropdown que se abre
+// al hacer clic. Ocupa ~90px en lugar de ~250px del badge expandido — deja
+// espacio a los badges de saldos que ya estaban en el header.
+function renderUserBadge() {
   const userBadge = document.getElementById('user-badge');
-  if (userBadge && state.session) {
-    userBadge.innerHTML = `
-      <span style="font-size:11px;color:var(--muted);">Conectado:</span>
-      <span style="font-weight:600;">${escapeHtml(state.session.email)}</span>
-      <span style="font-size:10px;padding:2px 6px;border-radius:6px;background:rgba(200,169,110,.2);color:#C8A96E;">${escapeHtml(state.session.role || '—')}</span>
-      <button class="btn btn-ghost btn-sm" onclick="window.handleLogout()" style="font-size:11px;padding:4px 10px;">Salir</button>
-    `;
+  if (!userBadge || !state.session) return;
+  const email = state.session.email || '';
+  const role = state.session.role || '—';
+  const initial = (email[0] || '?').toUpperCase();
+
+  userBadge.innerHTML = `
+    <div style="position:relative;">
+      <button id="user-badge-trigger"
+              onclick="window.toggleUserMenu(event)"
+              title="Cuenta y sesion"
+              style="display:flex;align-items:center;gap:6px;background:transparent;border:1px solid var(--border);border-radius:20px;padding:3px 8px 3px 3px;cursor:pointer;color:var(--text);font:inherit;">
+        <span style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:#C8A96E;color:#1a1a1a;font-weight:700;font-size:12px;font-family:'Syne',sans-serif;">${escapeHtml(initial)}</span>
+        <span style="font-size:10px;padding:2px 6px;border-radius:6px;background:rgba(200,169,110,.2);color:#C8A96E;font-weight:600;">${escapeHtml(role)}</span>
+        <span style="font-size:9px;color:var(--muted);">▾</span>
+      </button>
+      <div id="user-menu" style="display:none;position:absolute;top:calc(100% + 6px);right:0;min-width:240px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.35);padding:12px;z-index:1000;">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px;">Conectado como</div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;word-break:break-all;">${escapeHtml(email)}</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;">
+          <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;">Rol:</span>
+          <span style="font-size:11px;padding:2px 8px;border-radius:6px;background:rgba(200,169,110,.2);color:#C8A96E;font-weight:600;">${escapeHtml(role)}</span>
+        </div>
+        <button class="btn btn-ghost" onclick="window.handleLogout()" style="width:100%;font-size:12px;padding:7px;">↪ Cerrar sesion</button>
+      </div>
+    </div>
+  `;
+}
+
+let _userMenuDocListener = null;
+export function toggleUserMenu(ev) {
+  if (ev) ev.stopPropagation();
+  const menu = document.getElementById('user-menu');
+  if (!menu) return;
+  const isOpen = menu.style.display !== 'none';
+  if (isOpen) {
+    closeUserMenu();
+  } else {
+    menu.style.display = 'block';
+    // Listener para cerrar al hacer clic fuera. Se registra una vez por apertura.
+    if (!_userMenuDocListener) {
+      _userMenuDocListener = (e) => {
+        const trigger = document.getElementById('user-badge-trigger');
+        if (menu.contains(e.target) || trigger?.contains(e.target)) return;
+        closeUserMenu();
+      };
+      // setTimeout para que el mismo click que abrio no lo cierre.
+      setTimeout(() => document.addEventListener('click', _userMenuDocListener), 0);
+    }
+  }
+}
+
+function closeUserMenu() {
+  const menu = document.getElementById('user-menu');
+  if (menu) menu.style.display = 'none';
+  if (_userMenuDocListener) {
+    document.removeEventListener('click', _userMenuDocListener);
+    _userMenuDocListener = null;
   }
 }
 
