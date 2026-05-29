@@ -16,6 +16,7 @@ import { abrirImportProveedores } from './modules/proveedores-import.js';
 import { abrirImportEmpleados } from './modules/empleados-import.js';
 import { abrirImportTraspasos } from './modules/traspasos-import.js';
 import { excelImportConfirmar, excelImportCerrar, excelImportHandleDrop, excelImportHandleFile, excelImportDescargarPlantilla, excelImportRefreshTotales } from './services/excel-import.js';
+import { initAuthGate, setupAuthListener, handleLoginSubmit, handleLogout } from './services/auth-gate.js';
 import { renderConfirmarPagos, toggleConfPago, toggleAllConf, confirmarPagos, eliminarPendiente } from './modules/confirmar-pagos.js';
 import { renderCola, abrirPagoRapido, abrirModalPago, buscarModal, selPago, agregarACola, confirmarPagoDirecto, checkCuentaOrigenPago, abrirModalNominaDisp, filtrarNomDisp, agregarNominaACola, qDel, limpiarCola, buscarRapido, quickAdd, generarArchivo, togglePagoSubPartida } from './modules/dispersion.js';
 import { handleSolDrop, handleSolFile, descargarPlantilla, parsearSolicitud, renderSolicitudes, toggleSol, seleccionarTodosSol, nuevaSolicitud, abrirVincular, renderVincBusqueda, seleccionarProvExistente, renderVincTipo, validarVincCuenta, confirmarNuevoProv, enviarACola } from './modules/solicitudes.js';
@@ -340,4 +341,25 @@ Object.defineProperty(state, 'pendientesConfirmacion', {
 });
 
 // ===== GO =====
-init();
+// Etapa A de Fase 0: gate de auth Supabase delante de la app.
+// 1) Inicializa el listener de cambios de sesion.
+// 2) Llama initAuthGate, que muestra login si no hay sesion valida o
+//    arranca init() de la app si si la hay.
+// 3) Tras login exitoso (manejado por setupAuthListener), corre init() tambien.
+//
+// init() sigue siendo el bootstrap actual que carga datos seed y maneja
+// Google Sheets aparte. NO hemos migrado data todavia — eso es Etapa B+.
+let _initDone = false;
+async function bootstrapApp() {
+  if (_initDone) return;
+  _initDone = true;
+  await init();
+}
+setupAuthListener(bootstrapApp);
+initAuthGate(bootstrapApp).catch(err => {
+  console.error('Auth gate fallo:', err);
+});
+
+// Login/logout handlers para el HTML
+window.handleLoginSubmit = handleLoginSubmit;
+window.handleLogout = handleLogout;

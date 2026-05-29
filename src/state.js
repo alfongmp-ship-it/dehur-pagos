@@ -50,6 +50,9 @@ export const state = {
   nextId: 600,
   gsToken: null,
   gsUser: null,
+  // Sesion Supabase: { userId, email, tenantId, tenantNombre, role }
+  // Se llena al loguearse, null si no hay sesion.
+  session: null,
 };
 
 export function esConcentradora(nombreCuenta) {

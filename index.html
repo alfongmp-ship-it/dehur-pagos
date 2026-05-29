@@ -14,6 +14,7 @@
 <link rel="stylesheet" href="./styles/costos-fiscales.css">
 <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
   // Aplicar tema antes del primer paint para evitar flash.
   (function(){
@@ -51,12 +52,49 @@
 </style>
 </head>
 <body>
+
+<!-- ===== LOGIN SCREEN (Supabase Auth) ===== -->
+<div id="auth-screen" style="display:none;position:fixed;inset:0;z-index:9999;background:var(--bg);padding:24px;align-items:center;justify-content:center;">
+  <div style="max-width:380px;width:100%;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px;box-shadow:0 12px 40px rgba(0,0,0,.3);">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">
+      <div class="logo-mark" style="width:44px;height:44px;font-size:18px;">DT</div>
+      <div>
+        <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700;">Dehur Territorial</div>
+        <div style="font-size:11px;color:var(--muted);">Core de Pagos</div>
+      </div>
+    </div>
+    <h2 style="font-family:'Syne',sans-serif;font-size:22px;margin:0 0 6px 0;">Iniciar sesión</h2>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 22px 0;">Usa tu correo y contraseña registrados</p>
+
+    <form onsubmit="handleLoginSubmit(event)" style="display:flex;flex-direction:column;gap:12px;">
+      <div>
+        <label style="display:block;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Email</label>
+        <input type="email" id="login-email" required placeholder="tu@email.com" autocomplete="username" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;box-sizing:border-box;">
+      </div>
+      <div>
+        <label style="display:block;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Contraseña</label>
+        <input type="password" id="login-password" required placeholder="••••••••" autocomplete="current-password" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;box-sizing:border-box;">
+      </div>
+      <div id="login-error" style="color:#e05a5a;font-size:12px;min-height:16px;"></div>
+      <button type="submit" id="login-submit" class="btn btn-primary" style="width:100%;padding:11px;font-size:14px;">Entrar</button>
+    </form>
+
+    <div style="margin-top:18px;font-size:11px;color:var(--muted);text-align:center;line-height:1.6;">
+      ¿Sin acceso? Pide a tu admin que te invite.<br>
+      Esta app solo permite usuarios autorizados.
+    </div>
+  </div>
+</div>
+
+<!-- ===== APP SHELL (oculto hasta autenticarse) ===== -->
+<div id="app-shell" style="display:none;">
 <header class="header">
   <div class="logo">
     <div class="logo-mark">DT</div>
     <div><div class="logo-text">Dehur Territorial</div><div class="logo-sub">Core de Pagos · v2.0</div></div>
   </div>
   <div style="display:flex;align-items:center;gap:16px;">
+    <div id="user-badge" style="display:flex;align-items:center;gap:8px;font-size:12px;"></div>
     <div id="gs-auth-status"></div>
     <div class="header-right" id="header-badges"></div>
     <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Cambiar tema (claro/oscuro)" aria-label="Cambiar tema">
@@ -1437,7 +1475,9 @@
   </div>
 </div>
 
-<!-- Notificación toast -->
+</div><!-- /#app-shell -->
+
+<!-- Notificación toast (queda fuera del shell para que se vea aún en login si es necesario) -->
 <div class="notif" id="notif"><span class="ni" id="ni">✓</span><span id="nm">—</span></div>
 
 <!-- Entry point -->
