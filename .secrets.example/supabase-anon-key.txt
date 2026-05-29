@@ -1,0 +1,1 @@
+(pega aqui el ANON KEY de Supabase — JWT que empieza con eyJ...)
