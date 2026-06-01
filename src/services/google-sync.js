@@ -3,6 +3,7 @@ import { notify } from '../ui/notify.js';
 import { gsReadSheet, gsWriteRange, gsClearAndWrite, gsAppendRow } from './google-sheets.js';
 import { normalizeBanco } from '../config/bancos.js';
 import { SUB_PARTIDAS_CONSTRUCCION } from '../config/sub-partidas.js';
+import { sbReplaceTable, sbReady } from './supabase-data.js';
 
 // Parser local de fecha para sort (DD/MM/YYYY o YYYY-MM-DD → ISO).
 function _parseFecha(f) {
@@ -742,6 +743,38 @@ export async function gsSaveCostoAsignaciones() {
   } catch (e) { console.error('gsSaveCostoAsignaciones', e); }
 }
 
+// Mapea state.proveedores → filas para la tabla `proveedores` de Supabase.
+// Columnas == campos de state (espejo 1:1); arrays como JSON nativo (jsonb).
+function proveedoresParaSupabase() {
+  return state.proveedores.map(p => ({
+    id: p.id,
+    nombre: p.nombre || '',
+    rfc: p.rfc || '',
+    banco: p.banco || '',
+    tipo_cuenta: p.tipo_cuenta || '',
+    cuenta: p.cuenta || '',
+    clabe: p.clabe || '',
+    categoria: p.categoria || '',
+    subcategoria: p.subcategoria || '',
+    proyectos: p.proyectos || [],
+    activo: p.activo !== false,
+    bloqueada_para_pago: p.bloqueada_para_pago || false,
+    aliases: p.aliases || []
+  }));
+}
+
+// Espeja state.proveedores a Supabase (Fase 1: dual-write). Degradación suave:
+// si falla, avisa pero NO interrumpe — el guardado a Sheets ya quedó.
+async function espejarProveedoresSupabase() {
+  if (!sbReady()) return; // sin sesión/tenant Supabase → no espejar
+  try {
+    await sbReplaceTable('proveedores', proveedoresParaSupabase());
+  } catch (e) {
+    console.warn('Espejo proveedores → Supabase falló:', e);
+    notify('⚠ Proveedores guardados en Sheets, pero no se espejaron a Supabase: ' + (e.message || e), 'error');
+  }
+}
+
 export async function gsSaveProveedores() {
   if (!state.gsToken) return;
   if (!guardarPermitido('proveedores', state.proveedores)) return;
@@ -749,7 +782,25 @@ export async function gsSaveProveedores() {
     const rows = state.proveedores.map(p => [p.id, p.nombre, p.rfc || '', p.banco, p.tipo_cuenta, p.cuenta, p.clabe || '', p.categoria, p.subcategoria || '', (p.proyectos || []).join('|'), p.activo, p.bloqueada_para_pago || false]);
     await gsClearAndWrite('proveedores', rows, ['proveedor_id', 'nombre', 'rfc', 'banco', 'tipo_cuenta', 'cuenta', 'clabe', 'categoria', 'Subcategoria', 'proyectos', 'activo', 'bloqueada_para_pago']);
     notify('✅ Proveedores guardados en Sheets');
-  } catch (e) { notify('Error guardando proveedores: ' + e.message, 'error'); }
+  } catch (e) { notify('Error guardando proveedores: ' + e.message, 'error'); return; }
+  // Fase 1: espejo a Supabase tras el guardado a Sheets.
+  await espejarProveedoresSupabase();
+}
+
+// Botón "Proveedores → Supabase": recarga desde Sheets (toma tus ediciones
+// manuales) y empuja el resultado a Supabase. Sirve igual para la migración
+// inicial que para re-sincronizar tras editar el Sheet a mano. Idempotente.
+export async function migrarProveedoresASupabase() {
+  if (!state.gsToken) { notify('Conecta Google Sheets primero', 'error'); return; }
+  if (!sbReady()) { notify('Inicia sesión en la app (Supabase) primero', 'error'); return; }
+  notify('Sincronizando proveedores: Sheets → app → Supabase...');
+  await gsLoadAll();
+  try {
+    const n = await sbReplaceTable('proveedores', proveedoresParaSupabase());
+    notify(`✅ ${n} proveedores espejados en Supabase`, 'success');
+  } catch (e) {
+    notify('Proveedores recargados, pero falló el espejo a Supabase: ' + (e.message || e), 'error');
+  }
 }
 
 export async function gsSaveAlias(nombreOriginal, provId) {

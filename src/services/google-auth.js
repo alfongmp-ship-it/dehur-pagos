@@ -73,7 +73,8 @@ export function renderAuthStatus() {
       + '<button class="btn btn-primary" onclick="gsSaveProveedores()">☁ Subir Proveedores</button>'
       + '<button class="btn btn-primary" onclick="gsSaveEmpleados()">☁ Subir Empleados</button>'
       + '<button class="btn btn-primary" onclick="gsSaveProyectos()">☁ Subir Proyectos</button>'
-      + '<button class="btn btn-ghost" onclick="gsLoadAll()">⬇ Cargar desde Sheets</button>';
+      + '<button class="btn btn-ghost" onclick="gsLoadAll()">⬇ Cargar desde Sheets</button>'
+      + '<button class="btn btn-ghost" onclick="migrarProveedoresASupabase()" title="Recarga de Sheets y espeja proveedores a Supabase (migración inicial o re-sincronizar tras editar el Sheet)" style="border-color:#C8A96E;color:#C8A96E;">🟣 Proveedores → Supabase</button>';
   } else {
     const html = '<button class="btn btn-primary" onclick="gsLogin()" style="padding:8px 20px;font-size:13px;">🔗 Conectar Google Sheets</button>';
     if (el) el.innerHTML = html;

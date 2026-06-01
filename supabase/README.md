@@ -24,7 +24,8 @@ Esta carpeta versiona el schema de Postgres que vive en Supabase.
 | 2 | `02_seed_admin_user.sql` | Te agrega como admin del tenant Dehur | Una vez, después de crear tu usuario en Auth |
 | 3 | `03_grants_authenticated.sql` | GRANT a `authenticated` sobre tablas base (evita 403) | Una vez al setup inicial |
 | 4 | `04_seed_team_users.sql` | Agrega testers del equipo al tenant Dehur (por email) | Cada vez que invites a alguien |
-| 5+ | (vendrán) | Tablas de datos (historial, proveedores, etc.) | Etapa B y C |
+| 5 | `05_proveedores.sql` | Tabla `proveedores` (espejo del Sheet) + RLS + grants | Etapa B — rebanada de prueba |
+| 6+ | (vendrán) | Resto de tablas de datos (historial, proyectos, etc.) | Etapa B (resto) |
 
 ## Idempotencia
 
