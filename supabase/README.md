@@ -22,7 +22,9 @@ Esta carpeta versiona el schema de Postgres que vive en Supabase.
 |---|---|---|---|
 | 1 | `01_tenants_and_roles.sql` | Tabla `tenants`, `tenant_users`, enum `app_role`, RLS, helpers, seed de "Dehur" | Una vez al setup inicial |
 | 2 | `02_seed_admin_user.sql` | Te agrega como admin del tenant Dehur | Una vez, después de crear tu usuario en Auth |
-| 3+ | (vendrán) | Tablas de datos (historial, proveedores, etc.) | Etapa B y C |
+| 3 | `03_grants_authenticated.sql` | GRANT a `authenticated` sobre tablas base (evita 403) | Una vez al setup inicial |
+| 4 | `04_seed_team_users.sql` | Agrega testers del equipo al tenant Dehur (por email) | Cada vez que invites a alguien |
+| 5+ | (vendrán) | Tablas de datos (historial, proveedores, etc.) | Etapa B y C |
 
 ## Idempotencia
 
