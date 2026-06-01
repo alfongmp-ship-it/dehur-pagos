@@ -689,6 +689,7 @@ export async function gsSaveHistorial() {
       'tipo', 'concepto', 'importe', 'proyecto', 'cuenta_origen',
       'tipo_registro', 'partida', 'sub_partida', 'id'
     ]);
+    await sbEspejar('historial');
   } catch (e) {
     console.error('gsSaveHistorial', e);
     notify(`⚠ No pude guardar el historial en Sheets: ${e.message}. Tus cambios están en memoria pero NO se persistieron.`, 'error');
@@ -743,36 +744,113 @@ export async function gsSaveCostoAsignaciones() {
   } catch (e) { console.error('gsSaveCostoAsignaciones', e); }
 }
 
-// Mapea state.proveedores → filas para la tabla `proveedores` de Supabase.
-// Columnas == campos de state (espejo 1:1); arrays como JSON nativo (jsonb).
-function proveedoresParaSupabase() {
+// ===== Espejo a Supabase (Etapa B — Fase 1: dual-write) =====
+// Helpers de coerción para que los tipos calcen con las columnas de Postgres.
+const _sbBool = (v) => v === true || v === 'TRUE' || v === 'true' || v === 1;
+const _sbNum  = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+const _sbStr  = (v) => (v == null ? '' : String(v));
+
+// Mapeos state → filas (objetos) por entidad. Columnas == campos que se
+// persisten en Sheets (espejo 1:1). Arrays como JSON nativo (jsonb).
+function _rowsProveedores() {
   return state.proveedores.map(p => ({
-    id: p.id,
-    nombre: p.nombre || '',
-    rfc: p.rfc || '',
-    banco: p.banco || '',
-    tipo_cuenta: p.tipo_cuenta || '',
-    cuenta: p.cuenta || '',
-    clabe: p.clabe || '',
-    categoria: p.categoria || '',
-    subcategoria: p.subcategoria || '',
-    proyectos: p.proyectos || [],
-    activo: p.activo !== false,
-    bloqueada_para_pago: p.bloqueada_para_pago || false,
-    aliases: p.aliases || []
+    id: p.id, nombre: _sbStr(p.nombre), rfc: _sbStr(p.rfc), banco: _sbStr(p.banco),
+    tipo_cuenta: _sbStr(p.tipo_cuenta), cuenta: _sbStr(p.cuenta), clabe: _sbStr(p.clabe),
+    categoria: _sbStr(p.categoria), subcategoria: _sbStr(p.subcategoria),
+    proyectos: p.proyectos || [], activo: p.activo !== false,
+    bloqueada_para_pago: !!p.bloqueada_para_pago, aliases: p.aliases || []
   }));
 }
-
-// Espeja state.proveedores a Supabase (Fase 1: dual-write). Degradación suave:
-// si falla, avisa pero NO interrumpe — el guardado a Sheets ya quedó.
-async function espejarProveedoresSupabase() {
-  if (!sbReady()) return; // sin sesión/tenant Supabase → no espejar
-  try {
-    await sbReplaceTable('proveedores', proveedoresParaSupabase());
-  } catch (e) {
-    console.warn('Espejo proveedores → Supabase falló:', e);
-    notify('⚠ Proveedores guardados en Sheets, pero no se espejaron a Supabase: ' + (e.message || e), 'error');
+function _rowsProyectos() {
+  return state.proyectos.map(p => ({
+    id: _sbStr(p.id), nombre: _sbStr(p.nombre), empresa: _sbStr(p.empresa),
+    cuenta: _sbStr(p.cuenta), clabe: _sbStr(p.clabe), color: _sbStr(p.color),
+    activo: p.activo !== false, saldo: _sbNum(p.saldo),
+    ultima_act_saldo: _sbStr(p.ultima_act_saldo), es_concentradora: _sbBool(p.es_concentradora)
+  }));
+}
+function _rowsCuentasPropias() {
+  return state.cuentasPropias.map(c => ({
+    cuenta_id: c.cuenta_id, nombre: _sbStr(c.nombre), banco: _sbStr(c.banco),
+    clabe: _sbStr(c.clabe), numero_cuenta: _sbStr(c.numero_cuenta), proyecto: _sbStr(c.proyecto),
+    tipo: _sbStr(c.tipo || 'General'), saldo: _sbNum(c.saldo),
+    ultima_actualizacion: _sbStr(c.ultima_actualizacion), activo: c.activo !== false
+  }));
+}
+function _rowsEmpleados() {
+  return state.empleados.map(e => ({
+    id: e.id, nombre: _sbStr(e.nombre), puesto: _sbStr(e.puesto), empresa: _sbStr(e.empresa),
+    banco: _sbStr(e.banco), tipo_cuenta: _sbStr(e.tipo_cuenta), cuenta: _sbStr(e.cuenta),
+    clabe: _sbStr(e.clabe), rfc: _sbStr(e.rfc), activo: e.activo !== false
+  }));
+}
+function _rowsHistorial() {
+  // Dedup por id (el PK es (tenant_id, id)). ensureHistorialIds ya los hace
+  // únicos, pero por si una edición manual del Sheet dejó duplicados.
+  const seen = new Set();
+  const out = [];
+  for (const h of state.historial) {
+    const id = _sbStr(h.id);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push({
+      id, proveedor_id: _sbStr(h.proveedor_id), factura_id: _sbStr(h.factura_id),
+      fecha: _sbStr(h.fecha), nombre: _sbStr(h.nombre), banco: _sbStr(h.banco),
+      tipo: _sbStr(h.tipo), concepto: _sbStr(h.concepto), importe: _sbNum(h.importe),
+      proyecto: _sbStr(h.proyecto), cuenta_origen: _sbStr(h.cuenta_origen),
+      tipo_registro: _sbStr(h.tipo_registro || 'Pago'), partida: _sbStr(h.partida),
+      sub_partida: _sbStr(h.sub_partida)
+    });
   }
+  return out;
+}
+
+// Registro entidad → { tabla Supabase, función que arma las filas }.
+// Conforme se agregan entidades aquí, "Migrar TODO" y el dual-write las cubren.
+const SB_ENTIDADES = {
+  proveedores:    { tabla: 'proveedores',     rows: _rowsProveedores },
+  proyectos:      { tabla: 'proyectos',       rows: _rowsProyectos },
+  cuentasPropias: { tabla: 'cuentas_propias', rows: _rowsCuentasPropias },
+  empleados:      { tabla: 'empleados',       rows: _rowsEmpleados },
+  historial:      { tabla: 'historial',       rows: _rowsHistorial }
+};
+
+// Espeja UNA entidad a Supabase tras guardarla en Sheets (dual-write).
+// Degradación suave: si falla, avisa pero NO rompe el guardado a Sheets.
+async function sbEspejar(key) {
+  if (!sbReady()) return;
+  const def = SB_ENTIDADES[key];
+  if (!def) return;
+  try {
+    await sbReplaceTable(def.tabla, def.rows());
+  } catch (e) {
+    console.warn(`Espejo ${def.tabla} → Supabase falló:`, e);
+    notify(`⚠ ${def.tabla} guardado en Sheets, pero no se espejó a Supabase: ` + (e.message || e), 'error');
+  }
+}
+
+// Botón "Migrar TODO a Supabase": recarga de Sheets (toma ediciones manuales) y
+// espeja TODAS las entidades del registro. Sirve igual para migración inicial
+// que para re-sincronizar tras editar el Sheet a mano. Idempotente.
+export async function migrarTodoASupabase() {
+  if (!state.gsToken) { notify('Conecta Google Sheets primero', 'error'); return; }
+  if (!sbReady()) { notify('Inicia sesión en la app (Supabase) primero', 'error'); return; }
+  notify('Migrando a Supabase: recargando de Sheets...');
+  await gsLoadAll();
+  let ok = 0, fail = 0;
+  for (const key of Object.keys(SB_ENTIDADES)) {
+    const def = SB_ENTIDADES[key];
+    try {
+      const n = await sbReplaceTable(def.tabla, def.rows());
+      ok++;
+      console.log(`✓ ${def.tabla}: ${n} filas`);
+    } catch (e) {
+      fail++;
+      console.error(`✗ ${def.tabla}:`, e);
+    }
+  }
+  if (fail === 0) notify(`✅ Migrado a Supabase: ${ok} tablas`, 'success');
+  else notify(`Migración parcial: ${ok} OK, ${fail} con error. Revisa F12 — ¿corriste el SQL de esas tablas?`, 'error');
 }
 
 export async function gsSaveProveedores() {
@@ -782,25 +860,8 @@ export async function gsSaveProveedores() {
     const rows = state.proveedores.map(p => [p.id, p.nombre, p.rfc || '', p.banco, p.tipo_cuenta, p.cuenta, p.clabe || '', p.categoria, p.subcategoria || '', (p.proyectos || []).join('|'), p.activo, p.bloqueada_para_pago || false]);
     await gsClearAndWrite('proveedores', rows, ['proveedor_id', 'nombre', 'rfc', 'banco', 'tipo_cuenta', 'cuenta', 'clabe', 'categoria', 'Subcategoria', 'proyectos', 'activo', 'bloqueada_para_pago']);
     notify('✅ Proveedores guardados en Sheets');
-  } catch (e) { notify('Error guardando proveedores: ' + e.message, 'error'); return; }
-  // Fase 1: espejo a Supabase tras el guardado a Sheets.
-  await espejarProveedoresSupabase();
-}
-
-// Botón "Proveedores → Supabase": recarga desde Sheets (toma tus ediciones
-// manuales) y empuja el resultado a Supabase. Sirve igual para la migración
-// inicial que para re-sincronizar tras editar el Sheet a mano. Idempotente.
-export async function migrarProveedoresASupabase() {
-  if (!state.gsToken) { notify('Conecta Google Sheets primero', 'error'); return; }
-  if (!sbReady()) { notify('Inicia sesión en la app (Supabase) primero', 'error'); return; }
-  notify('Sincronizando proveedores: Sheets → app → Supabase...');
-  await gsLoadAll();
-  try {
-    const n = await sbReplaceTable('proveedores', proveedoresParaSupabase());
-    notify(`✅ ${n} proveedores espejados en Supabase`, 'success');
-  } catch (e) {
-    notify('Proveedores recargados, pero falló el espejo a Supabase: ' + (e.message || e), 'error');
-  }
+    await sbEspejar('proveedores');
+  } catch (e) { notify('Error guardando proveedores: ' + e.message, 'error'); }
 }
 
 export async function gsSaveAlias(nombreOriginal, provId) {
@@ -818,6 +879,7 @@ export async function gsSaveEmpleados() {
     const rows = state.empleados.map(e => [e.id, e.nombre, e.puesto || '', e.empresa || '', e.banco, e.tipo_cuenta, e.cuenta, e.clabe || '', e.rfc || '', e.activo]);
     await gsClearAndWrite('empleados', rows, ['id', 'nombre', 'puesto', 'empresa', 'banco', 'tipo_cuenta', 'cuenta', 'clabe', 'rfc', 'activo']);
     notify('✅ Empleados guardados en Sheets');
+    await sbEspejar('empleados');
   } catch (e) { console.error('gsSaveEmpleados', e); }
 }
 
@@ -845,6 +907,7 @@ export async function gsSaveCuentasPropias() {
   try {
     const rows = state.cuentasPropias.map(c => [c.cuenta_id, c.nombre, c.banco, c.clabe || '', c.numero_cuenta || '', c.proyecto || '', c.tipo || 'General', c.saldo, c.ultima_actualizacion || '', c.activo]);
     await gsClearAndWrite('cuentas_propias', rows, ['cuenta_id', 'nombre', 'banco', 'clabe', 'numero_cuenta', 'proyecto', 'tipo', 'saldo', 'ultima_actualizacion', 'activo']);
+    await sbEspejar('cuentasPropias');
   } catch (e) { console.error('gsSaveCuentasPropias', e); }
 }
 
@@ -951,5 +1014,6 @@ export async function gsSaveProyectos() {
     const rows = state.proyectos.map(p => [p.id, p.nombre, p.empresa || '', p.cuenta || '', p.clabe || '', p.color || '', p.activo, p.saldo || 0, p.ultima_act_saldo || '', p.es_concentradora || false]);
     await gsClearAndWrite('proyectos', rows, ['id', 'nombre', 'empresa', 'cuenta', 'clabe', 'color', 'activo', 'saldo', 'ultima_act_saldo', 'es_concentradora']);
     notify('✅ Proyectos guardados en Sheets');
+    await sbEspejar('proyectos');
   } catch (e) { console.error('gsSaveProyectos', e); }
 }

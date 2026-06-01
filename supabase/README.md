@@ -25,7 +25,8 @@ Esta carpeta versiona el schema de Postgres que vive en Supabase.
 | 3 | `03_grants_authenticated.sql` | GRANT a `authenticated` sobre tablas base (evita 403) | Una vez al setup inicial |
 | 4 | `04_seed_team_users.sql` | Agrega testers del equipo al tenant Dehur (por email) | Cada vez que invites a alguien |
 | 5 | `05_proveedores.sql` | Tabla `proveedores` (espejo del Sheet) + RLS + grants | Etapa B — rebanada de prueba |
-| 6+ | (vendrán) | Resto de tablas de datos (historial, proyectos, etc.) | Etapa B (resto) |
+| 6 | `06_datos_principales.sql` | Tablas `proyectos`, `cuentas_propias`, `empleados`, `historial` | Etapa B — bloque 1 |
+| 7+ | (vendrán) | Resto: facturas, traspasos, créditos, costos, partidas | Etapa B (resto) |
 
 ## Idempotencia
 
