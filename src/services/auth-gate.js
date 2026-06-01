@@ -115,16 +115,28 @@ function setLoginButton(text, disabled) {
   btn.textContent = text;
 }
 
+// Helper: corre una promesa con límite de tiempo. Si se pasa, rechaza. Evita
+// que el gate se quede colgado para siempre (pantalla negra) si Supabase no
+// responde.
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(label || 'timeout')), ms))
+  ]);
+}
+
 // Check inicial al cargar la app. Si hay sesion valida + tenant -> muestra app.
 // Si no -> muestra login.
 export async function initAuthGate(onAuthedCallback) {
   console.log('🔐 initAuthGate inicio');
   let info;
   try {
-    info = await fetchCurrentTenantInfo();
+    // Red de seguridad: si fetchCurrentTenantInfo no resuelve en 12s, caemos a
+    // login en vez de quedarnos en negro.
+    info = await withTimeout(fetchCurrentTenantInfo(), 12000, 'initAuthGate: timeout verificando sesión');
   } catch (e) {
     console.error('initAuthGate error', e);
-    showLogin({ errorMessage: 'Error conectando con Supabase: ' + (e.message || e) });
+    showLogin({ errorMessage: 'No pudimos verificar tu sesión (revisa tu conexión y recarga). ' + (e.message || e) });
     return false;
   }
 
@@ -150,39 +162,46 @@ export async function initAuthGate(onAuthedCallback) {
 
 // Listener de cambios de sesion (logout, refresh, etc.)
 export function setupAuthListener(onAuthedCallback) {
-  onAuthStateChange(async (event, session) => {
+  onAuthStateChange((event, session) => {
     console.log('🔔 onAuthStateChange:', event, session ? '(con session)' : '(sin session)');
-    if (event === 'SIGNED_OUT' || !session) {
-      state.session = null;
-      showLogin();
-      return;
-    }
-    if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
-      let info;
-      try {
-        info = await fetchCurrentTenantInfo();
-      } catch (e) {
-        console.error('  → fetchCurrentTenantInfo lanzo:', e);
-        showLogin({ errorMessage: 'No pude cargar tu tenant: ' + (e.message || e) });
+    // CRÍTICO: diferimos TODO el trabajo con setTimeout(0). Supabase invoca este
+    // callback sosteniendo un lock interno (navigator.locks); hacer queries o
+    // llamar getSession() aquí adentro deadlockea y deja la app en negro. Ya
+    // fuera del callback (siguiente tick) es seguro.
+    setTimeout(async () => {
+      if (event === 'SIGNED_OUT' || !session) {
+        state.session = null;
+        showLogin();
         return;
       }
-
-      if (info && !info.orphan) {
-        state.session = info;
-        hideLogin();
-        if (event === 'SIGNED_IN' && onAuthedCallback) {
-          try { await onAuthedCallback(); }
-          catch (e) { console.error('  → bootstrap fallo:', e); }
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+        let info;
+        try {
+          // Pasamos la `session` del listener para NO volver a llamar getSession().
+          info = await fetchCurrentTenantInfo(session);
+        } catch (e) {
+          console.error('  → fetchCurrentTenantInfo lanzo:', e);
+          showLogin({ errorMessage: 'No pude cargar tu tenant: ' + (e.message || e) });
+          return;
         }
-        return;
+
+        if (info && !info.orphan) {
+          state.session = info;
+          hideLogin();
+          if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && onAuthedCallback) {
+            try { await onAuthedCallback(); }
+            catch (e) { console.error('  → bootstrap fallo:', e); }
+          }
+          return;
+        }
+        if (info?.orphan) {
+          showLogin({ errorMessage: 'Tu usuario no esta asignado a ningun tenant.' });
+          return;
+        }
+        // info === null  →  query fallo, sin mensaje claro
+        showLogin({ errorMessage: 'No pude consultar tu tenant. Revisa la consola (F12) o reintenta.' });
       }
-      if (info?.orphan) {
-        showLogin({ errorMessage: 'Tu usuario no esta asignado a ningun tenant.' });
-        return;
-      }
-      // info === null  →  query fallo, sin mensaje claro
-      showLogin({ errorMessage: 'No pude consultar tu tenant. Revisa la consola (F12) o reintenta.' });
-    }
+    }, 0);
   });
 }
 

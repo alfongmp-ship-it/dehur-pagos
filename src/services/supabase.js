@@ -64,9 +64,19 @@ export function onAuthStateChange(cb) {
 // IMPORTANTE: hace dos queries separadas en vez de un join PostgREST.
 // El join `tenants(nombre, slug)` puede romper por RLS recursiva sobre
 // tenants — esto lo evita y es mas debuggeable.
-export async function fetchCurrentTenantInfo() {
-  console.log('🔐 fetchCurrentTenantInfo: getSession...');
-  const session = await getSession();
+// IMPORTANTE: si se le pasa `sessionArg`, NO llama getSession(). Esto evita un
+// deadlock de Supabase: este método se invoca desde dentro del callback de
+// onAuthStateChange, que corre sosteniendo un lock interno (navigator.locks);
+// llamar getSession() ahí re-intenta el lock y nunca resuelve → app en negro.
+// El callback ya recibe la `session`, así que se la pasamos directo.
+export async function fetchCurrentTenantInfo(sessionArg) {
+  let session = sessionArg;
+  if (session === undefined) {
+    console.log('🔐 fetchCurrentTenantInfo: getSession...');
+    session = await getSession();
+  } else {
+    console.log('🔐 fetchCurrentTenantInfo: usando session del listener (sin getSession)');
+  }
   if (!session) {
     console.log('  → sin sesion');
     return null;
