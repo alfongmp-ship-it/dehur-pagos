@@ -75,7 +75,8 @@ export function renderAuthStatus() {
       + '<button class="btn btn-primary" onclick="gsSaveEmpleados()">☁ Subir Empleados</button>'
       + '<button class="btn btn-primary" onclick="gsSaveProyectos()">☁ Subir Proyectos</button>'
       + '<button class="btn btn-ghost" onclick="gsLoadAll()">⬇ Cargar desde Sheets</button>'
-      + '<button class="btn btn-ghost" onclick="migrarTodoASupabase()" title="Recarga de Sheets y espeja TODAS las entidades migradas a Supabase (migración inicial o re-sincronizar tras editar el Sheet)" style="border-color:#C8A96E;color:#C8A96E;">🟣 Migrar TODO a Supabase</button>';
+      + '<button class="btn btn-ghost" onclick="migrarTodoASupabase()" title="Recarga de Sheets y espeja TODAS las entidades migradas a Supabase (migración inicial o re-sincronizar tras editar el Sheet)" style="border-color:#C8A96E;color:#C8A96E;">🟣 Migrar TODO a Supabase</button>'
+      + '<button class="btn btn-ghost" onclick="probarCargaDesdeSupabase()" title="PRUEBA: carga los datos desde Supabase (no cambia el arranque). Compara que se vea igual que con Sheets." style="border-color:#3498db;color:#3498db;">🔵 Cargar desde Supabase (prueba)</button>';
   } else {
     const html = '<button class="btn btn-primary" onclick="gsLogin()" style="padding:8px 20px;font-size:13px;">🔗 Conectar Google Sheets</button>';
     if (el) el.innerHTML = html;

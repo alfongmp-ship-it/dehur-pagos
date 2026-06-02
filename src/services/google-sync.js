@@ -3,7 +3,7 @@ import { notify } from '../ui/notify.js';
 import { gsReadSheet, gsWriteRange, gsClearAndWrite, gsAppendRow } from './google-sheets.js';
 import { normalizeBanco } from '../config/bancos.js';
 import { SUB_PARTIDAS_CONSTRUCCION } from '../config/sub-partidas.js';
-import { sbReplaceTable, sbReady } from './supabase-data.js';
+import { sbReplaceTable, sbLoadTable, sbReady } from './supabase-data.js';
 
 // Parser local de fecha para sort (DD/MM/YYYY o YYYY-MM-DD → ISO).
 function _parseFecha(f) {
@@ -516,48 +516,249 @@ export async function gsLoadAll() {
       });
     }
 
-    // Recalcular nextId con el máximo entre proveedores y empleados
-    const maxProv = state.proveedores.reduce((max, p) => Math.max(max, p.id || 0), 0);
-    const maxEmp = state.empleados.reduce((max, e) => Math.max(max, e.id || 0), 0);
-    state.nextId = Math.max(maxProv, maxEmp, state.nextId || 0) + 1;
-
-    // Auto-limpiar asignaciones huérfanas (pago borrado directo en Sheets).
-    // Solo si AMBAS hojas cargaron OK — para no borrar nada si una falló.
-    if (state.cargado.historial === true && state.cargado.costoAsignaciones === true) {
-      const idsHist = new Set(state.historial.map(h => String(h.id)).filter(Boolean));
-      const antesAsig = state.costoAsignaciones.length;
-      state.costoAsignaciones = state.costoAsignaciones.filter(a => idsHist.has(String(a.pago_id)));
-      const eliminadas = antesAsig - state.costoAsignaciones.length;
-      if (eliminadas > 0) {
-        try { await gsSaveCostoAsignaciones(); } catch (e) { console.error('Auto-limpia huérfanas: error guardando', e); }
-        notify(`🧹 Limpieza automática: ${eliminadas} asignación(es) huérfana(s) eliminada(s) (pagos borrados directo en Sheets)`, 'success');
-      }
-    }
-
-    // Re-render everything
-    if (window.renderCreditos) window.renderCreditos();
-    if (window.renderTraspasos) window.renderTraspasos();
-    if (window.renderResumenTraspasos) window.renderResumenTraspasos();
-    if (window.renderCuentasPropias) window.renderCuentasPropias();
-    if (window.renderProveedores) window.renderProveedores();
-    if (window.renderNomina) window.renderNomina();
-    if (window.renderHistorial) window.renderHistorial();
-    if (window.renderConfigProyectos) window.renderConfigProyectos();
-    if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
-    if (window.renderHeaderBadges) window.renderHeaderBadges();
-    if (window.refreshProyectosEnSelects) window.refreshProyectosEnSelects();
-    if (window.renderCostosFiscales) window.renderCostosFiscales();
-    if (window.renderConfigPartidas) window.renderConfigPartidas();
-    if (window.renderConfigPartidasObra) window.renderConfigPartidasObra();
-    document.getElementById('cnt-hist').textContent = state.historial.length;
-    document.getElementById('cnt-fact').textContent = state.facturas.length;
-    document.getElementById('cnt-fp').textContent = state.facturaPagos.length;
+    // Pasos post-carga compartidos (recalibrar contadores, limpiar huérfanas,
+    // re-render). Mismos pasos para Sheets y Supabase.
+    await finalizarCarga();
   } catch (e) {
     console.error('gsLoadAll error', e);
     notify('Error cargando datos: ' + e.message, 'error');
   } finally {
     // Aviso visible si alguna hoja no cargó (y bloqueo de su guardado).
     actualizarBannerCarga();
+  }
+}
+
+// Pasos post-carga compartidos por gsLoadAll (Sheets) y sbLoadAll (Supabase).
+// Garantiza comportamiento idéntico sin importar la fuente: IDs estables, orden,
+// recalibración de contadores en memoria, limpieza de asignaciones huérfanas y
+// re-render de toda la UI.
+async function finalizarCarga() {
+  ensureHistorialIds();
+  sortHistorialByFecha();
+
+  // Recalibrar contadores desde el máximo cargado (para no chocar IDs nuevos).
+  const maxProv = state.proveedores.reduce((max, p) => Math.max(max, p.id || 0), 0);
+  const maxEmp = state.empleados.reduce((max, e) => Math.max(max, e.id || 0), 0);
+  state.nextId = Math.max(maxProv, maxEmp, state.nextId || 0) + 1;
+  state.nextUnidadId = state.unidades.reduce((m, u) => Math.max(m, u.unidad_id || 0), 0) + 1;
+  state.nextPresupuestoId = state.presupuestoUnidad.reduce((m, p) => Math.max(m, p.presupuesto_id || 0), 0) + 1;
+  state.nextAsignacionId = state.costoAsignaciones.reduce((m, a) => Math.max(m, a.asignacion_id || 0), 0) + 1;
+
+  // Auto-limpiar asignaciones huérfanas (pago borrado directo en la fuente).
+  // Solo si AMBAS entidades cargaron OK — para no borrar nada si una falló.
+  if (state.cargado.historial === true && state.cargado.costoAsignaciones === true) {
+    const idsHist = new Set(state.historial.map(h => String(h.id)).filter(Boolean));
+    const antesAsig = state.costoAsignaciones.length;
+    state.costoAsignaciones = state.costoAsignaciones.filter(a => idsHist.has(String(a.pago_id)));
+    const eliminadas = antesAsig - state.costoAsignaciones.length;
+    if (eliminadas > 0) {
+      try { await gsSaveCostoAsignaciones(); } catch (e) { console.error('Auto-limpia huérfanas: error guardando', e); }
+      notify(`🧹 Limpieza automática: ${eliminadas} asignación(es) huérfana(s) eliminada(s)`, 'success');
+    }
+  }
+
+  // Re-render everything
+  if (window.renderCreditos) window.renderCreditos();
+  if (window.renderTraspasos) window.renderTraspasos();
+  if (window.renderResumenTraspasos) window.renderResumenTraspasos();
+  if (window.renderCuentasPropias) window.renderCuentasPropias();
+  if (window.renderProveedores) window.renderProveedores();
+  if (window.renderNomina) window.renderNomina();
+  if (window.renderHistorial) window.renderHistorial();
+  if (window.renderConfigProyectos) window.renderConfigProyectos();
+  if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
+  if (window.renderHeaderBadges) window.renderHeaderBadges();
+  if (window.refreshProyectosEnSelects) window.refreshProyectosEnSelects();
+  if (window.renderCostosFiscales) window.renderCostosFiscales();
+  if (window.renderConfigPartidas) window.renderConfigPartidas();
+  if (window.renderConfigPartidasObra) window.renderConfigPartidasObra();
+  const cH = document.getElementById('cnt-hist'); if (cH) cH.textContent = state.historial.length;
+  const cF = document.getElementById('cnt-fact'); if (cF) cF.textContent = state.facturas.length;
+  const cFP = document.getElementById('cnt-fp'); if (cFP) cFP.textContent = state.facturaPagos.length;
+}
+
+// Carga TODO el estado desde Supabase (Fase 2). Es el espejo inverso de los
+// _rowsX: mapea cada fila al shape de state.* COERCIONANDO tipos EXACTAMENTE
+// como el cargador de Sheets (ids numéricos con parseInt, montos con parseFloat,
+// mismos defaults) para que el comportamiento sea idéntico. Lanza si Supabase
+// falla; el caller decide el fallback a Sheets.
+export async function sbLoadAll() {
+  if (!sbReady()) throw new Error('Sin sesión/tenant Supabase');
+  state.cargado = {};
+  const toInt = (v) => parseInt(v) || 0;
+  const toNum = (v) => parseFloat(v) || 0;
+  const plano = (v) => (v === null || v === undefined || v === '' ? null : (parseFloat(v) || 0));
+
+  async function cargar(tabla, entidad, fn) {
+    const rows = await sbLoadTable(tabla);
+    state.cargado[entidad] = (rows !== null);
+    if (rows && rows.length) fn(rows);
+  }
+
+  await cargar('proveedores', 'proveedores', rows => {
+    state.proveedores = rows.map(r => ({
+      id: toInt(r.id), nombre: r.nombre || '', rfc: r.rfc || '', banco: normalizeBanco(r.banco || ''),
+      tipo_cuenta: r.tipo_cuenta || '', cuenta: r.cuenta || '', clabe: r.clabe || '',
+      categoria: r.categoria || '', subcategoria: r.subcategoria || '',
+      proyectos: Array.isArray(r.proyectos) ? r.proyectos : [], activo: r.activo !== false,
+      bloqueada_para_pago: !!r.bloqueada_para_pago, aliases: Array.isArray(r.aliases) ? r.aliases : []
+    }));
+  });
+
+  await cargar('historial', 'historial', rows => {
+    state.historial = rows.map(r => ({
+      proveedor_id: r.proveedor_id || '', factura_id: r.factura_id || '', fecha: r.fecha || '',
+      nombre: r.nombre || '', banco: normalizeBanco(r.banco || ''), tipo: r.tipo || '',
+      concepto: r.concepto || '', importe: toNum(r.importe), proyecto: r.proyecto || '',
+      cuenta_origen: r.cuenta_origen || '', tipo_registro: r.tipo_registro || 'Pago',
+      partida: r.partida || '', sub_partida: r.sub_partida || '', id: r.id || ''
+    }));
+  });
+
+  await cargar('proyectos', 'proyectos', rows => {
+    state.proyectos = rows.map(r => ({
+      id: r.id || '', nombre: r.nombre || '', empresa: r.empresa || '', cuenta: r.cuenta || '',
+      clabe: r.clabe || '', color: r.color || '#C8A96E', activo: r.activo !== false,
+      saldo: toNum(r.saldo), ultima_act_saldo: r.ultima_act_saldo || '', es_concentradora: !!r.es_concentradora
+    }));
+  });
+
+  await cargar('empleados', 'empleados', rows => {
+    state.empleados = rows.map(r => ({
+      id: toInt(r.id), nombre: r.nombre || '', puesto: r.puesto || '', empresa: r.empresa || '',
+      banco: r.banco || 'BBVA', tipo_cuenta: r.tipo_cuenta || '', cuenta: r.cuenta || '',
+      clabe: r.clabe || '', rfc: r.rfc || '', activo: r.activo !== false
+    }));
+  });
+
+  await cargar('cuentas_propias', 'cuentasPropias', rows => {
+    state.cuentasPropias = rows.map(r => ({
+      cuenta_id: toInt(r.cuenta_id), nombre: r.nombre || '', banco: r.banco || '', clabe: r.clabe || '',
+      numero_cuenta: r.numero_cuenta || '', proyecto: r.proyecto || '', tipo: r.tipo || 'General',
+      saldo: toNum(r.saldo), ultima_actualizacion: r.ultima_actualizacion || '', activo: r.activo !== false
+    }));
+  });
+
+  await cargar('facturas', 'facturas', rows => {
+    state.facturas = rows.map(r => ({
+      factura_id: toInt(r.factura_id), numero_factura: r.numero_factura || '', razon_social: r.razon_social || '',
+      proveedor_id: toInt(r.proveedor_id), nombre_proveedor: r.nombre_proveedor || '',
+      fecha_factura: r.fecha_factura || '', fecha_vencimiento: r.fecha_vencimiento || '',
+      fecha_pago_total: r.fecha_pago_total || '', monto_total: toNum(r.monto_total),
+      monto_pagado: toNum(r.monto_pagado), saldo_pendiente: toNum(r.saldo_pendiente),
+      estatus_factura: r.estatus_factura || 'pendiente', proyecto: r.proyecto || '',
+      observaciones: r.observaciones || '', activo: r.activo !== false, uuid: r.uuid || ''
+    }));
+  });
+
+  await cargar('factura_pagos', 'facturaPagos', rows => {
+    state.facturaPagos = rows.map(r => ({
+      factura_pago_id: toInt(r.factura_pago_id), factura_id: toInt(r.factura_id), pago_id: toInt(r.pago_id),
+      proveedor_id: toInt(r.proveedor_id), monto_aplicado: toNum(r.monto_aplicado),
+      fecha_pago: r.fecha_pago || '', estatus: r.estatus || '', observaciones: r.observaciones || ''
+    }));
+  });
+
+  await cargar('traspasos', 'traspasos', rows => {
+    state.traspasos = rows.map(r => ({
+      traspaso_id: toInt(r.traspaso_id), tipo: r.tipo || '', cuenta_origen_id: r.cuenta_origen_id || '',
+      cuenta_origen_tipo: r.cuenta_origen_tipo || 'proyecto', cuenta_origen_nombre: r.cuenta_origen_nombre || '',
+      proyecto_origen: r.proyecto_origen || '', cuenta_destino_id: r.cuenta_destino_id || '',
+      cuenta_destino_tipo: r.cuenta_destino_tipo || 'proyecto', cuenta_destino_nombre: r.cuenta_destino_nombre || '',
+      proyecto_destino: r.proyecto_destino || '', monto: toNum(r.monto), fecha: r.fecha || '',
+      concepto: r.concepto || '', referencia: r.referencia || '', estatus: r.estatus || 'pendiente',
+      fecha_registro: r.fecha_registro || ''
+    }));
+  });
+
+  await cargar('movimientos_internos', 'movimientosInternos', rows => {
+    state.movimientosInternos = rows.map(r => ({
+      id: toInt(r.id), fecha: r.fecha || '', tipo: r.tipo || '', origen: r.origen || '',
+      destino: r.destino || '', monto: toNum(r.monto), concepto: r.concepto || '', referencia: r.referencia || ''
+    }));
+  });
+
+  await cargar('creditos', 'creditos', rows => {
+    state.creditos = rows.map(r => ({
+      credito_id: toInt(r.credito_id), nombre: r.nombre || '', banco: r.banco || '',
+      tipo_credito: r.tipo_credito || 'Puente', monto_autorizado: toNum(r.monto_autorizado),
+      tasa_base: toNum(r.tasa_base), proyecto: r.proyecto || '', cuenta_pago: r.cuenta_pago || '',
+      estatus: r.estatus || 'Activo', activo: r.activo !== false
+    }));
+  });
+
+  await cargar('pagares', 'pagares', rows => {
+    state.pagares = rows.map(r => ({
+      pagare_id: toInt(r.pagare_id), credito_id: toInt(r.credito_id), numero_pagare: r.numero_pagare || '',
+      monto: toNum(r.monto), fecha_disposicion: r.fecha_disposicion || '', fecha_vencimiento: r.fecha_vencimiento || '',
+      tasa: toNum(r.tasa), estatus: r.estatus || 'Vigente', activo: r.activo !== false
+    }));
+  });
+
+  await cargar('pagos_pagare', 'pagosPagare', rows => {
+    state.pagosPagare = rows.map(r => ({
+      pago_id: toInt(r.pago_id), pagare_id: toInt(r.pagare_id), credito_id: toInt(r.credito_id),
+      fecha_pago: r.fecha_pago || '', monto_intereses: toNum(r.monto_intereses), concepto: r.concepto || '',
+      estatus: r.estatus || 'Pendiente', fecha_real_pago: r.fecha_real_pago || ''
+    }));
+  });
+
+  await cargar('unidades', 'unidades', rows => {
+    state.unidades = rows.map(r => ({
+      unidad_id: toInt(r.unidad_id), proyecto: r.proyecto || '', nombre: r.nombre || '', tipo: r.tipo || '',
+      indiviso_pct: toNum(r.indiviso_pct), superficie_m2: toNum(r.superficie_m2), estatus: r.estatus || 'En obra',
+      orden: toInt(r.orden), activo: r.activo !== false,
+      plano_x: plano(r.plano_x), plano_y: plano(r.plano_y), plano_w: plano(r.plano_w), plano_h: plano(r.plano_h)
+    }));
+  });
+
+  await cargar('presupuesto_unidad', 'presupuestoUnidad', rows => {
+    state.presupuestoUnidad = rows.map(r => ({
+      presupuesto_id: toInt(r.presupuesto_id), unidad_id: toInt(r.unidad_id), partida: r.partida || '',
+      sub_partida: r.sub_partida || '', monto_presupuestado: toNum(r.monto_presupuestado),
+      costo_inicial: toNum(r.costo_inicial), notas: r.notas || ''
+    }));
+  });
+
+  await cargar('costo_asignaciones', 'costoAsignaciones', rows => {
+    state.costoAsignaciones = rows.map(r => ({
+      asignacion_id: toInt(r.asignacion_id), pago_id: r.pago_id || '', unidad_id: toInt(r.unidad_id),
+      proyecto: r.proyecto || '', metodo: r.metodo || 'directo', monto_asignado: toNum(r.monto_asignado),
+      factor: toNum(r.factor), fecha_asignacion: r.fecha_asignacion || '', partida_override: r.partida_override || ''
+    }));
+  });
+
+  await cargar('partidas_catalogo', 'partidasCatalogo', rows => {
+    state.partidasCatalogo = rows.map(r => ({
+      id: r.partida_id || '', partida: r.partida || '',
+      subpartidas: Array.isArray(r.subpartidas) ? r.subpartidas : [],
+      orden: toInt(r.orden), activa: r.activa !== false
+    }));
+  });
+
+  await cargar('partidas_obra', 'partidasObra', rows => {
+    state.partidasObra = rows.map(r => ({
+      id: r.partida_obra_id || '', nombre: r.nombre || '', proyecto: r.proyecto || '',
+      partidaAdmin: r.partida_admin || '', subPartidaAdmin: r.sub_partida_admin || '',
+      orden: toInt(r.orden), activa: r.activa !== false
+    }));
+  });
+
+  // pendientes_confirmacion es transitoria y NO está en Supabase: no se carga aquí.
+  await finalizarCarga();
+}
+
+// Botón de prueba (Fase 2): carga desde Supabase SIN cambiar el arranque por
+// defecto, para comparar contra Sheets antes del flip real.
+export async function probarCargaDesdeSupabase() {
+  if (!sbReady()) { notify('Inicia sesión en la app (Supabase) primero', 'error'); return; }
+  notify('Cargando desde Supabase (prueba)...');
+  try {
+    await sbLoadAll();
+    notify(`✓ Desde Supabase: ${state.historial.length} pagos · ${state.proveedores.length} proveedores · ${state.facturas.length} facturas · ${state.traspasos.length} traspasos`, 'success');
+  } catch (e) {
+    console.error('sbLoadAll error', e);
+    notify('Error cargando desde Supabase: ' + (e.message || e), 'error');
   }
 }
 
