@@ -2,7 +2,7 @@ import { state } from '../state.js';
 import { GS_CLIENT_ID, GS_SCOPES } from '../config/google-sheets.js';
 import { notify } from '../ui/notify.js';
 import { gsInitSheets } from './google-sheets.js';
-import { gsLoadAll } from './google-sync.js';
+import { cargarDatos } from './google-sync.js';
 
 export function gsLogin() {
   const redirectUri = window.location.href.split('?')[0].split('#')[0];
@@ -37,9 +37,9 @@ export function gsLogin() {
           state.gsUser = await r.json();
         } catch (e) { /* ignore */ }
         await gsInitSheets();
-        await gsLoadAll();
+        const fuente = await cargarDatos();
         renderAuthStatus();
-        notify('✅ Conectado a Google Sheets');
+        notify('✅ Conectado · datos desde ' + (fuente === 'supabase' ? 'Supabase 🟣' : 'Sheets'));
       }
     } catch (e) { /* cross-origin, still loading */ }
   }, 500);
@@ -100,9 +100,9 @@ export function checkOAuthCallback() {
           state.gsUser = await r.json();
         } catch (e) { }
         await gsInitSheets();
-        await gsLoadAll();
+        const fuente = await cargarDatos();
         renderAuthStatus();
-        notify('✅ Conectado a Google Sheets');
+        notify('✅ Conectado · datos desde ' + (fuente === 'supabase' ? 'Supabase 🟣' : 'Sheets'));
       })();
     }
   }

@@ -5,6 +5,15 @@ import { normalizeBanco } from '../config/bancos.js';
 import { SUB_PARTIDAS_CONSTRUCCION } from '../config/sub-partidas.js';
 import { sbReplaceTable, sbLoadTable, sbReady } from './supabase-data.js';
 
+// ============================================================================
+// BANDERA DE FUENTE DE LECTURA (Fase 2). Controla de dónde lee la app al cargar.
+//   'supabase' → lee de Supabase (con fallback automático a Sheets si falla).
+//   'sheets'   → lee de Sheets (comportamiento original).
+// Para REVERTIR el flip: cambiar a 'sheets' y hacer push. Los GUARDADOS no
+// cambian (siguen escribiendo a Sheets + Supabase).
+// ============================================================================
+export const FUENTE_LECTURA = 'supabase';
+
 // Parser local de fecha para sort (DD/MM/YYYY o YYYY-MM-DD → ISO).
 function _parseFecha(f) {
   if (!f) return '';
@@ -785,6 +794,25 @@ export async function probarCargaDesdeSupabase() {
     console.error('sbLoadAll error', e);
     notify('Error cargando desde Supabase: ' + (e.message || e), 'error');
   }
+}
+
+// Carga los datos según FUENTE_LECTURA. Si Supabase está configurado pero falla,
+// cae automáticamente a Sheets (red de seguridad). Devuelve la fuente usada.
+// Lo llaman los flujos de conexión de Google (gsLogin / checkOAuthCallback).
+export async function cargarDatos() {
+  if (FUENTE_LECTURA === 'supabase' && sbReady()) {
+    try {
+      await sbLoadAll();
+      console.log('📥 Datos cargados desde Supabase');
+      return 'supabase';
+    } catch (e) {
+      console.error('sbLoadAll falló; cae a Sheets de respaldo:', e);
+      notify('No pude leer de Supabase; uso Sheets de respaldo. ' + (e.message || e), 'error');
+    }
+  }
+  await gsLoadAll();
+  console.log('📥 Datos cargados desde Sheets');
+  return 'sheets';
 }
 
 // Asigna un ID único y estable a cada registro del historial que no lo tenga.
