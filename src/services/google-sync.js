@@ -596,7 +596,8 @@ export async function sbLoadAll() {
     traspasos: 'traspaso_id', movimientos_internos: 'id', creditos: 'credito_id',
     pagares: 'pagare_id', pagos_pagare: 'pago_id', unidades: 'unidad_id',
     presupuesto_unidad: 'presupuesto_id', costo_asignaciones: 'asignacion_id',
-    partidas_catalogo: 'partida_id', partidas_obra: 'partida_obra_id'
+    partidas_catalogo: 'partida_id', partidas_obra: 'partida_obra_id',
+    pendientes_confirmacion: 'id'
   };
 
   async function cargar(tabla, entidad, fn) {
@@ -754,7 +755,21 @@ export async function sbLoadAll() {
     }));
   });
 
-  // pendientes_confirmacion es transitoria y NO está en Supabase: no se carga aquí.
+  await cargar('pendientes_confirmacion', 'pendientesConfirmacion', rows => {
+    state.pendientesConfirmacion = rows.map(r => {
+      const ap = r.asignaciones_planificadas || {};
+      return {
+        id: parseInt(r.id) || r.id, proveedor_id: r.proveedor_id || '', factura_id: r.factura_id || '',
+        nombre: r.nombre || '', cuenta: r.cuenta || '', banco: normalizeBanco(r.banco || ''),
+        tipo: r.tipo || '', concepto: r.concepto || '', importe: toNum(r.importe),
+        proyecto: r.proyecto || '', partida: r.partida || '', cuenta_cargo: r.cuenta_cargo || '',
+        fechaGen: r.fecha_gen || '', confirmado: r.confirmado !== false, sub_partida: r.sub_partida || '',
+        asignacionesPlanificadas: Array.isArray(ap.a) ? ap.a : [], repartoMetodo: ap.m || null,
+        partidaObra: r.partida_obra || ''
+      };
+    });
+  });
+
   await finalizarCarga();
 }
 
@@ -851,6 +866,7 @@ export async function gsSavePendientes() {
       'tipo', 'concepto', 'importe', 'proyecto', 'partida', 'cuenta_cargo',
       'fechaGen', 'confirmado', 'sub_partida', 'asignaciones_planificadas', 'partida_obra'
     ]);
+    await sbEspejar('pendientesConfirmacion');
   } catch (e) { console.error('gsSavePendientes', e); }
 }
 
@@ -1130,6 +1146,17 @@ function _rowsPartidasObra() {
     orden: _sbNum(p.orden), activa: p.activa !== false
   })), 'partida_obra_id');
 }
+function _rowsPendientes() {
+  return _dedupBy(state.pendientesConfirmacion.map(p => ({
+    id: _sbStr(p.id), proveedor_id: _sbStr(p.proveedor_id), factura_id: _sbStr(p.factura_id),
+    nombre: _sbStr(p.nombre), cuenta: _sbStr(p.cuenta), banco: _sbStr(p.banco),
+    tipo: _sbStr(p.tipo), concepto: _sbStr(p.concepto), importe: _sbNum(p.importe),
+    proyecto: _sbStr(p.proyecto), partida: _sbStr(p.partida), cuenta_cargo: _sbStr(p.cuenta_cargo),
+    fecha_gen: _sbStr(p.fechaGen), confirmado: p.confirmado !== false, sub_partida: _sbStr(p.sub_partida),
+    asignaciones_planificadas: { a: p.asignacionesPlanificadas || [], m: p.repartoMetodo || null },
+    partida_obra: _sbStr(p.partidaObra)
+  })), 'id');
+}
 
 // Registro entidad → { tabla Supabase, función que arma las filas }.
 // Conforme se agregan entidades aquí, "Migrar TODO" y el dual-write las cubren.
@@ -1150,7 +1177,8 @@ const SB_ENTIDADES = {
   presupuestoUnidad:  { tabla: 'presupuesto_unidad',  rows: _rowsPresupuestoUnidad },
   costoAsignaciones:  { tabla: 'costo_asignaciones',  rows: _rowsCostoAsignaciones },
   partidasCatalogo:   { tabla: 'partidas_catalogo',   rows: _rowsPartidasCatalogo },
-  partidasObra:       { tabla: 'partidas_obra',       rows: _rowsPartidasObra }
+  partidasObra:       { tabla: 'partidas_obra',       rows: _rowsPartidasObra },
+  pendientesConfirmacion: { tabla: 'pendientes_confirmacion', rows: _rowsPendientes }
 };
 
 // Espeja UNA entidad a Supabase tras guardarla en Sheets (dual-write).

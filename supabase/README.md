@@ -27,6 +27,7 @@ Esta carpeta versiona el schema de Postgres que vive en Supabase.
 | 5 | `05_proveedores.sql` | Tabla `proveedores` (espejo del Sheet) + RLS + grants | Etapa B — rebanada de prueba |
 | 6 | `06_datos_principales.sql` | Tablas `proyectos`, `cuentas_propias`, `empleados`, `historial` | Etapa B — bloque 1 |
 | 7 | `07_resto.sql` | Resto: facturas, factura_pagos, traspasos, movimientos_internos, creditos, pagares, pagos_pagare, unidades, presupuesto_unidad, costo_asignaciones, partidas_catalogo, partidas_obra | Etapa B — bloque 2 |
+| 8 | `08_pendientes.sql` | Tabla `pendientes_confirmacion` (pagos por confirmar) | Etapa B — Fase 2 (flip) |
 
 ## Idempotencia
 
