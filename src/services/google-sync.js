@@ -711,6 +711,7 @@ export async function gsSaveUnidades() {
       'superficie_m2', 'estatus', 'orden', 'activo', 'plano_x', 'plano_y',
       'plano_w', 'plano_h'
     ]);
+    await sbEspejar('unidades');
   } catch (e) { console.error('gsSaveUnidades', e); }
 }
 
@@ -726,6 +727,7 @@ export async function gsSavePresupuestoUnidad() {
       'presupuesto_id', 'unidad_id', 'partida', 'sub_partida',
       'monto_presupuestado', 'costo_inicial', 'notas'
     ]);
+    await sbEspejar('presupuestoUnidad');
   } catch (e) { console.error('gsSavePresupuestoUnidad', e); }
 }
 
@@ -741,6 +743,7 @@ export async function gsSaveCostoAsignaciones() {
       'asignacion_id', 'pago_id', 'unidad_id', 'proyecto', 'metodo',
       'monto_asignado', 'factor', 'fecha_asignacion', 'partida_override'
     ]);
+    await sbEspejar('costoAsignaciones');
   } catch (e) { console.error('gsSaveCostoAsignaciones', e); }
 }
 
@@ -805,14 +808,138 @@ function _rowsHistorial() {
   return out;
 }
 
+// Dedup por campo PK (evita fallar el insert si una edición manual dejó ids
+// repetidos o vacíos). Mismo criterio que _rowsHistorial.
+function _dedupBy(rows, pk) {
+  const seen = new Set();
+  const out = [];
+  for (const r of rows) {
+    const k = _sbStr(r[pk]);
+    if (!k || seen.has(k)) continue;
+    seen.add(k); out.push(r);
+  }
+  return out;
+}
+
+function _rowsFacturas() {
+  return _dedupBy(state.facturas.map(f => ({
+    factura_id: _sbStr(f.factura_id), numero_factura: _sbStr(f.numero_factura),
+    razon_social: _sbStr(f.razon_social), proveedor_id: _sbStr(f.proveedor_id),
+    nombre_proveedor: _sbStr(f.nombre_proveedor), fecha_factura: _sbStr(f.fecha_factura),
+    fecha_vencimiento: _sbStr(f.fecha_vencimiento), fecha_pago_total: _sbStr(f.fecha_pago_total),
+    monto_total: _sbNum(f.monto_total), monto_pagado: _sbNum(f.monto_pagado),
+    saldo_pendiente: _sbNum(f.saldo_pendiente), estatus_factura: _sbStr(f.estatus_factura),
+    proyecto: _sbStr(f.proyecto), observaciones: _sbStr(f.observaciones),
+    activo: f.activo !== false, uuid: _sbStr(f.uuid)
+  })), 'factura_id');
+}
+function _rowsFacturaPagos() {
+  return _dedupBy(state.facturaPagos.map(fp => ({
+    factura_pago_id: _sbStr(fp.factura_pago_id), factura_id: _sbStr(fp.factura_id),
+    pago_id: _sbStr(fp.pago_id), proveedor_id: _sbStr(fp.proveedor_id),
+    monto_aplicado: _sbNum(fp.monto_aplicado), fecha_pago: _sbStr(fp.fecha_pago),
+    estatus: _sbStr(fp.estatus), observaciones: _sbStr(fp.observaciones)
+  })), 'factura_pago_id');
+}
+function _rowsTraspasos() {
+  return _dedupBy(state.traspasos.map(t => ({
+    traspaso_id: _sbStr(t.traspaso_id), tipo: _sbStr(t.tipo),
+    cuenta_origen_id: _sbStr(t.cuenta_origen_id), cuenta_origen_tipo: _sbStr(t.cuenta_origen_tipo),
+    cuenta_origen_nombre: _sbStr(t.cuenta_origen_nombre), proyecto_origen: _sbStr(t.proyecto_origen),
+    cuenta_destino_id: _sbStr(t.cuenta_destino_id), cuenta_destino_tipo: _sbStr(t.cuenta_destino_tipo),
+    cuenta_destino_nombre: _sbStr(t.cuenta_destino_nombre), proyecto_destino: _sbStr(t.proyecto_destino),
+    monto: _sbNum(t.monto), fecha: _sbStr(t.fecha), concepto: _sbStr(t.concepto),
+    referencia: _sbStr(t.referencia), estatus: _sbStr(t.estatus), fecha_registro: _sbStr(t.fecha_registro)
+  })), 'traspaso_id');
+}
+function _rowsMovimientosInternos() {
+  return _dedupBy(state.movimientosInternos.map(m => ({
+    id: _sbStr(m.id), fecha: _sbStr(m.fecha), tipo: _sbStr(m.tipo),
+    origen: _sbStr(m.origen), destino: _sbStr(m.destino), monto: _sbNum(m.monto),
+    concepto: _sbStr(m.concepto), referencia: _sbStr(m.referencia)
+  })), 'id');
+}
+function _rowsCreditos() {
+  return _dedupBy(state.creditos.map(c => ({
+    credito_id: _sbStr(c.credito_id), nombre: _sbStr(c.nombre), banco: _sbStr(c.banco),
+    tipo_credito: _sbStr(c.tipo_credito), monto_autorizado: _sbNum(c.monto_autorizado),
+    tasa_base: _sbNum(c.tasa_base), proyecto: _sbStr(c.proyecto), cuenta_pago: _sbStr(c.cuenta_pago),
+    estatus: _sbStr(c.estatus), activo: c.activo !== false
+  })), 'credito_id');
+}
+function _rowsPagares() {
+  return _dedupBy(state.pagares.map(p => ({
+    pagare_id: _sbStr(p.pagare_id), credito_id: _sbStr(p.credito_id),
+    numero_pagare: _sbStr(p.numero_pagare), monto: _sbNum(p.monto),
+    fecha_disposicion: _sbStr(p.fecha_disposicion), fecha_vencimiento: _sbStr(p.fecha_vencimiento),
+    tasa: _sbNum(p.tasa), estatus: _sbStr(p.estatus), activo: p.activo !== false
+  })), 'pagare_id');
+}
+function _rowsPagosPagare() {
+  return _dedupBy(state.pagosPagare.map(p => ({
+    pago_id: _sbStr(p.pago_id), pagare_id: _sbStr(p.pagare_id), credito_id: _sbStr(p.credito_id),
+    fecha_pago: _sbStr(p.fecha_pago), monto_intereses: _sbNum(p.monto_intereses),
+    concepto: _sbStr(p.concepto), estatus: _sbStr(p.estatus), fecha_real_pago: _sbStr(p.fecha_real_pago)
+  })), 'pago_id');
+}
+function _rowsUnidades() {
+  const plano = (v) => (v == null || v === '' ? null : _sbNum(v));
+  return _dedupBy(state.unidades.map(u => ({
+    unidad_id: _sbStr(u.unidad_id), proyecto: _sbStr(u.proyecto), nombre: _sbStr(u.nombre),
+    tipo: _sbStr(u.tipo), indiviso_pct: _sbNum(u.indiviso_pct), superficie_m2: _sbNum(u.superficie_m2),
+    estatus: _sbStr(u.estatus), orden: _sbNum(u.orden), activo: u.activo !== false,
+    plano_x: plano(u.plano_x), plano_y: plano(u.plano_y), plano_w: plano(u.plano_w), plano_h: plano(u.plano_h)
+  })), 'unidad_id');
+}
+function _rowsPresupuestoUnidad() {
+  return _dedupBy(state.presupuestoUnidad.map(p => ({
+    presupuesto_id: _sbStr(p.presupuesto_id), unidad_id: _sbStr(p.unidad_id),
+    partida: _sbStr(p.partida), sub_partida: _sbStr(p.sub_partida),
+    monto_presupuestado: _sbNum(p.monto_presupuestado), costo_inicial: _sbNum(p.costo_inicial),
+    notas: _sbStr(p.notas)
+  })), 'presupuesto_id');
+}
+function _rowsCostoAsignaciones() {
+  return _dedupBy(state.costoAsignaciones.map(a => ({
+    asignacion_id: _sbStr(a.asignacion_id), pago_id: _sbStr(a.pago_id), unidad_id: _sbStr(a.unidad_id),
+    proyecto: _sbStr(a.proyecto), metodo: _sbStr(a.metodo), monto_asignado: _sbNum(a.monto_asignado),
+    factor: _sbNum(a.factor), fecha_asignacion: _sbStr(a.fecha_asignacion), partida_override: _sbStr(a.partida_override)
+  })), 'asignacion_id');
+}
+function _rowsPartidasCatalogo() {
+  return _dedupBy(state.partidasCatalogo.map(p => ({
+    partida_id: _sbStr(p.id), partida: _sbStr(p.partida), subpartidas: p.subpartidas || [],
+    orden: _sbNum(p.orden), activa: p.activa !== false
+  })), 'partida_id');
+}
+function _rowsPartidasObra() {
+  return _dedupBy(state.partidasObra.map(p => ({
+    partida_obra_id: _sbStr(p.id), nombre: _sbStr(p.nombre), proyecto: _sbStr(p.proyecto),
+    partida_admin: _sbStr(p.partidaAdmin), sub_partida_admin: _sbStr(p.subPartidaAdmin),
+    orden: _sbNum(p.orden), activa: p.activa !== false
+  })), 'partida_obra_id');
+}
+
 // Registro entidad → { tabla Supabase, función que arma las filas }.
 // Conforme se agregan entidades aquí, "Migrar TODO" y el dual-write las cubren.
 const SB_ENTIDADES = {
-  proveedores:    { tabla: 'proveedores',     rows: _rowsProveedores },
-  proyectos:      { tabla: 'proyectos',       rows: _rowsProyectos },
-  cuentasPropias: { tabla: 'cuentas_propias', rows: _rowsCuentasPropias },
-  empleados:      { tabla: 'empleados',       rows: _rowsEmpleados },
-  historial:      { tabla: 'historial',       rows: _rowsHistorial }
+  proveedores:        { tabla: 'proveedores',         rows: _rowsProveedores },
+  proyectos:          { tabla: 'proyectos',           rows: _rowsProyectos },
+  cuentasPropias:     { tabla: 'cuentas_propias',     rows: _rowsCuentasPropias },
+  empleados:          { tabla: 'empleados',           rows: _rowsEmpleados },
+  historial:          { tabla: 'historial',           rows: _rowsHistorial },
+  facturas:           { tabla: 'facturas',            rows: _rowsFacturas },
+  facturaPagos:       { tabla: 'factura_pagos',       rows: _rowsFacturaPagos },
+  traspasos:          { tabla: 'traspasos',           rows: _rowsTraspasos },
+  movimientosInternos:{ tabla: 'movimientos_internos',rows: _rowsMovimientosInternos },
+  creditos:           { tabla: 'creditos',            rows: _rowsCreditos },
+  pagares:            { tabla: 'pagares',             rows: _rowsPagares },
+  pagosPagare:        { tabla: 'pagos_pagare',        rows: _rowsPagosPagare },
+  unidades:           { tabla: 'unidades',            rows: _rowsUnidades },
+  presupuestoUnidad:  { tabla: 'presupuesto_unidad',  rows: _rowsPresupuestoUnidad },
+  costoAsignaciones:  { tabla: 'costo_asignaciones',  rows: _rowsCostoAsignaciones },
+  partidasCatalogo:   { tabla: 'partidas_catalogo',   rows: _rowsPartidasCatalogo },
+  partidasObra:       { tabla: 'partidas_obra',       rows: _rowsPartidasObra }
 };
 
 // Espeja UNA entidad a Supabase tras guardarla en Sheets (dual-write).
@@ -889,6 +1016,7 @@ export async function gsSaveFacturas() {
   try {
     const rows = state.facturas.map(f => [f.factura_id, f.numero_factura || '', f.razon_social || '', f.proveedor_id, f.nombre_proveedor || '', f.fecha_factura, f.fecha_vencimiento || '', f.fecha_pago_total || '', f.monto_total, f.monto_pagado, f.saldo_pendiente, f.estatus_factura, f.proyecto, f.observaciones, f.activo, f.uuid || '']);
     await gsClearAndWrite('facturas', rows, ['factura_id', 'Numero_Fcatura', 'razon_social', 'proveedor_id', 'nombre_proveedor', 'fecha_factura', 'fecha_vencimiento', 'fecha_pago_total', 'monto_total', 'monto_pagado', 'saldo_pendiente', 'estatus_factura', 'proyecto', 'observaciones', 'activo', 'uuid']);
+    await sbEspejar('facturas');
   } catch (e) { console.error('gsSaveFacturas', e); }
 }
 
@@ -898,6 +1026,7 @@ export async function gsSaveFacturaPagos() {
   try {
     const rows = state.facturaPagos.map(fp => [fp.factura_pago_id, fp.factura_id, fp.pago_id, fp.proveedor_id, fp.monto_aplicado, fp.fecha_pago, fp.estatus, fp.observaciones]);
     await gsClearAndWrite('factura_pagos', rows, ['factura_pago_id', 'factura_id', 'pago_id', 'proveedor_id', 'monto_aplicado', 'fecha_pago', 'estatus', 'observaciones']);
+    await sbEspejar('facturaPagos');
   } catch (e) { console.error('gsSaveFacturaPagos', e); }
 }
 
@@ -927,6 +1056,7 @@ export async function gsSaveTraspasos() {
       'cuenta_destino_id', 'cuenta_destino_tipo', 'cuenta_destino_nombre', 'proyecto_destino',
       'monto', 'fecha', 'concepto', 'referencia', 'estatus', 'fecha_registro'
     ]);
+    await sbEspejar('traspasos');
   } catch (e) { console.error('gsSaveTraspasos', e); }
 }
 
@@ -942,6 +1072,7 @@ export async function gsSaveCreditos() {
       'credito_id', 'nombre', 'banco', 'tipo_credito', 'monto_autorizado',
       'tasa_base', 'proyecto', 'cuenta_pago', 'estatus', 'activo'
     ]);
+    await sbEspejar('creditos');
   } catch (e) { console.error('gsSaveCreditos', e); }
 }
 
@@ -957,6 +1088,7 @@ export async function gsSavePagares() {
       'pagare_id', 'credito_id', 'numero_pagare', 'monto',
       'fecha_disposicion', 'fecha_vencimiento', 'tasa', 'estatus', 'activo'
     ]);
+    await sbEspejar('pagares');
   } catch (e) { console.error('gsSavePagares', e); }
 }
 
@@ -972,6 +1104,7 @@ export async function gsSavePagosPagare() {
       'pago_id', 'pagare_id', 'credito_id', 'fecha_pago',
       'monto_intereses', 'concepto', 'estatus', 'fecha_real_pago'
     ]);
+    await sbEspejar('pagosPagare');
   } catch (e) { console.error('gsSavePagosPagare', e); }
 }
 
@@ -980,6 +1113,7 @@ export async function gsSaveMovimientosInternos() {
   if (!guardarPermitido('movimientosInternos', state.movimientosInternos)) return;
   const rows = state.movimientosInternos.map(m => [m.id, m.fecha, m.tipo, m.origen, m.destino, m.monto, m.concepto, m.referencia]);
   await gsClearAndWrite('movimientos_internos', rows, ['id', 'fecha', 'tipo', 'origen', 'destino', 'monto', 'concepto', 'referencia']);
+  await sbEspejar('movimientosInternos');
 }
 
 export async function gsSavePartidasObra() {
@@ -992,6 +1126,7 @@ export async function gsSavePartidasObra() {
       p.orden || 0, p.activa === false ? 'false' : 'true'
     ]);
     await gsClearAndWrite('partidas_obra', rows, ['partida_obra_id', 'nombre', 'proyecto', 'partida_admin', 'sub_partida_admin', 'orden', 'activa']);
+    await sbEspejar('partidasObra');
   } catch (e) { console.error('gsSavePartidasObra', e); }
 }
 
@@ -1004,6 +1139,7 @@ export async function gsSavePartidasCatalogo() {
       p.orden || 0, p.activa === false ? 'false' : 'true'
     ]);
     await gsClearAndWrite('partidas_catalogo', rows, ['partida_id', 'partida', 'subpartidas', 'orden', 'activa']);
+    await sbEspejar('partidasCatalogo');
   } catch (e) { console.error('gsSavePartidasCatalogo', e); }
 }
 
