@@ -40,19 +40,34 @@ export async function sbReplaceTable(tabla, rows) {
   return (rows && rows.length) || 0;
 }
 
-// Lee todas las filas del tenant en `tabla`. Devuelve un array, o `null` si
+// Lee TODAS las filas del tenant en `tabla`. Devuelve un array, o `null` si
 // falla o no hay tenant (para que el caller pueda caer a Sheets — Fase 1).
-export async function sbLoadTable(tabla) {
+//
+// PAGINA de 1000 en 1000: PostgREST limita cada consulta a 1000 filas, así que
+// sin paginar el historial (1045+) cargaría incompleto. Ordena por `orderCol`
+// (id único de la tabla) para que la paginación NO duplique ni salte filas.
+export async function sbLoadTable(tabla, orderCol) {
   const tid = tenantId();
   if (!tid) return null;
   try {
     const client = getSupabaseClient();
-    const { data, error } = await client.from(tabla).select('*').eq('tenant_id', tid);
-    if (error) {
-      console.warn(`sbLoadTable(${tabla}) error:`, error);
-      return null;
+    const PAGE = 1000;
+    let all = [];
+    let from = 0;
+    while (true) {
+      let q = client.from(tabla).select('*').eq('tenant_id', tid);
+      if (orderCol) q = q.order(orderCol, { ascending: true });
+      const { data, error } = await q.range(from, from + PAGE - 1);
+      if (error) {
+        console.warn(`sbLoadTable(${tabla}) error:`, error);
+        return null;
+      }
+      if (!data || data.length === 0) break;
+      all = all.concat(data);
+      if (data.length < PAGE) break; // última página
+      from += PAGE;
     }
-    return data || [];
+    return all;
   } catch (e) {
     console.warn(`sbLoadTable(${tabla}) excepción:`, e);
     return null;

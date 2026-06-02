@@ -589,8 +589,18 @@ export async function sbLoadAll() {
   const toNum = (v) => parseFloat(v) || 0;
   const plano = (v) => (v === null || v === undefined || v === '' ? null : (parseFloat(v) || 0));
 
+  // Columna de id único por tabla, para paginar la lectura sin duplicar ni saltar filas.
+  const ORDER = {
+    proveedores: 'id', historial: 'id', proyectos: 'id', empleados: 'id',
+    cuentas_propias: 'cuenta_id', facturas: 'factura_id', factura_pagos: 'factura_pago_id',
+    traspasos: 'traspaso_id', movimientos_internos: 'id', creditos: 'credito_id',
+    pagares: 'pagare_id', pagos_pagare: 'pago_id', unidades: 'unidad_id',
+    presupuesto_unidad: 'presupuesto_id', costo_asignaciones: 'asignacion_id',
+    partidas_catalogo: 'partida_id', partidas_obra: 'partida_obra_id'
+  };
+
   async function cargar(tabla, entidad, fn) {
-    const rows = await sbLoadTable(tabla);
+    const rows = await sbLoadTable(tabla, ORDER[tabla]);
     state.cargado[entidad] = (rows !== null);
     if (rows && rows.length) fn(rows);
   }
