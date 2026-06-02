@@ -2,9 +2,12 @@ import { state } from '../state.js';
 import { fmt, dl } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { proyTag, catTag } from '../ui/badges.js';
-import { gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveTraspasos, purgarAsignacionesDePago } from '../services/google-sync.js';
+import { gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveTraspasos, gsSaveCostoAsignaciones, purgarAsignacionesDePago } from '../services/google-sync.js';
 import { saveProy, proyectoMatch } from '../config/proyectos.js';
 import { getPartidasParaSelect, SUB_PARTIDAS_CONSTRUCCION } from '../config/sub-partidas.js';
+
+// Selección para borrado en bloque del historial (por id estable del pago).
+const histSel = new Set();
 
 export function renderHistorial() {
   const el = document.getElementById('historial-lista');
@@ -51,8 +54,13 @@ export function renderHistorial() {
     const partidaVal = h.partida || '—';
     const subPartidaVal = h.sub_partida || '—';
     const conceptoVal = h.concepto || '';
-    return `<div class="hist-row"><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.proveedor_id || '—'}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.factura_id || '—'}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.fecha}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${h.cuenta_origen || ''}">${h.cuenta_origen || '—'}</div><div style="${TRUNC}"><div style="font-weight:500;font-size:12px;${TRUNC}" title="${h.nombre}">${h.nombre}</div><div style="font-size:11px;color:var(--muted);${TRUNC}">${h.banco} · ${h.tipo}</div></div><div>${trBadge}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${tipoProv}">${tipoProv}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${subcat}">${subcat}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${partidaVal}">${partidaVal}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${subPartidaVal}">${subPartidaVal}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${conceptoVal.replace(/"/g, '&quot;')}">${conceptoVal || '—'}</div><div style="font-family:'DM Mono',monospace;font-weight:500;color:var(--accent);text-align:right;">${fmt(h.importe)}</div><div>${proyTag(h.proyecto)}</div><div style="text-align:right;"><button class="btn btn-ghost btn-sm" onclick="eliminarHistorial(${state.historial.indexOf(h)})" style="color:#e74c3c;font-size:11px;padding:2px 6px;" title="Eliminar">✕</button></div></div>`;
+    return `<div class="hist-row"><div style="text-align:center;"><input type="checkbox" ${histSel.has(String(h.id)) ? 'checked' : ''} onclick="toggleHistSel('${String(h.id).replace(/'/g, "\\'")}', event)" style="cursor:pointer;" title="Seleccionar"></div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.proveedor_id || '—'}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.factura_id || '—'}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.fecha}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${h.cuenta_origen || ''}">${h.cuenta_origen || '—'}</div><div style="${TRUNC}"><div style="font-weight:500;font-size:12px;${TRUNC}" title="${h.nombre}">${h.nombre}</div><div style="font-size:11px;color:var(--muted);${TRUNC}">${h.banco} · ${h.tipo}</div></div><div>${trBadge}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${tipoProv}">${tipoProv}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${subcat}">${subcat}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${partidaVal}">${partidaVal}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${subPartidaVal}">${subPartidaVal}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${conceptoVal.replace(/"/g, '&quot;')}">${conceptoVal || '—'}</div><div style="font-family:'DM Mono',monospace;font-weight:500;color:var(--accent);text-align:right;">${fmt(h.importe)}</div><div>${proyTag(h.proyecto)}</div><div style="text-align:right;"><button class="btn btn-ghost btn-sm" onclick="eliminarHistorial(${state.historial.indexOf(h)})" style="color:#e74c3c;font-size:11px;padding:2px 6px;" title="Eliminar">✕</button></div></div>`;
   }).join('');
+
+  // Borrado en bloque: descarta de la selección ids que ya no existen y refresca la barra.
+  const idsActuales = new Set(state.historial.map(h => String(h.id)));
+  [...histSel].forEach(id => { if (!idsActuales.has(id)) histSel.delete(id); });
+  actualizarBarraSelHist();
 }
 
 function refreshHistProyectos() {
@@ -240,4 +248,95 @@ export function eliminarHistorial(idx) {
   renderHistorial();
   if (window.renderCostosFiscales) window.renderCostosFiscales();
   notify('Registro eliminado del historial');
+}
+
+// ---- BORRADO EN BLOQUE ----
+// Marca/desmarca un pago en la selección (por id estable). No re-renderiza la
+// lista entera (solo refresca la barra) para que sea ágil al clickear varios.
+export function toggleHistSel(id, ev) {
+  if (ev) ev.stopPropagation();
+  const key = String(id);
+  if (histSel.has(key)) histSel.delete(key); else histSel.add(key);
+  actualizarBarraSelHist();
+}
+
+// Checkbox "seleccionar todos": marca/desmarca todos los registros VISIBLES
+// (los que pasan los filtros actuales).
+export function toggleHistSelAll(check) {
+  const fil = getFilteredHistorial();
+  fil.forEach(h => {
+    const key = String(h.id);
+    if (check) histSel.add(key); else histSel.delete(key);
+  });
+  renderHistorial();
+}
+
+// Muestra/oculta el botón "Eliminar seleccionados (N)" según la selección.
+function actualizarBarraSelHist() {
+  const btn = document.getElementById('hist-bulk-del');
+  if (!btn) return;
+  const n = histSel.size;
+  btn.style.display = n > 0 ? '' : 'none';
+  btn.textContent = `🗑 Eliminar seleccionados (${n})`;
+}
+
+// Elimina TODOS los seleccionados de una vez, reutilizando la misma lógica de
+// eliminarHistorial (revierte saldos, quita el traspaso ligado, purga
+// asignaciones), pero guardando UNA sola vez al final.
+export function eliminarHistorialBulk() {
+  const ids = new Set([...histSel]);
+  const aBorrar = state.historial.filter(h => ids.has(String(h.id)));
+  if (!aBorrar.length) { notify('No hay registros seleccionados', 'error'); return; }
+  const total = aBorrar.reduce((s, h) => s + (+h.importe || 0), 0);
+  if (!confirm(`¿Eliminar ${aBorrar.length} registro(s) seleccionado(s)?\nSuma: $${fmt(total)}\n\nSe revierten los saldos afectados. Esta acción no se puede deshacer.`)) return;
+
+  let saldoChanged = false;
+  let traspasosChanged = false;
+  aBorrar.forEach(h => {
+    const fechaISO = parseFechaHist(h.fecha);
+    if (h.tipo_registro === 'Traspaso') {
+      if (revertirSaldo(h.cuenta_origen, +h.importe, fechaISO)) saldoChanged = true;
+      if (revertirSaldo(h.cuenta_destino, -h.importe, fechaISO)) saldoChanged = true;
+      const ti = state.traspasos.findIndex(t =>
+        t.proyecto_origen === h.cuenta_origen &&
+        t.cuenta_destino_nombre === h.nombre &&
+        t.monto === h.importe
+      );
+      if (ti !== -1) { state.traspasos.splice(ti, 1); traspasosChanged = true; }
+    } else if (h.tipo_registro === 'Pago' && h.cuenta_origen) {
+      if (revertirSaldo(h.cuenta_origen, +h.importe, fechaISO)) saldoChanged = true;
+    }
+  });
+
+  // Quitar del historial en una sola pasada.
+  state.historial = state.historial.filter(h => !ids.has(String(h.id)));
+
+  // Purgar asignaciones de costo ligadas a los pagos borrados (en bloque).
+  const antesAsig = state.costoAsignaciones.length;
+  state.costoAsignaciones = state.costoAsignaciones.filter(a => !ids.has(String(a.pago_id)));
+  const asigChanged = state.costoAsignaciones.length !== antesAsig;
+
+  histSel.clear();
+
+  // Guardar UNA sola vez cada cosa que cambió (cada gsSaveX espeja a Supabase).
+  gsSaveHistorial();
+  if (saldoChanged) { saveProy(state.proyectos); gsSaveProyectos(); gsSaveCuentasPropias(); }
+  if (traspasosChanged) gsSaveTraspasos();
+  if (asigChanged) gsSaveCostoAsignaciones();
+
+  // Render una sola vez.
+  const cnt = document.getElementById('cnt-hist'); if (cnt) cnt.textContent = state.historial.length;
+  renderHistorial();
+  if (saldoChanged) {
+    if (window.renderCuentasPropias) window.renderCuentasPropias();
+    if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
+    if (window.renderHeaderBadges) window.renderHeaderBadges();
+  }
+  if (traspasosChanged) {
+    if (window.renderTraspasos) window.renderTraspasos();
+    if (window.renderResumenTraspasos) window.renderResumenTraspasos();
+    const cntT = document.getElementById('cnt-traspasos'); if (cntT) cntT.textContent = state.traspasos.length;
+  }
+  if (window.renderCostosFiscales) window.renderCostosFiscales();
+  notify(`${aBorrar.length} registro(s) eliminado(s)`);
 }

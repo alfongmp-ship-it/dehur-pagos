@@ -315,10 +315,13 @@
         <input type="date" class="filter-select" id="fh-desde" onchange="renderHistorial()" title="Desde">
         <input type="date" class="filter-select" id="fh-hasta" onchange="renderHistorial()" title="Hasta">
       </div>
-      <div id="hist-subtitulo" style="font-size:11px;color:var(--muted);margin-bottom:6px;"></div>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
+        <div id="hist-subtitulo" style="font-size:11px;color:var(--muted);"></div>
+        <button id="hist-bulk-del" class="btn btn-ghost btn-sm" onclick="eliminarHistorialBulk()" style="display:none;color:#e74c3c;border-color:#e74c3c;font-size:11px;padding:3px 10px;">🗑 Eliminar seleccionados (0)</button>
+      </div>
       <div class="table-wrap">
-        <div style="display:grid;grid-template-columns:60px 60px 90px 110px minmax(180px, 1fr) 80px 70px 65px 80px 85px 90px 95px 80px 40px;gap:10px;padding:11px 16px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;">
-          <div>ID Prov</div><div>ID Fact</div><div>Fecha</div><div>Origen</div><div>Beneficiario</div><div>Tipo</div><div>Categoría</div><div>Subcat.</div><div>Partida</div><div>Sub-partida</div><div>Concepto</div><div style="text-align:right">Importe</div><div>Proyecto</div><div></div>
+        <div style="display:grid;grid-template-columns:34px 60px 60px 90px 110px minmax(180px, 1fr) 80px 70px 65px 80px 85px 90px 95px 80px 40px;gap:10px;padding:11px 16px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;">
+          <div style="text-align:center;"><input type="checkbox" onclick="toggleHistSelAll(this.checked)" title="Seleccionar todos los visibles" style="cursor:pointer;"></div><div>ID Prov</div><div>ID Fact</div><div>Fecha</div><div>Origen</div><div>Beneficiario</div><div>Tipo</div><div>Categoría</div><div>Subcat.</div><div>Partida</div><div>Sub-partida</div><div>Concepto</div><div style="text-align:right">Importe</div><div>Proyecto</div><div></div>
         </div>
         <div id="historial-lista"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">📋</div><div>Sin registros aún</div></div></div>
       </div>
