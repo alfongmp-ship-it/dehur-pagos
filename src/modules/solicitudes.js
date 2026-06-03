@@ -1,4 +1,4 @@
-import { state } from '../state.js';
+import { state, datosListos } from '../state.js';
 import { getBanco, getTipo } from '../config/bancos.js';
 import { tipoBadge, proyTag } from '../ui/badges.js';
 import { fmt } from '../ui/format.js';
@@ -470,7 +470,7 @@ function badgeAsignacion(s) {
 export function renderSolicitudes() {
   const tbSol = document.getElementById('tbody-sol');
 
-  if (!state.gsToken) {
+  if (!datosListos()) {
     if (tbSol) tbSol.innerHTML = '<tr><td colspan="10"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔒</div><div>Conecta Google Sheets para ver esta información</div></div></td></tr>';
     const cnt = document.getElementById('cnt-sol'); if (cnt) cnt.textContent = '0';
     return;

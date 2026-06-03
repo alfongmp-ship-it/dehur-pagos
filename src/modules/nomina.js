@@ -1,4 +1,4 @@
-import { state } from '../state.js';
+import { state, datosListos } from '../state.js';
 import { getBanco, getTipo } from '../config/bancos.js';
 import { tipoBadge } from '../ui/badges.js';
 import { dl } from '../ui/format.js';
@@ -10,7 +10,7 @@ export function renderNomina() {
   const tb = document.getElementById('tbody-nom');
   if (!tb) return;
 
-  if (!state.gsToken) {
+  if (!datosListos()) {
     tb.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔒</div><div>Conecta Google Sheets para ver esta información</div></div></td></tr>';
     const cnt = document.getElementById('cnt-nom'); if (cnt) cnt.textContent = '0';
     return;

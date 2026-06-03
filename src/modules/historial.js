@@ -1,4 +1,4 @@
-import { state } from '../state.js';
+import { state, datosListos } from '../state.js';
 import { fmt, dl, fmtFecha } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { proyTag, catTag } from '../ui/badges.js';
@@ -13,7 +13,7 @@ export function renderHistorial() {
   const el = document.getElementById('historial-lista');
   if (!el) return;
 
-  if (!state.gsToken) {
+  if (!datosListos()) {
     el.innerHTML = '<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔒</div><div>Conecta Google Sheets para ver esta información</div></div>';
     const sub = document.getElementById('hist-subtitulo'); if (sub) sub.textContent = '';
     const cnt = document.getElementById('cnt-hist'); if (cnt) cnt.textContent = '0';

@@ -1,4 +1,4 @@
-import { state } from '../state.js';
+import { state, datosListos } from '../state.js';
 import { fmt } from './format.js';
 
 export function actualizarDisplaySaldo() {
@@ -18,7 +18,7 @@ export function actualizarDisplaySaldo() {
 export function renderHeaderBadges() {
   const hb = document.getElementById('header-badges');
   if (!hb) return;
-  if (!state.gsToken) { hb.innerHTML = ''; return; }
+  if (!datosListos()) { hb.innerHTML = ''; return; }
   const proyBadges = state.proyectos.filter(p => p.activo).map(p =>
     `<span class="badge" style="border-left:3px solid ${p.color};display:flex;align-items:center;gap:8px;padding:6px 12px;">
       <span style="font-size:12px;font-weight:500;">${p.nombre}</span>

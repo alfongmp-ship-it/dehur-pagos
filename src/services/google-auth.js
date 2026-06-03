@@ -73,10 +73,15 @@ export function renderAuthStatus() {
     if (actions) actions.innerHTML = ''
       + '<button class="btn btn-ghost" onclick="gsLoadAll()" title="RESPALDO: recarga los datos desde Google Sheets. Úsalo solo para inspeccionar o recuperar; normalmente la app lee de Supabase." style="opacity:.8;">⬇ Cargar desde Sheets (respaldo)</button>';
   } else {
-    const html = '<button class="btn btn-primary" onclick="gsLogin()" style="padding:8px 20px;font-size:13px;">🔗 Conectar Google Sheets</button>';
+    // Logueado en Supabase pero SIN Google: modo SOLO LECTURA. Ve los datos
+    // (desde Supabase), pero para editar/guardar necesita conectar Google.
+    const html = '<div style="display:flex;align-items:center;gap:8px;">'
+      + '<span style="font-size:11px;color:#C8A96E;background:rgba(200,169,110,.12);padding:3px 8px;border-radius:6px;font-weight:600;">👁 Solo lectura</span>'
+      + '<button class="btn btn-primary" onclick="gsLogin()" style="padding:6px 14px;font-size:12px;" title="Conéctate a Google para EDITAR/GUARDAR. Mientras no, solo puedes ver. Al guardar, los cambios se respaldan en Sheets.">🔗 Conectar para editar</button>'
+      + '</div>';
     if (el) el.innerHTML = html;
     if (el2) el2.innerHTML = html;
-    if (actions) actions.innerHTML = '<p style="color:var(--muted);font-size:13px;">Conecta tu cuenta para sincronizar datos con Google Sheets.</p>';
+    if (actions) actions.innerHTML = '<p style="color:var(--muted);font-size:13px;">👁 <b>Modo solo lectura.</b> Estás viendo los datos desde Supabase. Para <b>editar o capturar pagos</b>, conecta Google Sheets (los cambios se respaldan ahí al guardar).</p>';
   }
 }
 

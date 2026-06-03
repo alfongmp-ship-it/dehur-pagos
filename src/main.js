@@ -356,6 +356,10 @@ async function bootstrapApp() {
   if (_initDone) return;
   _initDone = true;
   await init();
+  // Fase 2/3c: cargar datos desde la fuente activa (Supabase) al iniciar sesión,
+  // SIN depender de conectar Google. Así los testers ven los datos al entrar.
+  // cargarDatos tiene su propio manejo de errores (fallback a Sheets).
+  try { await cargarDatos(); } catch (e) { console.error('cargarDatos en bootstrap falló:', e); }
 }
 setupAuthListener(bootstrapApp);
 initAuthGate(bootstrapApp).catch(err => {

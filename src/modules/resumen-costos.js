@@ -1,4 +1,4 @@
-import { state } from '../state.js';
+import { state, datosListos } from '../state.js';
 import { fmt } from '../ui/format.js';
 import { proyTag } from '../ui/badges.js';
 import { proyectoMatch } from '../config/proyectos.js';
@@ -16,7 +16,7 @@ export function renderResumenCostos() {
   const cards = document.getElementById('rc-cards');
   if (!tabla || !cards) return;
 
-  if (!state.gsToken) {
+  if (!datosListos()) {
     cards.innerHTML = '';
     tabla.innerHTML = '<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔒</div><div>Conecta Google Sheets para ver esta información</div></div>';
     document.getElementById('rc-subtitulo').textContent = '';

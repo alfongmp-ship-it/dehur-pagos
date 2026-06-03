@@ -1,4 +1,4 @@
-import { state } from '../state.js';
+import { state, datosListos } from '../state.js';
 import { fmt } from '../ui/format.js';
 import { proyTag } from '../ui/badges.js';
 import { notify } from '../ui/notify.js';
@@ -23,7 +23,7 @@ export function renderCuentasPropias() {
   const tb = document.getElementById('tbody-cp');
   if (!tb) return;
 
-  if (!state.gsToken) {
+  if (!datosListos()) {
     tb.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔒</div><div>Conecta Google Sheets para ver tus cuentas</div></div></td></tr>';
     const sub = document.getElementById('cp-subtitulo'); if (sub) sub.textContent = '';
     const cnt = document.getElementById('cnt-cp'); if (cnt) cnt.textContent = '0';

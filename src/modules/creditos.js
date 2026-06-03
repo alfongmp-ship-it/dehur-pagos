@@ -1,4 +1,4 @@
-import { state } from '../state.js';
+import { state, datosListos } from '../state.js';
 import { fmt, hoyFecha } from '../ui/format.js';
 import { proyTag } from '../ui/badges.js';
 import { notify } from '../ui/notify.js';
@@ -11,7 +11,7 @@ export function renderCreditos() {
   const content = document.getElementById('creditos-content');
   if (!tabs || !content) return;
 
-  if (!state.gsToken) {
+  if (!datosListos()) {
     content.innerHTML = '<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔒</div><div>Conecta Google Sheets para ver esta información</div></div>';
     tabs.innerHTML = '';
     const cnt = document.getElementById('cnt-creditos'); if (cnt) cnt.textContent = '0';

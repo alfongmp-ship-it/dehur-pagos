@@ -1,4 +1,4 @@
-import { state } from '../state.js';
+import { state, datosListos } from '../state.js';
 import { fmt } from '../ui/format.js';
 import { proyTag } from '../ui/badges.js';
 import { notify } from '../ui/notify.js';
@@ -72,7 +72,7 @@ export function renderFacturas() {
   const tb = document.getElementById('tbody-fact');
   if (!tb) return;
 
-  if (!state.gsToken) {
+  if (!datosListos()) {
     tb.innerHTML = '<tr><td colspan="11"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔒</div><div>Conecta Google Sheets para ver esta información</div></div></td></tr>';
     const sub = document.getElementById('fact-subtitulo'); if (sub) sub.textContent = '';
     const cnt = document.getElementById('cnt-fact'); if (cnt) cnt.textContent = '0';
@@ -292,7 +292,7 @@ export function renderFacturaPagos() {
   const tb = document.getElementById('tbody-fp');
   if (!tb) return;
 
-  if (!state.gsToken) {
+  if (!datosListos()) {
     tb.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔒</div><div>Conecta Google Sheets para ver esta información</div></div></td></tr>';
     const sub = document.getElementById('fp-subtitulo'); if (sub) sub.textContent = '';
     const cnt = document.getElementById('cnt-fp'); if (cnt) cnt.textContent = '0';

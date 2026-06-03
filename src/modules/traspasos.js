@@ -1,4 +1,4 @@
-import { state } from '../state.js';
+import { state, datosListos } from '../state.js';
 import { fmt, fmtFecha } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
@@ -58,7 +58,7 @@ export function renderTraspasos() {
   const tb = document.getElementById('tbody-traspasos');
   if (!tb) return;
 
-  if (!state.gsToken) {
+  if (!datosListos()) {
     tb.innerHTML = '<tr><td colspan="10"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔒</div><div>Conecta Google Sheets para ver esta información</div></div></td></tr>';
     const cnt = document.getElementById('cnt-traspasos'); if (cnt) cnt.textContent = '0';
     return;

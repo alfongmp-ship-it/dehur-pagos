@@ -1,4 +1,4 @@
-import { state } from '../state.js';
+import { state, datosListos } from '../state.js';
 import { fmt, dl } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { proyTag } from '../ui/badges.js';
@@ -15,7 +15,7 @@ export function renderFlujoSalida() {
   const cards = document.getElementById('fs-cards');
   if (!tabla || !cards) return;
 
-  if (!state.gsToken) {
+  if (!datosListos()) {
     cards.innerHTML = '';
     tabla.innerHTML = '<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔒</div><div>Conecta Google Sheets para ver esta información</div></div>';
     const sub = document.getElementById('fs-subtitulo'); if (sub) sub.textContent = '';

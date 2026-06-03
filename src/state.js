@@ -60,3 +60,11 @@ export function esConcentradora(nombreCuenta) {
   const c = state.cuentasPropias.find(x => x.nombre === nombreCuenta);
   return !!(c && c.es_concentradora);
 }
+
+// ¿La app ya tiene de dónde mostrar datos? True si hay token de Google (Sheets)
+// O una sesión de Supabase con tenant. Reemplaza el viejo candado "!gsToken" en
+// las PANTALLAS: ahora un usuario logueado en Supabase ve los datos sin conectar
+// Google. (Guardar sigue requiriendo Google — eso NO usa este helper.)
+export function datosListos() {
+  return !!state.gsToken || !!(state.session && state.session.tenantId);
+}

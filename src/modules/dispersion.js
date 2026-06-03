@@ -1,4 +1,4 @@
-import { state, esConcentradora } from '../state.js';
+import { state, esConcentradora, datosListos } from '../state.js';
 import { tipoBadge } from '../ui/badges.js';
 import { fmt, hoyFecha } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
@@ -251,7 +251,7 @@ export function renderCola() {
   if (!lista) return;
   const tb = document.getElementById('total-bar');
 
-  if (!state.gsToken) {
+  if (!datosListos()) {
     lista.innerHTML = '<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔒</div><div>Conecta Google Sheets para ver esta información</div></div>';
     if (tb) tb.style.display = 'none';
     const cnt = document.getElementById('cnt-cola'); if (cnt) cnt.textContent = '0';

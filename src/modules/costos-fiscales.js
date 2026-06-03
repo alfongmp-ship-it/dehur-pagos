@@ -2,7 +2,7 @@
 // Capa nueva y aislada: asigna los pagos del historial a unidades (casas)
 // para conocer el costo real por casa. No toca el flujo de pagos existente.
 
-import { state } from '../state.js';
+import { state, datosListos } from '../state.js';
 import { fmt } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
@@ -144,7 +144,7 @@ export function renderCostosFiscales() {
   const empty = document.getElementById('cf-empty');
   if (!cont) return;
 
-  if (!state.gsToken) {
+  if (!datosListos()) {
     cont.style.display = 'none';
     if (empty) empty.style.display = '';
     return;

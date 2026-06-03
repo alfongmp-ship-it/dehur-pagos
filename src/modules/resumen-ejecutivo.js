@@ -1,4 +1,4 @@
-import { state } from '../state.js';
+import { state, datosListos } from '../state.js';
 import { fmt } from '../ui/format.js';
 import { parseFechaHist } from './historial.js';
 import { proyectoMatch } from '../config/proyectos.js';
@@ -16,7 +16,7 @@ export function renderResumenEjecutivo() {
   const empty = document.getElementById('re-empty-state');
   if (!cont) return;
 
-  if (!state.gsToken) {
+  if (!datosListos()) {
     cont.style.display = 'none';
     if (empty) empty.style.display = '';
     destruirCharts();
