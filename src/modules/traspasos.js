@@ -1,5 +1,5 @@
 import { state } from '../state.js';
-import { fmt } from '../ui/format.js';
+import { fmt, fmtFecha } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { gsSaveTraspasos, saveData, gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveMovimientosInternos } from '../services/google-sync.js';
@@ -268,7 +268,7 @@ export function guardarTraspaso() {
       const registrarHistorial = obj.tipo === 'Aportación' && o?.proyecto && !noHistorial;
 
       if (registrarHistorial) {
-        const fechaHist = new Date(fecha + 'T12:00:00').toLocaleDateString('es-MX');
+        const fechaHist = fmtFecha(fecha);
         state.historial.unshift({
           fecha: fechaHist,
           nombre: d.nombre,

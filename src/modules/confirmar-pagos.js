@@ -1,5 +1,5 @@
 import { state, esConcentradora } from '../state.js';
-import { fmt } from '../ui/format.js';
+import { fmt, hoyFecha } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { proyTag } from '../ui/badges.js';
 import { saveData, gsSaveHistorial, gsSavePendientes, gsSaveProyectos, gsSaveCuentasPropias, gsSaveFacturas, gsSaveFacturaPagos, gsSaveCostoAsignaciones, ensureHistorialIds } from '../services/google-sync.js';
@@ -112,7 +112,7 @@ export function eliminarPendiente(idx) {
 export async function confirmarPagos() {
   const confirmados = state.pendientesConfirmacion.filter(d => d.confirmado);
   if (!confirmados.length) { notify('Selecciona al menos un pago confirmado', 'error'); return; }
-  const fecha = new Date().toLocaleDateString('es-MX');
+  const fecha = hoyFecha();
   // Insertamos en historial y mantenemos referencia al objeto recién creado para
   // poder obtener su `id` estable y crear las asignaciones auto-vinculadas.
   const insertados = [];

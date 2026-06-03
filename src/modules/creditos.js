@@ -1,5 +1,5 @@
 import { state } from '../state.js';
-import { fmt } from '../ui/format.js';
+import { fmt, hoyFecha } from '../ui/format.js';
 import { proyTag } from '../ui/badges.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
@@ -377,7 +377,7 @@ export function marcarPagoPagado(pagoId) {
   // Registrar en historial
   const p = state.pagares.find(x => x.pagare_id === pp.pagare_id);
   const c = state.creditos.find(x => x.credito_id === pp.credito_id);
-  const fecha = new Date().toLocaleDateString('es-MX');
+  const fecha = hoyFecha();
 
   state.historial.unshift({
     fecha,

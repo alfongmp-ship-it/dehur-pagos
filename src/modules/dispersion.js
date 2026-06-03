@@ -1,6 +1,6 @@
 import { state, esConcentradora } from '../state.js';
 import { tipoBadge } from '../ui/badges.js';
-import { fmt } from '../ui/format.js';
+import { fmt, hoyFecha } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { saveData, gsSavePendientes, gsSaveProyectos, gsSaveCuentasPropias, gsSaveCostoAsignaciones, ensureHistorialIds } from '../services/google-sync.js';
@@ -173,7 +173,7 @@ export function confirmarPagoDirecto() {
     ? ''
     : (proy ? proy.nombre : (extra?.proyecto || cuentaNombre));
 
-  const fecha = new Date().toLocaleDateString('es-MX');
+  const fecha = hoyFecha();
   state.historial.unshift({
     fecha, nombre: state.pagoP.nombre, concepto, importe,
     proyecto: proyectoReal, banco: state.pagoP.banco,
@@ -367,7 +367,7 @@ export function generarArchivo() {
   notify('✅ Excel generado: ' + fn);
 
   // Mover a pendientes de confirmación y abrir modal
-  const fd = new Date().toLocaleDateString('es-MX');
+  const fd = hoyFecha();
   state.pendientesConfirmacion = state.cola.map(item => ({
     id: item.id, proveedor_id: item.proveedor_id || item.proveedor.id || '', factura_id: item.factura_id || '',
     nombre: item.proveedor.nombre, cuenta: item.proveedor.cuenta,
