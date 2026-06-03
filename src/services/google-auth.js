@@ -64,19 +64,14 @@ export function renderAuthStatus() {
     const html = '<div style="display:flex;align-items:center;gap:8px;">'
       + '<div style="width:8px;height:8px;border-radius:50%;background:var(--green);"></div>'
       + '<span style="font-size:12px;color:var(--muted);">✅ ' + (state.gsUser.email || 'Conectado') + '</span>'
-      + '<button class="btn btn-ghost btn-sm" onclick="recargarDesdeSheets()" style="font-size:11px;padding:3px 8px;" title="Volver a leer Sheets (sincroniza cambios externos)">🔄 Recargar</button>'
-      + '<button class="btn btn-ghost btn-sm" onclick="migrarTodoASupabase()" style="font-size:11px;padding:3px 8px;border-color:#C8A96E;color:#C8A96E;" title="Recarga de Sheets y espeja todo a Supabase (migración inicial o re-sincronizar tras editar el Sheet)">🟣 Migrar a Supabase</button>'
+      + '<button class="btn btn-ghost btn-sm" onclick="refrescarDatos()" style="font-size:11px;padding:3px 8px;" title="Recarga los datos más recientes desde Supabase (para ver cambios de otros usuarios)">🔄 Refrescar</button>'
+      + '<button class="btn btn-ghost btn-sm" onclick="migrarTodoASupabase()" style="font-size:11px;padding:3px 8px;border-color:#C8A96E;color:#C8A96E;" title="Solo si editaste el Google Sheet a MANO: sube esos cambios a Supabase">🟣 Subir cambios del Sheet</button>'
       + '<button class="btn btn-ghost btn-sm" onclick="gsLogout()" style="font-size:11px;padding:3px 8px;">Desconectar</button>'
       + '</div>';
     if (el) el.innerHTML = html;
     if (el2) el2.innerHTML = html;
     if (actions) actions.innerHTML = ''
-      + '<button class="btn btn-primary" onclick="gsSaveProveedores()">☁ Subir Proveedores</button>'
-      + '<button class="btn btn-primary" onclick="gsSaveEmpleados()">☁ Subir Empleados</button>'
-      + '<button class="btn btn-primary" onclick="gsSaveProyectos()">☁ Subir Proyectos</button>'
-      + '<button class="btn btn-ghost" onclick="gsLoadAll()">⬇ Cargar desde Sheets</button>'
-      + '<button class="btn btn-ghost" onclick="migrarTodoASupabase()" title="Recarga de Sheets y espeja TODAS las entidades migradas a Supabase (migración inicial o re-sincronizar tras editar el Sheet)" style="border-color:#C8A96E;color:#C8A96E;">🟣 Migrar TODO a Supabase</button>'
-      + '<button class="btn btn-ghost" onclick="probarCargaDesdeSupabase()" title="PRUEBA: carga los datos desde Supabase (no cambia el arranque). Compara que se vea igual que con Sheets." style="border-color:#3498db;color:#3498db;">🔵 Cargar desde Supabase (prueba)</button>';
+      + '<button class="btn btn-ghost" onclick="gsLoadAll()" title="RESPALDO: recarga los datos desde Google Sheets. Úsalo solo para inspeccionar o recuperar; normalmente la app lee de Supabase." style="opacity:.8;">⬇ Cargar desde Sheets (respaldo)</button>';
   } else {
     const html = '<button class="btn btn-primary" onclick="gsLogin()" style="padding:8px 20px;font-size:13px;">🔗 Conectar Google Sheets</button>';
     if (el) el.innerHTML = html;
