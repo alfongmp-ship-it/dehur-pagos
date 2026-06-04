@@ -4,7 +4,7 @@ import { notify } from '../ui/notify.js';
 import { proyTag, catTag } from '../ui/badges.js';
 import { gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveTraspasos, gsSaveCostoAsignaciones, purgarAsignacionesDePago } from '../services/google-sync.js';
 import { saveProy, proyectoMatch } from '../config/proyectos.js';
-import { getPartidasParaSelect, SUB_PARTIDAS_CONSTRUCCION } from '../config/sub-partidas.js';
+import { getPartidasParaSelect, getSubPartidas, subPartidaObligatoria, SUB_PARTIDAS_CONSTRUCCION } from '../config/sub-partidas.js';
 
 // Selección para borrado en bloque del historial (por id estable del pago).
 const histSel = new Set();
@@ -54,7 +54,7 @@ export function renderHistorial() {
     const partidaVal = h.partida || '—';
     const subPartidaVal = h.sub_partida || '—';
     const conceptoVal = h.concepto || '';
-    return `<div class="hist-row"><div style="text-align:center;"><input type="checkbox" ${histSel.has(String(h.id)) ? 'checked' : ''} onclick="toggleHistSel('${String(h.id).replace(/'/g, "\\'")}', event)" style="cursor:pointer;" title="Seleccionar"></div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.proveedor_id || '—'}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.factura_id || '—'}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${fmtFecha(h.fecha)}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${h.cuenta_origen || ''}">${h.cuenta_origen || '—'}</div><div style="${TRUNC}"><div style="font-weight:500;font-size:12px;${TRUNC}" title="${h.nombre}">${h.nombre}</div><div style="font-size:11px;color:var(--muted);${TRUNC}">${h.banco} · ${h.tipo}</div></div><div>${trBadge}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${tipoProv}">${tipoProv}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${subcat}">${subcat}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${partidaVal}">${partidaVal}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${subPartidaVal}">${subPartidaVal}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${conceptoVal.replace(/"/g, '&quot;')}">${conceptoVal || '—'}</div><div style="font-family:'DM Mono',monospace;font-weight:500;color:var(--accent);text-align:right;">${fmt(h.importe)}</div><div>${proyTag(h.proyecto)}</div><div style="text-align:right;"><button class="btn btn-ghost btn-sm" onclick="eliminarHistorial(${state.historial.indexOf(h)})" style="color:#e74c3c;font-size:11px;padding:2px 6px;" title="Eliminar">✕</button></div></div>`;
+    return `<div class="hist-row"><div style="text-align:center;"><input type="checkbox" ${histSel.has(String(h.id)) ? 'checked' : ''} onclick="toggleHistSel('${String(h.id).replace(/'/g, "\\'")}', event)" style="cursor:pointer;" title="Seleccionar"></div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.proveedor_id || '—'}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.factura_id || '—'}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${fmtFecha(h.fecha)}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${h.cuenta_origen || ''}">${h.cuenta_origen || '—'}</div><div style="${TRUNC}"><div style="font-weight:500;font-size:12px;${TRUNC}" title="${h.nombre}">${h.nombre}</div><div style="font-size:11px;color:var(--muted);${TRUNC}">${h.banco} · ${h.tipo}</div></div><div>${trBadge}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${tipoProv}">${tipoProv}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${subcat}">${subcat}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${partidaVal}">${partidaVal}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${subPartidaVal}">${subPartidaVal}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${conceptoVal.replace(/"/g, '&quot;')}">${conceptoVal || '—'}</div><div style="font-family:'DM Mono',monospace;font-weight:500;color:var(--accent);text-align:right;">${fmt(h.importe)}</div><div>${proyTag(h.proyecto)}</div><div style="text-align:right;display:flex;gap:2px;justify-content:flex-end;"><button class="btn btn-ghost btn-sm" onclick="editarPartidaPago(${state.historial.indexOf(h)})" style="font-size:11px;padding:2px 5px;" title="Editar partida / sub-partida">✏️</button><button class="btn btn-ghost btn-sm" onclick="eliminarHistorial(${state.historial.indexOf(h)})" style="color:#e74c3c;font-size:11px;padding:2px 5px;" title="Eliminar">✕</button></div></div>`;
   }).join('');
 
   // Borrado en bloque: descarta de la selección ids que ya no existen y refresca la barra.
@@ -271,13 +271,105 @@ export function toggleHistSelAll(check) {
   renderHistorial();
 }
 
-// Muestra/oculta el botón "Eliminar seleccionados (N)" según la selección.
+// Muestra/oculta los botones de acción en bloque (eliminar / cambiar partida)
+// según la selección.
 function actualizarBarraSelHist() {
-  const btn = document.getElementById('hist-bulk-del');
-  if (!btn) return;
   const n = histSel.size;
-  btn.style.display = n > 0 ? '' : 'none';
-  btn.textContent = `🗑 Eliminar seleccionados (${n})`;
+  const btn = document.getElementById('hist-bulk-del');
+  if (btn) { btn.style.display = n > 0 ? '' : 'none'; btn.textContent = `🗑 Eliminar seleccionados (${n})`; }
+  const btnCp = document.getElementById('hist-bulk-partida');
+  if (btnCp) { btnCp.style.display = n > 0 ? '' : 'none'; btnCp.textContent = `🏷 Cambiar partida (${n})`; }
+}
+
+// ---- CAMBIAR PARTIDA / SUB-PARTIDA ----
+// Objetivo del modal: { modo:'single'|'bulk', id? }.
+let _cpTarget = null;
+
+// Editar la partida/sub de UN pago (por índice en state.historial).
+export function editarPartidaPago(idx) {
+  const h = state.historial[idx];
+  if (!h) return;
+  _cpTarget = { modo: 'single', id: String(h.id) };
+  const t = document.getElementById('cp-titulo');
+  if (t) t.textContent = `Cambiar partida — ${h.nombre || ''}`;
+  _poblarModalPartida(h.partida || '', h.sub_partida || '');
+  document.getElementById('modal-cambiar-partida').classList.add('open');
+}
+
+// Poner la MISMA partida/sub a todos los seleccionados.
+export function abrirCambiarPartidaBulk() {
+  if (!histSel.size) { notify('No hay pagos seleccionados', 'error'); return; }
+  _cpTarget = { modo: 'bulk' };
+  const t = document.getElementById('cp-titulo');
+  if (t) t.textContent = `Cambiar partida — ${histSel.size} pago(s) seleccionado(s)`;
+  _poblarModalPartida('', '');
+  document.getElementById('modal-cambiar-partida').classList.add('open');
+}
+
+// Pagos involucrados según el modo (single = ese id; bulk = los seleccionados).
+function _pagosObjetivo() {
+  if (!_cpTarget) return [];
+  return _cpTarget.modo === 'bulk'
+    ? state.historial.filter(h => histSel.has(String(h.id)))
+    : state.historial.filter(h => String(h.id) === _cpTarget.id);
+}
+
+// Llena el select de partidas (catálogo + legacy de los pagos involucrados) y la
+// cascada de subpartida. partidaActual/subActual pre-seleccionan (modo single).
+function _poblarModalPartida(partidaActual, subActual) {
+  const selP = document.getElementById('cp-partida');
+  if (!selP) return;
+  const legacy = [...new Set(_pagosObjetivo().map(h => h.partida).filter(Boolean))];
+  if (partidaActual) legacy.push(partidaActual);
+  const opts = getPartidasParaSelect(legacy);
+  selP.innerHTML = '<option value="">— Selecciona partida —</option>' +
+    opts.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
+  selP.value = partidaActual || '';
+  selP.dataset.subActual = subActual || '';
+  actualizarSubpartidaCambiar();
+}
+
+// Cascada: la sub-partida solo aplica/se muestra si la partida es CONSTRUCCION.
+export function actualizarSubpartidaCambiar() {
+  const selP = document.getElementById('cp-partida');
+  const wrap = document.getElementById('cp-sub-wrap');
+  const selS = document.getElementById('cp-subpartida');
+  if (!selP || !wrap || !selS) return;
+  if (subPartidaObligatoria(selP.value)) {
+    const subs = getSubPartidas(selP.value);
+    selS.innerHTML = '<option value="">— Selecciona sub-partida —</option>' +
+      subs.map(s => `<option value="${s}">${s}</option>`).join('');
+    selS.value = selP.dataset.subActual || '';
+    wrap.style.display = '';
+  } else {
+    selS.innerHTML = '';
+    wrap.style.display = 'none';
+  }
+}
+
+// Aplica la partida/sub elegida al pago (single) o a los seleccionados (bulk),
+// guarda en Sheets + Supabase, y refresca historial + costos.
+export function aplicarCambiarPartida() {
+  if (!_cpTarget) return;
+  if (!state.gsToken) { notify('Conecta Google Sheets para guardar el cambio', 'error'); return; }
+  const partida = document.getElementById('cp-partida').value;
+  if (!partida) { notify('Elige una partida', 'error'); return; }
+  let sub = '';
+  if (subPartidaObligatoria(partida)) {
+    sub = document.getElementById('cp-subpartida').value;
+    if (!sub) { notify('CONSTRUCCION requiere elegir una sub-partida', 'error'); return; }
+  }
+  const objetivos = _pagosObjetivo();
+  if (!objetivos.length) { notify('No encontré los pagos a cambiar', 'error'); return; }
+  objetivos.forEach(h => { h.partida = partida; h.sub_partida = sub; });
+
+  gsSaveHistorial();
+  histSel.clear();
+  document.getElementById('modal-cambiar-partida').classList.remove('open');
+  renderHistorial();
+  if (window.renderCostosFiscales) window.renderCostosFiscales();
+  if (window.renderConfigPartidas) window.renderConfigPartidas();
+  notify(`✓ Partida actualizada en ${objetivos.length} pago(s)`);
 }
 
 // Elimina TODOS los seleccionados de una vez, reutilizando la misma lógica de

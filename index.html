@@ -317,10 +317,11 @@
       </div>
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
         <div id="hist-subtitulo" style="font-size:11px;color:var(--muted);"></div>
+        <button id="hist-bulk-partida" class="btn btn-ghost btn-sm" onclick="abrirCambiarPartidaBulk()" style="display:none;color:#C8A96E;border-color:#C8A96E;font-size:11px;padding:3px 10px;">🏷 Cambiar partida (0)</button>
         <button id="hist-bulk-del" class="btn btn-ghost btn-sm" onclick="eliminarHistorialBulk()" style="display:none;color:#e74c3c;border-color:#e74c3c;font-size:11px;padding:3px 10px;">🗑 Eliminar seleccionados (0)</button>
       </div>
       <div class="table-wrap">
-        <div style="display:grid;grid-template-columns:34px 60px 60px 90px 110px minmax(180px, 1fr) 80px 70px 65px 80px 85px 90px 95px 80px 40px;gap:10px;padding:11px 16px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;">
+        <div style="display:grid;grid-template-columns:34px 60px 60px 90px 110px minmax(180px, 1fr) 80px 70px 65px 80px 85px 90px 95px 80px 64px;gap:10px;padding:11px 16px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;">
           <div style="text-align:center;"><input type="checkbox" onclick="toggleHistSelAll(this.checked)" title="Seleccionar todos los visibles" style="cursor:pointer;"></div><div>ID Prov</div><div>ID Fact</div><div>Fecha</div><div>Origen</div><div>Beneficiario</div><div>Tipo</div><div>Categoría</div><div>Subcat.</div><div>Partida</div><div>Sub-partida</div><div>Concepto</div><div style="text-align:right">Importe</div><div>Proyecto</div><div></div>
         </div>
         <div id="historial-lista"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">📋</div><div>Sin registros aún</div></div></div>
@@ -952,6 +953,29 @@
 </div>
 
 <!-- MODAL PARTIDA (catálogo) -->
+<div class="modal-overlay" id="modal-cambiar-partida">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-header">
+      <div class="modal-title" id="cp-titulo">Cambiar partida</div>
+      <button class="modal-close" onclick="cerrar('modal-cambiar-partida')">✕</button>
+    </div>
+    <div class="form-grid">
+      <div class="field span2">
+        <label>Partida *</label>
+        <select id="cp-partida" onchange="actualizarSubpartidaCambiar()"></select>
+      </div>
+      <div class="field span2" id="cp-sub-wrap" style="display:none;">
+        <label>Sub-partida * <span style="color:var(--muted);font-weight:400;font-size:11px;">(solo CONSTRUCCION)</span></label>
+        <select id="cp-subpartida"></select>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px;">
+      <button class="btn btn-ghost" onclick="cerrar('modal-cambiar-partida')">Cancelar</button>
+      <button class="btn btn-primary" onclick="aplicarCambiarPartida()">Aplicar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-partida">
   <div class="modal" style="max-width:480px;">
     <div class="modal-header">
