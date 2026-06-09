@@ -17,6 +17,7 @@ import { abrirImportEmpleados } from './modules/empleados-import.js';
 import { abrirImportTraspasos } from './modules/traspasos-import.js';
 import { excelImportConfirmar, excelImportCerrar, excelImportHandleDrop, excelImportHandleFile, excelImportDescargarPlantilla, excelImportRefreshTotales } from './services/excel-import.js';
 import { initAuthGate, setupAuthListener, handleLoginSubmit, handleLogout, toggleUserMenu } from './services/auth-gate.js';
+import { fetchMantenimiento, setMantenimiento } from './services/supabase.js';
 import { renderConfirmarPagos, toggleConfPago, toggleAllConf, confirmarPagos, eliminarPendiente } from './modules/confirmar-pagos.js';
 import { renderCola, abrirPagoRapido, abrirModalPago, buscarModal, selPago, agregarACola, confirmarPagoDirecto, checkCuentaOrigenPago, abrirModalNominaDisp, filtrarNomDisp, agregarNominaACola, qDel, limpiarCola, buscarRapido, quickAdd, generarArchivo, togglePagoSubPartida } from './modules/dispersion.js';
 import { handleSolDrop, handleSolFile, descargarPlantilla, parsearSolicitud, renderSolicitudes, toggleSol, seleccionarTodosSol, nuevaSolicitud, abrirVincular, renderVincBusqueda, seleccionarProvExistente, renderVincTipo, validarVincCuenta, confirmarNuevoProv, enviarACola } from './modules/solicitudes.js';
@@ -364,6 +365,7 @@ async function bootstrapApp() {
   // SIN depender de conectar Google. Así los testers ven los datos al entrar.
   // cargarDatos tiene su propio manejo de errores (fallback a Sheets).
   try { await cargarDatos(); } catch (e) { console.error('cargarDatos en bootstrap falló:', e); }
+  iniciarMantenimiento();
 }
 setupAuthListener(bootstrapApp);
 initAuthGate(bootstrapApp).catch(err => {
@@ -374,3 +376,56 @@ initAuthGate(bootstrapApp).catch(err => {
 window.handleLoginSubmit = handleLoginSubmit;
 window.handleLogout = handleLogout;
 window.toggleUserMenu = toggleUserMenu;
+
+// ===== Aviso de mantenimiento (banner self-serve) =====
+let _mantPollIniciado = false;
+
+// Muestra/oculta el banner (para todos) y el control (solo admin) según el flag.
+function renderMantenimientoBanner() {
+  const m = state.mantenimiento || { activo: false, msg: '' };
+  const banner = document.getElementById('mantenimiento-banner');
+  const msgEl = document.getElementById('mantenimiento-banner-msg');
+  if (banner) banner.style.display = m.activo ? '' : 'none';
+  if (msgEl) msgEl.textContent = m.msg || 'Mantenimiento en curso — por favor no captures nada por ahora.';
+  const ctrl = document.getElementById('mantenimiento-control');
+  if (ctrl) ctrl.style.display = (state.session && state.session.role === 'admin') ? '' : 'none';
+  // Sincroniza los inputs del control, salvo que el admin los esté editando.
+  const chk = document.getElementById('mant-activo');
+  const inp = document.getElementById('mant-msg');
+  if (chk && inp && document.activeElement !== chk && document.activeElement !== inp) {
+    chk.checked = !!m.activo;
+    inp.value = m.msg || '';
+  }
+}
+
+// Lee el flag de Supabase y refresca el banner.
+async function refrescarMantenimiento() {
+  if (!state.session || !state.session.tenantId) return;
+  state.mantenimiento = await fetchMantenimiento(state.session.tenantId);
+  renderMantenimientoBanner();
+}
+
+// Tras login: lee el flag + deja un poll cada 45s para que quien ya está adentro
+// vea aparecer/desaparecer el aviso sin recargar.
+async function iniciarMantenimiento() {
+  await refrescarMantenimiento();
+  if (!_mantPollIniciado) {
+    _mantPollIniciado = true;
+    setInterval(refrescarMantenimiento, 45000);
+  }
+}
+
+// Botón "Guardar aviso" (solo admin) — prende/apaga el aviso para todos.
+window.guardarMantenimiento = async function guardarMantenimiento() {
+  if (!state.session || state.session.role !== 'admin') { notify('Solo el admin puede cambiar el aviso', 'error'); return; }
+  const activo = !!document.getElementById('mant-activo')?.checked;
+  const msg = (document.getElementById('mant-msg')?.value || '').trim();
+  try {
+    await setMantenimiento(state.session.tenantId, activo, msg);
+    state.mantenimiento = { activo, msg };
+    renderMantenimientoBanner();
+    notify(activo ? '✅ Aviso ACTIVADO — todos lo verán' : '✅ Aviso apagado', 'success');
+  } catch (e) {
+    notify('No pude guardar el aviso: ' + (e.message || e), 'error');
+  }
+};

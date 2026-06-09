@@ -88,6 +88,9 @@
 
 <!-- ===== APP SHELL (oculto hasta autenticarse) ===== -->
 <div id="app-shell" style="display:none;">
+<div id="mantenimiento-banner" style="display:none;background:#e07a3a;color:#fff;text-align:center;padding:10px 16px;font-size:13px;font-weight:600;letter-spacing:.02em;">
+  ⚠️ <span id="mantenimiento-banner-msg"></span>
+</div>
 <header class="header">
   <div class="logo">
     <div class="logo-mark">DT</div>
@@ -603,6 +606,19 @@
 
     <!-- ===== CONFIGURACIÓN ===== -->
     <div id="page-config" style="display:none">
+      <div class="card" id="mantenimiento-control" style="display:none;margin-bottom:24px;border:1px solid #e07a3a;">
+        <div style="margin-bottom:12px;">
+          <div style="font-weight:600;font-size:15px;">🛠️ Aviso de mantenimiento</div>
+          <div style="color:var(--muted);font-size:12px;margin-top:4px;">Muestra un aviso arriba para TODOS (ej. mientras subes datos). Los demás lo ven en ≤45 s o al recargar. Solo informa, no bloquea.</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;max-width:560px;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+            <input type="checkbox" id="mant-activo" style="cursor:pointer;width:16px;height:16px;"> Aviso activo (prendido)
+          </label>
+          <input id="mant-msg" placeholder="Mensaje (ej. Mantenimiento en curso — no captures nada por ahora)" style="width:100%;">
+          <button class="btn btn-primary" onclick="guardarMantenimiento()" style="align-self:flex-start;">Guardar aviso</button>
+        </div>
+      </div>
       <div class="card" style="margin-bottom:24px;">
         <div style="margin-bottom:12px;">
           <div style="font-weight:600;font-size:15px;">🔗 Google Sheets — Sincronización</div>

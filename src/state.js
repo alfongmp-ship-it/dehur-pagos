@@ -53,6 +53,8 @@ export const state = {
   // Sesion Supabase: { userId, email, tenantId, tenantNombre, role }
   // Se llena al loguearse, null si no hay sesion.
   session: null,
+  // Aviso de mantenimiento (flag a nivel tenant, lo prende/apaga el admin).
+  mantenimiento: { activo: false, msg: '' },
 };
 
 export function esConcentradora(nombreCuenta) {

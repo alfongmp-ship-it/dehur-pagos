@@ -142,3 +142,34 @@ export async function fetchCurrentTenantInfo(sessionArg) {
   console.log('✓ tenant info ready:', info);
   return info;
 }
+
+// ===== Aviso de mantenimiento (banner self-serve a nivel tenant) =====
+
+// Lee el flag de mantenimiento del tenant. RESILIENTE: si las columnas aún no
+// existen (SQL no corrido) o falla, devuelve apagado — nunca rompe la app.
+export async function fetchMantenimiento(tenantId) {
+  if (!tenantId) return { activo: false, msg: '' };
+  try {
+    const { data, error } = await ensureClient()
+      .from('tenants')
+      .select('mantenimiento, mantenimiento_msg')
+      .eq('id', tenantId)
+      .maybeSingle();
+    if (error) { console.warn('fetchMantenimiento:', error.message); return { activo: false, msg: '' }; }
+    return { activo: !!data?.mantenimiento, msg: data?.mantenimiento_msg || '' };
+  } catch (e) {
+    console.warn('fetchMantenimiento excepción:', e);
+    return { activo: false, msg: '' };
+  }
+}
+
+// Prende/apaga el aviso (escribe en tenants). Solo el admin puede por la RLS
+// "tenants_update_admin"; si no es admin, Supabase rechaza y esto lanza.
+export async function setMantenimiento(tenantId, activo, msg) {
+  if (!tenantId) throw new Error('Sin tenant');
+  const { error } = await ensureClient()
+    .from('tenants')
+    .update({ mantenimiento: !!activo, mantenimiento_msg: msg || '' })
+    .eq('id', tenantId);
+  if (error) throw error;
+}
