@@ -3,7 +3,8 @@ import { fmt, hoyFecha } from '../ui/format.js';
 import { proyTag } from '../ui/badges.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
-import { gsSaveCreditos, gsSavePagares, gsSavePagosPagare, saveData, esPorFila, sbGuardarFila } from '../services/google-sync.js';
+import { gsSaveCreditos, gsSavePagares, gsSavePagosPagare, gsSaveProyectos, gsSaveCuentasPropias, gsSaveHistorial, saveData, esPorFila, sbGuardarFila } from '../services/google-sync.js';
+import { saveProy } from '../config/proyectos.js';
 
 // ===== RENDER PRINCIPAL =====
 export function renderCreditos() {
@@ -419,6 +420,11 @@ export function marcarPagoPagado(pagoId) {
     }
   }
   if (saldoChanged) {
+    // FIX (bug preexistente): antes se bajaba el saldo en memoria pero NUNCA se
+    // persistía → al recargar volvía a subir. Ahora sí se guarda.
+    saveProy(state.proyectos);
+    gsSaveProyectos();
+    gsSaveCuentasPropias();
     if (window.renderCuentasPropias) window.renderCuentasPropias();
     if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
     if (window.renderHeaderBadges) window.renderHeaderBadges();
@@ -443,12 +449,20 @@ export function eliminarPagoPagare(pagoId) {
   if (pp.estatus === 'Pagado') {
     const cuentaPago = c?.cuenta_pago || '';
     if (cuentaPago) {
+      let saldoRevertido = false;
       const proy = state.proyectos.find(x => x.nombre === cuentaPago);
       if (proy) {
         proy.saldo = (proy.saldo || 0) + pp.monto_intereses;
+        saldoRevertido = true;
       } else {
         const extra = state.cuentasPropias.find(x => x.nombre === cuentaPago);
-        if (extra) extra.saldo = (extra.saldo || 0) + pp.monto_intereses;
+        if (extra) { extra.saldo = (extra.saldo || 0) + pp.monto_intereses; saldoRevertido = true; }
+      }
+      if (saldoRevertido) {
+        // FIX (bug preexistente): el saldo revertido tampoco se persistía.
+        saveProy(state.proyectos);
+        gsSaveProyectos();
+        gsSaveCuentasPropias();
       }
       if (window.renderCuentasPropias) window.renderCuentasPropias();
       if (window.renderHeaderBadges) window.renderHeaderBadges();
