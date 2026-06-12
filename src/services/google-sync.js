@@ -31,7 +31,9 @@ export const FUENTE_LECTURA = 'supabase';
 export const MODO_GUARDADO = 'fila';
 export const ENTIDADES_POR_FILA = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos']);
 export const REALTIME_ON = true;
-export const ENTIDADES_REALTIME = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos']);
+// pendientesConfirmacion va aquí pero NO en ENTIDADES_POR_FILA: tabla chica, se
+// guarda whole-table; el realtime deja ver la cola compartida en vivo.
+export const ENTIDADES_REALTIME = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos', 'pendientesConfirmacion']);
 
 // ¿Esta entidad guarda por fila ahora mismo? (modo 'fila' y está en el Set)
 export function esPorFila(key) {

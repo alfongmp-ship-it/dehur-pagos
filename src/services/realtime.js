@@ -188,6 +188,31 @@ const RT = {
       destino: r.destino || '', monto: toNum(r.monto), concepto: r.concepto || '', referencia: r.referencia || ''
     }),
     rerender: () => { if (window.renderFlujoSalida) window.renderFlujoSalida(); }
+  },
+  // pendientesConfirmacion va SOLO en realtime (no en ENTIDADES_POR_FILA): el
+  // guardado sigue siendo whole-table (es una tabla chica, la cola de pagos por
+  // confirmar). Así dos admins ven la MISMA cola en vivo sin tocar confirmar-pagos.
+  pendientesConfirmacion: {
+    tabla: 'pendientes_confirmacion',
+    stateKey: 'pendientesConfirmacion',
+    idField: 'id',
+    mapRow: r => {
+      const ap = r.asignaciones_planificadas || {};
+      return {
+        id: parseInt(r.id) || r.id, proveedor_id: r.proveedor_id || '', factura_id: r.factura_id || '',
+        nombre: r.nombre || '', cuenta: r.cuenta || '', banco: normalizeBanco(r.banco || ''),
+        tipo: r.tipo || '', concepto: r.concepto || '', importe: parseFloat(r.importe) || 0,
+        proyecto: r.proyecto || '', partida: r.partida || '', cuenta_cargo: r.cuenta_cargo || '',
+        fechaGen: r.fecha_gen || '', confirmado: r.confirmado !== false, sub_partida: r.sub_partida || '',
+        asignacionesPlanificadas: Array.isArray(ap.a) ? ap.a : [], repartoMetodo: ap.m || null,
+        partidaObra: r.partida_obra || ''
+      };
+    },
+    rerender: () => {
+      if (window.renderConfirmarPagos) window.renderConfirmarPagos();
+      const c = document.getElementById('cnt-confirmar');
+      if (c) c.textContent = state.pendientesConfirmacion.length;
+    }
   }
 };
 
