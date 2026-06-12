@@ -23,6 +23,7 @@ import { normalizeBanco } from '../config/bancos.js';
 import { ENTIDADES_REALTIME } from './google-sync.js';
 
 const toInt = v => parseInt(v) || 0;
+const toNum = v => parseFloat(v) || 0;
 
 // Registro de entidades para tiempo real. Una entrada por entidad suscrita.
 // - tabla:    tabla en Supabase
@@ -86,6 +87,44 @@ const RT = {
       orden: toInt(r.orden), activa: r.activa !== false
     }),
     rerender: () => { if (window.renderConfigPartidasObra) window.renderConfigPartidasObra(); }
+  },
+  creditos: {
+    tabla: 'creditos',
+    stateKey: 'creditos',
+    idField: 'credito_id',
+    mapRow: r => ({
+      credito_id: toInt(r.credito_id), nombre: r.nombre || '', banco: r.banco || '',
+      tipo_credito: r.tipo_credito || 'Puente', monto_autorizado: toNum(r.monto_autorizado),
+      tasa_base: toNum(r.tasa_base), proyecto: r.proyecto || '', cuenta_pago: r.cuenta_pago || '',
+      estatus: r.estatus || 'Activo', activo: r.activo !== false
+    }),
+    rerender: () => { if (window.renderCreditos) window.renderCreditos(); }
+  },
+  pagares: {
+    tabla: 'pagares',
+    stateKey: 'pagares',
+    idField: 'pagare_id',
+    mapRow: r => ({
+      pagare_id: toInt(r.pagare_id), credito_id: toInt(r.credito_id), numero_pagare: r.numero_pagare || '',
+      monto: toNum(r.monto), fecha_disposicion: r.fecha_disposicion || '', fecha_vencimiento: r.fecha_vencimiento || '',
+      tasa: toNum(r.tasa), estatus: r.estatus || 'Vigente', activo: r.activo !== false
+    }),
+    rerender: () => { if (window.renderCreditos) window.renderCreditos(); }
+  },
+  unidades: {
+    tabla: 'unidades',
+    stateKey: 'unidades',
+    idField: 'unidad_id',
+    mapRow: r => {
+      const plano = v => (v === null || v === undefined || v === '' ? null : (parseFloat(v) || 0));
+      return {
+        unidad_id: toInt(r.unidad_id), proyecto: r.proyecto || '', nombre: r.nombre || '', tipo: r.tipo || '',
+        indiviso_pct: toNum(r.indiviso_pct), superficie_m2: toNum(r.superficie_m2), estatus: r.estatus || 'En obra',
+        orden: toInt(r.orden), activo: r.activo !== false,
+        plano_x: plano(r.plano_x), plano_y: plano(r.plano_y), plano_w: plano(r.plano_w), plano_h: plano(r.plano_h)
+      };
+    },
+    rerender: () => { if (window.renderCostosFiscales) window.renderCostosFiscales(); }
   }
 };
 

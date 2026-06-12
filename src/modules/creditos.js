@@ -3,7 +3,7 @@ import { fmt, hoyFecha } from '../ui/format.js';
 import { proyTag } from '../ui/badges.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
-import { gsSaveCreditos, gsSavePagares, gsSavePagosPagare, saveData } from '../services/google-sync.js';
+import { gsSaveCreditos, gsSavePagares, gsSavePagosPagare, saveData, esPorFila, sbGuardarFila } from '../services/google-sync.js';
 
 // ===== RENDER PRINCIPAL =====
 export function renderCreditos() {
@@ -227,7 +227,10 @@ export function guardarCredito() {
 
   cerrar('modal-credito');
   renderCreditos();
-  gsSaveCreditos();
+  // Fase 3: en modo 'fila' guarda solo este crédito (upsert por credito_id sirve add/edit).
+  const porFila = esPorFila('creditos');
+  gsSaveCreditos({ porFila });
+  if (porFila) sbGuardarFila('creditos', obj);
   notify(state.editCreditoId ? 'Crédito actualizado' : 'Crédito registrado');
 }
 
@@ -266,7 +269,9 @@ export function guardarDisposicion() {
     }
     cerrar('modal-disposicion');
     renderCreditos();
-    gsSavePagares();
+    const porFila = esPorFila('pagares');
+    gsSavePagares({ porFila });
+    if (porFila && i >= 0) sbGuardarFila('pagares', state.pagares[i]);
     notify('Pagaré ' + numero + ' actualizado');
   } else {
     const obj = {
@@ -279,7 +284,9 @@ export function guardarDisposicion() {
     state.pagares.push(obj);
     cerrar('modal-disposicion');
     renderCreditos();
-    gsSavePagares();
+    const porFila = esPorFila('pagares');
+    gsSavePagares({ porFila });
+    if (porFila) sbGuardarFila('pagares', obj);
     notify('Disposición registrada – Pagaré ' + numero);
   }
 }

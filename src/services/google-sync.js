@@ -29,9 +29,9 @@ export const FUENTE_LECTURA = 'supabase';
 // supabase_realtime). El resto de entidades sigue en 'tabla' aunque MODO sea 'fila'.
 // ============================================================================
 export const MODO_GUARDADO = 'fila';
-export const ENTIDADES_POR_FILA = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra']);
+export const ENTIDADES_POR_FILA = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades']);
 export const REALTIME_ON = true;
-export const ENTIDADES_REALTIME = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra']);
+export const ENTIDADES_REALTIME = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades']);
 
 // ¿Esta entidad guarda por fila ahora mismo? (modo 'fila' y está en el Set)
 export function esPorFila(key) {
@@ -975,7 +975,7 @@ export async function gsSaveHistorial() {
   }
 }
 
-export async function gsSaveUnidades() {
+export async function gsSaveUnidades(opts = {}) {
   if (!state.gsToken) return;
   if (!guardarPermitido('unidades', state.unidades)) return;
   try {
@@ -990,7 +990,7 @@ export async function gsSaveUnidades() {
       'superficie_m2', 'estatus', 'orden', 'activo', 'plano_x', 'plano_y',
       'plano_w', 'plano_h'
     ]);
-    await sbEspejar('unidades');
+    if (!opts.porFila) await sbEspejar('unidades');
   } catch (e) { console.error('gsSaveUnidades', e); }
 }
 
@@ -1145,21 +1145,27 @@ function _rowsMovimientosInternos() {
     concepto: _sbStr(m.concepto), referencia: _sbStr(m.referencia)
   })), 'id');
 }
-function _rowsCreditos() {
-  return _dedupBy(state.creditos.map(c => ({
+function _rowCredito(c) {
+  return {
     credito_id: _sbStr(c.credito_id), nombre: _sbStr(c.nombre), banco: _sbStr(c.banco),
     tipo_credito: _sbStr(c.tipo_credito), monto_autorizado: _sbNum(c.monto_autorizado),
     tasa_base: _sbNum(c.tasa_base), proyecto: _sbStr(c.proyecto), cuenta_pago: _sbStr(c.cuenta_pago),
     estatus: _sbStr(c.estatus), activo: c.activo !== false
-  })), 'credito_id');
+  };
 }
-function _rowsPagares() {
-  return _dedupBy(state.pagares.map(p => ({
+function _rowsCreditos() {
+  return _dedupBy(state.creditos.map(_rowCredito), 'credito_id');
+}
+function _rowPagare(p) {
+  return {
     pagare_id: _sbStr(p.pagare_id), credito_id: _sbStr(p.credito_id),
     numero_pagare: _sbStr(p.numero_pagare), monto: _sbNum(p.monto),
     fecha_disposicion: _sbStr(p.fecha_disposicion), fecha_vencimiento: _sbStr(p.fecha_vencimiento),
     tasa: _sbNum(p.tasa), estatus: _sbStr(p.estatus), activo: p.activo !== false
-  })), 'pagare_id');
+  };
+}
+function _rowsPagares() {
+  return _dedupBy(state.pagares.map(_rowPagare), 'pagare_id');
 }
 function _rowsPagosPagare() {
   return _dedupBy(state.pagosPagare.map(p => ({
@@ -1168,14 +1174,17 @@ function _rowsPagosPagare() {
     concepto: _sbStr(p.concepto), estatus: _sbStr(p.estatus), fecha_real_pago: _sbStr(p.fecha_real_pago)
   })), 'pago_id');
 }
-function _rowsUnidades() {
+function _rowUnidad(u) {
   const plano = (v) => (v == null || v === '' ? null : _sbNum(v));
-  return _dedupBy(state.unidades.map(u => ({
+  return {
     unidad_id: _sbStr(u.unidad_id), proyecto: _sbStr(u.proyecto), nombre: _sbStr(u.nombre),
     tipo: _sbStr(u.tipo), indiviso_pct: _sbNum(u.indiviso_pct), superficie_m2: _sbNum(u.superficie_m2),
     estatus: _sbStr(u.estatus), orden: _sbNum(u.orden), activo: u.activo !== false,
     plano_x: plano(u.plano_x), plano_y: plano(u.plano_y), plano_w: plano(u.plano_w), plano_h: plano(u.plano_h)
-  })), 'unidad_id');
+  };
+}
+function _rowsUnidades() {
+  return _dedupBy(state.unidades.map(_rowUnidad), 'unidad_id');
 }
 function _rowsPresupuestoUnidad() {
   return _dedupBy(state.presupuestoUnidad.map(p => ({
@@ -1235,10 +1244,10 @@ const SB_ENTIDADES = {
   facturaPagos:       { tabla: 'factura_pagos',       rows: _rowsFacturaPagos },
   traspasos:          { tabla: 'traspasos',           rows: _rowsTraspasos },
   movimientosInternos:{ tabla: 'movimientos_internos',rows: _rowsMovimientosInternos },
-  creditos:           { tabla: 'creditos',            rows: _rowsCreditos },
-  pagares:            { tabla: 'pagares',             rows: _rowsPagares },
+  creditos:           { tabla: 'creditos',            rows: _rowsCreditos, idCol: 'credito_id', rowOne: _rowCredito },
+  pagares:            { tabla: 'pagares',             rows: _rowsPagares, idCol: 'pagare_id', rowOne: _rowPagare },
   pagosPagare:        { tabla: 'pagos_pagare',        rows: _rowsPagosPagare },
-  unidades:           { tabla: 'unidades',            rows: _rowsUnidades },
+  unidades:           { tabla: 'unidades',            rows: _rowsUnidades, idCol: 'unidad_id', rowOne: _rowUnidad },
   presupuestoUnidad:  { tabla: 'presupuesto_unidad',  rows: _rowsPresupuestoUnidad },
   costoAsignaciones:  { tabla: 'costo_asignaciones',  rows: _rowsCostoAsignaciones },
   partidasCatalogo:   { tabla: 'partidas_catalogo',   rows: _rowsPartidasCatalogo, idCol: 'partida_id', rowOne: _rowPartidaCatalogo },
@@ -1395,7 +1404,7 @@ export async function gsSaveTraspasos() {
   } catch (e) { console.error('gsSaveTraspasos', e); }
 }
 
-export async function gsSaveCreditos() {
+export async function gsSaveCreditos(opts = {}) {
   if (!state.gsToken) return;
   if (!guardarPermitido('creditos', state.creditos)) return;
   try {
@@ -1407,11 +1416,11 @@ export async function gsSaveCreditos() {
       'credito_id', 'nombre', 'banco', 'tipo_credito', 'monto_autorizado',
       'tasa_base', 'proyecto', 'cuenta_pago', 'estatus', 'activo'
     ]);
-    await sbEspejar('creditos');
+    if (!opts.porFila) await sbEspejar('creditos');
   } catch (e) { console.error('gsSaveCreditos', e); }
 }
 
-export async function gsSavePagares() {
+export async function gsSavePagares(opts = {}) {
   if (!state.gsToken) return;
   if (!guardarPermitido('pagares', state.pagares)) return;
   try {
@@ -1423,7 +1432,7 @@ export async function gsSavePagares() {
       'pagare_id', 'credito_id', 'numero_pagare', 'monto',
       'fecha_disposicion', 'fecha_vencimiento', 'tasa', 'estatus', 'activo'
     ]);
-    await sbEspejar('pagares');
+    if (!opts.porFila) await sbEspejar('pagares');
   } catch (e) { console.error('gsSavePagares', e); }
 }
 

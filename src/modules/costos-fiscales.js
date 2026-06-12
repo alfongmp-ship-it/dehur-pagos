@@ -9,7 +9,7 @@ import { cerrar } from '../ui/modal.js';
 import { proyectoMatch } from '../config/proyectos.js';
 import { ESTATUS_UNIDAD, METODO_LABEL } from '../config/costos-fiscales.js';
 import { planoDeProyecto } from '../config/planos.js';
-import { gsSaveUnidades, gsSavePresupuestoUnidad, gsSaveCostoAsignaciones } from '../services/google-sync.js';
+import { gsSaveUnidades, gsSavePresupuestoUnidad, gsSaveCostoAsignaciones, esPorFila, sbGuardarFila } from '../services/google-sync.js';
 
 const PALETA = ['#c8a96e', '#5a9be0', '#4caf7d', '#e07a3a', '#9b7fe8', '#e05a5a', '#27ae60', '#3498db'];
 
@@ -303,8 +303,13 @@ export async function guardarUnidad() {
       ...obj
     });
   }
+  // Fase 3: guarda solo esta unidad (add o edit) en modo 'fila'. Capturar el
+  // item ANTES de cerrar el modal (no vaya a resetear state.editUnidadId).
+  const porFila = esPorFila('unidades');
+  const _u = state.editUnidadId ? unidadById(state.editUnidadId) : state.unidades[state.unidades.length - 1];
   cerrar('modal-unidad');
-  await gsSaveUnidades();
+  await gsSaveUnidades({ porFila });
+  if (porFila && _u) sbGuardarFila('unidades', _u);
   notify('Unidad guardada');
   renderCostosFiscales();
 }
@@ -313,7 +318,9 @@ export async function toggleUnidad(id) {
   const u = unidadById(id);
   if (!u) return;
   u.activo = u.activo === false;
-  await gsSaveUnidades();
+  const porFila = esPorFila('unidades');
+  await gsSaveUnidades({ porFila });
+  if (porFila) sbGuardarFila('unidades', u);
   renderCostosFiscales();
 }
 
