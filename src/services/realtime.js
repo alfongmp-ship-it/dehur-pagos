@@ -125,6 +125,69 @@ const RT = {
       };
     },
     rerender: () => { if (window.renderCostosFiscales) window.renderCostosFiscales(); }
+  },
+  facturas: {
+    tabla: 'facturas',
+    stateKey: 'facturas',
+    idField: 'factura_id',
+    mapRow: r => ({
+      factura_id: toInt(r.factura_id), numero_factura: r.numero_factura || '', razon_social: r.razon_social || '',
+      proveedor_id: toInt(r.proveedor_id), nombre_proveedor: r.nombre_proveedor || '', fecha_factura: r.fecha_factura || '',
+      fecha_vencimiento: r.fecha_vencimiento || '', fecha_pago_total: r.fecha_pago_total || '',
+      monto_total: toNum(r.monto_total), monto_pagado: toNum(r.monto_pagado), saldo_pendiente: toNum(r.saldo_pendiente),
+      estatus_factura: r.estatus_factura || 'pendiente', proyecto: r.proyecto || '', observaciones: r.observaciones || '',
+      activo: r.activo !== false, uuid: r.uuid || ''
+    }),
+    rerender: () => {
+      if (window.renderFacturas) window.renderFacturas();
+      const c = document.getElementById('cnt-fact');
+      if (c) c.textContent = state.facturas.length;
+    }
+  },
+  facturaPagos: {
+    tabla: 'factura_pagos',
+    stateKey: 'facturaPagos',
+    idField: 'factura_pago_id',
+    mapRow: r => ({
+      factura_pago_id: toInt(r.factura_pago_id), factura_id: toInt(r.factura_id), pago_id: toInt(r.pago_id),
+      proveedor_id: toInt(r.proveedor_id), monto_aplicado: toNum(r.monto_aplicado), fecha_pago: r.fecha_pago || '',
+      estatus: r.estatus || '', observaciones: r.observaciones || ''
+    }),
+    rerender: () => {
+      if (window.renderFacturaPagos) window.renderFacturaPagos();
+      const c = document.getElementById('cnt-fp');
+      if (c) c.textContent = state.facturaPagos.length;
+    }
+  },
+  traspasos: {
+    tabla: 'traspasos',
+    stateKey: 'traspasos',
+    idField: 'traspaso_id',
+    mapRow: r => ({
+      traspaso_id: toInt(r.traspaso_id), tipo: r.tipo || '', cuenta_origen_id: r.cuenta_origen_id || '',
+      cuenta_origen_tipo: r.cuenta_origen_tipo || 'proyecto', cuenta_origen_nombre: r.cuenta_origen_nombre || '',
+      proyecto_origen: r.proyecto_origen || '', cuenta_destino_id: r.cuenta_destino_id || '',
+      cuenta_destino_tipo: r.cuenta_destino_tipo || 'proyecto', cuenta_destino_nombre: r.cuenta_destino_nombre || '',
+      proyecto_destino: r.proyecto_destino || '', monto: toNum(r.monto), fecha: r.fecha || '',
+      concepto: r.concepto || '', referencia: r.referencia || '', estatus: r.estatus || 'pendiente',
+      fecha_registro: r.fecha_registro || ''
+    }),
+    rerender: () => {
+      if (window.renderTraspasos) window.renderTraspasos();
+      if (window.renderResumenTraspasos) window.renderResumenTraspasos();
+      const c = document.getElementById('cnt-traspasos');
+      if (c) c.textContent = state.traspasos.length;
+    }
+  },
+  movimientosInternos: {
+    tabla: 'movimientos_internos',
+    stateKey: 'movimientosInternos',
+    idField: 'id',
+    mapRow: r => ({
+      id: toInt(r.id), fecha: r.fecha || '', tipo: r.tipo || '', origen: r.origen || '',
+      destino: r.destino || '', monto: toNum(r.monto), concepto: r.concepto || '', referencia: r.referencia || ''
+    }),
+    rerender: () => { if (window.renderFlujoSalida) window.renderFlujoSalida(); }
   }
 };
 

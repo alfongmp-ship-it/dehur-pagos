@@ -2,7 +2,7 @@ import { state, datosListos } from '../state.js';
 import { fmt, fmtFecha } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
-import { gsSaveTraspasos, saveData, gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveMovimientosInternos } from '../services/google-sync.js';
+import { gsSaveTraspasos, saveData, gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveMovimientosInternos, esPorFila, sbGuardarFila, sbBorrarFila } from '../services/google-sync.js';
 import { saveProy } from '../config/proyectos.js';
 import { getPartidasParaSelect } from '../config/sub-partidas.js';
 
@@ -289,7 +289,7 @@ export function guardarTraspaso() {
         if (cntHist) cntHist.textContent = state.historial.length;
         if (window.renderHistorial) window.renderHistorial();
       } else {
-        state.movimientosInternos.push({
+        const _mi = {
           id: state.movimientosInternos.reduce((max, m) => Math.max(max, m.id || 0), 0) + 1,
           fecha: fecha,
           tipo: tipo,
@@ -298,8 +298,11 @@ export function guardarTraspaso() {
           monto: monto,
           concepto: obj.concepto || '',
           referencia: obj.referencia || ''
-        });
-        gsSaveMovimientosInternos();
+        };
+        state.movimientosInternos.push(_mi);
+        const _pfMi = esPorFila('movimientosInternos');
+        gsSaveMovimientosInternos({ porFila: _pfMi });
+        if (_pfMi) sbGuardarFila('movimientosInternos', _mi);
       }
     }
   }
@@ -308,7 +311,11 @@ export function guardarTraspaso() {
   renderTraspasos();
   if (window.renderResumenTraspasos) window.renderResumenTraspasos();
   notify(state.editTraspasoId ? 'Traspaso actualizado' : `${tipo} registrado ✓`);
-  gsSaveTraspasos();
+  // Fase 3: guarda solo este traspaso (upsert por traspaso_id, add/edit). Las
+  // cascadas de saldos (proyectos/cuentas) e historial siguen whole-table.
+  const porFila = esPorFila('traspasos');
+  gsSaveTraspasos({ porFila });
+  if (porFila) sbGuardarFila('traspasos', obj);
 }
 
 export function eliminarTraspaso(id) {
@@ -371,5 +378,7 @@ export function eliminarTraspaso(id) {
   renderTraspasos();
   if (window.renderResumenTraspasos) window.renderResumenTraspasos();
   notify('Registro eliminado');
-  gsSaveTraspasos();
+  const porFila = esPorFila('traspasos');
+  gsSaveTraspasos({ porFila });
+  if (porFila) sbBorrarFila('traspasos', id);
 }

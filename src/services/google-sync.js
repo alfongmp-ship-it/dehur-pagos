@@ -29,9 +29,9 @@ export const FUENTE_LECTURA = 'supabase';
 // supabase_realtime). El resto de entidades sigue en 'tabla' aunque MODO sea 'fila'.
 // ============================================================================
 export const MODO_GUARDADO = 'fila';
-export const ENTIDADES_POR_FILA = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades']);
+export const ENTIDADES_POR_FILA = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos']);
 export const REALTIME_ON = true;
-export const ENTIDADES_REALTIME = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades']);
+export const ENTIDADES_REALTIME = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos']);
 
 // ¿Esta entidad guarda por fila ahora mismo? (modo 'fila' y está en el Set)
 export function esPorFila(key) {
@@ -1107,8 +1107,8 @@ function _dedupBy(rows, pk) {
   return out;
 }
 
-function _rowsFacturas() {
-  return _dedupBy(state.facturas.map(f => ({
+function _rowFactura(f) {
+  return {
     factura_id: _sbStr(f.factura_id), numero_factura: _sbStr(f.numero_factura),
     razon_social: _sbStr(f.razon_social), proveedor_id: _sbStr(f.proveedor_id),
     nombre_proveedor: _sbStr(f.nombre_proveedor), fecha_factura: _sbStr(f.fecha_factura),
@@ -1117,18 +1117,24 @@ function _rowsFacturas() {
     saldo_pendiente: _sbNum(f.saldo_pendiente), estatus_factura: _sbStr(f.estatus_factura),
     proyecto: _sbStr(f.proyecto), observaciones: _sbStr(f.observaciones),
     activo: f.activo !== false, uuid: _sbStr(f.uuid)
-  })), 'factura_id');
+  };
 }
-function _rowsFacturaPagos() {
-  return _dedupBy(state.facturaPagos.map(fp => ({
+function _rowsFacturas() {
+  return _dedupBy(state.facturas.map(_rowFactura), 'factura_id');
+}
+function _rowFacturaPago(fp) {
+  return {
     factura_pago_id: _sbStr(fp.factura_pago_id), factura_id: _sbStr(fp.factura_id),
     pago_id: _sbStr(fp.pago_id), proveedor_id: _sbStr(fp.proveedor_id),
     monto_aplicado: _sbNum(fp.monto_aplicado), fecha_pago: _sbStr(fp.fecha_pago),
     estatus: _sbStr(fp.estatus), observaciones: _sbStr(fp.observaciones)
-  })), 'factura_pago_id');
+  };
 }
-function _rowsTraspasos() {
-  return _dedupBy(state.traspasos.map(t => ({
+function _rowsFacturaPagos() {
+  return _dedupBy(state.facturaPagos.map(_rowFacturaPago), 'factura_pago_id');
+}
+function _rowTraspaso(t) {
+  return {
     traspaso_id: _sbStr(t.traspaso_id), tipo: _sbStr(t.tipo),
     cuenta_origen_id: _sbStr(t.cuenta_origen_id), cuenta_origen_tipo: _sbStr(t.cuenta_origen_tipo),
     cuenta_origen_nombre: _sbStr(t.cuenta_origen_nombre), proyecto_origen: _sbStr(t.proyecto_origen),
@@ -1136,14 +1142,20 @@ function _rowsTraspasos() {
     cuenta_destino_nombre: _sbStr(t.cuenta_destino_nombre), proyecto_destino: _sbStr(t.proyecto_destino),
     monto: _sbNum(t.monto), fecha: _sbStr(t.fecha), concepto: _sbStr(t.concepto),
     referencia: _sbStr(t.referencia), estatus: _sbStr(t.estatus), fecha_registro: _sbStr(t.fecha_registro)
-  })), 'traspaso_id');
+  };
 }
-function _rowsMovimientosInternos() {
-  return _dedupBy(state.movimientosInternos.map(m => ({
+function _rowsTraspasos() {
+  return _dedupBy(state.traspasos.map(_rowTraspaso), 'traspaso_id');
+}
+function _rowMovimientoInterno(m) {
+  return {
     id: _sbStr(m.id), fecha: _sbStr(m.fecha), tipo: _sbStr(m.tipo),
     origen: _sbStr(m.origen), destino: _sbStr(m.destino), monto: _sbNum(m.monto),
     concepto: _sbStr(m.concepto), referencia: _sbStr(m.referencia)
-  })), 'id');
+  };
+}
+function _rowsMovimientosInternos() {
+  return _dedupBy(state.movimientosInternos.map(_rowMovimientoInterno), 'id');
 }
 function _rowCredito(c) {
   return {
@@ -1240,10 +1252,10 @@ const SB_ENTIDADES = {
   cuentasPropias:     { tabla: 'cuentas_propias',     rows: _rowsCuentasPropias },
   empleados:          { tabla: 'empleados',           rows: _rowsEmpleados, idCol: 'id', rowOne: _rowEmpleado },
   historial:          { tabla: 'historial',           rows: _rowsHistorial },
-  facturas:           { tabla: 'facturas',            rows: _rowsFacturas },
-  facturaPagos:       { tabla: 'factura_pagos',       rows: _rowsFacturaPagos },
-  traspasos:          { tabla: 'traspasos',           rows: _rowsTraspasos },
-  movimientosInternos:{ tabla: 'movimientos_internos',rows: _rowsMovimientosInternos },
+  facturas:           { tabla: 'facturas',            rows: _rowsFacturas, idCol: 'factura_id', rowOne: _rowFactura },
+  facturaPagos:       { tabla: 'factura_pagos',       rows: _rowsFacturaPagos, idCol: 'factura_pago_id', rowOne: _rowFacturaPago },
+  traspasos:          { tabla: 'traspasos',           rows: _rowsTraspasos, idCol: 'traspaso_id', rowOne: _rowTraspaso },
+  movimientosInternos:{ tabla: 'movimientos_internos',rows: _rowsMovimientosInternos, idCol: 'id', rowOne: _rowMovimientoInterno },
   creditos:           { tabla: 'creditos',            rows: _rowsCreditos, idCol: 'credito_id', rowOne: _rowCredito },
   pagares:            { tabla: 'pagares',             rows: _rowsPagares, idCol: 'pagare_id', rowOne: _rowPagare },
   pagosPagare:        { tabla: 'pagos_pagare',        rows: _rowsPagosPagare },
@@ -1354,23 +1366,23 @@ export async function gsSaveEmpleados(opts = {}) {
   } catch (e) { console.error('gsSaveEmpleados', e); }
 }
 
-export async function gsSaveFacturas() {
+export async function gsSaveFacturas(opts = {}) {
   if (!state.gsToken) return;
   if (!guardarPermitido('facturas', state.facturas)) return;
   try {
     const rows = state.facturas.map(f => [f.factura_id, f.numero_factura || '', f.razon_social || '', f.proveedor_id, f.nombre_proveedor || '', f.fecha_factura, f.fecha_vencimiento || '', f.fecha_pago_total || '', f.monto_total, f.monto_pagado, f.saldo_pendiente, f.estatus_factura, f.proyecto, f.observaciones, f.activo, f.uuid || '']);
     await gsClearAndWrite('facturas', rows, ['factura_id', 'Numero_Fcatura', 'razon_social', 'proveedor_id', 'nombre_proveedor', 'fecha_factura', 'fecha_vencimiento', 'fecha_pago_total', 'monto_total', 'monto_pagado', 'saldo_pendiente', 'estatus_factura', 'proyecto', 'observaciones', 'activo', 'uuid']);
-    await sbEspejar('facturas');
+    if (!opts.porFila) await sbEspejar('facturas');
   } catch (e) { console.error('gsSaveFacturas', e); }
 }
 
-export async function gsSaveFacturaPagos() {
+export async function gsSaveFacturaPagos(opts = {}) {
   if (!state.gsToken) return;
   if (!guardarPermitido('facturaPagos', state.facturaPagos)) return;
   try {
     const rows = state.facturaPagos.map(fp => [fp.factura_pago_id, fp.factura_id, fp.pago_id, fp.proveedor_id, fp.monto_aplicado, fp.fecha_pago, fp.estatus, fp.observaciones]);
     await gsClearAndWrite('factura_pagos', rows, ['factura_pago_id', 'factura_id', 'pago_id', 'proveedor_id', 'monto_aplicado', 'fecha_pago', 'estatus', 'observaciones']);
-    await sbEspejar('facturaPagos');
+    if (!opts.porFila) await sbEspejar('facturaPagos');
   } catch (e) { console.error('gsSaveFacturaPagos', e); }
 }
 
@@ -1384,7 +1396,7 @@ export async function gsSaveCuentasPropias() {
   } catch (e) { console.error('gsSaveCuentasPropias', e); }
 }
 
-export async function gsSaveTraspasos() {
+export async function gsSaveTraspasos(opts = {}) {
   if (!state.gsToken) return;
   if (!guardarPermitido('traspasos', state.traspasos)) return;
   try {
@@ -1400,7 +1412,7 @@ export async function gsSaveTraspasos() {
       'cuenta_destino_id', 'cuenta_destino_tipo', 'cuenta_destino_nombre', 'proyecto_destino',
       'monto', 'fecha', 'concepto', 'referencia', 'estatus', 'fecha_registro'
     ]);
-    await sbEspejar('traspasos');
+    if (!opts.porFila) await sbEspejar('traspasos');
   } catch (e) { console.error('gsSaveTraspasos', e); }
 }
 
@@ -1452,12 +1464,14 @@ export async function gsSavePagosPagare() {
   } catch (e) { console.error('gsSavePagosPagare', e); }
 }
 
-export async function gsSaveMovimientosInternos() {
+export async function gsSaveMovimientosInternos(opts = {}) {
   if (!state.gsToken) return;
   if (!guardarPermitido('movimientosInternos', state.movimientosInternos)) return;
-  const rows = state.movimientosInternos.map(m => [m.id, m.fecha, m.tipo, m.origen, m.destino, m.monto, m.concepto, m.referencia]);
-  await gsClearAndWrite('movimientos_internos', rows, ['id', 'fecha', 'tipo', 'origen', 'destino', 'monto', 'concepto', 'referencia']);
-  await sbEspejar('movimientosInternos');
+  try {
+    const rows = state.movimientosInternos.map(m => [m.id, m.fecha, m.tipo, m.origen, m.destino, m.monto, m.concepto, m.referencia]);
+    await gsClearAndWrite('movimientos_internos', rows, ['id', 'fecha', 'tipo', 'origen', 'destino', 'monto', 'concepto', 'referencia']);
+    if (!opts.porFila) await sbEspejar('movimientosInternos');
+  } catch (e) { console.error('gsSaveMovimientosInternos', e); }
 }
 
 export async function gsSavePartidasObra(opts = {}) {

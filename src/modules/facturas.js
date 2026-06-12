@@ -3,7 +3,7 @@ import { fmt } from '../ui/format.js';
 import { proyTag } from '../ui/badges.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
-import { gsSaveFacturas, gsSaveFacturaPagos } from '../services/google-sync.js';
+import { gsSaveFacturas, gsSaveFacturaPagos, esPorFila, sbGuardarFila, sbBorrarFila } from '../services/google-sync.js';
 import { proyectoMatch } from '../config/proyectos.js';
 
 function diasAlVencimiento(fechaVenc) {
@@ -283,7 +283,10 @@ export function guardarFactura() {
   renderFacturas();
   document.getElementById('cnt-fact').textContent = state.facturas.length;
   notify(state.editFactId ? 'Factura actualizada' : 'Factura registrada');
-  gsSaveFacturas();
+  // Fase 3: guarda solo esta factura (upsert por factura_id, add/edit).
+  const porFila = esPorFila('facturas');
+  gsSaveFacturas({ porFila });
+  if (porFila) sbGuardarFila('facturas', obj);
 }
 
 // ===== Factura Pagos (solo lectura) =====
@@ -370,8 +373,14 @@ export function eliminarPagoFactura(fpId) {
   }
 
   state.facturaPagos = state.facturaPagos.filter(x => x.factura_pago_id !== fpId);
-  gsSaveFacturas();
-  gsSaveFacturaPagos();
+  // Fase 3: la factura padre se re-guarda por fila (saldo recalculado) y el pago
+  // borrado se quita por fila.
+  const porFilaF = esPorFila('facturas');
+  const porFilaFp = esPorFila('facturaPagos');
+  gsSaveFacturas({ porFila: porFilaF });
+  gsSaveFacturaPagos({ porFila: porFilaFp });
+  if (porFilaF && fact) sbGuardarFila('facturas', fact);
+  if (porFilaFp) sbBorrarFila('facturaPagos', fpId);
   renderFacturas();
   renderFacturaPagos();
   document.getElementById('cnt-fact').textContent = state.facturas.length;
