@@ -4,7 +4,7 @@ import { tipoBadge } from '../ui/badges.js';
 import { dl } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
-import { gsSaveEmpleados } from '../services/google-sync.js';
+import { gsSaveEmpleados, esPorFila, sbGuardarFila } from '../services/google-sync.js';
 
 export function renderNomina() {
   const tb = document.getElementById('tbody-nom');
@@ -112,7 +112,10 @@ export function guardarEmpleado() {
   cerrar('modal-emp');
   renderNomina();
   notify(state.editEmpId ? 'Empleado actualizado' : 'Empleado agregado');
-  gsSaveEmpleados();
+  // Fase 3: en modo 'fila' guarda solo este empleado a Supabase (upsert sirve para add y edit).
+  const porFila = esPorFila('empleados');
+  gsSaveEmpleados({ porFila });
+  if (porFila) sbGuardarFila('empleados', obj);
 }
 
 export function exportarNomina() {

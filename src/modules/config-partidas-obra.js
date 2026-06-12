@@ -1,7 +1,7 @@
 import { state } from '../state.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
-import { gsSavePartidasObra } from '../services/google-sync.js';
+import { gsSavePartidasObra, esPorFila, sbGuardarFila, sbBorrarFila } from '../services/google-sync.js';
 
 const norm = s => (s || '').trim().toLowerCase()
   .normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -199,7 +199,15 @@ export function guardarPartidaObra() {
       id: slugId(nombre, proyecto), nombre, proyecto, partidaAdmin, subPartidaAdmin, orden, activa: true
     });
   }
-  gsSavePartidasObra();
+  // Fase 3: en modo 'fila' guarda solo la partida obra afectada (add o edit).
+  const porFila = esPorFila('partidasObra');
+  gsSavePartidasObra({ porFila });
+  if (porFila) {
+    const _obj = editId
+      ? state.partidasObra.find(p => p.id === editId)
+      : state.partidasObra[state.partidasObra.length - 1];
+    if (_obj) sbGuardarFila('partidasObra', _obj);
+  }
   cerrar('modal-partida-obra');
   renderConfigPartidasObra();
   notify(editId ? 'Partida obra actualizada' : 'Partida obra agregada ✓');
@@ -210,7 +218,9 @@ export function togglePartidaObra(id) {
   const p = state.partidasObra.find(x => x.id === id);
   if (!p) return;
   p.activa = p.activa === false ? true : false;
-  gsSavePartidasObra();
+  const porFila = esPorFila('partidasObra');
+  gsSavePartidasObra({ porFila });
+  if (porFila) sbGuardarFila('partidasObra', p);
   renderConfigPartidasObra();
 }
 
@@ -219,7 +229,9 @@ export function eliminarPartidaObra(id) {
   if (!p) return;
   if (!confirm(`¿Eliminar la partida obra "${p.nombre}"${p.proyecto ? ' (' + p.proyecto + ')' : ' (maestro)'}?`)) return;
   state.partidasObra = state.partidasObra.filter(x => x.id !== id);
-  gsSavePartidasObra();
+  const porFila = esPorFila('partidasObra');
+  gsSavePartidasObra({ porFila });
+  if (porFila) sbBorrarFila('partidasObra', id);
   renderConfigPartidasObra();
   notify('Partida obra eliminada');
 }

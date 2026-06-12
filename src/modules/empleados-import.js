@@ -1,7 +1,7 @@
 // Config de import Excel para Empleados (Nomina).
 
 import { state } from '../state.js';
-import { gsSaveEmpleados } from '../services/google-sync.js';
+import { gsSaveEmpleados, esPorFila, sbGuardarFila } from '../services/google-sync.js';
 import { createExcelImporter } from '../services/excel-import.js';
 
 const BANCOS_COMUNES = ['BBVA', 'Santander', 'Banorte', 'Banamex', 'HSBC', 'Scotiabank', 'Inbursa'];
@@ -105,16 +105,21 @@ export const empleadosImporter = createExcelImporter({
   insertar: (registros) => {
     const maxId = state.empleados.reduce((m, e) => Math.max(m, e.id || 0), 0);
     let next = maxId + 1;
+    const porFila = esPorFila('empleados');
     registros.forEach(r => {
       if (!r.id) r.id = next++;
       else if (r.id >= next) next = r.id + 1;
       state.empleados.push(r);
+      // Fase 3: en modo 'fila' sembramos cada empleado importado por separado a
+      // Supabase (porque save() llama gsSaveEmpleados({porFila}) que ya NO espeja
+      // la tabla completa). El id ya está asignado arriba.
+      if (porFila) sbGuardarFila('empleados', r);
     });
     const cnt = document.getElementById('cnt-nom');
     if (cnt) cnt.textContent = state.empleados.length;
   },
 
-  save: async () => { await gsSaveEmpleados(); },
+  save: async () => { await gsSaveEmpleados({ porFila: esPorFila('empleados') }); },
 
   postCommit: () => {
     if (window.renderNomina) window.renderNomina();

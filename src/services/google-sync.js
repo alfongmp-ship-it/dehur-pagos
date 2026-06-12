@@ -29,9 +29,9 @@ export const FUENTE_LECTURA = 'supabase';
 // supabase_realtime). El resto de entidades sigue en 'tabla' aunque MODO sea 'fila'.
 // ============================================================================
 export const MODO_GUARDADO = 'fila';
-export const ENTIDADES_POR_FILA = new Set(['proveedores']);
+export const ENTIDADES_POR_FILA = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra']);
 export const REALTIME_ON = true;
-export const ENTIDADES_REALTIME = new Set(['proveedores']);
+export const ENTIDADES_REALTIME = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra']);
 
 // ¿Esta entidad guarda por fila ahora mismo? (modo 'fila' y está en el Set)
 export function esPorFila(key) {
@@ -1063,12 +1063,15 @@ function _rowsCuentasPropias() {
     ultima_actualizacion: _sbStr(c.ultima_actualizacion), activo: c.activo !== false
   }));
 }
-function _rowsEmpleados() {
-  return state.empleados.map(e => ({
+function _rowEmpleado(e) {
+  return {
     id: e.id, nombre: _sbStr(e.nombre), puesto: _sbStr(e.puesto), empresa: _sbStr(e.empresa),
     banco: _sbStr(e.banco), tipo_cuenta: _sbStr(e.tipo_cuenta), cuenta: _sbStr(e.cuenta),
     clabe: _sbStr(e.clabe), rfc: _sbStr(e.rfc), activo: e.activo !== false
-  }));
+  };
+}
+function _rowsEmpleados() {
+  return state.empleados.map(_rowEmpleado);
 }
 function _rowsHistorial() {
   // Dedup por id (el PK es (tenant_id, id)). ensureHistorialIds ya los hace
@@ -1189,18 +1192,24 @@ function _rowsCostoAsignaciones() {
     factor: _sbNum(a.factor), fecha_asignacion: _sbStr(a.fecha_asignacion), partida_override: _sbStr(a.partida_override)
   })), 'asignacion_id');
 }
-function _rowsPartidasCatalogo() {
-  return _dedupBy(state.partidasCatalogo.map(p => ({
+function _rowPartidaCatalogo(p) {
+  return {
     partida_id: _sbStr(p.id), partida: _sbStr(p.partida), subpartidas: p.subpartidas || [],
     orden: _sbNum(p.orden), activa: p.activa !== false
-  })), 'partida_id');
+  };
 }
-function _rowsPartidasObra() {
-  return _dedupBy(state.partidasObra.map(p => ({
+function _rowsPartidasCatalogo() {
+  return _dedupBy(state.partidasCatalogo.map(_rowPartidaCatalogo), 'partida_id');
+}
+function _rowPartidaObra(p) {
+  return {
     partida_obra_id: _sbStr(p.id), nombre: _sbStr(p.nombre), proyecto: _sbStr(p.proyecto),
     partida_admin: _sbStr(p.partidaAdmin), sub_partida_admin: _sbStr(p.subPartidaAdmin),
     orden: _sbNum(p.orden), activa: p.activa !== false
-  })), 'partida_obra_id');
+  };
+}
+function _rowsPartidasObra() {
+  return _dedupBy(state.partidasObra.map(_rowPartidaObra), 'partida_obra_id');
 }
 function _rowsPendientes() {
   return _dedupBy(state.pendientesConfirmacion.map(p => ({
@@ -1220,7 +1229,7 @@ const SB_ENTIDADES = {
   proveedores:        { tabla: 'proveedores',         rows: _rowsProveedores, idCol: 'id', rowOne: _rowProveedor },
   proyectos:          { tabla: 'proyectos',           rows: _rowsProyectos },
   cuentasPropias:     { tabla: 'cuentas_propias',     rows: _rowsCuentasPropias },
-  empleados:          { tabla: 'empleados',           rows: _rowsEmpleados },
+  empleados:          { tabla: 'empleados',           rows: _rowsEmpleados, idCol: 'id', rowOne: _rowEmpleado },
   historial:          { tabla: 'historial',           rows: _rowsHistorial },
   facturas:           { tabla: 'facturas',            rows: _rowsFacturas },
   facturaPagos:       { tabla: 'factura_pagos',       rows: _rowsFacturaPagos },
@@ -1232,8 +1241,8 @@ const SB_ENTIDADES = {
   unidades:           { tabla: 'unidades',            rows: _rowsUnidades },
   presupuestoUnidad:  { tabla: 'presupuesto_unidad',  rows: _rowsPresupuestoUnidad },
   costoAsignaciones:  { tabla: 'costo_asignaciones',  rows: _rowsCostoAsignaciones },
-  partidasCatalogo:   { tabla: 'partidas_catalogo',   rows: _rowsPartidasCatalogo },
-  partidasObra:       { tabla: 'partidas_obra',       rows: _rowsPartidasObra },
+  partidasCatalogo:   { tabla: 'partidas_catalogo',   rows: _rowsPartidasCatalogo, idCol: 'partida_id', rowOne: _rowPartidaCatalogo },
+  partidasObra:       { tabla: 'partidas_obra',       rows: _rowsPartidasObra, idCol: 'partida_obra_id', rowOne: _rowPartidaObra },
   pendientesConfirmacion: { tabla: 'pendientes_confirmacion', rows: _rowsPendientes }
 };
 
@@ -1325,14 +1334,14 @@ export async function gsSaveAlias(nombreOriginal, provId) {
   } catch (e) { console.error('gsSaveAlias error', e); }
 }
 
-export async function gsSaveEmpleados() {
+export async function gsSaveEmpleados(opts = {}) {
   if (!state.gsToken) return;
   if (!guardarPermitido('empleados', state.empleados)) return;
   try {
     const rows = state.empleados.map(e => [e.id, e.nombre, e.puesto || '', e.empresa || '', e.banco, e.tipo_cuenta, e.cuenta, e.clabe || '', e.rfc || '', e.activo]);
     await gsClearAndWrite('empleados', rows, ['id', 'nombre', 'puesto', 'empresa', 'banco', 'tipo_cuenta', 'cuenta', 'clabe', 'rfc', 'activo']);
     notify('✅ Empleados guardados en Sheets');
-    await sbEspejar('empleados');
+    if (!opts.porFila) await sbEspejar('empleados');
   } catch (e) { console.error('gsSaveEmpleados', e); }
 }
 
@@ -1442,7 +1451,7 @@ export async function gsSaveMovimientosInternos() {
   await sbEspejar('movimientosInternos');
 }
 
-export async function gsSavePartidasObra() {
+export async function gsSavePartidasObra(opts = {}) {
   if (!state.gsToken) return;
   if (!guardarPermitido('partidasObra', state.partidasObra, true)) return;
   try {
@@ -1452,11 +1461,11 @@ export async function gsSavePartidasObra() {
       p.orden || 0, p.activa === false ? 'false' : 'true'
     ]);
     await gsClearAndWrite('partidas_obra', rows, ['partida_obra_id', 'nombre', 'proyecto', 'partida_admin', 'sub_partida_admin', 'orden', 'activa']);
-    await sbEspejar('partidasObra');
+    if (!opts.porFila) await sbEspejar('partidasObra');
   } catch (e) { console.error('gsSavePartidasObra', e); }
 }
 
-export async function gsSavePartidasCatalogo() {
+export async function gsSavePartidasCatalogo(opts = {}) {
   if (!state.gsToken) return;
   if (!guardarPermitido('partidasCatalogo', state.partidasCatalogo, true)) return;
   try {
@@ -1465,7 +1474,7 @@ export async function gsSavePartidasCatalogo() {
       p.orden || 0, p.activa === false ? 'false' : 'true'
     ]);
     await gsClearAndWrite('partidas_catalogo', rows, ['partida_id', 'partida', 'subpartidas', 'orden', 'activa']);
-    await sbEspejar('partidasCatalogo');
+    if (!opts.porFila) await sbEspejar('partidasCatalogo');
   } catch (e) { console.error('gsSavePartidasCatalogo', e); }
 }
 

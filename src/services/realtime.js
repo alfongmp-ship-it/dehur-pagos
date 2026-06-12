@@ -49,6 +49,43 @@ const RT = {
       const c = document.getElementById('cnt-prov');
       if (c) c.textContent = state.proveedores.length;
     }
+  },
+  empleados: {
+    tabla: 'empleados',
+    stateKey: 'empleados',
+    idField: 'id',
+    mapRow: r => ({
+      id: toInt(r.id), nombre: r.nombre || '', puesto: r.puesto || '', empresa: r.empresa || '',
+      banco: r.banco || 'BBVA', tipo_cuenta: r.tipo_cuenta || '', cuenta: r.cuenta || '',
+      clabe: r.clabe || '', rfc: r.rfc || '', activo: r.activo !== false
+    }),
+    rerender: () => {
+      if (window.renderNomina) window.renderNomina();
+      const c = document.getElementById('cnt-nom');
+      if (c) c.textContent = state.empleados.length;
+    }
+  },
+  partidasCatalogo: {
+    tabla: 'partidas_catalogo',
+    stateKey: 'partidasCatalogo',
+    idField: 'id', // en el objeto de state el id vive en .id (la columna es partida_id)
+    mapRow: r => ({
+      id: r.partida_id || '', partida: r.partida || '',
+      subpartidas: Array.isArray(r.subpartidas) ? r.subpartidas : [],
+      orden: toInt(r.orden), activa: r.activa !== false
+    }),
+    rerender: () => { if (window.renderConfigPartidas) window.renderConfigPartidas(); }
+  },
+  partidasObra: {
+    tabla: 'partidas_obra',
+    stateKey: 'partidasObra',
+    idField: 'id', // el id vive en .id (la columna es partida_obra_id)
+    mapRow: r => ({
+      id: r.partida_obra_id || '', nombre: r.nombre || '', proyecto: r.proyecto || '',
+      partidaAdmin: r.partida_admin || '', subPartidaAdmin: r.sub_partida_admin || '',
+      orden: toInt(r.orden), activa: r.activa !== false
+    }),
+    rerender: () => { if (window.renderConfigPartidasObra) window.renderConfigPartidasObra(); }
   }
 };
 
@@ -60,8 +97,12 @@ function aplicarCambio(def, payload) {
   const arr = state[def.stateKey];
   if (!Array.isArray(arr)) return;
   if (payload.eventType === 'DELETE') {
-    const id = payload.old ? payload.old[def.idField] : null;
-    if (id == null) return;
+    if (!payload.old) return;
+    // payload.old trae las columnas del replica-identity (la PK). Lo pasamos por
+    // mapRow para traducir la COLUMNA (ej. partida_id) al CAMPO del estado (id);
+    // si usáramos payload.old[idField] directo fallaría cuando difieren.
+    const id = def.mapRow(payload.old)[def.idField];
+    if (id == null || id === '') return;
     const i = arr.findIndex(x => String(x[def.idField]) === String(id));
     if (i !== -1) arr.splice(i, 1);
   } else {

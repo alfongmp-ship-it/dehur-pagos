@@ -1,7 +1,7 @@
 import { state } from '../state.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
-import { gsSavePartidasCatalogo, gsSaveHistorial } from '../services/google-sync.js';
+import { gsSavePartidasCatalogo, gsSaveHistorial, esPorFila, sbGuardarFila, sbBorrarFila } from '../services/google-sync.js';
 import { SUB_PARTIDAS_CONSTRUCCION } from '../config/sub-partidas.js';
 
 const normPartida = s => (s || '').trim().toLowerCase()
@@ -144,7 +144,15 @@ export function guardarPartidaCatalogo() {
       activa: true
     });
   }
-  gsSavePartidasCatalogo();
+  // Fase 3: en modo 'fila' guarda solo la partida afectada (add o edit).
+  const porFila = esPorFila('partidasCatalogo');
+  gsSavePartidasCatalogo({ porFila });
+  if (porFila) {
+    const _obj = editId
+      ? state.partidasCatalogo.find(p => p.id === editId)
+      : state.partidasCatalogo[state.partidasCatalogo.length - 1];
+    if (_obj) sbGuardarFila('partidasCatalogo', _obj);
+  }
   cerrar('modal-partida');
   renderConfigPartidas();
   notify(editId ? 'Partida actualizada' : 'Partida agregada ✓');
@@ -156,7 +164,9 @@ export function togglePartidaCatalogo(id) {
   const p = state.partidasCatalogo.find(x => x.id === id);
   if (!p) return;
   p.activa = p.activa === false ? true : false;
-  gsSavePartidasCatalogo();
+  const porFila = esPorFila('partidasCatalogo');
+  gsSavePartidasCatalogo({ porFila });
+  if (porFila) sbGuardarFila('partidasCatalogo', p);
   renderConfigPartidas();
 }
 
@@ -166,13 +176,22 @@ export function eliminarPartidaCatalogo(id) {
   const usos = partidaUsadaEnHistorial(p.partida);
   if (usos > 0) {
     const ok = confirm(`La partida "${p.partida}" se usa en ${usos} pago${usos === 1 ? '' : 's'} del historial.\n\nEliminarla NO borra esos pagos, pero perderás el catálogo.\n¿Prefieres marcarla como INACTIVA (recomendado)?\n\nAceptar = marcar inactiva\nCancelar = continuar al borrado`);
-    if (ok) { p.activa = false; gsSavePartidasCatalogo(); renderConfigPartidas(); return; }
+    if (ok) {
+      p.activa = false;
+      const _pf = esPorFila('partidasCatalogo');
+      gsSavePartidasCatalogo({ porFila: _pf });
+      if (_pf) sbGuardarFila('partidasCatalogo', p);
+      renderConfigPartidas();
+      return;
+    }
     if (!confirm(`¿Borrar definitivamente la partida "${p.partida}"?`)) return;
   } else {
     if (!confirm(`¿Eliminar la partida "${p.partida}"?`)) return;
   }
   state.partidasCatalogo = state.partidasCatalogo.filter(x => x.id !== id);
-  gsSavePartidasCatalogo();
+  const porFila = esPorFila('partidasCatalogo');
+  gsSavePartidasCatalogo({ porFila });
+  if (porFila) sbBorrarFila('partidasCatalogo', id);
   renderConfigPartidas();
   notify('Partida eliminada');
 }

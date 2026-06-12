@@ -30,6 +30,7 @@ Esta carpeta versiona el schema de Postgres que vive en Supabase.
 | 8 | `08_pendientes.sql` | Tabla `pendientes_confirmacion` (pagos por confirmar) | Etapa B — Fase 2 (flip) |
 | 9 | `09_mantenimiento.sql` | Flag de aviso de mantenimiento en `tenants` + grant update | Cuando quieras el banner de mantenimiento |
 | 10 | `10_realtime_proveedores.sql` | Agrega `proveedores` a la publicación `supabase_realtime` (Fase 3 — piloto) | Para el tiempo real de proveedores |
+| 11 | `11_realtime_lote2.sql` | Agrega `empleados`, `partidas_catalogo`, `partidas_obra` a `supabase_realtime` (Fase 3 — lote catálogos) | Para el tiempo real de nómina y partidas |
 
 ## Idempotencia
 
