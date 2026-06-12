@@ -3,7 +3,7 @@ import { notify } from '../ui/notify.js';
 import { gsReadSheet, gsWriteRange, gsClearAndWrite, gsAppendRow } from './google-sheets.js';
 import { normalizeBanco } from '../config/bancos.js';
 import { SUB_PARTIDAS_CONSTRUCCION } from '../config/sub-partidas.js';
-import { sbReplaceTable, sbLoadTable, sbReady } from './supabase-data.js';
+import { sbReplaceTable, sbLoadTable, sbReady, sbUpsertRow, sbDeleteRow } from './supabase-data.js';
 
 // ============================================================================
 // BANDERA DE FUENTE DE LECTURA (Fase 2). Controla de dónde lee la app al cargar.
@@ -13,6 +13,30 @@ import { sbReplaceTable, sbLoadTable, sbReady } from './supabase-data.js';
 // cambian (siguen escribiendo a Sheets + Supabase).
 // ============================================================================
 export const FUENTE_LECTURA = 'supabase';
+
+// ============================================================================
+// FASE 3 (tiempo real) — banderas REVERSIBLES. Para revertir: volver a 'tabla'
+// / false y push.
+//   MODO_GUARDADO 'tabla'  → guarda reemplazando la tabla completa (como Fase 2).
+//                 'fila'   → para las entidades en ENTIDADES_POR_FILA, guarda solo
+//                            la fila que cambió (no se pisan + habilita realtime).
+//   REALTIME_ON   false    → sin suscripciones (como hoy).
+//                 true     → la app se suscribe a los cambios de las tablas en
+//                            ENTIDADES_REALTIME y se actualiza sola cuando otro
+//                            usuario/pestaña cambia algo.
+// PILOTO: solo 'proveedores'. Conforme se valide, se agregan más entidades a los
+// Sets (cada una necesita idCol+rowOne en SB_ENTIDADES y estar en la publicación
+// supabase_realtime). El resto de entidades sigue en 'tabla' aunque MODO sea 'fila'.
+// ============================================================================
+export const MODO_GUARDADO = 'fila';
+export const ENTIDADES_POR_FILA = new Set(['proveedores']);
+export const REALTIME_ON = true;
+export const ENTIDADES_REALTIME = new Set(['proveedores']);
+
+// ¿Esta entidad guarda por fila ahora mismo? (modo 'fila' y está en el Set)
+export function esPorFila(key) {
+  return MODO_GUARDADO === 'fila' && ENTIDADES_POR_FILA.has(key);
+}
 
 // Parser local de fecha para sort (DD/MM/YYYY o YYYY-MM-DD → ISO).
 function _parseFecha(f) {
@@ -1010,14 +1034,18 @@ const _sbStr  = (v) => (v == null ? '' : String(v));
 
 // Mapeos state → filas (objetos) por entidad. Columnas == campos que se
 // persisten en Sheets (espejo 1:1). Arrays como JSON nativo (jsonb).
-function _rowsProveedores() {
-  return state.proveedores.map(p => ({
+// Mapea UN proveedor → fila Supabase (reusable para guardado por fila, Fase 3).
+function _rowProveedor(p) {
+  return {
     id: p.id, nombre: _sbStr(p.nombre), rfc: _sbStr(p.rfc), banco: _sbStr(p.banco),
     tipo_cuenta: _sbStr(p.tipo_cuenta), cuenta: _sbStr(p.cuenta), clabe: _sbStr(p.clabe),
     categoria: _sbStr(p.categoria), subcategoria: _sbStr(p.subcategoria),
     proyectos: p.proyectos || [], activo: p.activo !== false,
     bloqueada_para_pago: !!p.bloqueada_para_pago, aliases: p.aliases || []
-  }));
+  };
+}
+function _rowsProveedores() {
+  return state.proveedores.map(_rowProveedor);
 }
 function _rowsProyectos() {
   return state.proyectos.map(p => ({
@@ -1189,7 +1217,7 @@ function _rowsPendientes() {
 // Registro entidad → { tabla Supabase, función que arma las filas }.
 // Conforme se agregan entidades aquí, "Migrar TODO" y el dual-write las cubren.
 const SB_ENTIDADES = {
-  proveedores:        { tabla: 'proveedores',         rows: _rowsProveedores },
+  proveedores:        { tabla: 'proveedores',         rows: _rowsProveedores, idCol: 'id', rowOne: _rowProveedor },
   proyectos:          { tabla: 'proyectos',           rows: _rowsProyectos },
   cuentasPropias:     { tabla: 'cuentas_propias',     rows: _rowsCuentasPropias },
   empleados:          { tabla: 'empleados',           rows: _rowsEmpleados },
@@ -1223,6 +1251,34 @@ async function sbEspejar(key) {
   }
 }
 
+// Guarda UNA fila a Supabase (Fase 3, guardado por fila). Degradación suave:
+// si falla, avisa pero NO rompe el guardado a Sheets. `item` es el objeto del
+// state (un proveedor, etc.); usa el mapeo `rowOne` de SB_ENTIDADES[key].
+export async function sbGuardarFila(key, item) {
+  if (!sbReady()) return;
+  const def = SB_ENTIDADES[key];
+  if (!def || !def.rowOne || !def.idCol) return;
+  try {
+    await sbUpsertRow(def.tabla, def.idCol, def.rowOne(item));
+  } catch (e) {
+    console.warn(`Guardar fila ${def.tabla} → Supabase falló:`, e);
+    notify(`⚠ ${def.tabla}: no se guardó esa fila en Supabase: ` + (e.message || e), 'error');
+  }
+}
+
+// Borra UNA fila de Supabase (Fase 3). `idValue` = el id de la fila a borrar.
+export async function sbBorrarFila(key, idValue) {
+  if (!sbReady()) return;
+  const def = SB_ENTIDADES[key];
+  if (!def || !def.idCol) return;
+  try {
+    await sbDeleteRow(def.tabla, def.idCol, idValue);
+  } catch (e) {
+    console.warn(`Borrar fila ${def.tabla} → Supabase falló:`, e);
+    notify(`⚠ ${def.tabla}: no se borró esa fila en Supabase: ` + (e.message || e), 'error');
+  }
+}
+
 // Botón "Migrar TODO a Supabase": recarga de Sheets (toma ediciones manuales) y
 // espeja TODAS las entidades del registro. Sirve igual para migración inicial
 // que para re-sincronizar tras editar el Sheet a mano. Idempotente.
@@ -1247,14 +1303,17 @@ export async function migrarTodoASupabase() {
   else notify(`Migración parcial: ${ok} OK, ${fail} con error. Revisa F12 — ¿corriste el SQL de esas tablas?`, 'error');
 }
 
-export async function gsSaveProveedores() {
+export async function gsSaveProveedores(opts = {}) {
   if (!state.gsToken) return;
   if (!guardarPermitido('proveedores', state.proveedores)) return;
   try {
     const rows = state.proveedores.map(p => [p.id, p.nombre, p.rfc || '', p.banco, p.tipo_cuenta, p.cuenta, p.clabe || '', p.categoria, p.subcategoria || '', (p.proyectos || []).join('|'), p.activo, p.bloqueada_para_pago || false]);
     await gsClearAndWrite('proveedores', rows, ['proveedor_id', 'nombre', 'rfc', 'banco', 'tipo_cuenta', 'cuenta', 'clabe', 'categoria', 'Subcategoria', 'proyectos', 'activo', 'bloqueada_para_pago']);
     notify('✅ Proveedores guardados en Sheets');
-    await sbEspejar('proveedores');
+    // Fase 3: en modo 'fila' el caller ya guardó la fila puntual a Supabase, así
+    // que NO espejamos la tabla completa (evita el delete+insert masivo y la
+    // cascada de eventos de realtime). En modo 'tabla' se espeja como siempre.
+    if (!opts.porFila) await sbEspejar('proveedores');
   } catch (e) { notify('Error guardando proveedores: ' + e.message, 'error'); }
 }
 

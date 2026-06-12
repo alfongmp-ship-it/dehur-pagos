@@ -36,7 +36,8 @@ import { renderResumenEjecutivo } from './modules/resumen-ejecutivo.js';
 import { renderCostosFiscales, abrirNuevaUnidad, editarUnidad, guardarUnidad, toggleUnidad, abrirLoteUnidades, guardarLoteUnidades, cfLimpiarHuerfanas, abrirAsignarCosto, reasignarCosto, eliminarAsignacionCosto, cfCambiarMetodo, cfPreviewReparto, cfRepartirResto, cfFiltrarUnidades, cfSelTodas, cfFiltrarPendientes, cfFiltrarAsignados, guardarAsignacionCosto, cfAgregarPartidaPresup, guardarPresupuestoUnidad, cfVerUnidad } from './modules/costos-fiscales.js';
 import { renderCreditos, seleccionarCredito, abrirNuevoCredito, editarCredito, guardarCredito, abrirNuevaDisposicion, guardarDisposicion, editarPagare, togglePagare, abrirNuevaFechaPago, editarFechaPago, guardarFechaPago, marcarPagoPagado, eliminarPagoPagare } from './modules/creditos.js';
 import { gsLogin, gsLogout, renderAuthStatus, checkOAuthCallback } from './services/google-auth.js';
-import { gsLoadAll, gsSaveProveedores, gsSaveEmpleados, gsSaveProyectos, gsSaveAlias, gsSaveCuentasPropias, gsSaveTraspasos, gsSaveCreditos, gsSavePagares, gsSavePagosPagare, gsSaveMovimientosInternos, migrarTodoASupabase, cargarDatos } from './services/google-sync.js';
+import { gsLoadAll, gsSaveProveedores, gsSaveEmpleados, gsSaveProyectos, gsSaveAlias, gsSaveCuentasPropias, gsSaveTraspasos, gsSaveCreditos, gsSavePagares, gsSavePagosPagare, gsSaveMovimientosInternos, migrarTodoASupabase, cargarDatos, REALTIME_ON } from './services/google-sync.js';
+import { iniciarRealtime } from './services/realtime.js';
 
 // ===== INICIALIZACIÓN =====
 async function init() {
@@ -365,6 +366,9 @@ async function bootstrapApp() {
   // SIN depender de conectar Google. Así los testers ven los datos al entrar.
   // cargarDatos tiene su propio manejo de errores (fallback a Sheets).
   try { await cargarDatos(); } catch (e) { console.error('cargarDatos en bootstrap falló:', e); }
+  // Fase 3: suscripciones en vivo (solo si REALTIME_ON). Tras cargar los datos,
+  // para que las suscripciones se monten sobre el estado ya inicializado.
+  if (REALTIME_ON) { try { await iniciarRealtime(); } catch (e) { console.error('iniciarRealtime falló:', e); } }
   iniciarMantenimiento();
 }
 setupAuthListener(bootstrapApp);

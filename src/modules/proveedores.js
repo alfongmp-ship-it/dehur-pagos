@@ -4,7 +4,7 @@ import { tipoBadge, catTag, proyTag } from '../ui/badges.js';
 import { fmt, dl } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
-import { gsSaveProveedores } from '../services/google-sync.js';
+import { gsSaveProveedores, esPorFila, sbGuardarFila } from '../services/google-sync.js';
 
 export function toggleSubcat() {
   const cat = document.getElementById('p-cat').value;
@@ -148,7 +148,12 @@ export function guardarProveedor() {
   cerrar('modal-prov');
   renderProveedores();
   notify(state.editProvId ? 'Proveedor actualizado' : 'Proveedor agregado');
-  gsSaveProveedores();
+  // Fase 3: en modo 'fila' guardamos SOLO este proveedor a Supabase (no la tabla
+  // completa) y le pedimos a gsSaveProveedores que no espeje. En modo 'tabla'
+  // todo queda igual que antes (espejo de tabla completa).
+  const porFila = esPorFila('proveedores');
+  gsSaveProveedores({ porFila });
+  if (porFila) sbGuardarFila('proveedores', obj);
 }
 
 export function exportarCSV() {

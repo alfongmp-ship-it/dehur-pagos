@@ -40,6 +40,37 @@ export async function sbReplaceTable(tabla, rows) {
   return (rows && rows.length) || 0;
 }
 
+// ===== Guardado POR FILA (Fase 3) ===========================================
+// En vez de reemplazar la tabla completa, escriben/borran SOLO la fila que
+// cambió. Habilitan tiempo real sin que los usuarios se pisen entre sí.
+//
+// `idCol` es la columna de ID única de la tabla (id, cuenta_id, traspaso_id, …);
+// el PK real es (tenant_id, idCol). Se inyecta tenant_id aquí. Lanzan si falla.
+
+// Inserta o actualiza UNA fila (upsert por (tenant_id, idCol)).
+export async function sbUpsertRow(tabla, idCol, rowObj) {
+  const tid = tenantId();
+  if (!tid) throw new Error('Sin tenant en sesión Supabase; no se puede escribir.');
+  const client = getSupabaseClient();
+  const { error } = await client
+    .from(tabla)
+    .upsert({ ...rowObj, tenant_id: tid }, { onConflict: 'tenant_id,' + idCol });
+  if (error) throw error;
+}
+
+// Borra UNA fila por (tenant_id, idCol = idValue).
+export async function sbDeleteRow(tabla, idCol, idValue) {
+  const tid = tenantId();
+  if (!tid) throw new Error('Sin tenant en sesión Supabase; no se puede escribir.');
+  const client = getSupabaseClient();
+  const { error } = await client
+    .from(tabla)
+    .delete()
+    .eq('tenant_id', tid)
+    .eq(idCol, idValue);
+  if (error) throw error;
+}
+
 // Lee TODAS las filas del tenant en `tabla`. Devuelve un array, o `null` si
 // falla o no hay tenant (para que el caller pueda caer a Sheets — Fase 1).
 //
