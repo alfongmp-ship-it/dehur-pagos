@@ -250,6 +250,20 @@ const RT = {
       if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
       if (window.renderHeaderBadges) window.renderHeaderBadges();
     }
+  },
+  pagosPagare: {
+    tabla: 'pagos_pagare',
+    stateKey: 'pagosPagare',
+    idField: 'pago_id',
+    mapRow: r => ({
+      pago_id: toInt(r.pago_id), pagare_id: toInt(r.pagare_id), credito_id: toInt(r.credito_id),
+      fecha_pago: r.fecha_pago || '', monto_intereses: toNum(r.monto_intereses), concepto: r.concepto || '',
+      estatus: r.estatus || 'Pendiente', fecha_real_pago: r.fecha_real_pago || ''
+    }),
+    rerender: () => {
+      if (window.renderCreditos) window.renderCreditos();
+      if (window.renderHistorial) window.renderHistorial();
+    }
   }
 };
 

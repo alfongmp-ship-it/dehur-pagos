@@ -29,11 +29,11 @@ export const FUENTE_LECTURA = 'supabase';
 // supabase_realtime). El resto de entidades sigue en 'tabla' aunque MODO sea 'fila'.
 // ============================================================================
 export const MODO_GUARDADO = 'fila';
-export const ENTIDADES_POR_FILA = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos', 'proyectos', 'cuentasPropias']);
+export const ENTIDADES_POR_FILA = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos', 'proyectos', 'cuentasPropias', 'pagosPagare']);
 export const REALTIME_ON = true;
 // pendientesConfirmacion va aquí pero NO en ENTIDADES_POR_FILA: tabla chica, se
 // guarda whole-table; el realtime deja ver la cola compartida en vivo.
-export const ENTIDADES_REALTIME = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos', 'pendientesConfirmacion', 'proyectos', 'cuentasPropias']);
+export const ENTIDADES_REALTIME = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos', 'pendientesConfirmacion', 'proyectos', 'cuentasPropias', 'pagosPagare']);
 
 // ¿Esta entidad guarda por fila ahora mismo? (modo 'fila' y está en el Set)
 export function esPorFila(key) {
@@ -1187,12 +1187,15 @@ function _rowPagare(p) {
 function _rowsPagares() {
   return _dedupBy(state.pagares.map(_rowPagare), 'pagare_id');
 }
-function _rowsPagosPagare() {
-  return _dedupBy(state.pagosPagare.map(p => ({
+function _rowPagoPagare(p) {
+  return {
     pago_id: _sbStr(p.pago_id), pagare_id: _sbStr(p.pagare_id), credito_id: _sbStr(p.credito_id),
     fecha_pago: _sbStr(p.fecha_pago), monto_intereses: _sbNum(p.monto_intereses),
     concepto: _sbStr(p.concepto), estatus: _sbStr(p.estatus), fecha_real_pago: _sbStr(p.fecha_real_pago)
-  })), 'pago_id');
+  };
+}
+function _rowsPagosPagare() {
+  return _dedupBy(state.pagosPagare.map(_rowPagoPagare), 'pago_id');
 }
 function _rowUnidad(u) {
   const plano = (v) => (v == null || v === '' ? null : _sbNum(v));
@@ -1266,7 +1269,7 @@ const SB_ENTIDADES = {
   movimientosInternos:{ tabla: 'movimientos_internos',rows: _rowsMovimientosInternos, idCol: 'id', rowOne: _rowMovimientoInterno },
   creditos:           { tabla: 'creditos',            rows: _rowsCreditos, idCol: 'credito_id', rowOne: _rowCredito },
   pagares:            { tabla: 'pagares',             rows: _rowsPagares, idCol: 'pagare_id', rowOne: _rowPagare },
-  pagosPagare:        { tabla: 'pagos_pagare',        rows: _rowsPagosPagare },
+  pagosPagare:        { tabla: 'pagos_pagare',        rows: _rowsPagosPagare, idCol: 'pago_id', rowOne: _rowPagoPagare },
   unidades:           { tabla: 'unidades',            rows: _rowsUnidades, idCol: 'unidad_id', rowOne: _rowUnidad },
   presupuestoUnidad:  { tabla: 'presupuesto_unidad',  rows: _rowsPresupuestoUnidad },
   costoAsignaciones:  { tabla: 'costo_asignaciones',  rows: _rowsCostoAsignaciones },
@@ -1456,7 +1459,7 @@ export async function gsSavePagares(opts = {}) {
   } catch (e) { console.error('gsSavePagares', e); }
 }
 
-export async function gsSavePagosPagare() {
+export async function gsSavePagosPagare(opts = {}) {
   if (!state.gsToken) return;
   if (!guardarPermitido('pagosPagare', state.pagosPagare)) return;
   try {
@@ -1468,7 +1471,7 @@ export async function gsSavePagosPagare() {
       'pago_id', 'pagare_id', 'credito_id', 'fecha_pago',
       'monto_intereses', 'concepto', 'estatus', 'fecha_real_pago'
     ]);
-    await sbEspejar('pagosPagare');
+    if (!opts.porFila) await sbEspejar('pagosPagare');
   } catch (e) { console.error('gsSavePagosPagare', e); }
 }
 

@@ -47,3 +47,5 @@ veces sin romper nada.
 Supabase Dashboard → Database → **Tables** te muestra el estado actual.
 Si algo quedó mal, puedes hacer `drop table xyz cascade;` en SQL Editor
 para volver a empezar — solo PERDERÁS los datos de esa tabla.
+
+| 16 | `16_realtime_pagospagare.sql` | Agrega `pagos_pagare` a `supabase_realtime` (Fase 3) | Para el tiempo real de pagos de pagaré |

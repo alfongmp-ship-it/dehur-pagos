@@ -3,7 +3,7 @@ import { fmt, hoyFecha } from '../ui/format.js';
 import { proyTag } from '../ui/badges.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
-import { gsSaveCreditos, gsSavePagares, gsSavePagosPagare, gsSaveProyectos, gsSaveCuentasPropias, gsSaveHistorial, saveData, esPorFila, sbGuardarFila } from '../services/google-sync.js';
+import { gsSaveCreditos, gsSavePagares, gsSavePagosPagare, gsSaveProyectos, gsSaveCuentasPropias, gsSaveHistorial, saveData, esPorFila, sbGuardarFila, sbBorrarFila } from '../services/google-sync.js';
 import { saveProy } from '../config/proyectos.js';
 
 // ===== RENDER PRINCIPAL =====
@@ -352,7 +352,9 @@ export function guardarFechaPago() {
     state._editFechaPagoId = null;
     cerrar('modal-fecha-pago');
     renderCreditos();
-    gsSavePagosPagare();
+    const porFila = esPorFila('pagosPagare');
+    gsSavePagosPagare({ porFila });
+    if (porFila && pp) sbGuardarFila('pagosPagare', pp);
     notify('Fecha de pago actualizada');
     return;
   }
@@ -372,7 +374,9 @@ export function guardarFechaPago() {
   state.pagosPagare.push(obj);
   cerrar('modal-fecha-pago');
   renderCreditos();
-  gsSavePagosPagare();
+  const porFila = esPorFila('pagosPagare');
+  gsSavePagosPagare({ porFila });
+  if (porFila) sbGuardarFila('pagosPagare', obj);
   notify('Fecha de pago agregada');
 }
 
@@ -431,7 +435,9 @@ export function marcarPagoPagado(pagoId) {
   }
 
   saveData();
-  gsSavePagosPagare();
+  const _pfPP = esPorFila('pagosPagare');
+  gsSavePagosPagare({ porFila: _pfPP });
+  if (_pfPP) sbGuardarFila('pagosPagare', pp);
   renderCreditos();
   if (window.renderHistorial) window.renderHistorial();
   notify(`Pago de ${fmt(pp.monto_intereses)} marcado como pagado`);
@@ -483,7 +489,9 @@ export function eliminarPagoPagare(pagoId) {
 
   // Eliminar el pago
   state.pagosPagare = state.pagosPagare.filter(x => x.pago_id !== pagoId);
-  gsSavePagosPagare();
+  const _pfPP = esPorFila('pagosPagare');
+  gsSavePagosPagare({ porFila: _pfPP });
+  if (_pfPP) sbBorrarFila('pagosPagare', pagoId);
   renderCreditos();
   if (window.renderHistorial) window.renderHistorial();
   notify('Pago eliminado');
