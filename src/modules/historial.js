@@ -2,7 +2,7 @@ import { state, datosListos } from '../state.js';
 import { fmt, dl, fmtFecha } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { proyTag, catTag } from '../ui/badges.js';
-import { gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveTraspasos, gsSaveCostoAsignaciones, purgarAsignacionesDePago, esPorFila, sbGuardarFila, sbBorrarFila, sortHistorialByFecha } from '../services/google-sync.js';
+import { gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveTraspasos, gsSaveCostoAsignaciones, purgarAsignacionesDePago, esPorFila, sbGuardarFila, sbBorrarFila } from '../services/google-sync.js';
 import { saveProy, proyectoMatch } from '../config/proyectos.js';
 import { getPartidasParaSelect, getSubPartidas, subPartidaObligatoria, SUB_PARTIDAS_CONSTRUCCION } from '../config/sub-partidas.js';
 

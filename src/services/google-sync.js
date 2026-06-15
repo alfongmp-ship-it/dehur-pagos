@@ -53,7 +53,7 @@ function _parseFecha(f) {
 }
 
 // Ordena state.historial in-place: fecha desc, empate por id desc, inválidas al inicio.
-export function sortHistorialByFecha() {
+function sortHistorialByFecha() {
   state.historial.sort((a, b) => {
     const isoA = _parseFecha(a.fecha);
     const isoB = _parseFecha(b.fecha);
