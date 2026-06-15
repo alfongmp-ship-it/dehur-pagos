@@ -6,11 +6,15 @@ import { state } from '../state.js';
 import { fmt } from '../ui/format.js';
 import { proyectoMatch } from '../config/proyectos.js';
 import { parseFechaHist } from './historial.js';
-import { gsSaveHistorial, ensureHistorialIds } from '../services/google-sync.js';
+import { gsSaveHistorial, gsSaveTraspasos, ensureHistorialIds } from '../services/google-sync.js';
 import { getPartidasParaSelect } from '../config/sub-partidas.js';
 import { createExcelImporter, normalizarFechaDDMMYYYY, parseImporte } from '../services/excel-import.js';
+import { traspasoDesdeAportacionHistorial } from './traspasos.js';
 
 const TIPOS_MOVIMIENTO = ['Pago', 'Crédito', 'Aportación', 'Préstamo', 'Traspaso'];
+
+// Bandera para que save() guarde traspasos solo si la importación creó alguno.
+let _aportTraspasosCreados = false;
 
 const norm = s => String(s || '').trim().toLowerCase()
   .normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -173,16 +177,41 @@ export const historialImporter = createExcelImporter({
   insertar: (registros) => {
     for (let i = registros.length - 1; i >= 0; i--) state.historial.unshift(registros[i]);
     ensureHistorialIds();
+    // Las aportaciones también crean su traspaso, para que aparezcan en el módulo
+    // Traspasos (no solo en Historial). Sin duplicar si ya hay uno ligado.
+    _aportTraspasosCreados = false;
+    let maxTId = state.traspasos.reduce((m, t) => Math.max(m, t.traspaso_id || 0), 0);
+    registros.forEach(r => {
+      if (r.tipo !== 'Aportación') return;
+      const yaExiste = state.traspasos.some(t =>
+        t.proyecto_origen === r.cuenta_origen &&
+        t.cuenta_destino_nombre === r.nombre &&
+        (+t.monto) === (+r.importe)
+      );
+      if (!yaExiste) {
+        state.traspasos.push(traspasoDesdeAportacionHistorial(r, ++maxTId));
+        _aportTraspasosCreados = true;
+      }
+    });
     const cnt = document.getElementById('cnt-hist');
     if (cnt) cnt.textContent = state.historial.length;
   },
 
-  save: async () => { await gsSaveHistorial(); },
+  save: async () => {
+    await gsSaveHistorial();
+    if (_aportTraspasosCreados) await gsSaveTraspasos();
+  },
 
   postCommit: () => {
     if (window.renderHistorial) window.renderHistorial();
     if (window.renderFlujoSalida) window.renderFlujoSalida();
     if (window.renderResumenCostos) window.renderResumenCostos();
+    if (_aportTraspasosCreados) {
+      if (window.renderTraspasos) window.renderTraspasos();
+      if (window.renderResumenTraspasos) window.renderResumenTraspasos();
+      const ct = document.getElementById('cnt-traspasos');
+      if (ct) ct.textContent = state.traspasos.length;
+    }
   }
 });
 

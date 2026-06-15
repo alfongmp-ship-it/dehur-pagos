@@ -23,6 +23,71 @@ function getAllCuentas() {
   return [...deProy, ...deExtra];
 }
 
+// Construye un registro de traspaso a partir de una fila de historial que es
+// Aportación (tipo_registro='Traspaso', tipo='Aportación'). Lo usan: el botón
+// "Sincronizar aportaciones a Traspasos" (backfill de lo importado por plantilla)
+// y el importador de Historial hacia adelante. Calca la heurística de ligado de
+// eliminarHistorial: proyecto_origen===h.cuenta_origen, cuenta_destino_nombre===
+// h.nombre, monto===h.importe. NO mueve saldos (igual que cualquier import).
+export function traspasoDesdeAportacionHistorial(h, id) {
+  const cuentas = getAllCuentas();
+  // Resolver la cuenta origen (el proyecto) para id/nombre bonito en la tabla.
+  const o = cuentas.find(c => c.proyecto && c.proyecto === h.cuenta_origen);
+  return {
+    traspaso_id: id,
+    tipo: 'Aportación',
+    cuenta_origen_id: o ? o.id : '',
+    cuenta_origen_tipo: o ? o.tipo : 'proyecto',
+    cuenta_origen_nombre: o ? o.nombre : (h.cuenta_origen || ''),
+    proyecto_origen: h.cuenta_origen || '',   // debe = h.cuenta_origen (heurística de ligado)
+    cuenta_destino_id: '',
+    cuenta_destino_tipo: '',
+    cuenta_destino_nombre: h.nombre || '',     // debe = h.nombre (heurística de ligado)
+    proyecto_destino: h.cuenta_destino || '',
+    monto: +h.importe || 0,                     // debe = h.importe (heurística de ligado)
+    fecha: h.fecha || '',
+    concepto: h.concepto || '',
+    partida: h.partida || '',
+    referencia: '',
+    estatus: 'completado',
+    fecha_registro: new Date().toISOString().split('T')[0]
+  };
+}
+
+// ¿Esta aportación del historial ya tiene su traspaso ligado? (misma heurística)
+function _aportacionTieneTraspaso(h) {
+  return state.traspasos.some(t =>
+    t.proyecto_origen === h.cuenta_origen &&
+    t.cuenta_destino_nombre === h.nombre &&
+    (+t.monto) === (+h.importe)
+  );
+}
+
+// Backfill: crea en state.traspasos los registros faltantes de las aportaciones
+// que viven solo en el historial (típicamente subidas por la plantilla de
+// Historial). NO borra nada, NO toca saldos. Idempotente.
+export function sincronizarAportacionesATraspasos() {
+  if (!state.gsToken) { notify('Conecta Google Sheets para guardar', 'error'); return; }
+  const aportaciones = state.historial.filter(h => h.tipo_registro === 'Traspaso' && h.tipo === 'Aportación');
+  let maxId = state.traspasos.reduce((m, t) => Math.max(m, t.traspaso_id || 0), 0);
+  let creados = 0;
+  aportaciones.forEach(h => {
+    if (_aportacionTieneTraspaso(h)) return;
+    state.traspasos.push(traspasoDesdeAportacionHistorial(h, ++maxId));
+    creados++;
+  });
+  if (creados > 0) {
+    gsSaveTraspasos();
+    if (window.renderTraspasos) window.renderTraspasos();
+    if (window.renderResumenTraspasos) window.renderResumenTraspasos();
+    const cnt = document.getElementById('cnt-traspasos');
+    if (cnt) cnt.textContent = state.traspasos.length;
+    notify(`✅ ${creados} aportación(es) sincronizada(s) a Traspasos`);
+  } else {
+    notify('No hay aportaciones del historial pendientes de sincronizar');
+  }
+}
+
 function detectarTipo(origenId, destinoId) {
   const cuentas = getAllCuentas();
   const o = cuentas.find(c => String(c.id) === String(origenId));
