@@ -35,6 +35,7 @@ Esta carpeta versiona el schema de Postgres que vive en Supabase.
 | 13 | `13_realtime_lote4.sql` | Agrega `facturas`, `factura_pagos`, `traspasos`, `movimientos_internos` a `supabase_realtime` (Fase 3 — lote facturas/traspasos) | Para el tiempo real de facturas y traspasos |
 | 14 | `14_realtime_pendientes.sql` | Agrega `pendientes_confirmacion` a `supabase_realtime` (Fase 3 — cola compartida en vivo, solo realtime) | Para ver la cola de confirmación en vivo entre admins |
 | 15 | `15_realtime_saldos.sql` | Agrega `proyectos`, `cuentas_propias` a `supabase_realtime` (Fase 3 — saldos en vivo) | Para ver saldos/cuentas en vivo |
+| 16 | `16_realtime_pagospagare.sql` | Agrega `pagos_pagare` a `supabase_realtime` (Fase 3) | Para el tiempo real de pagos de pagaré |
 
 ## Idempotencia
 
@@ -47,5 +48,3 @@ veces sin romper nada.
 Supabase Dashboard → Database → **Tables** te muestra el estado actual.
 Si algo quedó mal, puedes hacer `drop table xyz cascade;` en SQL Editor
 para volver a empezar — solo PERDERÁS los datos de esa tabla.
-
-| 16 | `16_realtime_pagospagare.sql` | Agrega `pagos_pagare` a `supabase_realtime` (Fase 3) | Para el tiempo real de pagos de pagaré |
