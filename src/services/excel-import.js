@@ -106,6 +106,28 @@ export function createExcelImporter(config) {
     ws['!cols'] = columns.map(c => ({ wch: c.width || 16 }));
     ws['!freeze'] = { xSplit: 0, ySplit: 3 };
 
+    // Columnas marcadas como texto (ej. Fecha): forzar formato `@` para que Excel
+    // NO auto-convierta lo que el usuario escriba. Sin esto, en locale US Excel
+    // interpreta `11/5/2026` como 5-nov (MM/DD) y lo guarda como número de fecha,
+    // y al leerlo la app obtiene la fecha volteada. Pre-sellamos filas vacías como
+    // texto para que el formato aplique también a lo que se capture después.
+    const FILAS_BUFFER = 500;
+    const PRIMERA_FILA_DATOS = 3; // 0=titulo, 1=meta, 2=encabezado
+    let hayTexto = false;
+    columns.forEach((c, ci) => {
+      if (!c.text) return;
+      hayTexto = true;
+      for (let r = PRIMERA_FILA_DATOS; r < PRIMERA_FILA_DATOS + FILAS_BUFFER; r++) {
+        const ref = XLSX.utils.encode_cell({ r, c: ci });
+        const prev = ws[ref];
+        ws[ref] = { t: 's', v: prev && prev.v != null ? String(prev.v) : '', z: '@' };
+      }
+    });
+    if (hayTexto) {
+      const ultimaFila = PRIMERA_FILA_DATOS + FILAS_BUFFER - 1;
+      ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: ultimaFila, c: Math.max(0, columns.length - 1) } });
+    }
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Datos');
 

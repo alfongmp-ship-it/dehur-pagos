@@ -6,7 +6,7 @@ import { state } from '../state.js';
 import { fmt } from '../ui/format.js';
 import { proyectoMatch } from '../config/proyectos.js';
 import { parseFechaHist } from './historial.js';
-import { gsSaveHistorial, gsSaveTraspasos, ensureHistorialIds } from '../services/google-sync.js';
+import { gsSaveHistorial, gsSaveTraspasos, ensureHistorialIds, esPorFila, sbGuardarFila } from '../services/google-sync.js';
 import { getPartidasParaSelect } from '../config/sub-partidas.js';
 import { createExcelImporter, normalizarFechaDDMMYYYY, parseImporte } from '../services/excel-import.js';
 import { traspasoDesdeAportacionHistorial } from './traspasos.js';
@@ -15,6 +15,10 @@ const TIPOS_MOVIMIENTO = ['Pago', 'Crédito', 'Aportación', 'Préstamo', 'Trasp
 
 // Bandera para que save() guarde traspasos solo si la importación creó alguno.
 let _aportTraspasosCreados = false;
+// Filas nuevas de la última importación, para guardarlas POR FILA en save()
+// (evita el espejo de tabla completa que dispara el borrado masivo de Realtime).
+let _ultimaImportacion = [];
+let _nuevosTraspasos = [];
 
 const norm = s => String(s || '').trim().toLowerCase()
   .normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -53,7 +57,7 @@ export const historialImporter = createExcelImporter({
   columns: [
     { key: 'proveedor_id', label: 'Proveedor ID', width: 12 },
     { key: 'factura_id', label: 'Factura ID', width: 12 },
-    { key: 'fecha', label: 'Fecha (DD/MM/YYYY)', width: 18 },
+    { key: 'fecha', label: 'Fecha (DD/MM/YYYY)', width: 18, text: true },
     { key: 'nombre', label: 'Beneficiario', width: 28 },
     { key: 'banco', label: 'Banco', width: 10 },
     { key: 'tipo', label: 'Tipo cuenta', width: 14 },
@@ -124,6 +128,12 @@ export const historialImporter = createExcelImporter({
     }
 
     const avisos = [];
+    // Si la celda de fecha llegó como NÚMERO, Excel la convirtió a fecha-serial
+    // (típico en locale US: 11/5 → 5-nov) y pudo voltear día/mes. La plantilla
+    // ahora fuerza texto, pero si reusan un archivo viejo o pegan datos, avisamos.
+    if (typeof raw.fecha === 'number') {
+      avisos.push('⚠️ La fecha venía como número de Excel; verifica que el día y el mes no estén volteados');
+    }
     if (proyecto) {
       const conocido = ctx.proyectosActivos.some(p => proyectoMatch(p.nombre, proyecto) || norm(p.nombre) === norm(proyecto));
       if (!conocido) avisos.push(`Proyecto "${proyecto}" no esta en catalogo activo`);
@@ -177,9 +187,11 @@ export const historialImporter = createExcelImporter({
   insertar: (registros) => {
     for (let i = registros.length - 1; i >= 0; i--) state.historial.unshift(registros[i]);
     ensureHistorialIds();
+    _ultimaImportacion = registros;   // para guardarlas por fila en save()
     // Las aportaciones también crean su traspaso, para que aparezcan en el módulo
     // Traspasos (no solo en Historial). Sin duplicar si ya hay uno ligado.
     _aportTraspasosCreados = false;
+    _nuevosTraspasos = [];
     let maxTId = state.traspasos.reduce((m, t) => Math.max(m, t.traspaso_id || 0), 0);
     registros.forEach(r => {
       if (r.tipo !== 'Aportación') return;
@@ -189,7 +201,9 @@ export const historialImporter = createExcelImporter({
         (+t.monto) === (+r.importe)
       );
       if (!yaExiste) {
-        state.traspasos.push(traspasoDesdeAportacionHistorial(r, ++maxTId));
+        const nuevo = traspasoDesdeAportacionHistorial(r, ++maxTId);
+        state.traspasos.push(nuevo);
+        _nuevosTraspasos.push(nuevo);
         _aportTraspasosCreados = true;
       }
     });
@@ -198,8 +212,17 @@ export const historialImporter = createExcelImporter({
   },
 
   save: async () => {
-    await gsSaveHistorial();
-    if (_aportTraspasosCreados) await gsSaveTraspasos();
+    // Guardar POR FILA (no espejo de tabla completa) para no disparar el borrado
+    // masivo de Supabase Realtime que hace parpadear el conteo. Sheets sigue
+    // whole-table (sin realtime); a Supabase solo le mandamos las filas nuevas.
+    const _pf = esPorFila('historial');
+    await gsSaveHistorial({ porFila: _pf });
+    if (_pf) _ultimaImportacion.forEach(r => sbGuardarFila('historial', r));
+    if (_aportTraspasosCreados) {
+      const _pfT = esPorFila('traspasos');
+      await gsSaveTraspasos({ porFila: _pfT });
+      if (_pfT) _nuevosTraspasos.forEach(t => sbGuardarFila('traspasos', t));
+    }
   },
 
   postCommit: () => {

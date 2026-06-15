@@ -2,7 +2,7 @@ import { state, datosListos } from '../state.js';
 import { fmt, dl, fmtFecha } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { proyTag, catTag } from '../ui/badges.js';
-import { gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveTraspasos, gsSaveCostoAsignaciones, purgarAsignacionesDePago, esPorFila, sbGuardarFila, sbBorrarFila } from '../services/google-sync.js';
+import { gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveTraspasos, gsSaveCostoAsignaciones, purgarAsignacionesDePago, esPorFila, sbGuardarFila, sbBorrarFila, sortHistorialByFecha } from '../services/google-sync.js';
 import { saveProy, proyectoMatch } from '../config/proyectos.js';
 import { getPartidasParaSelect, getSubPartidas, subPartidaObligatoria, SUB_PARTIDAS_CONSTRUCCION } from '../config/sub-partidas.js';
 
@@ -293,8 +293,14 @@ export function editarPartidaPago(idx) {
   if (!h) return;
   _cpTarget = { modo: 'single', id: String(h.id) };
   const t = document.getElementById('cp-titulo');
-  if (t) t.textContent = `Cambiar partida — ${h.nombre || ''}`;
+  if (t) t.textContent = `Editar pago — ${h.nombre || ''}`;
   _poblarModalPartida(h.partida || '', h.sub_partida || '');
+  // Editor de fecha (solo modo single): mostrar y pre-llenar con la fecha actual
+  // en ISO (lo que pide el input type=date).
+  const fw = document.getElementById('cp-fecha-wrap');
+  const fi = document.getElementById('cp-fecha');
+  if (fw) fw.style.display = '';
+  if (fi) fi.value = parseFechaHist(h.fecha) || '';
   document.getElementById('modal-cambiar-partida').classList.add('open');
 }
 
@@ -305,6 +311,8 @@ export function abrirCambiarPartidaBulk() {
   const t = document.getElementById('cp-titulo');
   if (t) t.textContent = `Cambiar partida — ${histSel.size} pago(s) seleccionado(s)`;
   _poblarModalPartida('', '');
+  // En bulk NO se edita la fecha (no tiene sentido la misma fecha para todos).
+  const fw = document.getElementById('cp-fecha-wrap'); if (fw) fw.style.display = 'none';
   document.getElementById('modal-cambiar-partida').classList.add('open');
 }
 
@@ -365,7 +373,21 @@ export function aplicarCambiarPartida() {
   if (!objetivos.length) { notify('No encontré los pagos a cambiar', 'error'); return; }
   objetivos.forEach(h => { h.partida = partida; h.sub_partida = sub; });
 
+  // Editor de fecha (solo single): si el usuario puso una fecha distinta, la
+  // aplicamos en DD/MM/YYYY (como el resto). NO toca saldos — solo corrige el dato
+  // de la fila (sirve para arreglar fechas volteadas por la importación).
+  let fechaCambiada = false;
+  if (_cpTarget.modo === 'single') {
+    const fi = document.getElementById('cp-fecha');
+    const nuevoISO = fi ? fi.value : '';
+    if (nuevoISO) {
+      const nuevaFecha = fmtFecha(nuevoISO);  // ISO → DD/MM/YYYY
+      objetivos.forEach(h => { if (h.fecha !== nuevaFecha) { h.fecha = nuevaFecha; fechaCambiada = true; } });
+    }
+  }
+
   const _pfHist = esPorFila('historial');
+  if (fechaCambiada) sortHistorialByFecha();  // reubica la fila por su nueva fecha
   gsSaveHistorial({ porFila: _pfHist });
   if (_pfHist) objetivos.forEach(h => sbGuardarFila('historial', h));
   histSel.clear();
@@ -373,7 +395,7 @@ export function aplicarCambiarPartida() {
   renderHistorial();
   if (window.renderCostosFiscales) window.renderCostosFiscales();
   if (window.renderConfigPartidas) window.renderConfigPartidas();
-  notify(`✓ Partida actualizada en ${objetivos.length} pago(s)`);
+  notify(`✓ ${objetivos.length} pago(s) actualizado(s)`);
 }
 
 // Elimina TODOS los seleccionados de una vez, reutilizando la misma lógica de
