@@ -1,5 +1,5 @@
 import { state, datosListos } from '../state.js';
-import { fmt, hoyFecha } from '../ui/format.js';
+import { fmt, hoyFecha, fmtFecha } from '../ui/format.js';
 import { proyTag } from '../ui/badges.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
@@ -100,8 +100,8 @@ function renderPagaresRows(pagares) {
       <td style="text-align:center;font-size:10px;color:var(--muted);">${isOpen ? '▼' : '▶'}</td>
       <td style="font-weight:600;font-family:'DM Mono',monospace;">${p.numero_pagare}</td>
       <td style="font-family:'DM Mono',monospace;font-weight:500;text-align:right;">${fmt(p.monto)}</td>
-      <td style="font-size:11px;color:var(--muted);">${p.fecha_disposicion}</td>
-      <td style="font-size:11px;color:var(--muted);">${p.fecha_vencimiento}</td>
+      <td style="font-size:11px;color:var(--muted);">${fmtFecha(p.fecha_disposicion)}</td>
+      <td style="font-size:11px;color:var(--muted);">${fmtFecha(p.fecha_vencimiento)}</td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;text-align:center;">${p.tasa}%</td>
       <td>${estBadge}</td>
       <td style="text-align:right;"><button class="btn btn-ghost" style="font-size:10px;padding:4px 8px;" onclick="event.stopPropagation();editarPagare(${p.pagare_id})">Editar</button></td>
@@ -136,7 +136,7 @@ function renderFechasPago(pagos) {
       const estColor = pp.estatus === 'Pagado' ? '#27ae60' : '#e07a3a';
       const estIcon = pp.estatus === 'Pagado' ? '✓' : '⏳';
       return `<tr style="border-top:1px solid rgba(42,42,42,.5);">
-        <td style="padding:6px 8px;font-family:'DM Mono',monospace;">${pp.fecha_pago}</td>
+        <td style="padding:6px 8px;font-family:'DM Mono',monospace;">${fmtFecha(pp.fecha_pago)}</td>
         <td style="padding:6px 8px;font-family:'DM Mono',monospace;text-align:right;font-weight:500;">${pp.monto_intereses ? fmt(pp.monto_intereses) : '—'}</td>
         <td style="padding:6px 8px;color:var(--muted);">${pp.concepto || '—'}</td>
         <td style="padding:6px 8px;"><span style="color:${estColor};font-weight:600;">${estIcon} ${pp.estatus}</span></td>

@@ -3,7 +3,7 @@
 // para conocer el costo real por casa. No toca el flujo de pagos existente.
 
 import { state, datosListos } from '../state.js';
-import { fmt } from '../ui/format.js';
+import { fmt, fmtFecha } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { proyectoMatch } from '../config/proyectos.js';
@@ -393,7 +393,7 @@ function renderAsignarTab(panel) {
         <thead><tr><th>Fecha</th><th>Beneficiario</th><th>Concepto</th><th>Partida</th><th style="text-align:right">Importe</th><th style="text-align:right">Acción</th></tr></thead>
         <tbody id="cf-pend-tbody">${pendientes.map(h => `
           <tr class="cf-pend-row" data-buscar="${`${h.nombre || ''} ${h.concepto || ''} ${h.partida || ''}`.toLowerCase().replace(/"/g, '')}">
-            <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.fecha || ''}</td>
+            <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${fmtFecha(h.fecha)}</td>
             <td style="font-weight:500;">${h.nombre || '—'}</td>
             <td style="color:var(--muted);font-size:12px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${h.concepto || '—'}</td>
             <td style="color:var(--muted);font-size:12px;">${h.partida || 'Sin partida'}</td>
@@ -454,7 +454,7 @@ function renderAsignadosTab(panel) {
           }).join(' · ');
           const metodo = asigs[0] ? METODO_LABEL[asigs[0].metodo] || asigs[0].metodo : '';
           return `<tr class="cf-asig-row" data-buscar="${`${h.nombre || ''} ${h.concepto || ''}`.toLowerCase().replace(/"/g, '')}">
-            <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.fecha || ''}</td>
+            <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${fmtFecha(h.fecha)}</td>
             <td style="font-weight:500;">${h.nombre || '—'}</td>
             <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--accent);">${fmt(h.importe || 0)}</td>
             <td style="font-size:11px;color:var(--muted);"><div style="color:var(--text);font-weight:500;">${metodo}</div>${detalle}</td>
@@ -511,7 +511,7 @@ export function abrirAsignarCosto(pagoId) {
   document.getElementById('asignar-info').innerHTML = `
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:14px;">
       <div style="font-weight:600;">${pago.nombre || '—'}</div>
-      <div style="font-size:11px;color:var(--muted);margin-top:2px;">${pago.fecha || ''} · ${pago.concepto || 'Sin concepto'} · ${pago.partida || 'Sin partida'}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px;">${fmtFecha(pago.fecha)} · ${pago.concepto || 'Sin concepto'} · ${pago.partida || 'Sin partida'}</div>
       <div style="font-family:'DM Mono',monospace;font-size:18px;color:var(--accent);font-weight:700;margin-top:6px;">${fmt(pago.importe || 0)}</div>
     </div>`;
 

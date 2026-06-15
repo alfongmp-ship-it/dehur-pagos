@@ -150,7 +150,7 @@ export function renderTraspasos() {
 
   tb.innerHTML = sorted.map(t => `
     <tr>
-      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${t.fecha || '—'}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${fmtFecha(t.fecha) || '—'}</td>
       <td>${tipoBadge(t.tipo)}</td>
       <td style="font-size:12px;font-weight:500;">${t.cuenta_origen_nombre || '—'}</td>
       <td style="font-size:12px;color:var(--muted);">${t.cuenta_destino_nombre || '—'}</td>

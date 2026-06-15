@@ -1,5 +1,5 @@
 import { state, datosListos } from '../state.js';
-import { fmt } from '../ui/format.js';
+import { fmt, fmtFecha } from '../ui/format.js';
 import { proyectoMatch } from '../config/proyectos.js';
 
 function tipoBadge(tipo) {
@@ -104,7 +104,7 @@ function renderTabla(filtrados) {
   const sorted = [...filtrados].sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
   tb.innerHTML = sorted.map(t => `
     <tr>
-      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${t.fecha || '—'}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${fmtFecha(t.fecha) || '—'}</td>
       <td>${tipoBadge(t.tipo)}</td>
       <td style="font-size:12px;font-weight:500;">${t.cuenta_origen_nombre || '—'}</td>
       <td style="font-size:12px;color:var(--muted);">${t.cuenta_destino_nombre || '—'}</td>
@@ -112,7 +112,7 @@ function renderTabla(filtrados) {
       <td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.concepto || '—'}</td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${t.referencia || '—'}</td>
       <td>${estatusBadge(t.estatus)}</td>
-      <td style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);">${t.fecha_registro || '—'}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);">${fmtFecha(t.fecha_registro) || '—'}</td>
     </tr>
   `).join('');
 }

@@ -1,5 +1,5 @@
 import { state, datosListos } from '../state.js';
-import { fmt, dl } from '../ui/format.js';
+import { fmt, dl, fmtFecha } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { proyTag } from '../ui/badges.js';
 import { proyectoMatch } from '../config/proyectos.js';
@@ -256,7 +256,7 @@ export function fsAbrirDetalle(cuentaEnc, proyectoEnc) {
       : h.tipo_registro === 'Traspaso' ? (h.tipo === 'Préstamo' ? 'Préstamo' : (h.tipo || 'Traspaso'))
       : 'Pago';
     return `<div style="display:grid;grid-template-columns:90px 100px 1fr 1fr 130px;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border);font-size:12px;align-items:center;">
-      <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${escapeHtml(h.fecha || '')}</div>
+      <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${escapeHtml(fmtFecha(h.fecha))}</div>
       <div><span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:600;background:rgba(200,169,110,.15);color:#C8A96E;">${escapeHtml(tipoLabel)}</span></div>
       <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeAttr(h.nombre || '')}">${escapeHtml(h.nombre || '—')}</div>
       <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:11px;" title="${escapeAttr(h.concepto || '')}">${escapeHtml(h.concepto || '—')}</div>

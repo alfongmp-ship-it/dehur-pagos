@@ -1,5 +1,5 @@
 import { state, datosListos } from '../state.js';
-import { fmt } from '../ui/format.js';
+import { fmt, fmtFecha } from '../ui/format.js';
 import { proyTag } from '../ui/badges.js';
 import { proyectoMatch } from '../config/proyectos.js';
 import { parseFechaHist } from './historial.js';
@@ -483,7 +483,7 @@ function renderTabla(data) {
   const sorted = [...data].sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
   el.innerHTML = sorted.map(h => `
     <div style="display:grid;grid-template-columns:95px 1fr 110px 110px 1fr 110px;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);font-size:12px;align-items:center;">
-      <div style="font-family:'DM Mono',monospace;color:var(--muted);">${h.fecha || ''}</div>
+      <div style="font-family:'DM Mono',monospace;color:var(--muted);">${fmtFecha(h.fecha)}</div>
       <div style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${h.nombre || '—'}</div>
       <div>${proyTag(h.proyecto)}</div>
       <div style="color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${h.partida || 'Sin partida'}</div>

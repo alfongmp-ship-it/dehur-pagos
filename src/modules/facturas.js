@@ -1,5 +1,5 @@
 import { state, datosListos } from '../state.js';
-import { fmt } from '../ui/format.js';
+import { fmt, fmtFecha } from '../ui/format.js';
 import { proyTag } from '../ui/badges.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
@@ -108,8 +108,8 @@ export function renderFacturas() {
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${f.factura_id}</td>
       <td style="font-size:11px;">${f.numero_factura || '—'}</td>
       <td><div style="font-weight:500;font-size:12px;">${provNombre}</div><div style="font-size:10px;color:var(--muted);">${f.razon_social && f.nombre_proveedor ? f.razon_social : ''}</div></td>
-      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${f.fecha_factura}</td>
-      <td style="font-family:'DM Mono',monospace;font-size:11px;color:${vColor};font-weight:${vColor !== 'var(--muted)' ? '600' : '400'};">${f.fecha_vencimiento || '—'} ${vBadge}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${fmtFecha(f.fecha_factura)}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;color:${vColor};font-weight:${vColor !== 'var(--muted)' ? '600' : '400'};">${fmtFecha(f.fecha_vencimiento) || '—'} ${vBadge}</td>
       <td style="font-family:'DM Mono',monospace;font-weight:500;text-align:right;">${fmt(f.monto_total)}</td>
       <td style="font-family:'DM Mono',monospace;text-align:right;color:var(--green);">${fmt(f.monto_pagado)}</td>
       <td style="font-family:'DM Mono',monospace;font-weight:500;text-align:right;color:${f.saldo_pendiente > 0 ? 'var(--accent)' : 'var(--muted)'};">${fmt(f.saldo_pendiente)}</td>
@@ -346,7 +346,7 @@ export function renderFacturaPagos() {
       <td style="font-family:'DM Mono',monospace;font-size:11px;">${fp.factura_id}</td>
       <td><div style="font-weight:500;font-size:12px;">${provNombre}</div></td>
       <td style="font-family:'DM Mono',monospace;font-weight:500;text-align:right;color:var(--accent);">${fmt(fp.monto_aplicado)}</td>
-      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${fp.fecha_pago}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${fmtFecha(fp.fecha_pago)}</td>
       <td>${estBadge}</td>
       <td style="font-size:11px;color:var(--muted);">${(fp.observaciones || '').substring(0, 40)}</td>
       <td style="text-align:right;"><button class="btn btn-ghost" style="padding:4px 6px;font-size:11px;color:#e74c3c;" onclick="eliminarPagoFactura(${fp.factura_pago_id})">✕</button></td>
