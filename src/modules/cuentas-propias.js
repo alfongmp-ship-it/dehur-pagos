@@ -7,7 +7,7 @@ import { gsSaveCuentasPropias, gsSaveProyectos, gsAppendHistorialSaldo, esPorFil
 import { saveProy } from '../config/proyectos.js';
 
 const TIPO_COLORS = {
-  'Dispersión': 'rgba(200,169,110,.15);color:#C8A96E',
+  'Dispersión': 'rgba(200,169,110,.15);color:var(--accent)',
   'Cobranza':   'rgba(52,152,219,.15);color:#3498db',
   'Ahorro':     'rgba(39,174,96,.15);color:#27ae60',
   'Pagos':      'rgba(224,122,58,.15);color:#e07a3a',

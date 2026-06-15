@@ -72,13 +72,13 @@ export function renderAuthStatus() {
     // "Subir cambios del Sheet" se movió aquí (Configuración) para que no se
     // apriete por accidente desde el header.
     if (actions) actions.innerHTML = ''
-      + '<button class="btn btn-ghost" onclick="migrarTodoASupabase()" style="border-color:#C8A96E;color:#C8A96E;margin-right:8px;" title="Solo si editaste el Google Sheet a MANO: sube esos cambios a Supabase">🟣 Subir cambios del Sheet</button>'
+      + '<button class="btn btn-ghost" onclick="migrarTodoASupabase()" style="border-color:var(--accent);color:var(--accent);margin-right:8px;" title="Solo si editaste el Google Sheet a MANO: sube esos cambios a Supabase">🟣 Subir cambios del Sheet</button>'
       + '<button class="btn btn-ghost" onclick="gsLoadAll()" title="RESPALDO: recarga los datos desde Google Sheets. Úsalo solo para inspeccionar o recuperar; normalmente la app lee de Supabase." style="opacity:.8;">⬇ Cargar desde Sheets (respaldo)</button>';
   } else {
     // Logueado en Supabase pero SIN Google: modo SOLO LECTURA. Ve los datos
     // (desde Supabase), pero para editar/guardar necesita conectar Google.
     const html = '<div style="display:flex;align-items:center;gap:8px;">'
-      + '<span style="font-size:11px;color:#C8A96E;background:rgba(200,169,110,.12);padding:3px 8px;border-radius:6px;font-weight:600;">👁 Solo lectura</span>'
+      + '<span style="font-size:11px;color:var(--accent);background:rgba(200,169,110,.12);padding:3px 8px;border-radius:6px;font-weight:600;">👁 Solo lectura</span>'
       + '<button class="btn btn-primary" onclick="gsLogin()" style="padding:6px 14px;font-size:12px;" title="Conéctate a Google para EDITAR/GUARDAR. Mientras no, solo puedes ver. Al guardar, los cambios se respaldan en Sheets.">🔗 Conectar para editar</button>'
       + '</div>';
     if (el) el.innerHTML = html;

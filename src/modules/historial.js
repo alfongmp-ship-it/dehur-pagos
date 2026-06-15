@@ -45,7 +45,7 @@ export function renderHistorial() {
 
   const TRUNC = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;';
   el.innerHTML = fil.map(h => {
-    const badgeColors = { 'Crédito': 'rgba(142,68,173,.15);color:#8e44ad', 'Pago': 'rgba(200,169,110,.15);color:#C8A96E', 'Préstamo': 'rgba(200,169,110,.15);color:#C8A96E', 'Aportación': 'rgba(39,174,96,.15);color:#27ae60', 'Traspaso': 'rgba(52,152,219,.15);color:#3498db' };
+    const badgeColors = { 'Crédito': 'rgba(142,68,173,.15);color:#8e44ad', 'Pago': 'rgba(200,169,110,.15);color:var(--accent)', 'Préstamo': 'rgba(200,169,110,.15);color:var(--accent)', 'Aportación': 'rgba(39,174,96,.15);color:#27ae60', 'Traspaso': 'rgba(52,152,219,.15);color:#3498db' };
     const tipoLabel = h.tipo_registro === 'Crédito' ? 'Crédito' : h.tipo_registro !== 'Traspaso' ? 'Pago' : (h.tipo || 'Traspaso');
     const trBadge = `<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:600;background:${badgeColors[tipoLabel] || badgeColors['Pago']};">${tipoLabel}</span>`;
     const prov = (h.proveedor_id && h.tipo_registro !== 'Traspaso' && h.tipo_registro !== 'Crédito') ? state.proveedores.find(p => p.id === parseInt(h.proveedor_id)) : null;

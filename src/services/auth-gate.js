@@ -55,8 +55,8 @@ function renderUserBadge() {
               onclick="window.toggleUserMenu(event)"
               title="Cuenta y sesion"
               style="display:flex;align-items:center;gap:6px;background:transparent;border:1px solid var(--border);border-radius:20px;padding:3px 8px 3px 3px;cursor:pointer;color:var(--text);font:inherit;">
-        <span style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:#C8A96E;color:#1a1a1a;font-weight:700;font-size:12px;font-family:'Syne',sans-serif;">${escapeHtml(initial)}</span>
-        <span style="font-size:10px;padding:2px 6px;border-radius:6px;background:rgba(200,169,110,.2);color:#C8A96E;font-weight:600;">${escapeHtml(role)}</span>
+        <span style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--accent);color:var(--on-accent);font-weight:700;font-size:12px;font-family:'Syne',sans-serif;">${escapeHtml(initial)}</span>
+        <span style="font-size:10px;padding:2px 6px;border-radius:6px;background:rgba(200,169,110,.2);color:var(--accent);font-weight:600;">${escapeHtml(role)}</span>
         <span style="font-size:9px;color:var(--muted);">▾</span>
       </button>
       <div id="user-menu" style="display:none;position:absolute;top:calc(100% + 6px);right:0;min-width:240px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.35);padding:12px;z-index:1000;">
@@ -64,7 +64,7 @@ function renderUserBadge() {
         <div style="font-size:13px;font-weight:600;margin-bottom:8px;word-break:break-all;">${escapeHtml(email)}</div>
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;">
           <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;">Rol:</span>
-          <span style="font-size:11px;padding:2px 8px;border-radius:6px;background:rgba(200,169,110,.2);color:#C8A96E;font-weight:600;">${escapeHtml(role)}</span>
+          <span style="font-size:11px;padding:2px 8px;border-radius:6px;background:rgba(200,169,110,.2);color:var(--accent);font-weight:600;">${escapeHtml(role)}</span>
         </div>
         <button class="btn btn-ghost" onclick="window.handleLogout()" style="width:100%;font-size:12px;padding:7px;">↪ Cerrar sesion</button>
       </div>

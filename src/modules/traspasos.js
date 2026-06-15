@@ -111,7 +111,7 @@ function tipoBadge(tipo) {
   if (!tipo) return '<span style="color:var(--muted);font-size:11px;">—</span>';
   const colorMap = {
     'Traspaso':  'rgba(52,152,219,.15);color:#3498db',
-    'Préstamo':  'rgba(200,169,110,.15);color:#C8A96E',
+    'Préstamo':  'rgba(200,169,110,.15);color:var(--accent)',
     'Aportación':'rgba(39,174,96,.15);color:#27ae60'
   };
   const color = colorMap[tipo] || colorMap['Préstamo'];

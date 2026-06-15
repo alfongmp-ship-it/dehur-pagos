@@ -147,12 +147,12 @@ function refreshFactProyectos() {
 
 function estatusBadge(estatus) {
   const colors = {
-    pendiente: 'rgba(200,169,110,.15);color:#C8A96E',
+    pendiente: 'rgba(200,169,110,.15);color:var(--accent)',
     parcial: 'rgba(52,152,219,.15);color:#3498db',
     pagada: 'rgba(39,174,96,.15);color:#27ae60',
     cancelada: 'rgba(231,76,60,.15);color:#e74c3c'
   };
-  const style = colors[estatus] || 'rgba(200,169,110,.15);color:#C8A96E';
+  const style = colors[estatus] || 'rgba(200,169,110,.15);color:var(--accent)';
   return `<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:600;background:${style};">${estatus}</span>`;
 }
 
