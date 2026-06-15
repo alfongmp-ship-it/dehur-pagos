@@ -5,6 +5,7 @@ import { cerrar } from '../ui/modal.js';
 import { gsSaveTraspasos, saveData, gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveMovimientosInternos, ensureHistorialIds, esPorFila, sbGuardarFila, sbBorrarFila } from '../services/google-sync.js';
 import { saveProy } from '../config/proyectos.js';
 import { getPartidasParaSelect } from '../config/sub-partidas.js';
+import { parseFechaHist } from './historial.js';
 
 function getAllCuentas() {
   const deProy = state.proyectos.filter(p => p.activo !== false && p.cuenta).map(p => ({
@@ -45,22 +46,16 @@ export function traspasoDesdeAportacionHistorial(h, id) {
     cuenta_destino_nombre: h.nombre || '',     // debe = h.nombre (heurística de ligado)
     proyecto_destino: h.cuenta_destino || '',
     monto: +h.importe || 0,                     // debe = h.importe (heurística de ligado)
-    fecha: h.fecha || '',
+    // ISO (YYYY-MM-DD), como los traspasos normales: el filtro por fechas del
+    // Resumen compara texto contra inputs date (ISO). NO toca la fecha del
+    // historial; solo normaliza el campo propio de este registro de traspaso.
+    fecha: parseFechaHist(h.fecha) || h.fecha || '',
     concepto: h.concepto || '',
     partida: h.partida || '',
     referencia: '',
     estatus: 'completado',
     fecha_registro: new Date().toISOString().split('T')[0]
   };
-}
-
-// ¿Esta aportación del historial ya tiene su traspaso ligado? (misma heurística)
-function _aportacionTieneTraspaso(h) {
-  return state.traspasos.some(t =>
-    t.proyecto_origen === h.cuenta_origen &&
-    t.cuenta_destino_nombre === h.nombre &&
-    (+t.monto) === (+h.importe)
-  );
 }
 
 // Backfill: crea en state.traspasos los registros faltantes de las aportaciones
@@ -70,19 +65,33 @@ export function sincronizarAportacionesATraspasos() {
   if (!state.gsToken) { notify('Conecta Google Sheets para guardar', 'error'); return; }
   const aportaciones = state.historial.filter(h => h.tipo_registro === 'Traspaso' && h.tipo === 'Aportación');
   let maxId = state.traspasos.reduce((m, t) => Math.max(m, t.traspaso_id || 0), 0);
-  let creados = 0;
+  let creados = 0, reparados = 0;
   aportaciones.forEach(h => {
-    if (_aportacionTieneTraspaso(h)) return;
+    const fechaISO = parseFechaHist(h.fecha);
+    const existente = state.traspasos.find(t =>
+      t.proyecto_origen === h.cuenta_origen &&
+      t.cuenta_destino_nombre === h.nombre &&
+      (+t.monto) === (+h.importe)
+    );
+    if (existente) {
+      // Reparar la fecha a ISO si quedó en otro formato (DD/MM/YYYY de una
+      // sincronización anterior) → para que el filtro por fechas las encuentre.
+      if (fechaISO && existente.fecha !== fechaISO) { existente.fecha = fechaISO; reparados++; }
+      return;
+    }
     state.traspasos.push(traspasoDesdeAportacionHistorial(h, ++maxId));
     creados++;
   });
-  if (creados > 0) {
+  if (creados > 0 || reparados > 0) {
     gsSaveTraspasos();
     if (window.renderTraspasos) window.renderTraspasos();
     if (window.renderResumenTraspasos) window.renderResumenTraspasos();
     const cnt = document.getElementById('cnt-traspasos');
     if (cnt) cnt.textContent = state.traspasos.length;
-    notify(`✅ ${creados} aportación(es) sincronizada(s) a Traspasos`);
+    const partes = [];
+    if (creados > 0) partes.push(`${creados} creada(s)`);
+    if (reparados > 0) partes.push(`${reparados} con fecha corregida`);
+    notify(`✅ Traspasos sincronizados: ${partes.join(', ')}`);
   } else {
     notify('No hay aportaciones del historial pendientes de sincronizar');
   }
