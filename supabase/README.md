@@ -34,6 +34,7 @@ Esta carpeta versiona el schema de Postgres que vive en Supabase.
 | 12 | `12_realtime_lote3.sql` | Agrega `creditos`, `pagares`, `unidades` a `supabase_realtime` (Fase 3 — lote créditos/unidades) | Para el tiempo real de créditos y unidades |
 | 13 | `13_realtime_lote4.sql` | Agrega `facturas`, `factura_pagos`, `traspasos`, `movimientos_internos` a `supabase_realtime` (Fase 3 — lote facturas/traspasos) | Para el tiempo real de facturas y traspasos |
 | 14 | `14_realtime_pendientes.sql` | Agrega `pendientes_confirmacion` a `supabase_realtime` (Fase 3 — cola compartida en vivo, solo realtime) | Para ver la cola de confirmación en vivo entre admins |
+| 15 | `15_realtime_saldos.sql` | Agrega `proyectos`, `cuentas_propias` a `supabase_realtime` (Fase 3 — saldos en vivo) | Para ver saldos/cuentas en vivo |
 
 ## Idempotencia
 

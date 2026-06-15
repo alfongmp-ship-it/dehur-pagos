@@ -4,7 +4,7 @@ import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { renderCuentaDispSelect, renderHeaderBadges } from '../ui/header.js';
 import { refreshProyectosEnSelects } from '../ui/nav.js';
-import { gsSaveProyectos } from '../services/google-sync.js';
+import { gsSaveProyectos, esPorFila, sbGuardarFila } from '../services/google-sync.js';
 
 export function calcularClabeProy() {
   const cta = document.getElementById('proy-cuenta').value.trim().replace(/\D/g, '');
@@ -72,12 +72,27 @@ export function guardarProyecto() {
   renderHeaderBadges();
   refreshProyectosEnSelects();
   notify(state.editProyId ? 'Proyecto actualizado' : 'Proyecto agregado ✓');
-  gsSaveProyectos();
+  // Fase 3: guarda solo este proyecto por fila (edición de config). Las cascadas
+  // de saldo por pagos siguen whole-table (tabla chica).
+  const porFila = esPorFila('proyectos');
+  gsSaveProyectos({ porFila });
+  if (porFila) {
+    const _p = state.editProyId
+      ? state.proyectos.find(p => p.id === state.editProyId)
+      : state.proyectos[state.proyectos.length - 1];
+    if (_p) sbGuardarFila('proyectos', _p);
+  }
 }
 
 export function toggleProyecto(id, activo) {
   const p = state.proyectos.find(x => x.id === id);
-  if (p) { p.activo = activo; saveProy(state.proyectos); gsSaveProyectos(); }
+  if (p) {
+    p.activo = activo;
+    saveProy(state.proyectos);
+    const porFila = esPorFila('proyectos');
+    gsSaveProyectos({ porFila });
+    if (porFila) sbGuardarFila('proyectos', p);
+  }
   renderConfigProyectos();
   renderCuentaDispSelect();
   renderHeaderBadges();

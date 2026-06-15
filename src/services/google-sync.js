@@ -29,11 +29,11 @@ export const FUENTE_LECTURA = 'supabase';
 // supabase_realtime). El resto de entidades sigue en 'tabla' aunque MODO sea 'fila'.
 // ============================================================================
 export const MODO_GUARDADO = 'fila';
-export const ENTIDADES_POR_FILA = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos']);
+export const ENTIDADES_POR_FILA = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos', 'proyectos', 'cuentasPropias']);
 export const REALTIME_ON = true;
 // pendientesConfirmacion va aquí pero NO en ENTIDADES_POR_FILA: tabla chica, se
 // guarda whole-table; el realtime deja ver la cola compartida en vivo.
-export const ENTIDADES_REALTIME = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos', 'pendientesConfirmacion']);
+export const ENTIDADES_REALTIME = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos', 'pendientesConfirmacion', 'proyectos', 'cuentasPropias']);
 
 // ¿Esta entidad guarda por fila ahora mismo? (modo 'fila' y está en el Set)
 export function esPorFila(key) {
@@ -1049,21 +1049,27 @@ function _rowProveedor(p) {
 function _rowsProveedores() {
   return state.proveedores.map(_rowProveedor);
 }
-function _rowsProyectos() {
-  return state.proyectos.map(p => ({
+function _rowProyecto(p) {
+  return {
     id: _sbStr(p.id), nombre: _sbStr(p.nombre), empresa: _sbStr(p.empresa),
     cuenta: _sbStr(p.cuenta), clabe: _sbStr(p.clabe), color: _sbStr(p.color),
     activo: p.activo !== false, saldo: _sbNum(p.saldo),
     ultima_act_saldo: _sbStr(p.ultima_act_saldo), es_concentradora: _sbBool(p.es_concentradora)
-  }));
+  };
 }
-function _rowsCuentasPropias() {
-  return state.cuentasPropias.map(c => ({
+function _rowsProyectos() {
+  return state.proyectos.map(_rowProyecto);
+}
+function _rowCuentaPropia(c) {
+  return {
     cuenta_id: c.cuenta_id, nombre: _sbStr(c.nombre), banco: _sbStr(c.banco),
     clabe: _sbStr(c.clabe), numero_cuenta: _sbStr(c.numero_cuenta), proyecto: _sbStr(c.proyecto),
     tipo: _sbStr(c.tipo || 'General'), saldo: _sbNum(c.saldo),
     ultima_actualizacion: _sbStr(c.ultima_actualizacion), activo: c.activo !== false
-  }));
+  };
+}
+function _rowsCuentasPropias() {
+  return state.cuentasPropias.map(_rowCuentaPropia);
 }
 function _rowEmpleado(e) {
   return {
@@ -1250,8 +1256,8 @@ function _rowsPendientes() {
 // Conforme se agregan entidades aquí, "Migrar TODO" y el dual-write las cubren.
 const SB_ENTIDADES = {
   proveedores:        { tabla: 'proveedores',         rows: _rowsProveedores, idCol: 'id', rowOne: _rowProveedor },
-  proyectos:          { tabla: 'proyectos',           rows: _rowsProyectos },
-  cuentasPropias:     { tabla: 'cuentas_propias',     rows: _rowsCuentasPropias },
+  proyectos:          { tabla: 'proyectos',           rows: _rowsProyectos, idCol: 'id', rowOne: _rowProyecto },
+  cuentasPropias:     { tabla: 'cuentas_propias',     rows: _rowsCuentasPropias, idCol: 'cuenta_id', rowOne: _rowCuentaPropia },
   empleados:          { tabla: 'empleados',           rows: _rowsEmpleados, idCol: 'id', rowOne: _rowEmpleado },
   historial:          { tabla: 'historial',           rows: _rowsHistorial },
   facturas:           { tabla: 'facturas',            rows: _rowsFacturas, idCol: 'factura_id', rowOne: _rowFactura },
@@ -1388,13 +1394,13 @@ export async function gsSaveFacturaPagos(opts = {}) {
   } catch (e) { console.error('gsSaveFacturaPagos', e); }
 }
 
-export async function gsSaveCuentasPropias() {
+export async function gsSaveCuentasPropias(opts = {}) {
   if (!state.gsToken) return;
   if (!guardarPermitido('cuentasPropias', state.cuentasPropias)) return;
   try {
     const rows = state.cuentasPropias.map(c => [c.cuenta_id, c.nombre, c.banco, c.clabe || '', c.numero_cuenta || '', c.proyecto || '', c.tipo || 'General', c.saldo, c.ultima_actualizacion || '', c.activo]);
     await gsClearAndWrite('cuentas_propias', rows, ['cuenta_id', 'nombre', 'banco', 'clabe', 'numero_cuenta', 'proyecto', 'tipo', 'saldo', 'ultima_actualizacion', 'activo']);
-    await sbEspejar('cuentasPropias');
+    if (!opts.porFila) await sbEspejar('cuentasPropias');
   } catch (e) { console.error('gsSaveCuentasPropias', e); }
 }
 
@@ -1503,13 +1509,13 @@ export async function gsSavePartidasCatalogo(opts = {}) {
   } catch (e) { console.error('gsSavePartidasCatalogo', e); }
 }
 
-export async function gsSaveProyectos() {
+export async function gsSaveProyectos(opts = {}) {
   if (!state.gsToken) return;
   if (!guardarPermitido('proyectos', state.proyectos)) return;
   try {
     const rows = state.proyectos.map(p => [p.id, p.nombre, p.empresa || '', p.cuenta || '', p.clabe || '', p.color || '', p.activo, p.saldo || 0, p.ultima_act_saldo || '', p.es_concentradora || false]);
     await gsClearAndWrite('proyectos', rows, ['id', 'nombre', 'empresa', 'cuenta', 'clabe', 'color', 'activo', 'saldo', 'ultima_act_saldo', 'es_concentradora']);
     notify('✅ Proyectos guardados en Sheets');
-    await sbEspejar('proyectos');
+    if (!opts.porFila) await sbEspejar('proyectos');
   } catch (e) { console.error('gsSaveProyectos', e); }
 }

@@ -3,7 +3,7 @@ import { fmt } from '../ui/format.js';
 import { proyTag } from '../ui/badges.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
-import { gsSaveCuentasPropias, gsSaveProyectos, gsAppendHistorialSaldo } from '../services/google-sync.js';
+import { gsSaveCuentasPropias, gsSaveProyectos, gsAppendHistorialSaldo, esPorFila, sbGuardarFila } from '../services/google-sync.js';
 import { saveProy } from '../config/proyectos.js';
 
 const TIPO_COLORS = {
@@ -173,7 +173,9 @@ export function guardarSaldoCuenta() {
     state._editSaldoExtra = null;
     cerrar('modal-saldo');
     renderCuentasPropias();
-    gsSaveCuentasPropias();
+    const porFila = esPorFila('cuentasPropias');
+    gsSaveCuentasPropias({ porFila });
+    if (porFila) sbGuardarFila('cuentasPropias', c);
     registrarSaldoEnHistorial(c.cuenta_id, c.nombre, 'propia', saldo, ts);
     if (window.renderHeaderBadges) window.renderHeaderBadges();
     notify('Saldo actualizado');
@@ -189,7 +191,9 @@ export function guardarSaldoCuenta() {
     if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
     if (window.renderHeaderBadges) window.renderHeaderBadges();
     notify('Saldo actualizado');
-    gsSaveProyectos();
+    const porFila = esPorFila('proyectos');
+    gsSaveProyectos({ porFila });
+    if (porFila) sbGuardarFila('proyectos', p);
     registrarSaldoEnHistorial(p.id, p.nombre, 'proyecto', saldo, ts);
   }
 }
@@ -225,7 +229,9 @@ export function guardarCuenta() {
     renderCuentasPropias();
     notify('Cuenta de proyecto actualizada');
     saveProy(state.proyectos);
-    gsSaveProyectos();
+    const porFila = esPorFila('proyectos');
+    gsSaveProyectos({ porFila });
+    if (porFila && p) sbGuardarFila('proyectos', p);
     return;
   }
 
@@ -252,5 +258,7 @@ export function guardarCuenta() {
   cerrar('modal-cuenta');
   renderCuentasPropias();
   notify(state.editCuentaId ? 'Cuenta actualizada' : 'Cuenta registrada');
-  gsSaveCuentasPropias();
+  const porFila = esPorFila('cuentasPropias');
+  gsSaveCuentasPropias({ porFila });
+  if (porFila) sbGuardarFila('cuentasPropias', obj);
 }

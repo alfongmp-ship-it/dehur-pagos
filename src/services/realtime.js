@@ -213,6 +213,43 @@ const RT = {
       const c = document.getElementById('cnt-confirmar');
       if (c) c.textContent = state.pendientesConfirmacion.length;
     }
+  },
+  // proyectos y cuentasPropias: tablas chicas. Sus ediciones de CONFIG van por
+  // fila; los cambios de saldo por pagos (confirmar/traspasos/borrados) siguen
+  // whole-table (espejo trivial por ser pocas filas) -> saldos en vivo igual.
+  proyectos: {
+    tabla: 'proyectos',
+    stateKey: 'proyectos',
+    idField: 'id',
+    mapRow: r => ({
+      id: r.id || '', nombre: r.nombre || '', empresa: r.empresa || '', cuenta: r.cuenta || '',
+      clabe: r.clabe || '', color: r.color || '#C8A96E', activo: r.activo !== false,
+      saldo: (parseFloat(r.saldo) || 0), ultima_act_saldo: r.ultima_act_saldo || '',
+      es_concentradora: !!r.es_concentradora
+    }),
+    rerender: () => {
+      if (window.renderConfigProyectos) window.renderConfigProyectos();
+      if (window.renderCuentasPropias) window.renderCuentasPropias();
+      if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
+      if (window.renderHeaderBadges) window.renderHeaderBadges();
+      if (window.refreshProyectosEnSelects) window.refreshProyectosEnSelects();
+    }
+  },
+  cuentasPropias: {
+    tabla: 'cuentas_propias',
+    stateKey: 'cuentasPropias',
+    idField: 'cuenta_id',
+    mapRow: r => ({
+      cuenta_id: toInt(r.cuenta_id), nombre: r.nombre || '', banco: r.banco || '', clabe: r.clabe || '',
+      numero_cuenta: r.numero_cuenta || '', proyecto: r.proyecto || '', tipo: r.tipo || 'General',
+      saldo: (parseFloat(r.saldo) || 0), ultima_actualizacion: r.ultima_actualizacion || '',
+      activo: r.activo !== false
+    }),
+    rerender: () => {
+      if (window.renderCuentasPropias) window.renderCuentasPropias();
+      if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
+      if (window.renderHeaderBadges) window.renderHeaderBadges();
+    }
   }
 };
 
