@@ -36,6 +36,7 @@ Esta carpeta versiona el schema de Postgres que vive en Supabase.
 | 14 | `14_realtime_pendientes.sql` | Agrega `pendientes_confirmacion` a `supabase_realtime` (Fase 3 — cola compartida en vivo, solo realtime) | Para ver la cola de confirmación en vivo entre admins |
 | 15 | `15_realtime_saldos.sql` | Agrega `proyectos`, `cuentas_propias` a `supabase_realtime` (Fase 3 — saldos en vivo) | Para ver saldos/cuentas en vivo |
 | 16 | `16_realtime_pagospagare.sql` | Agrega `pagos_pagare` a `supabase_realtime` (Fase 3) | Para el tiempo real de pagos de pagaré |
+| 17 | `17_realtime_historial.sql` | Agrega `historial` a `supabase_realtime` (Fase 3 — pagos en vivo, por fila) | Para ver los pagos del historial en vivo |
 
 ## Idempotencia
 

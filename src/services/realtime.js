@@ -264,6 +264,25 @@ const RT = {
       if (window.renderCreditos) window.renderCreditos();
       if (window.renderHistorial) window.renderHistorial();
     }
+  },
+  historial: {
+    tabla: 'historial',
+    stateKey: 'historial',
+    idField: 'id',
+    mapRow: r => ({
+      proveedor_id: r.proveedor_id || '', factura_id: r.factura_id || '', fecha: r.fecha || '',
+      nombre: r.nombre || '', banco: normalizeBanco(r.banco || ''), tipo: r.tipo || '', concepto: r.concepto || '',
+      importe: toNum(r.importe), proyecto: r.proyecto || '', cuenta_origen: r.cuenta_origen || '',
+      tipo_registro: r.tipo_registro || 'Pago', partida: r.partida || '', sub_partida: r.sub_partida || '',
+      id: r.id || ''
+    }),
+    rerender: () => {
+      if (window.renderHistorial) window.renderHistorial();
+      if (window.renderCostosFiscales) window.renderCostosFiscales();
+      if (window.renderFlujoSalida) window.renderFlujoSalida();
+      const c = document.getElementById('cnt-hist');
+      if (c) c.textContent = state.historial.length;
+    }
   }
 };
 

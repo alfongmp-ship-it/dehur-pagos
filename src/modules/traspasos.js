@@ -2,7 +2,7 @@ import { state, datosListos } from '../state.js';
 import { fmt, fmtFecha } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
-import { gsSaveTraspasos, saveData, gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveMovimientosInternos, esPorFila, sbGuardarFila, sbBorrarFila } from '../services/google-sync.js';
+import { gsSaveTraspasos, saveData, gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveMovimientosInternos, ensureHistorialIds, esPorFila, sbGuardarFila, sbBorrarFila } from '../services/google-sync.js';
 import { saveProy } from '../config/proyectos.js';
 import { getPartidasParaSelect } from '../config/sub-partidas.js';
 
@@ -285,6 +285,10 @@ export function guardarTraspaso() {
           partida: partida || ''
         });
         saveData();
+        // Fase 3: la fila de aportación nace sin id (unshift); ensureHistorialIds
+        // la numera y se guarda por fila a Supabase.
+        ensureHistorialIds();
+        if (esPorFila('historial')) sbGuardarFila('historial', state.historial[0]);
         const cntHist = document.getElementById('cnt-hist');
         if (cntHist) cntHist.textContent = state.historial.length;
         if (window.renderHistorial) window.renderHistorial();
@@ -365,8 +369,11 @@ export function eliminarTraspaso(id) {
         h.importe === t.monto
       );
       if (hi !== -1) {
+        const _hid = state.historial[hi].id;
         state.historial.splice(hi, 1);
-        gsSaveHistorial();
+        const _pfHist = esPorFila('historial');
+        gsSaveHistorial({ porFila: _pfHist });
+        if (_pfHist && _hid) sbBorrarFila('historial', _hid);
         const cntHist = document.getElementById('cnt-hist');
         if (cntHist) cntHist.textContent = state.historial.length;
         if (window.renderHistorial) window.renderHistorial();

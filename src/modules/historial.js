@@ -2,7 +2,7 @@ import { state, datosListos } from '../state.js';
 import { fmt, dl, fmtFecha } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { proyTag, catTag } from '../ui/badges.js';
-import { gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveTraspasos, gsSaveCostoAsignaciones, purgarAsignacionesDePago } from '../services/google-sync.js';
+import { gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveTraspasos, gsSaveCostoAsignaciones, purgarAsignacionesDePago, esPorFila, sbGuardarFila, sbBorrarFila } from '../services/google-sync.js';
 import { saveProy, proyectoMatch } from '../config/proyectos.js';
 import { getPartidasParaSelect, getSubPartidas, subPartidaObligatoria, SUB_PARTIDAS_CONSTRUCCION } from '../config/sub-partidas.js';
 
@@ -241,7 +241,9 @@ export function eliminarHistorial(idx) {
   }
 
   state.historial.splice(idx, 1);
-  gsSaveHistorial();
+  const _pfHist = esPorFila('historial');
+  gsSaveHistorial({ porFila: _pfHist });
+  if (_pfHist && h.id) sbBorrarFila('historial', h.id);
   // Limpiar asignaciones de costo fiscal ligadas a este pago (evita huérfanas)
   if (h.id) purgarAsignacionesDePago(h.id);
   document.getElementById('cnt-hist').textContent = state.historial.length;
@@ -363,7 +365,9 @@ export function aplicarCambiarPartida() {
   if (!objetivos.length) { notify('No encontré los pagos a cambiar', 'error'); return; }
   objetivos.forEach(h => { h.partida = partida; h.sub_partida = sub; });
 
-  gsSaveHistorial();
+  const _pfHist = esPorFila('historial');
+  gsSaveHistorial({ porFila: _pfHist });
+  if (_pfHist) objetivos.forEach(h => sbGuardarFila('historial', h));
   histSel.clear();
   document.getElementById('modal-cambiar-partida').classList.remove('open');
   renderHistorial();
@@ -411,7 +415,9 @@ export function eliminarHistorialBulk() {
   histSel.clear();
 
   // Guardar UNA sola vez cada cosa que cambió (cada gsSaveX espeja a Supabase).
-  gsSaveHistorial();
+  const _pfHist = esPorFila('historial');
+  gsSaveHistorial({ porFila: _pfHist });
+  if (_pfHist) aBorrar.forEach(h => { if (h.id) sbBorrarFila('historial', h.id); });
   if (saldoChanged) { saveProy(state.proyectos); gsSaveProyectos(); gsSaveCuentasPropias(); }
   if (traspasosChanged) gsSaveTraspasos();
   if (asigChanged) gsSaveCostoAsignaciones();

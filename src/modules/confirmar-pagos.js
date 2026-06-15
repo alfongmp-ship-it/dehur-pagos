@@ -2,7 +2,7 @@ import { state, esConcentradora } from '../state.js';
 import { fmt, hoyFecha } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { proyTag } from '../ui/badges.js';
-import { saveData, gsSaveHistorial, gsSavePendientes, gsSaveProyectos, gsSaveCuentasPropias, gsSaveFacturas, gsSaveFacturaPagos, gsSaveCostoAsignaciones, ensureHistorialIds } from '../services/google-sync.js';
+import { saveData, gsSaveHistorial, gsSavePendientes, gsSaveProyectos, gsSaveCuentasPropias, gsSaveFacturas, gsSaveFacturaPagos, gsSaveCostoAsignaciones, ensureHistorialIds, esPorFila, sbGuardarFila } from '../services/google-sync.js';
 import { saveProy } from '../config/proyectos.js';
 
 const _normPart = s => String(s || '').trim().toLowerCase()
@@ -125,7 +125,12 @@ export async function confirmarPagos() {
   // Asegurar IDs estables para poder vincular asignaciones de costos.
   ensureHistorialIds();
   document.getElementById('cnt-hist').textContent = state.historial.length;
-  gsSaveHistorial();
+  // Fase 3: guarda por fila los pagos recién confirmados (ya con id estable tras
+  // ensureHistorialIds). Las otras cascadas (saldos, facturas, asignaciones)
+  // siguen whole-table.
+  const _pfHist = esPorFila('historial');
+  gsSaveHistorial({ porFila: _pfHist });
+  if (_pfHist) insertados.forEach(({ h }) => sbGuardarFila('historial', h));
 
   // Auto-crear asignaciones de costo planificadas desde la solicitud (obra).
   let asignacionesCreadas = 0;

@@ -3,7 +3,7 @@ import { tipoBadge } from '../ui/badges.js';
 import { fmt, hoyFecha } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
-import { saveData, gsSavePendientes, gsSaveProyectos, gsSaveCuentasPropias, gsSaveCostoAsignaciones, ensureHistorialIds } from '../services/google-sync.js';
+import { saveData, gsSavePendientes, gsSaveProyectos, gsSaveCuentasPropias, gsSaveCostoAsignaciones, ensureHistorialIds, esPorFila, sbGuardarFila } from '../services/google-sync.js';
 import { aplicarAutoIndiviso } from './confirmar-pagos.js';
 import { showPage } from '../router.js';
 import { saveProy } from '../config/proyectos.js';
@@ -188,6 +188,8 @@ export function confirmarPagoDirecto() {
   // Auto-indiviso para pagos directos no-construcción (sin repartoMetodo).
   ensureHistorialIds();
   const hNuevo = state.historial[0];
+  // Fase 3: este pago directo a Supabase por fila (saveData solo escribe a Sheets).
+  if (esPorFila('historial')) sbGuardarFila('historial', hNuevo);
   const autoCreadas = aplicarAutoIndiviso(hNuevo, null);
   if (autoCreadas) gsSaveCostoAsignaciones();
 

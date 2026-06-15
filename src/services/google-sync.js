@@ -29,11 +29,11 @@ export const FUENTE_LECTURA = 'supabase';
 // supabase_realtime). El resto de entidades sigue en 'tabla' aunque MODO sea 'fila'.
 // ============================================================================
 export const MODO_GUARDADO = 'fila';
-export const ENTIDADES_POR_FILA = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos', 'proyectos', 'cuentasPropias', 'pagosPagare']);
+export const ENTIDADES_POR_FILA = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos', 'proyectos', 'cuentasPropias', 'pagosPagare', 'historial']);
 export const REALTIME_ON = true;
 // pendientesConfirmacion va aquí pero NO en ENTIDADES_POR_FILA: tabla chica, se
 // guarda whole-table; el realtime deja ver la cola compartida en vivo.
-export const ENTIDADES_REALTIME = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos', 'pendientesConfirmacion', 'proyectos', 'cuentasPropias', 'pagosPagare']);
+export const ENTIDADES_REALTIME = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos', 'pendientesConfirmacion', 'proyectos', 'cuentasPropias', 'pagosPagare', 'historial']);
 
 // ¿Esta entidad guarda por fila ahora mismo? (modo 'fila' y está en el Set)
 export function esPorFila(key) {
@@ -924,7 +924,7 @@ export async function gsSavePendientes() {
   } catch (e) { console.error('gsSavePendientes', e); }
 }
 
-export async function gsSaveHistorial() {
+export async function gsSaveHistorial(opts = {}) {
   if (!state.gsToken) return;
   if (!guardarPermitido('historial', state.historial, true)) return;
   // Salvaguarda: nunca sobrescribir el historial con cero filas (evita vaciarlo
@@ -970,7 +970,7 @@ export async function gsSaveHistorial() {
       'tipo', 'concepto', 'importe', 'proyecto', 'cuenta_origen',
       'tipo_registro', 'partida', 'sub_partida', 'id'
     ]);
-    await sbEspejar('historial');
+    if (!opts.porFila) await sbEspejar('historial');
   } catch (e) {
     console.error('gsSaveHistorial', e);
     notify(`⚠ No pude guardar el historial en Sheets: ${e.message}. Tus cambios están en memoria pero NO se persistieron.`, 'error');
@@ -1081,6 +1081,17 @@ function _rowEmpleado(e) {
 function _rowsEmpleados() {
   return state.empleados.map(_rowEmpleado);
 }
+// Mapea UN pago del historial → fila Supabase (reusable para guardado por fila).
+function _rowHistorial(h) {
+  return {
+    id: _sbStr(h.id), proveedor_id: _sbStr(h.proveedor_id), factura_id: _sbStr(h.factura_id),
+    fecha: _sbStr(h.fecha), nombre: _sbStr(h.nombre), banco: _sbStr(h.banco),
+    tipo: _sbStr(h.tipo), concepto: _sbStr(h.concepto), importe: _sbNum(h.importe),
+    proyecto: _sbStr(h.proyecto), cuenta_origen: _sbStr(h.cuenta_origen),
+    tipo_registro: _sbStr(h.tipo_registro || 'Pago'), partida: _sbStr(h.partida),
+    sub_partida: _sbStr(h.sub_partida)
+  };
+}
 function _rowsHistorial() {
   // Dedup por id (el PK es (tenant_id, id)). ensureHistorialIds ya los hace
   // únicos, pero por si una edición manual del Sheet dejó duplicados.
@@ -1090,14 +1101,7 @@ function _rowsHistorial() {
     const id = _sbStr(h.id);
     if (!id || seen.has(id)) continue;
     seen.add(id);
-    out.push({
-      id, proveedor_id: _sbStr(h.proveedor_id), factura_id: _sbStr(h.factura_id),
-      fecha: _sbStr(h.fecha), nombre: _sbStr(h.nombre), banco: _sbStr(h.banco),
-      tipo: _sbStr(h.tipo), concepto: _sbStr(h.concepto), importe: _sbNum(h.importe),
-      proyecto: _sbStr(h.proyecto), cuenta_origen: _sbStr(h.cuenta_origen),
-      tipo_registro: _sbStr(h.tipo_registro || 'Pago'), partida: _sbStr(h.partida),
-      sub_partida: _sbStr(h.sub_partida)
-    });
+    out.push(_rowHistorial(h));
   }
   return out;
 }
@@ -1262,7 +1266,7 @@ const SB_ENTIDADES = {
   proyectos:          { tabla: 'proyectos',           rows: _rowsProyectos, idCol: 'id', rowOne: _rowProyecto },
   cuentasPropias:     { tabla: 'cuentas_propias',     rows: _rowsCuentasPropias, idCol: 'cuenta_id', rowOne: _rowCuentaPropia },
   empleados:          { tabla: 'empleados',           rows: _rowsEmpleados, idCol: 'id', rowOne: _rowEmpleado },
-  historial:          { tabla: 'historial',           rows: _rowsHistorial },
+  historial:          { tabla: 'historial',           rows: _rowsHistorial, idCol: 'id', rowOne: _rowHistorial },
   facturas:           { tabla: 'facturas',            rows: _rowsFacturas, idCol: 'factura_id', rowOne: _rowFactura },
   facturaPagos:       { tabla: 'factura_pagos',       rows: _rowsFacturaPagos, idCol: 'factura_pago_id', rowOne: _rowFacturaPago },
   traspasos:          { tabla: 'traspasos',           rows: _rowsTraspasos, idCol: 'traspaso_id', rowOne: _rowTraspaso },
