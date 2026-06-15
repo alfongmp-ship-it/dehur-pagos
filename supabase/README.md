@@ -38,6 +38,7 @@ Esta carpeta versiona el schema de Postgres que vive en Supabase.
 | 16 | `16_realtime_pagospagare.sql` | Agrega `pagos_pagare` a `supabase_realtime` (Fase 3) | Para el tiempo real de pagos de pagaré |
 | 17 | `17_realtime_historial.sql` | Agrega `historial` a `supabase_realtime` (Fase 3 — pagos en vivo, por fila) | Para ver los pagos del historial en vivo |
 | 18 | `18_realtime_replica_identity.sql` | `REPLICA IDENTITY FULL` en las 16 tablas de realtime — **arregla que las EDICIONES no se reflejaban** | Imprescindible para que UPDATE/DELETE sincronicen en vivo |
+| **19** | **`19_realtime_setup_completo.sql`** | **TODO EN UNO: publica las 16 tablas + replica identity full. Reemplaza correr 10–18 uno por uno.** | **Correr SOLO este para activar el tiempo real de Fase 3** |
 
 ## Idempotencia
 
