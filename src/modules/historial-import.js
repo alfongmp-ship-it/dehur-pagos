@@ -153,16 +153,19 @@ export const historialImporter = createExcelImporter({
     return { registro, avisos };
   },
 
+  // Clave de duplicado: incluye el CONCEPTO para que dos pagos del mismo día,
+  // monto, beneficiario y cuenta pero con distinto concepto (ej. "PAGO TOMA CASA
+  // 415" vs "CASA 408", o dos CFE del mismo importe) NO se marquen como duplicados.
   duplicateKey: r => {
     const iso = parseFechaHist(r.fecha);
-    return `${iso}|${(+r.importe || 0).toFixed(2)}|${norm(r.nombre)}|${norm(r.cuenta_origen)}`;
+    return `${iso}|${(+r.importe || 0).toFixed(2)}|${norm(r.nombre)}|${norm(r.cuenta_origen)}|${norm(r.concepto)}`;
   },
 
   existingKeyset: () => {
     const k = new Set();
     state.historial.forEach(h => {
       const iso = parseFechaHist(h.fecha);
-      k.add(`${iso}|${(+h.importe || 0).toFixed(2)}|${norm(h.nombre)}|${norm(h.cuenta_origen)}`);
+      k.add(`${iso}|${(+h.importe || 0).toFixed(2)}|${norm(h.nombre)}|${norm(h.cuenta_origen)}|${norm(h.concepto)}`);
     });
     return k;
   },
