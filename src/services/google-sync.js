@@ -1326,6 +1326,9 @@ export async function sbBorrarFila(key, idValue) {
 export async function migrarTodoASupabase() {
   if (!state.gsToken) { notify('Conecta Google Sheets primero', 'error'); return; }
   if (!sbReady()) { notify('Inicia sesión en la app (Supabase) primero', 'error'); return; }
+  // Confirmación: sobrescribe Supabase con el contenido del Sheet. Solo se usa
+  // tras editar el Google Sheet A MANO; por eso pide confirmar (evita accidentes).
+  if (!confirm('⚠️ "Subir cambios del Sheet"\n\nEsto RECARGA todo desde el Google Sheet y SOBRESCRIBE Supabase con esa versión.\n\nÚsalo SOLO si editaste el Sheet a mano y quieres subir esos cambios.\n\n¿Continuar?')) return;
   notify('Migrando a Supabase: recargando de Sheets...');
   await gsLoadAll();
   let ok = 0, fail = 0;

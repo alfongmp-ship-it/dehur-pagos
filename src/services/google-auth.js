@@ -65,12 +65,14 @@ export function renderAuthStatus() {
       + '<div style="width:8px;height:8px;border-radius:50%;background:var(--green);"></div>'
       + '<span style="font-size:12px;color:var(--muted);">✅ ' + (state.gsUser.email || 'Conectado') + '</span>'
       + '<button class="btn btn-ghost btn-sm" onclick="refrescarDatos()" style="font-size:11px;padding:3px 8px;" title="Recarga los datos más recientes desde Supabase (para ver cambios de otros usuarios)">🔄 Refrescar</button>'
-      + '<button class="btn btn-ghost btn-sm" onclick="migrarTodoASupabase()" style="font-size:11px;padding:3px 8px;border-color:#C8A96E;color:#C8A96E;" title="Solo si editaste el Google Sheet a MANO: sube esos cambios a Supabase">🟣 Subir cambios del Sheet</button>'
       + '<button class="btn btn-ghost btn-sm" onclick="gsLogout()" style="font-size:11px;padding:3px 8px;">Desconectar</button>'
       + '</div>';
     if (el) el.innerHTML = html;
     if (el2) el2.innerHTML = html;
+    // "Subir cambios del Sheet" se movió aquí (Configuración) para que no se
+    // apriete por accidente desde el header.
     if (actions) actions.innerHTML = ''
+      + '<button class="btn btn-ghost" onclick="migrarTodoASupabase()" style="border-color:#C8A96E;color:#C8A96E;margin-right:8px;" title="Solo si editaste el Google Sheet a MANO: sube esos cambios a Supabase">🟣 Subir cambios del Sheet</button>'
       + '<button class="btn btn-ghost" onclick="gsLoadAll()" title="RESPALDO: recarga los datos desde Google Sheets. Úsalo solo para inspeccionar o recuperar; normalmente la app lee de Supabase." style="opacity:.8;">⬇ Cargar desde Sheets (respaldo)</button>';
   } else {
     // Logueado en Supabase pero SIN Google: modo SOLO LECTURA. Ve los datos
