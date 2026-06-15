@@ -321,6 +321,16 @@ export async function iniciarRealtime() {
   if (!tid) { console.warn('Realtime: sin tenant; no suscribo'); return; }
   const client = getSupabaseClient();
 
+  // CRÍTICO: autenticar la conexión de realtime con el JWT del usuario ANTES de
+  // suscribir. Sin esto, realtime corre con la llave pública (anon) y la RLS de
+  // las tablas BLOQUEA todos los eventos → los canales dicen SUBSCRIBED pero no
+  // llega nada. getSession aquí es seguro: iniciarRealtime corre en bootstrap,
+  // FUERA del callback de onAuthStateChange (no re-entra el lock de auth).
+  try {
+    const { data: { session } } = await client.auth.getSession();
+    if (session && session.access_token) client.realtime.setAuth(session.access_token);
+  } catch (e) { console.warn('Realtime setAuth falló:', e); }
+
   for (const key of ENTIDADES_REALTIME) {
     const def = RT[key];
     if (!def) { console.warn('Realtime: sin definición para', key); continue; }

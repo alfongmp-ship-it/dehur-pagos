@@ -2,7 +2,7 @@
 // con un tenant valido en Supabase.
 
 import { state } from '../state.js';
-import { signIn, signOut, fetchCurrentTenantInfo, onAuthStateChange } from './supabase.js';
+import { signIn, signOut, fetchCurrentTenantInfo, onAuthStateChange, getSupabaseClient } from './supabase.js';
 
 const APP_SHELL_ID = 'app-shell';
 const AUTH_SCREEN_ID = 'auth-screen';
@@ -174,6 +174,12 @@ export function setupAuthListener(onAuthedCallback) {
         showLogin();
         return;
       }
+      // Mantener autenticada la conexión de realtime con el token actual (incluido
+      // tras TOKEN_REFRESHED, ~cada hora). Sin esto la RLS bloquea los eventos de
+      // realtime. setAuth NO usa el lock de auth → seguro en este callback.
+      try {
+        if (session.access_token) getSupabaseClient().realtime.setAuth(session.access_token);
+      } catch (e) { console.warn('realtime.setAuth en listener falló:', e); }
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
         let info;
         try {
