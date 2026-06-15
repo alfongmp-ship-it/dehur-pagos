@@ -21,24 +21,49 @@
 }
 
 [data-theme="light"] {
-  --bg: #e8e5de;
-  --surface: #ffffff;
-  --surface2: #ddd9d0;
-  --border: #b8b3a8;
-  --accent: #a8884a;
-  --accent2: #8c6f37;
-  --text: #1a1916;
-  --muted: #5a564f;
-  --green: #2e8556;
-  --red: #c83e3e;
-  --blue: #2e6fb8;
-  --purple: #6f4fcc;
-  --orange: #c8601e;
-  --row-hover: rgba(0,0,0,.05);
-  --row-border-soft: rgba(0,0,0,.18);
-  --shadow-color: rgba(0,0,0,.1);
-  --modal-backdrop: rgba(0,0,0,.5);
-  --on-accent: #ffffff;
+  /* === Papel cálido premium — jerarquía en 3 capas cálidas === */
+  --bg: #f4f1ea;            /* crema cálida sutil (fondo general) */
+  --surface: #fffdf9;       /* papel blanco cálido (tarjetas/tablas/header/sidebar) */
+  --surface2: #ece7dd;      /* crema secundaria (thead, fills, chips, badges) */
+  --border: rgba(60,52,38,.16);   /* HAIRLINE cálido, no jaula */
+
+  /* Marca: dorado rico y profundo (botón primario sí cumple contraste) */
+  --accent: #8a6630;
+  --accent2: #6f5021;
+  --on-accent: #fffdf9;
+
+  /* Texto */
+  --text: #211e18;          /* casi-negro cálido */
+  --muted: #665f54;         /* gris cálido AA sobre los 3 fondos */
+
+  /* Semánticos (AA sobre bg, surface y surface2) */
+  --green: #1b774a;
+  --red: #bf3535;           /* rojo calmado, no vibra sobre papel */
+  --blue: #2563a8;
+  --purple: #5e3fb0;
+  --orange: #a84e12;
+
+  /* Interacción / profundidad */
+  --row-hover: rgba(138,102,48,.06);    /* hover de fila: tinte dorado tibio */
+  --row-border-soft: rgba(60,52,38,.10);/* separadores finos (antes .18, rayaba) */
+  --shadow-color: rgba(60,52,38,.10);
+  --modal-backdrop: rgba(33,30,24,.45);
+
+  /* Tokens nuevos (usados en los overrides de abajo): reemplazan los
+     rgba(200,169,110,...) del dorado OSCURO y los hues oscuros de semánticos,
+     que en claro quedaban invisibles. */
+  --accent-tint: rgba(138,102,48,.12);
+  --accent-tint-strong: rgba(138,102,48,.18);
+  --accent-soft-border: rgba(138,102,48,.42);
+  --thead-bg: #f0ebe1;
+  --input-bg: #fffdf9;
+  --shadow-sm: 0 1px 2px rgba(60,52,38,.06), 0 1px 3px rgba(60,52,38,.08);
+  --shadow-md: 0 4px 16px rgba(60,52,38,.10), 0 1px 3px rgba(60,52,38,.07);
+  --green-tint: rgba(27,119,74,.12);  --green-soft-border: rgba(27,119,74,.42);
+  --red-tint: rgba(191,53,53,.12);    --red-soft-border: rgba(191,53,53,.40);
+  --blue-tint: rgba(37,99,168,.10);   --blue-soft-border: rgba(37,99,168,.34);
+  --orange-tint: rgba(168,78,18,.12); --orange-soft-border: rgba(168,78,18,.40);
+  --purple-tint: rgba(94,63,176,.10); --purple-soft-border: rgba(94,63,176,.30);
 }
 
 /* Light mode: badges TIPO CUENTA con saturación visible */
@@ -76,6 +101,53 @@
 [data-theme="light"] .tag-paraiso   { background: rgba(168,136,74,.22); color: #6d572b; }
 [data-theme="light"] .tag-entorno   { background: rgba(46,111,184,.22); color: #1d4f8a; }
 [data-theme="light"] .tag-dt        { background: rgba(46,133,86,.22); color: #1f5e3c; }
+
+/* ===== Modo claro: elevación + reanclar hardcodes del tema oscuro ===== */
+
+/* Elevación — causa raíz de la planitud: estas tarjetas no tenían sombra.
+   Con bg/surface muy cercanos, la jerarquía la da esta sombra cálida. */
+[data-theme="light"] .stat-card,
+[data-theme="light"] .table-wrap,
+[data-theme="light"] .notif,
+[data-theme="light"] .re-report { box-shadow: var(--shadow-sm); }
+[data-theme="light"] .modal { box-shadow: var(--shadow-md); }
+
+/* Inputs/selects: papel (la base usaba --surface2 y parecían deshabilitados) */
+[data-theme="light"] input,
+[data-theme="light"] select,
+[data-theme="light"] textarea,
+[data-theme="light"] .filter-select { background: var(--input-bg); }
+
+/* Encabezado de tabla: un escalón cálido por encima de surface2 */
+[data-theme="light"] thead { background: var(--thead-bg); }
+
+/* Botones semánticos: la base usa hues del tema OSCURO (casi invisibles en claro) */
+[data-theme="light"] .btn-success { background: var(--green-tint); border-color: var(--green-soft-border); }
+[data-theme="light"] .btn-success:hover { background: rgba(27,119,74,.20); }
+[data-theme="light"] .btn-danger  { background: var(--red-tint); border-color: var(--red-soft-border); }
+[data-theme="light"] .btn-danger:hover  { background: rgba(191,53,53,.20); }
+
+/* Cajas de aviso (base anclada a naranja/azul oscuros) */
+[data-theme="light"] .alert-box { background: var(--orange-tint); border-color: var(--orange-soft-border); }
+[data-theme="light"] .info-box  { background: var(--blue-tint); border-color: var(--blue-soft-border); }
+
+/* Estados activos/seleccionados dorados: estaban con rgba(200,169,110,...)
+   (dorado OSCURO), lavados en claro. Reanclar al tinte dorado del tema. */
+[data-theme="light"] .nav-item.active,
+[data-theme="light"] .re-tab.active,
+[data-theme="light"] .re-confidencial,
+[data-theme="light"] .proyecto-pill.selected,
+[data-theme="light"] .total-bar,
+[data-theme="light"] .q1,
+[data-theme="light"] .cf-metodo-opt:has(input:checked),
+[data-theme="light"] .cf-plano-btn.active { background: var(--accent-tint); border-color: var(--accent-soft-border); }
+[data-theme="light"] .cf-zona-fantasma { background: var(--accent-tint-strong); }
+
+/* Barra gris sucia del resumen ejecutivo (usaba rgba(0,0,0,.15)) */
+[data-theme="light"] .re-table-head { background: var(--surface2); }
+
+/* Fila de préstamos (morado anclado al tono oscuro, casi invisible) */
+[data-theme="light"] .re-prestamo-row { background: var(--purple-tint); border-color: var(--purple-soft-border); }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
