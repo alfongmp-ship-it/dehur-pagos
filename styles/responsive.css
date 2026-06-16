@@ -1,4 +1,22 @@
-/* === Mobile Responsive === */
+/* === Computadoras: laptops 1024–1536px (antes NO existía ningún breakpoint aquí; */
+/* solo estaba el de ≤768 para celular). Orden mayor→menor para que el chico gane. === */
+@media (max-width: 1440px) {
+  .header { padding: 14px 20px; }
+}
+@media (max-width: 1366px) {
+  .sidebar { width: 188px; min-width: 188px; }
+  .nav-item { font-size: 13px; padding: 8px 10px; margin: 0 8px; }
+  .main { padding: 22px 22px; }
+}
+@media (max-width: 1280px) {
+  .logo-sub { display: none; }
+}
+@media (max-width: 1100px) {
+  .sidebar { width: 172px; min-width: 172px; }
+  .main { padding: 18px 18px; }
+}
+
+/* === Celular (≤768px) === */
 @media (max-width: 768px) {
   .sidebar { display: none; }
   .main { padding: 16px; }
@@ -12,4 +30,15 @@
   .field.span2 { grid-column: span 1; }
   .modal { padding: 20px; }
   .hist-row { grid-template-columns: 1fr; gap: 4px; }
+}
+
+/* === Monitores grandes (≥1800px): centrar y capar el ancho para que el contenido */
+/* no se estire de borde a borde. El Historial (necesita su scroll) y el Resumen */
+/* Ejecutivo (ya capado) quedan fuera. === */
+@media (min-width: 1800px) {
+  .main > div[id^='page-']:not(#page-historial):not(#page-resumen-ejecutivo) {
+    max-width: 1600px;
+    margin-left: auto;
+    margin-right: auto;
+  }
 }

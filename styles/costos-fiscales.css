@@ -262,7 +262,7 @@
   border-radius: 10px;
   padding: 12px 14px;
   box-shadow: 0 10px 28px rgba(0, 0, 0, .6);
-  z-index: 100;
+  z-index: 150;   /* sobre el header (100), debajo de los modales (1100) */
   min-width: 230px;
   max-width: 280px;
   font-size: 12px;

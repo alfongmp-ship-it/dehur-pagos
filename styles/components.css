@@ -15,9 +15,9 @@
 .badge { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 500; border: 1px solid var(--border); background: var(--surface2); color: var(--muted); }
 .badge.active { border-color: var(--accent); color: var(--accent); }
 
-/* Stats */
-.stats-row { display: grid; grid-template-columns: repeat(5,1fr); gap: 14px; margin-bottom: 24px; }
-.stats-row-4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 24px; }
+/* Stats — auto-fit: las tarjetas se reacomodan solas según el ancho (sin breakpoints). */
+.stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap: 14px; margin-bottom: 24px; }
+.stats-row-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap: 14px; margin-bottom: 24px; }
 .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; }
 .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 500; }
 .stat-value { font-family: 'Syne', sans-serif; font-size: 24px; font-weight: 700; margin: 5px 0 3px; }
@@ -29,18 +29,22 @@
 .stat-purple { color: var(--purple); }
 
 /* Toolbar & Search */
-.toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 18px; }
 .search-box { flex: 1; position: relative; }
 .search-box input { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 9px 14px 9px 36px; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 13px; outline: none; transition: border-color .15s; }
 .search-box input:focus { border-color: var(--accent); }
 .search-box input::placeholder { color: var(--muted); }
 .search-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 14px; }
-.filter-select { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 9px 14px; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 13px; outline: none; cursor: pointer; }
+.filter-select { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 9px 14px; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 13px; outline: none; cursor: pointer; min-width: 140px; }
 .filter-select:focus { border-color: var(--accent); }
 
 /* Tables */
-.table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+/* overflow-x:auto da scroll horizontal real cuando la tabla/grid no cabe (laptops),
+   en vez de recortar columnas. overflow-y:hidden conserva el border-radius superior. */
+.table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow-x: auto; overflow-y: hidden; }
 table { width: 100%; border-collapse: collapse; }
+/* Piso de ancho: las tablas prefieren scroll a amontonar el texto en pantallas chicas. */
+.table-wrap table { min-width: 760px; }
 thead { background: var(--surface2); }
 th { padding: 11px 16px; text-align: left; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; border-bottom: 1px solid var(--border); }
 td { padding: 12px 16px; border-bottom: 1px solid var(--row-border-soft); vertical-align: middle; }
@@ -68,9 +72,11 @@ tr:hover td { background: var(--row-hover); }
 .tipo-badge-corta { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 20px; font-size: 10px; font-weight: 600; background: rgba(224,122,58,.12); color: var(--orange); border: 1px solid rgba(224,122,58,.25); }
 
 /* Modals */
-.modal-overlay { display: none; position: fixed; inset: 0; background: var(--modal-backdrop); z-index: 200; align-items: center; justify-content: center; }
+/* z-index 1100: por encima de notif (300) y del menú de usuario (1000), para que el
+   modal y sus botones nunca queden tapados. padding: deja aire en pantallas bajitas. */
+.modal-overlay { display: none; position: fixed; inset: 0; background: var(--modal-backdrop); z-index: 1100; align-items: center; justify-content: center; padding: 24px; }
 .modal-overlay.open { display: flex; }
-.modal { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 28px; width: 560px; max-width: 95vw; max-height: 90vh; overflow-y: auto; }
+.modal { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 28px; width: 560px; max-width: 95vw; max-height: calc(100vh - 48px); overflow-y: auto; }
 .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 22px; }
 .modal-title { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; }
 .modal-close { background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; }
@@ -88,7 +94,9 @@ input[type="checkbox"], input[type="radio"] { width: auto; accent-color: var(--a
 .form-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 22px; }
 
 /* Notifications */
-.notif { position: fixed; bottom: 24px; right: 24px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; font-size: 13px; z-index: 300; display: flex; align-items: center; gap: 10px; transform: translateY(80px); opacity: 0; transition: all .3s; min-width: 260px; }
+/* z-index 1200: el aviso queda SOBRE el modal (1100) para que los errores que salen
+   dentro de un modal (ej. "Elige una partida") nunca queden tapados. */
+.notif { position: fixed; bottom: 24px; right: 24px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; font-size: 13px; z-index: 1200; display: flex; align-items: center; gap: 10px; transform: translateY(80px); opacity: 0; transition: all .3s; min-width: 260px; max-width: 440px; }
 .notif.show { transform: translateY(0); opacity: 1; }
 .notif.success { border-color: var(--green); }
 .notif.success .ni { color: var(--green); }

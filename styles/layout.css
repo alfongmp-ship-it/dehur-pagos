@@ -12,9 +12,15 @@
 }
 .logo-text { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px; line-height: 1.2; }
 .logo-sub { font-size: 11px; color: var(--muted); }
-.header-right { display: flex; gap: 8px; align-items: center; }
+/* flex-wrap: las 5 tarjetas de saldo bajan a otra línea en laptops en vez de encimarse. */
+.header-right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
 
-.layout { display: flex; height: calc(100vh - 61px); }
+/* El shell es una columna flex a pantalla completa: banner + header + warning toman
+   su alto natural y .layout se queda con el resto EXACTO (sin hardcodear 61px, que
+   fallaba al prender el banner de mantenimiento). El JS lo muestra con display='' →
+   esta regla aplica (el inline display:none inicial la sobreescribe hasta entonces). */
+#app-shell { display: flex; flex-direction: column; height: 100vh; }
+.layout { display: flex; flex: 1; min-height: 0; }
 
 .sidebar {
   width: 220px; min-width: 220px; background: var(--surface);
@@ -37,7 +43,9 @@
   padding: 1px 7px; font-size: 11px; font-family: 'DM Mono', monospace; color: var(--muted);
 }
 
-.main { flex: 1; overflow-y: auto; padding: 28px 32px; }
+/* min-width:0 evita que un grid/tabla ancho empuje todo el layout (scroll horizontal
+   de la página que mueve header y sidebar); el desborde queda confinado al contenido. */
+.main { flex: 1; min-width: 0; overflow: auto; padding: 28px 32px; }
 .page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; }
 .page-title { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 700; }
 .page-subtitle { color: var(--muted); font-size: 13px; margin-top: 2px; }
