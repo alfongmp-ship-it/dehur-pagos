@@ -4,7 +4,7 @@ import { notify } from '../ui/notify.js';
 import { proyTag, catTag } from '../ui/badges.js';
 import { gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveTraspasos, gsSaveCostoAsignaciones, purgarAsignacionesDePago, esPorFila, sbGuardarFila, sbBorrarFila } from '../services/google-sync.js';
 import { saveProy, proyectoMatch } from '../config/proyectos.js';
-import { getPartidasParaSelect, getSubPartidas, subPartidaObligatoria, SUB_PARTIDAS_CONSTRUCCION } from '../config/sub-partidas.js';
+import { getPartidasParaSelect, getSubPartidas, subPartidaObligatoria } from '../config/sub-partidas.js';
 
 // Selección para borrado en bloque del historial (por id estable del pago).
 const histSel = new Set();
@@ -89,18 +89,21 @@ function refreshHistSubPartidas() {
   const sel = document.getElementById('fh-subpartida');
   if (!sel) return;
   const val = sel.value;
-  // Catálogo canónico de subpartidas (CONSTRUCCION) + cualquier valor legacy
-  // del historial que no esté en el catálogo.
-  const enHistorial = [...new Set(state.historial.map(h => h.sub_partida).filter(Boolean))];
-  const canonical = new Set(SUB_PARTIDAS_CONSTRUCCION);
-  const ordered = [...SUB_PARTIDAS_CONSTRUCCION];
-  enHistorial.forEach(s => { if (!canonical.has(s)) ordered.push(s + ' (legacy)'); });
+  // Cascada del catálogo ACTIVO: las sub-partidas dependen de la partida elegida.
+  // Solo CONSTRUCCION tiene sub-partidas (getSubPartidas devuelve [] para las demás),
+  // así que el filtro se deshabilita y se resetea cuando no aplica.
+  const partidaSel = document.getElementById('fh-partida')?.value || '';
+  const subs = getSubPartidas(partidaSel);
+  if (!subs.length) {
+    sel.innerHTML = '<option value="">Todas las sub-partidas</option>';
+    sel.value = '';
+    sel.disabled = true;
+    return;
+  }
+  sel.disabled = false;
   sel.innerHTML = '<option value="">Todas las sub-partidas</option>' +
-    ordered.map(s => {
-      const value = s.endsWith(' (legacy)') ? s.replace(/ \(legacy\)$/, '') : s;
-      return `<option value="${value}">${s}</option>`;
-    }).join('');
-  sel.value = val;
+    subs.map(s => `<option value="${s}">${s}</option>`).join('');
+  sel.value = subs.includes(val) ? val : '';
 }
 
 export function exportarHistorial() {
@@ -121,7 +124,6 @@ export function exportarHistorial() {
 
 function getFilteredHistorial() {
   const q = (document.getElementById('buscar-hist')?.value || '').toLowerCase();
-  const fc = document.getElementById('fh-cat')?.value || '';
   const ft = document.getElementById('fh-tipo')?.value || '';
   const fp = document.getElementById('fh-proy')?.value || '';
   const fpart = document.getElementById('fh-partida')?.value || '';
@@ -130,10 +132,6 @@ function getFilteredHistorial() {
   const fh2 = document.getElementById('fh-hasta')?.value || '';
   return state.historial.filter(h => {
     if (q && !(/^\d+$/.test(q) ? String(h.proveedor_id) === q : h.nombre.toLowerCase().includes(q))) return false;
-    if (fc) {
-      const prov = h.proveedor_id ? state.proveedores.find(p => p.id === parseInt(h.proveedor_id)) : null;
-      if (!prov || prov.categoria !== fc) return false;
-    }
     if (ft) {
       const tipoLabel = h.tipo_registro === 'Crédito' ? 'Crédito'
                       : h.tipo_registro !== 'Traspaso' ? 'Pago'
