@@ -178,7 +178,7 @@
         <div style="display:flex;gap:8px;">
           <button class="btn btn-ghost" onclick="abrirImportProveedores()">📥 Importar Excel</button>
           <button class="btn btn-ghost" onclick="exportarCSV()">⬇ Exportar CSV</button>
-          <button class="btn btn-primary" onclick="abrirNuevoProveedor()">+ Nuevo</button>
+          <button class="btn btn-primary req-editor" onclick="abrirNuevoProveedor()">+ Nuevo</button>
         </div>
       </div>
       <div class="stats-row">
@@ -221,7 +221,7 @@
         <div style="display:flex;align-items:center;gap:8px;">
           <div id="disp-saldo-display" style="display:none;padding:6px 12px;border-radius:8px;background:var(--surface);border:1px solid var(--border);font-size:12px;font-family:'DM Mono',monospace;"></div>
           <button class="btn btn-ghost" onclick="abrirModalNominaDisp()">+ Nómina completa</button>
-          <button class="btn btn-primary" onclick="abrirModalPago()">+ Agregar Pago</button>
+          <button class="btn btn-primary req-editor" onclick="abrirModalPago()">+ Agregar Pago</button>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 320px;gap:20px;">
@@ -268,7 +268,7 @@
           <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;cursor:pointer;">
             <input type="checkbox" id="chk-conf-all" onchange="toggleAllConf(this.checked)" checked style="width:14px;height:14px;cursor:pointer;"> Seleccionar todos
           </label>
-          <button class="btn btn-primary" onclick="confirmarPagos()" style="background:var(--green);">✅ Registrar confirmados en Historial</button>
+          <button class="btn btn-primary req-editor" onclick="confirmarPagos()" style="background:var(--green);">✅ Registrar confirmados en Historial</button>
         </div>
       </div>
       <div id="conf-resumen-page"></div>
@@ -286,7 +286,7 @@
       <div class="page-header">
         <div><div class="page-title">Historial de Pagos</div><div class="page-subtitle">Registro de dispersiones generadas</div></div>
         <div style="display:flex;gap:8px;">
-          <button class="btn btn-ghost" onclick="abrirImportHistorial()">📥 Importar Excel</button>
+          <button class="btn btn-ghost req-editor" onclick="abrirImportHistorial()">📥 Importar Excel</button>
           <button class="btn btn-ghost" onclick="exportarHistorial()">⬇ Exportar CSV</button>
         </div>
       </div>
@@ -320,8 +320,8 @@
       </div>
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
         <div id="hist-subtitulo" style="font-size:11px;color:var(--muted);"></div>
-        <button id="hist-bulk-partida" class="btn btn-ghost btn-sm" onclick="abrirCambiarPartidaBulk()" style="display:none;color:#C8A96E;border-color:#C8A96E;font-size:11px;padding:3px 10px;">🏷 Cambiar partida (0)</button>
-        <button id="hist-bulk-del" class="btn btn-ghost btn-sm" onclick="eliminarHistorialBulk()" style="display:none;color:#e74c3c;border-color:#e74c3c;font-size:11px;padding:3px 10px;">🗑 Eliminar seleccionados (0)</button>
+        <button id="hist-bulk-partida" class="btn btn-ghost btn-sm req-admin" onclick="abrirCambiarPartidaBulk()" style="display:none;color:var(--accent);border-color:var(--accent);font-size:11px;padding:3px 10px;">🏷 Cambiar partida (0)</button>
+        <button id="hist-bulk-del" class="btn btn-ghost btn-sm req-admin" onclick="eliminarHistorialBulk()" style="display:none;color:var(--red);border-color:var(--red);font-size:11px;padding:3px 10px;">🗑 Eliminar seleccionados (0)</button>
       </div>
       <div class="table-wrap">
         <div style="display:grid;grid-template-columns:34px 60px 60px 90px 110px minmax(180px, 1fr) 80px 70px 65px 80px 85px 90px 95px 80px 64px;gap:10px;padding:11px 16px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;">
@@ -335,7 +335,7 @@
     <div id="page-facturas" style="display:none">
       <div class="page-header">
         <div><div class="page-title">Facturas</div><div class="page-subtitle">Registro de facturas por proveedor</div></div>
-        <button class="btn btn-primary" onclick="abrirNuevaFactura()">+ Nueva Factura</button>
+        <button class="btn btn-primary req-editor" onclick="abrirNuevaFactura()">+ Nueva Factura</button>
       </div>
       <div id="fact-stats" class="stats-row-4" style="display:none"></div>
       <div style="margin-bottom:10px;">
@@ -388,7 +388,7 @@
         <div style="display:flex;gap:8px;">
           <button class="btn btn-ghost" onclick="abrirImportEmpleados()">📥 Importar Excel</button>
           <button class="btn btn-ghost" onclick="exportarNomina()">⬇ Exportar CSV</button>
-          <button class="btn btn-primary" onclick="abrirNuevoEmpleado()">+ Nuevo empleado</button>
+          <button class="btn btn-primary req-editor" onclick="abrirNuevoEmpleado()">+ Nuevo empleado</button>
         </div>
       </div>
       <div class="stats-row-4">
@@ -501,7 +501,7 @@
         <div style="display:flex;gap:8px;">
           <button class="btn btn-ghost" onclick="sincronizarAportacionesATraspasos()" title="Crea aquí los traspasos de las aportaciones que subiste por la plantilla de Historial. No toca saldos ni borra nada.">🔗 Sincronizar aportaciones</button>
           <button class="btn btn-ghost" onclick="abrirImportTraspasos()">📥 Importar Excel</button>
-          <button class="btn btn-primary" onclick="abrirNuevoTraspaso()">+ Nuevo</button>
+          <button class="btn btn-primary req-editor" onclick="abrirNuevoTraspaso()">+ Nuevo</button>
         </div>
       </div>
       <div class="card" style="padding:0;">
@@ -686,7 +686,7 @@
           <div class="page-title">Cuentas Propias</div>
           <div class="page-subtitle" id="cp-subtitulo"></div>
         </div>
-        <button class="btn btn-primary" onclick="abrirNuevaCuenta()">+ Nueva Cuenta</button>
+        <button class="btn btn-primary req-admin" onclick="abrirNuevaCuenta()">+ Nueva Cuenta</button>
       </div>
 
       <div class="table-wrap">

@@ -1,4 +1,4 @@
-import { state, datosListos } from '../state.js';
+import { state, datosListos, esAdmin } from '../state.js';
 import { fmt } from '../ui/format.js';
 import { proyTag } from '../ui/badges.js';
 import { notify } from '../ui/notify.js';
@@ -210,6 +210,7 @@ export function actualizarSaldoExtra(cuentaId) {
 }
 
 export function guardarCuenta() {
+  if (!esAdmin()) { notify('Solo el admin puede crear/editar cuentas', 'error'); return; }
   const nombre = document.getElementById('cp-nombre').value.trim();
   const banco = document.getElementById('cp-banco').value.trim();
   if (!nombre) { notify('El nombre es obligatorio', 'error'); return; }

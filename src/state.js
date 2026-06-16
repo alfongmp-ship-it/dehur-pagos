@@ -70,3 +70,31 @@ export function esConcentradora(nombreCuenta) {
 export function datosListos() {
   return !!state.gsToken || !!(state.session && state.session.tenantId);
 }
+
+// ===== Roles / permisos (Etapa 2 — gating en cliente) =====
+// Default 'solo_lectura' por seguridad: si el rol no cargó, NO se puede escribir.
+// Solo admin y capturista mueven cosas; contabilidad/lector/solo_lectura solo ven.
+export function rol() {
+  return (state.session && state.session.role) || 'solo_lectura';
+}
+
+// Puede capturar / editar / borrar-de-uno / confirmar pagos / actualizar saldos.
+export function puedeEditar() {
+  const r = rol();
+  return r === 'admin' || r === 'capturista';
+}
+
+// Solo el admin: borrado EN BLOQUE, configuración (proyectos/partidas/cuentas),
+// conectar Google + "Respaldar a Sheets".
+export function esAdmin() {
+  return rol() === 'admin';
+}
+
+// Etiqueta amigable del rol para el badge de usuario.
+const ROL_LABEL = {
+  admin: 'Admin', capturista: 'Capturista', contabilidad: 'Contabilidad',
+  lector: 'Lector', aprobador: 'Aprobador', solo_lectura: 'Solo lectura'
+};
+export function rolLabel() {
+  return ROL_LABEL[rol()] || rol();
+}

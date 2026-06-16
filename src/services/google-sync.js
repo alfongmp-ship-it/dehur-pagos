@@ -1,4 +1,4 @@
-import { state } from '../state.js';
+import { state, puedeEditar, esAdmin } from '../state.js';
 import { notify } from '../ui/notify.js';
 import { gsReadSheet, gsWriteRange, gsClearAndWrite, gsAppendRow } from './google-sheets.js';
 import { normalizeBanco } from '../config/bancos.js';
@@ -860,7 +860,7 @@ export function ensureHistorialIds() {
 
 // Elimina las asignaciones de costo ligadas a un pago borrado (evita huérfanas).
 export async function purgarAsignacionesDePago(pagoId) {
-  if (!pagoId || !state.gsToken) return;
+  if (!pagoId || !puedeEditar()) return;
   const antes = state.costoAsignaciones.length;
   state.costoAsignaciones = state.costoAsignaciones.filter(a => String(a.pago_id) !== String(pagoId));
   if (state.costoAsignaciones.length !== antes) {
@@ -869,7 +869,7 @@ export async function purgarAsignacionesDePago(pagoId) {
 }
 
 export async function saveData(count = 1) {
-  if (!state.gsToken) return;
+  if (!puedeEditar()) return;
   try {
     ensureHistorialIds();
     const n = Math.min(count, state.historial.length);
@@ -887,7 +887,7 @@ const HS_HEADERS = ['fecha', 'cuenta_id', 'cuenta_nombre', 'cuenta_tipo', 'saldo
 let hsHeadersOk = false;
 
 export async function gsAppendHistorialSaldo(registro) {
-  if (!state.gsToken) return;
+  if (!puedeEditar()) return;
   try {
     if (!hsHeadersOk) {
       const rows = await gsReadSheet('historial_saldos');
@@ -904,7 +904,7 @@ export async function gsAppendHistorialSaldo(registro) {
 }
 
 export async function gsSavePendientes() {
-  if (!state.gsToken) return;
+  if (!puedeEditar()) return;
   // Los pagos por confirmar se vacían de forma normal al confirmar la cola.
   if (!guardarPermitido('pendientesConfirmacion', state.pendientesConfirmacion, true)) return;
   try {
@@ -925,7 +925,7 @@ export async function gsSavePendientes() {
 }
 
 export async function gsSaveHistorial(opts = {}) {
-  if (!state.gsToken) return;
+  if (!puedeEditar()) return;
   if (!guardarPermitido('historial', state.historial, true)) return;
   // Salvaguarda: nunca sobrescribir el historial con cero filas (evita vaciarlo
   // por accidente si el estado en memoria está vacío).
@@ -978,7 +978,7 @@ export async function gsSaveHistorial(opts = {}) {
 }
 
 export async function gsSaveUnidades(opts = {}) {
-  if (!state.gsToken) return;
+  if (!puedeEditar()) return;
   if (!guardarPermitido('unidades', state.unidades)) return;
   try {
     const rows = state.unidades.map(u => [
@@ -997,7 +997,7 @@ export async function gsSaveUnidades(opts = {}) {
 }
 
 export async function gsSavePresupuestoUnidad() {
-  if (!state.gsToken) return;
+  if (!puedeEditar()) return;
   if (!guardarPermitido('presupuestoUnidad', state.presupuestoUnidad)) return;
   try {
     const rows = state.presupuestoUnidad.map(p => [
@@ -1013,7 +1013,7 @@ export async function gsSavePresupuestoUnidad() {
 }
 
 export async function gsSaveCostoAsignaciones() {
-  if (!state.gsToken) return;
+  if (!puedeEditar()) return;
   if (!guardarPermitido('costoAsignaciones', state.costoAsignaciones)) return;
   try {
     const rows = state.costoAsignaciones.map(a => [
@@ -1300,6 +1300,7 @@ async function sbEspejar(key) {
 // si falla, avisa pero NO rompe el guardado a Sheets. `item` es el objeto del
 // state (un proveedor, etc.); usa el mapeo `rowOne` de SB_ENTIDADES[key].
 export async function sbGuardarFila(key, item) {
+  if (!puedeEditar()) return;   // backstop de rol: solo_lectura/contabilidad/lector nunca escriben
   if (!sbReady()) return;
   const def = SB_ENTIDADES[key];
   if (!def || !def.rowOne || !def.idCol) return;
@@ -1313,6 +1314,7 @@ export async function sbGuardarFila(key, item) {
 
 // Borra UNA fila de Supabase (Fase 3). `idValue` = el id de la fila a borrar.
 export async function sbBorrarFila(key, idValue) {
+  if (!puedeEditar()) return;   // backstop de rol
   if (!sbReady()) return;
   const def = SB_ENTIDADES[key];
   if (!def || !def.idCol) return;
@@ -1351,13 +1353,39 @@ export async function migrarTodoASupabase() {
   else notify(`Migración parcial: ${ok} OK, ${fail} con error. Revisa F12 — ¿corriste el SQL de esas tablas?`, 'error');
 }
 
+// Botón "Respaldar a Sheets" (solo admin): empuja TODO el estado actual al Google
+// Sheet. Supabase es la fuente; esto pone el respaldo al día cuando el admin quiera
+// (útil porque el capturista guarda sin Google y el Sheet se queda atrás). Llama
+// cada gsSaveX con {porFila:true} → escribe Sheets sin re-espejar Supabase (evita la
+// tormenta de realtime del delete+insert masivo).
+export async function respaldarTodoASheets() {
+  if (!esAdmin()) { notify('Solo el admin puede respaldar a Sheets', 'error'); return; }
+  if (!state.gsToken) { notify('Conecta Google primero para respaldar a Sheets', 'error'); return; }
+  if (!confirm('Esto SOBRESCRIBE el Google Sheet con la versión actual (la que ves desde Supabase).\n\nÚsalo para poner el respaldo al día.\n\n¿Continuar?')) return;
+  notify('Respaldando todo a Sheets...');
+  const savers = [
+    gsSaveProveedores, gsSaveEmpleados, gsSaveProyectos, gsSaveCuentasPropias,
+    gsSaveHistorial, gsSaveFacturas, gsSaveFacturaPagos, gsSaveTraspasos,
+    gsSaveMovimientosInternos, gsSaveCreditos, gsSavePagares, gsSavePagosPagare,
+    gsSaveUnidades, gsSavePresupuestoUnidad, gsSaveCostoAsignaciones,
+    gsSavePartidasCatalogo, gsSavePartidasObra, gsSavePendientes
+  ];
+  let ok = 0, fail = 0;
+  for (const fn of savers) {
+    try { await fn({ porFila: true }); ok++; }
+    catch (e) { fail++; console.error('respaldarTodoASheets', fn.name, e); }
+  }
+  if (fail === 0) notify(`✅ Respaldado a Sheets: ${ok} tablas`, 'success');
+  else notify(`Respaldo parcial: ${ok} OK, ${fail} con error (revisa F12)`, 'error');
+}
+
 export async function gsSaveProveedores(opts = {}) {
-  if (!state.gsToken) return;
+  if (!puedeEditar()) return;
   if (!guardarPermitido('proveedores', state.proveedores)) return;
   try {
     const rows = state.proveedores.map(p => [p.id, p.nombre, p.rfc || '', p.banco, p.tipo_cuenta, p.cuenta, p.clabe || '', p.categoria, p.subcategoria || '', (p.proyectos || []).join('|'), p.activo, p.bloqueada_para_pago || false]);
     await gsClearAndWrite('proveedores', rows, ['proveedor_id', 'nombre', 'rfc', 'banco', 'tipo_cuenta', 'cuenta', 'clabe', 'categoria', 'Subcategoria', 'proyectos', 'activo', 'bloqueada_para_pago']);
-    notify('✅ Proveedores guardados en Sheets');
+    if (state.gsToken) notify('✅ Proveedores guardados en Sheets');
     // Fase 3: en modo 'fila' el caller ya guardó la fila puntual a Supabase, así
     // que NO espejamos la tabla completa (evita el delete+insert masivo y la
     // cascada de eventos de realtime). En modo 'tabla' se espeja como siempre.
@@ -1366,7 +1394,7 @@ export async function gsSaveProveedores(opts = {}) {
 }
 
 export async function gsSaveAlias(nombreOriginal, provId) {
-  if (!state.gsToken) return;
+  if (!puedeEditar()) return;
   try {
     const fecha = new Date().toISOString().split('T')[0];
     await gsAppendRow('aliases', [nombreOriginal, provId, fecha]);
@@ -1374,18 +1402,18 @@ export async function gsSaveAlias(nombreOriginal, provId) {
 }
 
 export async function gsSaveEmpleados(opts = {}) {
-  if (!state.gsToken) return;
+  if (!puedeEditar()) return;
   if (!guardarPermitido('empleados', state.empleados)) return;
   try {
     const rows = state.empleados.map(e => [e.id, e.nombre, e.puesto || '', e.empresa || '', e.banco, e.tipo_cuenta, e.cuenta, e.clabe || '', e.rfc || '', e.activo]);
     await gsClearAndWrite('empleados', rows, ['id', 'nombre', 'puesto', 'empresa', 'banco', 'tipo_cuenta', 'cuenta', 'clabe', 'rfc', 'activo']);
-    notify('✅ Empleados guardados en Sheets');
+    if (state.gsToken) notify('✅ Empleados guardados en Sheets');
     if (!opts.porFila) await sbEspejar('empleados');
   } catch (e) { console.error('gsSaveEmpleados', e); }
 }
 
 export async function gsSaveFacturas(opts = {}) {
-  if (!state.gsToken) return;
+  if (!puedeEditar()) return;
   if (!guardarPermitido('facturas', state.facturas)) return;
   try {
     const rows = state.facturas.map(f => [f.factura_id, f.numero_factura || '', f.razon_social || '', f.proveedor_id, f.nombre_proveedor || '', f.fecha_factura, f.fecha_vencimiento || '', f.fecha_pago_total || '', f.monto_total, f.monto_pagado, f.saldo_pendiente, f.estatus_factura, f.proyecto, f.observaciones, f.activo, f.uuid || '']);
@@ -1395,7 +1423,7 @@ export async function gsSaveFacturas(opts = {}) {
 }
 
 export async function gsSaveFacturaPagos(opts = {}) {
-  if (!state.gsToken) return;
+  if (!puedeEditar()) return;
   if (!guardarPermitido('facturaPagos', state.facturaPagos)) return;
   try {
     const rows = state.facturaPagos.map(fp => [fp.factura_pago_id, fp.factura_id, fp.pago_id, fp.proveedor_id, fp.monto_aplicado, fp.fecha_pago, fp.estatus, fp.observaciones]);
@@ -1405,7 +1433,7 @@ export async function gsSaveFacturaPagos(opts = {}) {
 }
 
 export async function gsSaveCuentasPropias(opts = {}) {
-  if (!state.gsToken) return;
+  if (!puedeEditar()) return;
   if (!guardarPermitido('cuentasPropias', state.cuentasPropias)) return;
   try {
     const rows = state.cuentasPropias.map(c => [c.cuenta_id, c.nombre, c.banco, c.clabe || '', c.numero_cuenta || '', c.proyecto || '', c.tipo || 'General', c.saldo, c.ultima_actualizacion || '', c.activo]);
@@ -1415,7 +1443,7 @@ export async function gsSaveCuentasPropias(opts = {}) {
 }
 
 export async function gsSaveTraspasos(opts = {}) {
-  if (!state.gsToken) return;
+  if (!puedeEditar()) return;
   if (!guardarPermitido('traspasos', state.traspasos)) return;
   try {
     const rows = state.traspasos.map(t => [
@@ -1435,7 +1463,7 @@ export async function gsSaveTraspasos(opts = {}) {
 }
 
 export async function gsSaveCreditos(opts = {}) {
-  if (!state.gsToken) return;
+  if (!puedeEditar()) return;
   if (!guardarPermitido('creditos', state.creditos)) return;
   try {
     const rows = state.creditos.map(c => [
@@ -1451,7 +1479,7 @@ export async function gsSaveCreditos(opts = {}) {
 }
 
 export async function gsSavePagares(opts = {}) {
-  if (!state.gsToken) return;
+  if (!puedeEditar()) return;
   if (!guardarPermitido('pagares', state.pagares)) return;
   try {
     const rows = state.pagares.map(p => [
@@ -1467,7 +1495,7 @@ export async function gsSavePagares(opts = {}) {
 }
 
 export async function gsSavePagosPagare(opts = {}) {
-  if (!state.gsToken) return;
+  if (!puedeEditar()) return;
   if (!guardarPermitido('pagosPagare', state.pagosPagare)) return;
   try {
     const rows = state.pagosPagare.map(p => [
@@ -1483,7 +1511,7 @@ export async function gsSavePagosPagare(opts = {}) {
 }
 
 export async function gsSaveMovimientosInternos(opts = {}) {
-  if (!state.gsToken) return;
+  if (!puedeEditar()) return;
   if (!guardarPermitido('movimientosInternos', state.movimientosInternos)) return;
   try {
     const rows = state.movimientosInternos.map(m => [m.id, m.fecha, m.tipo, m.origen, m.destino, m.monto, m.concepto, m.referencia]);
@@ -1493,7 +1521,7 @@ export async function gsSaveMovimientosInternos(opts = {}) {
 }
 
 export async function gsSavePartidasObra(opts = {}) {
-  if (!state.gsToken) return;
+  if (!puedeEditar()) return;
   if (!guardarPermitido('partidasObra', state.partidasObra, true)) return;
   try {
     const rows = state.partidasObra.map(p => [
@@ -1507,7 +1535,7 @@ export async function gsSavePartidasObra(opts = {}) {
 }
 
 export async function gsSavePartidasCatalogo(opts = {}) {
-  if (!state.gsToken) return;
+  if (!puedeEditar()) return;
   if (!guardarPermitido('partidasCatalogo', state.partidasCatalogo, true)) return;
   try {
     const rows = state.partidasCatalogo.map(p => [
@@ -1520,12 +1548,12 @@ export async function gsSavePartidasCatalogo(opts = {}) {
 }
 
 export async function gsSaveProyectos(opts = {}) {
-  if (!state.gsToken) return;
+  if (!puedeEditar()) return;
   if (!guardarPermitido('proyectos', state.proyectos)) return;
   try {
     const rows = state.proyectos.map(p => [p.id, p.nombre, p.empresa || '', p.cuenta || '', p.clabe || '', p.color || '', p.activo, p.saldo || 0, p.ultima_act_saldo || '', p.es_concentradora || false]);
     await gsClearAndWrite('proyectos', rows, ['id', 'nombre', 'empresa', 'cuenta', 'clabe', 'color', 'activo', 'saldo', 'ultima_act_saldo', 'es_concentradora']);
-    notify('✅ Proyectos guardados en Sheets');
+    if (state.gsToken) notify('✅ Proyectos guardados en Sheets');
     if (!opts.porFila) await sbEspejar('proyectos');
   } catch (e) { console.error('gsSaveProyectos', e); }
 }

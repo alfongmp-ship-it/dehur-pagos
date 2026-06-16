@@ -1,4 +1,4 @@
-import { state } from '../state.js';
+import { state, esAdmin } from '../state.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { gsSavePartidasObra, esPorFila, sbGuardarFila, sbBorrarFila } from '../services/google-sync.js';
@@ -151,6 +151,7 @@ export function actualizarSubpartidaAdminOptions(valorPreseleccionado) {
 }
 
 export function guardarPartidaObra() {
+  if (!esAdmin()) { notify('Solo el admin puede editar las partidas de obra', 'error'); return; }
   const nombre = (document.getElementById('cat-po-nombre').value || '').trim();
   if (!nombre) { notify('El nombre es obligatorio', 'error'); return; }
   const proyecto = (document.getElementById('cat-po-proyecto').value || '').trim();
@@ -225,6 +226,7 @@ export function togglePartidaObra(id) {
 }
 
 export function eliminarPartidaObra(id) {
+  if (!esAdmin()) { notify('Solo el admin puede editar las partidas de obra', 'error'); return; }
   const p = state.partidasObra.find(x => x.id === id);
   if (!p) return;
   if (!confirm(`¿Eliminar la partida obra "${p.nombre}"${p.proyecto ? ' (' + p.proyecto + ')' : ' (maestro)'}?`)) return;

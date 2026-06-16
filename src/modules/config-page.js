@@ -1,4 +1,4 @@
-import { state } from '../state.js';
+import { state, esAdmin } from '../state.js';
 import { saveProy } from '../config/proyectos.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
@@ -44,6 +44,7 @@ export function abrirModalProyecto(id) {
 }
 
 export function guardarProyecto() {
+  if (!esAdmin()) { notify('Solo el admin puede crear/editar proyectos', 'error'); return; }
   const nombre = document.getElementById('proy-nombre').value.trim();
   const cuenta = document.getElementById('proy-cuenta').value.trim().replace(/\D/g, '');
   if (!nombre) { notify('El nombre es obligatorio', 'error'); return; }

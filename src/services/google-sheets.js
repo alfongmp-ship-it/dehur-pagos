@@ -2,6 +2,10 @@ import { state } from '../state.js';
 import { GS_SPREADSHEET_ID } from '../config/google-sheets.js';
 
 export async function gsFetch(url, method = 'GET', body = null) {
+  // Sin Google conectado NO se habla con Sheets (Sheets es respaldo opcional del
+  // admin). Devolver null hace que lecturas/escrituras a Sheets sean no-op suaves
+  // → la app guarda a Supabase sin Google y solo respalda a Sheets cuando hay token.
+  if (!state.gsToken) return null;
   const opts = { method, headers: { Authorization: 'Bearer ' + state.gsToken, 'Content-Type': 'application/json' } };
   if (body) opts.body = JSON.stringify(body);
   const r = await fetch(url, opts);

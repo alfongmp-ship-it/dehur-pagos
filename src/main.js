@@ -1,7 +1,7 @@
 // ===== MAIN.JS — Entry Point =====
 // Carga datos, inicializa estado, renderiza UI, expone funciones en window
 
-import { state } from './state.js';
+import { state, rol } from './state.js';
 import { loadProyectos } from './config/proyectos.js';
 import { showPage } from './router.js';
 import { setupModalCloseHandlers, cerrar } from './ui/modal.js';
@@ -36,7 +36,7 @@ import { renderResumenEjecutivo } from './modules/resumen-ejecutivo.js';
 import { renderCostosFiscales, abrirNuevaUnidad, editarUnidad, guardarUnidad, toggleUnidad, abrirLoteUnidades, guardarLoteUnidades, cfLimpiarHuerfanas, abrirAsignarCosto, reasignarCosto, eliminarAsignacionCosto, cfCambiarMetodo, cfPreviewReparto, cfRepartirResto, cfFiltrarUnidades, cfSelTodas, cfFiltrarPendientes, cfFiltrarAsignados, guardarAsignacionCosto, cfAgregarPartidaPresup, guardarPresupuestoUnidad, cfVerUnidad } from './modules/costos-fiscales.js';
 import { renderCreditos, seleccionarCredito, abrirNuevoCredito, editarCredito, guardarCredito, abrirNuevaDisposicion, guardarDisposicion, editarPagare, togglePagare, abrirNuevaFechaPago, editarFechaPago, guardarFechaPago, marcarPagoPagado, eliminarPagoPagare } from './modules/creditos.js';
 import { gsLogin, gsLogout, renderAuthStatus, checkOAuthCallback } from './services/google-auth.js';
-import { gsLoadAll, gsSaveProveedores, gsSaveEmpleados, gsSaveProyectos, gsSaveAlias, gsSaveCuentasPropias, gsSaveTraspasos, gsSaveCreditos, gsSavePagares, gsSavePagosPagare, gsSaveMovimientosInternos, migrarTodoASupabase, cargarDatos, REALTIME_ON } from './services/google-sync.js';
+import { gsLoadAll, gsSaveProveedores, gsSaveEmpleados, gsSaveProyectos, gsSaveAlias, gsSaveCuentasPropias, gsSaveTraspasos, gsSaveCreditos, gsSavePagares, gsSavePagosPagare, gsSaveMovimientosInternos, migrarTodoASupabase, respaldarTodoASheets, cargarDatos, REALTIME_ON } from './services/google-sync.js';
 import { iniciarRealtime } from './services/realtime.js';
 
 // ===== INICIALIZACIÓN =====
@@ -334,6 +334,7 @@ window.gsSaveAlias = gsSaveAlias;
 
 // Migración / espejo a Supabase (Etapa B — Fase 1)
 window.migrarTodoASupabase = migrarTodoASupabase;
+window.respaldarTodoASheets = respaldarTodoASheets;
 // Refrescar datos desde la FUENTE ACTIVA (Supabase en Fase 2; Sheets si se
 // revierte la bandera FUENTE_LECTURA). Sirve para ver lo último (multiusuario).
 window.refrescarDatos = async function refrescarDatos() {
@@ -367,6 +368,8 @@ async function bootstrapApp() {
   // SIN depender de conectar Google. Así los testers ven los datos al entrar.
   // cargarDatos tiene su propio manejo de errores (fallback a Sheets).
   try { await cargarDatos(); } catch (e) { console.error('cargarDatos en bootstrap falló:', e); }
+  // Etapa 2: aplica el rol a la UI (oculta acciones que el rol no permite).
+  aplicarPermisosUI();
   // Fase 3: suscripciones en vivo (solo si REALTIME_ON). Tras cargar los datos,
   // para que las suscripciones se monten sobre el estado ya inicializado.
   if (REALTIME_ON) { try { await iniciarRealtime(); } catch (e) { console.error('iniciarRealtime falló:', e); } }
@@ -381,6 +384,15 @@ initAuthGate(bootstrapApp).catch(err => {
 window.handleLoginSubmit = handleLoginSubmit;
 window.handleLogout = handleLogout;
 window.toggleUserMenu = toggleUserMenu;
+
+// ===== Permisos por rol en la UI (Etapa 2) =====
+// Pone el rol en <body data-rol="..."> para que el CSS oculte las acciones que
+// el rol no permite (.req-editor para capturar/editar; .req-admin para bulk/config).
+// El bloqueo REAL está en los handlers + el backstop de guardado; esto es UX.
+function aplicarPermisosUI() {
+  document.body.dataset.rol = rol();
+}
+window.aplicarPermisosUI = aplicarPermisosUI;
 
 // ===== Aviso de mantenimiento (banner self-serve) =====
 let _mantPollIniciado = false;

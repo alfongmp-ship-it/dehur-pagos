@@ -1,4 +1,4 @@
-import { state } from '../state.js';
+import { state, rol, puedeEditar } from '../state.js';
 import { GS_CLIENT_ID, GS_SCOPES } from '../config/google-sheets.js';
 import { notify } from '../ui/notify.js';
 import { gsInitSheets } from './google-sheets.js';
@@ -72,18 +72,31 @@ export function renderAuthStatus() {
     // "Subir cambios del Sheet" se movió aquí (Configuración) para que no se
     // apriete por accidente desde el header.
     if (actions) actions.innerHTML = ''
+      + '<button class="btn btn-ghost" onclick="respaldarTodoASheets()" style="border-color:var(--green);color:var(--green);margin-right:8px;" title="Sube TODO el estado actual al Google Sheet (pone el respaldo al día). Como el capturista guarda sin Google, el Sheet se queda atrás; usa esto cada tanto.">💾 Respaldar a Sheets</button>'
       + '<button class="btn btn-ghost" onclick="migrarTodoASupabase()" style="border-color:var(--accent);color:var(--accent);margin-right:8px;" title="Solo si editaste el Google Sheet a MANO: sube esos cambios a Supabase">🟣 Subir cambios del Sheet</button>'
       + '<button class="btn btn-ghost" onclick="gsLoadAll()" title="RESPALDO: recarga los datos desde Google Sheets. Úsalo solo para inspeccionar o recuperar; normalmente la app lee de Supabase." style="opacity:.8;">⬇ Cargar desde Sheets (respaldo)</button>';
   } else {
-    // Logueado en Supabase pero SIN Google: modo SOLO LECTURA. Ve los datos
-    // (desde Supabase), pero para editar/guardar necesita conectar Google.
-    const html = '<div style="display:flex;align-items:center;gap:8px;">'
-      + '<span style="font-size:11px;color:var(--accent);background:rgba(200,169,110,.12);padding:3px 8px;border-radius:6px;font-weight:600;">👁 Solo lectura</span>'
-      + '<button class="btn btn-primary" onclick="gsLogin()" style="padding:6px 14px;font-size:12px;" title="Conéctate a Google para EDITAR/GUARDAR. Mientras no, solo puedes ver. Al guardar, los cambios se respaldan en Sheets.">🔗 Conectar para editar</button>'
-      + '</div>';
+    // Sin Google conectado: el comportamiento depende del ROL (no de Google).
+    // - admin: opera desde Supabase y puede conectar Google para respaldar en Sheets.
+    // - capturista: captura DIRECTO a Supabase (no necesita Google).
+    // - contabilidad/lector: solo ven.
+    const r = rol();
+    let badge, info;
+    if (r === 'admin') {
+      badge = '<span style="font-size:11px;color:var(--accent);background:rgba(138,102,48,.12);padding:3px 8px;border-radius:6px;font-weight:600;">👁 Datos desde Supabase</span>'
+        + '<button class="btn btn-primary" onclick="gsLogin()" style="padding:6px 14px;font-size:12px;" title="Conecta Google para respaldar en Sheets y subir cambios manuales del Sheet.">🔗 Conectar Google</button>';
+      info = '<p style="color:var(--muted);font-size:13px;">Estás operando desde Supabase. Conecta Google para <b>respaldar en Sheets</b> y subir cambios manuales.</p>';
+    } else if (puedeEditar()) {
+      badge = '<span style="font-size:11px;color:var(--green);background:rgba(27,119,74,.12);padding:3px 8px;border-radius:6px;font-weight:600;">✍ Captura activa</span>';
+      info = '<p style="color:var(--muted);font-size:13px;">Tus cambios se guardan <b>directo en Supabase</b>. El respaldo en Google Sheets lo hace el admin.</p>';
+    } else {
+      badge = '<span style="font-size:11px;color:var(--muted);background:rgba(0,0,0,.06);padding:3px 8px;border-radius:6px;font-weight:600;">👁 Solo lectura</span>';
+      info = '<p style="color:var(--muted);font-size:13px;">Tu perfil es de <b>solo lectura</b>: ves toda la información pero no puedes editar.</p>';
+    }
+    const html = '<div style="display:flex;align-items:center;gap:8px;">' + badge + '</div>';
     if (el) el.innerHTML = html;
     if (el2) el2.innerHTML = html;
-    if (actions) actions.innerHTML = '<p style="color:var(--muted);font-size:13px;">👁 <b>Modo solo lectura.</b> Estás viendo los datos desde Supabase. Para <b>editar o capturar pagos</b>, conecta Google Sheets (los cambios se respaldan ahí al guardar).</p>';
+    if (actions) actions.innerHTML = info;
   }
 }
 

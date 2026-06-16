@@ -1,7 +1,7 @@
 // Gate de autenticacion: bloquea la app hasta que el usuario este logueado
 // con un tenant valido en Supabase.
 
-import { state } from '../state.js';
+import { state, rolLabel } from '../state.js';
 import { signIn, signOut, fetchCurrentTenantInfo, onAuthStateChange, getSupabaseClient } from './supabase.js';
 
 const APP_SHELL_ID = 'app-shell';
@@ -46,7 +46,7 @@ function renderUserBadge() {
   const userBadge = document.getElementById('user-badge');
   if (!userBadge || !state.session) return;
   const email = state.session.email || '';
-  const role = state.session.role || '—';
+  const role = rolLabel();
   const initial = (email[0] || '?').toUpperCase();
 
   userBadge.innerHTML = `

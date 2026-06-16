@@ -1,4 +1,4 @@
-import { state } from '../state.js';
+import { state, esAdmin } from '../state.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { gsSavePartidasCatalogo, gsSaveHistorial, esPorFila, sbGuardarFila, sbBorrarFila } from '../services/google-sync.js';
@@ -116,6 +116,7 @@ export function moverSubpartida(idx, delta) {
 }
 
 export function guardarPartidaCatalogo() {
+  if (!esAdmin()) { notify('Solo el admin puede editar el catálogo de partidas', 'error'); return; }
   const nombre = (document.getElementById('cat-partida-nombre').value || '').trim();
   if (!nombre) { notify('El nombre de la partida es obligatorio', 'error'); return; }
   const subs = [...(state._editSubpartidas || [])];
@@ -171,6 +172,7 @@ export function togglePartidaCatalogo(id) {
 }
 
 export function eliminarPartidaCatalogo(id) {
+  if (!esAdmin()) { notify('Solo el admin puede editar el catálogo de partidas', 'error'); return; }
   const p = state.partidasCatalogo.find(x => x.id === id);
   if (!p) return;
   const usos = partidaUsadaEnHistorial(p.partida);
@@ -358,8 +360,8 @@ export function previewReclasificarHistorial() {
 }
 
 export async function confirmarReclasificarHistorial() {
-  if (!state.gsToken) {
-    notify('Conecta Google Sheets antes de reclasificar el historial', 'error');
+  if (!esAdmin()) {
+    notify('Solo el admin puede reclasificar el historial en bloque', 'error');
     return;
   }
   const { candidatos } = detectarPagosParaReclasificar();

@@ -1,4 +1,4 @@
-import { state, datosListos } from '../state.js';
+import { state, datosListos, puedeEditar, esAdmin } from '../state.js';
 import { fmt, dl, fmtFecha } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { proyTag, catTag } from '../ui/badges.js';
@@ -306,6 +306,7 @@ export function editarPartidaPago(idx) {
 
 // Poner la MISMA partida/sub a todos los seleccionados.
 export function abrirCambiarPartidaBulk() {
+  if (!esAdmin()) { notify('Solo el admin puede cambiar partida en bloque', 'error'); return; }
   if (!histSel.size) { notify('No hay pagos seleccionados', 'error'); return; }
   _cpTarget = { modo: 'bulk' };
   const t = document.getElementById('cp-titulo');
@@ -361,7 +362,8 @@ export function actualizarSubpartidaCambiar() {
 // guarda en Sheets + Supabase, y refresca historial + costos.
 export function aplicarCambiarPartida() {
   if (!_cpTarget) return;
-  if (!state.gsToken) { notify('Conecta Google Sheets para guardar el cambio', 'error'); return; }
+  if (!puedeEditar()) { notify('No tienes permiso para editar', 'error'); return; }
+  if (_cpTarget.modo === 'bulk' && !esAdmin()) { notify('Solo el admin puede cambiar partida en bloque', 'error'); return; }
   const partida = document.getElementById('cp-partida').value;
   if (!partida) { notify('Elige una partida', 'error'); return; }
   let sub = '';
@@ -402,6 +404,7 @@ export function aplicarCambiarPartida() {
 // eliminarHistorial (revierte saldos, quita el traspaso ligado, purga
 // asignaciones), pero guardando UNA sola vez al final.
 export function eliminarHistorialBulk() {
+  if (!esAdmin()) { notify('Solo el admin puede borrar en bloque', 'error'); return; }
   const ids = new Set([...histSel]);
   const aBorrar = state.historial.filter(h => ids.has(String(h.id)));
   if (!aBorrar.length) { notify('No hay registros seleccionados', 'error'); return; }

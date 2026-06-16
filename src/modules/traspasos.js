@@ -1,4 +1,4 @@
-import { state, datosListos } from '../state.js';
+import { state, datosListos, puedeEditar } from '../state.js';
 import { fmt, fmtFecha } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
@@ -62,7 +62,7 @@ export function traspasoDesdeAportacionHistorial(h, id) {
 // que viven solo en el historial (típicamente subidas por la plantilla de
 // Historial). NO borra nada, NO toca saldos. Idempotente.
 export function sincronizarAportacionesATraspasos() {
-  if (!state.gsToken) { notify('Conecta Google Sheets para guardar', 'error'); return; }
+  if (!puedeEditar()) { notify('No tienes permiso para editar', 'error'); return; }
   const aportaciones = state.historial.filter(h => h.tipo_registro === 'Traspaso' && h.tipo === 'Aportación');
   let maxId = state.traspasos.reduce((m, t) => Math.max(m, t.traspaso_id || 0), 0);
   let creados = 0, reparados = 0;
