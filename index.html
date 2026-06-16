@@ -436,7 +436,7 @@
         <div style="font-size:13px;color:var(--muted);margin-bottom:16px;">o haz clic para seleccionar · Solo se acepta la <strong>Plantilla Estándar Dehur</strong></div>
         <button class="btn btn-ghost btn-sm" style="margin-bottom:8px;" onclick="event.stopPropagation();descargarPlantilla()">⬇ Descargar Plantilla</button>
         <div style="display:inline-block;padding:8px 20px;border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--muted);">Seleccionar archivo</div>
-        <input type="file" id="sol-file-input" accept=".xlsx,.xls" style="display:none" onchange="handleSolFile(this.files[0])">
+        <input type="file" id="sol-file-input" accept=".xlsx,.xls" style="display:none" onchange="if(this.files[0]) handleSolFile(this.files[0]); this.value=''">
       </div>
 
       <!-- TABLA DE SOLICITUDES -->
