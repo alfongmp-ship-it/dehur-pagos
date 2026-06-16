@@ -725,6 +725,7 @@
         <select class="filter-select" id="rc-proyecto"><option value="">Todos los proyectos</option></select>
         <select class="filter-select" id="rc-partida"><option value="">Todas las partidas</option></select>
         <button class="btn btn-ghost" id="rc-reset">↺ Mes actual</button>
+        <button class="btn btn-primary" id="rc-reporte-jp" style="margin-left:auto" onclick="abrirReporteJuanPablo()">📊 Reporte Juan Pablo</button>
       </div>
 
       <div id="rc-cards" style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px;"></div>
@@ -988,6 +989,26 @@
     <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px;">
       <button class="btn btn-ghost" onclick="cerrar('modal-cambiar-partida')">Cancelar</button>
       <button class="btn btn-primary" onclick="aplicarCambiarPartida()">Aplicar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-reporte-jp">
+  <div class="modal" style="max-width:440px;">
+    <div class="modal-header">
+      <div class="modal-title">📊 Reporte Juan Pablo (Excel)</div>
+      <button class="modal-close" onclick="cerrar('modal-reporte-jp')">✕</button>
+    </div>
+    <div class="info-box" style="margin-bottom:16px;">
+      Costo por partida y por mes para ver el flujo. Incluye <b>Pagos</b>, <b>Aportaciones</b> e <b>intereses de crédito</b>; excluye traspasos, préstamos y pago de deuda. Si eliges más de un mes, salen separados con un total al final.
+    </div>
+    <div class="form-grid">
+      <div class="field"><label>Desde *</label><input type="date" id="rjp-desde"></div>
+      <div class="field"><label>Hasta *</label><input type="date" id="rjp-hasta"></div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px;">
+      <button class="btn btn-ghost" onclick="cerrar('modal-reporte-jp')">Cancelar</button>
+      <button class="btn btn-primary" onclick="generarReporteJuanPablo()">⬇ Generar Excel</button>
     </div>
   </div>
 </div>

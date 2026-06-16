@@ -30,7 +30,7 @@ import { renderConfigPartidasObra, filtrarPartidasObra, abrirModalPartidaObra, g
 import { descargarPlantillaPresupuesto, handleSubirPlantillaPresupuesto } from './modules/presupuesto-bulk.js';
 import { renderCuentasPropias, abrirNuevaCuenta, editarCuenta, editarCuentaProyecto, guardarCuenta, actualizarSaldoCuenta, guardarSaldoCuenta, actualizarSaldoExtra } from './modules/cuentas-propias.js';
 import { renderPosicionSaldos } from './modules/posicion-saldos.js';
-import { renderResumenCostos } from './modules/resumen-costos.js';
+import { renderResumenCostos, abrirReporteJuanPablo, generarReporteJuanPablo } from './modules/resumen-costos.js';
 import { renderFlujoSalida, fsAbrirDetalle, fsCerrarDetalle } from './modules/flujo-salida.js';
 import { renderResumenEjecutivo } from './modules/resumen-ejecutivo.js';
 import { renderCostosFiscales, abrirNuevaUnidad, editarUnidad, guardarUnidad, toggleUnidad, abrirLoteUnidades, guardarLoteUnidades, cfLimpiarHuerfanas, abrirAsignarCosto, reasignarCosto, eliminarAsignacionCosto, cfCambiarMetodo, cfPreviewReparto, cfRepartirResto, cfFiltrarUnidades, cfSelTodas, cfFiltrarPendientes, cfFiltrarAsignados, guardarAsignacionCosto, cfAgregarPartidaPresup, guardarPresupuestoUnidad, cfVerUnidad } from './modules/costos-fiscales.js';
@@ -236,6 +236,8 @@ window.renderPosicionSaldos = renderPosicionSaldos;
 
 // Resumen de Costos
 window.renderResumenCostos = renderResumenCostos;
+window.abrirReporteJuanPablo = abrirReporteJuanPablo;
+window.generarReporteJuanPablo = generarReporteJuanPablo;
 
 // Flujo de Salida por Cuenta y Proyecto
 window.renderFlujoSalida = renderFlujoSalida;

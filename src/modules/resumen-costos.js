@@ -4,6 +4,8 @@ import { proyTag } from '../ui/badges.js';
 import { proyectoMatch } from '../config/proyectos.js';
 import { parseFechaHist } from './historial.js';
 import { getPartidasParaSelect } from '../config/sub-partidas.js';
+import { notify } from '../ui/notify.js';
+import { cerrar } from '../ui/modal.js';
 
 let chartProyecto = null;
 let chartTendencia = null;
@@ -491,4 +493,112 @@ function renderTabla(data) {
       <div style="font-family:'DM Mono',monospace;font-weight:500;color:var(--accent);text-align:right;">${fmt(parseFloat(h.importe) || 0)}</div>
     </div>
   `).join('');
+}
+
+/* ============================================================
+   Reporte Juan Pablo (Excel) — costo por partida y por mes.
+   Para el flujo que lleva Juan Pablo. Pivote: partidas en filas,
+   un mes por columna, columna Total por partida y fila TOTAL general.
+
+   Regla de QUÉ CUENTA (definida por el usuario):
+     • Pagos (tipo_registro='Pago')                  → SIEMPRE
+     • Aportaciones (Traspaso + tipo 'Aportación')   → SIEMPRE
+     • Créditos SOLO si la partida es de intereses   → SÍ
+     • Traspasos, Préstamos y el resto de Créditos
+       (incluido "Pago de Deuda" de crédito)          → NO
+   (Un "Pago de Deuda" que sea Pago o Aportación SÍ cuenta;
+    sólo se excluye cuando viene de un Crédito.)
+   ============================================================ */
+const _normJP = s => String(s || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+const _MESES_JP = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+function _cuentaJP(h) {
+  if (h.tipo_registro === 'Pago') return true;
+  if (h.tipo_registro === 'Aportación') return true;                              // forma legacy directa
+  if (h.tipo_registro === 'Traspaso' && h.tipo === 'Aportación') return true;     // forma normalizada
+  if (h.tipo_registro === 'Crédito' && _normJP(h.partida).includes('interes')) return true;
+  return false;
+}
+
+export function abrirReporteJuanPablo() {
+  const desde = document.getElementById('rc-desde')?.value || '';
+  const hasta = document.getElementById('rc-hasta')?.value || '';
+  const di = document.getElementById('rjp-desde'); if (di) di.value = desde;
+  const hi = document.getElementById('rjp-hasta'); if (hi) hi.value = hasta;
+  document.getElementById('modal-reporte-jp')?.classList.add('open');
+}
+
+export function generarReporteJuanPablo() {
+  if (!window.XLSX) { notify('Cargando la librería de Excel, intenta de nuevo en 2 segundos', 'error'); return; }
+  const desde = document.getElementById('rjp-desde')?.value || '';
+  const hasta = document.getElementById('rjp-hasta')?.value || '';
+  if (!desde || !hasta) { notify('Elige el rango de fechas (Desde y Hasta)', 'error'); return; }
+  if (desde > hasta) { notify('La fecha "Desde" no puede ser mayor que la fecha "Hasta"', 'error'); return; }
+
+  // 1) Filtrar historial por la regla de Juan Pablo + rango de fechas.
+  const filas = state.historial.filter(h => {
+    if (!_cuentaJP(h)) return false;
+    const iso = parseFechaHist(h.fecha);
+    return iso && iso >= desde && iso <= hasta;
+  });
+  if (!filas.length) { notify('No hay movimientos que contar en ese rango', 'error'); return; }
+
+  // 2) Lista de meses del rango (de desde a hasta), aunque alguno quede en cero.
+  const meses = [];
+  let y = parseInt(desde.slice(0, 4), 10), m = parseInt(desde.slice(5, 7), 10);
+  const yF = parseInt(hasta.slice(0, 4), 10), mF = parseInt(hasta.slice(5, 7), 10);
+  while ((y < yF || (y === yF && m <= mF)) && meses.length <= 120) {
+    meses.push(`${y}-${String(m).padStart(2, '0')}`);
+    m++; if (m > 12) { m = 1; y++; }
+  }
+
+  // 3) Pivote: { partida: { 'YYYY-MM': suma } }.
+  const porPartida = {};
+  filas.forEach(h => {
+    const part = h.partida || 'Sin partida';
+    const mes = parseFechaHist(h.fecha).slice(0, 7);
+    (porPartida[part] = porPartida[part] || {});
+    porPartida[part][mes] = (porPartida[part][mes] || 0) + (parseFloat(h.importe) || 0);
+  });
+  const totalDe = p => meses.reduce((s, me) => s + (porPartida[p][me] || 0), 0);
+  const partidas = Object.keys(porPartida).sort((a, b) => totalDe(b) - totalDe(a));
+
+  const multiMes = meses.length > 1;
+  const etiqueta = ym => { const [yy, mm] = ym.split('-'); return `${_MESES_JP[+mm - 1]} ${yy}`; };
+
+  // 4) Armar la hoja (array de arrays).
+  const aoa = [];
+  aoa.push(['Reporte Juan Pablo']);
+  aoa.push([`Periodo: ${fmtFecha(desde)} a ${fmtFecha(hasta)}`]);
+  aoa.push(['Incluye Pagos, Aportaciones e intereses de crédito. Excluye traspasos, préstamos y pago de deuda.']);
+  aoa.push([]);
+  aoa.push(['Partida', ...meses.map(etiqueta), ...(multiMes ? ['Total'] : [])]);
+
+  const totMes = {}; meses.forEach(me => (totMes[me] = 0));
+  let granTotal = 0;
+  partidas.forEach(p => {
+    const row = [p];
+    let tp = 0;
+    meses.forEach(me => { const v = porPartida[p][me] || 0; row.push(v); tp += v; totMes[me] += v; });
+    if (multiMes) row.push(tp);
+    granTotal += tp;
+    aoa.push(row);
+  });
+  aoa.push(['TOTAL', ...meses.map(me => totMes[me]), ...(multiMes ? [granTotal] : [])]);
+
+  // 5) Excel: anchos de columna + formato moneda en las celdas numéricas.
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{ wch: 30 }, ...meses.map(() => ({ wch: 16 })), ...(multiMes ? [{ wch: 18 }] : [])];
+  const nCols = 1 + meses.length + (multiMes ? 1 : 0);
+  for (let r = 5; r < aoa.length; r++) {            // fila 4 = encabezado; datos desde la 5
+    for (let c = 1; c < nCols; c++) {
+      const ref = XLSX.utils.encode_cell({ r, c });
+      if (ws[ref] && typeof ws[ref].v === 'number') ws[ref].z = '"$"#,##0.00';
+    }
+  }
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Reporte Juan Pablo');
+  XLSX.writeFile(wb, `Reporte_Juan_Pablo_${desde}_a_${hasta}.xlsx`);
+  cerrar('modal-reporte-jp');
+  notify('✅ Reporte generado', 'success');
 }
