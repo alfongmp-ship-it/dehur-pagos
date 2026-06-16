@@ -525,50 +525,38 @@ export function abrirReporteJuanPablo() {
   const hasta = document.getElementById('rc-hasta')?.value || '';
   const di = document.getElementById('rjp-desde'); if (di) di.value = desde;
   const hi = document.getElementById('rjp-hasta'); if (hi) hi.value = hasta;
+  // Selector de proyecto: poblar con los proyectos activos (igual que rc-proyecto).
+  const sp = document.getElementById('rjp-proyecto');
+  if (sp) {
+    const val = sp.value;
+    const activos = state.proyectos.filter(p => p.activo !== false).map(p => p.nombre);
+    sp.innerHTML = '<option value="">Todos (consolidado + cada proyecto por separado)</option>'
+      + activos.map(n => `<option>${n}</option>`).join('');
+    sp.value = val;
+  }
   document.getElementById('modal-reporte-jp')?.classList.add('open');
 }
 
-export function generarReporteJuanPablo() {
-  if (!window.XLSX) { notify('Cargando la librería de Excel, intenta de nuevo en 2 segundos', 'error'); return; }
-  const desde = document.getElementById('rjp-desde')?.value || '';
-  const hasta = document.getElementById('rjp-hasta')?.value || '';
-  if (!desde || !hasta) { notify('Elige el rango de fechas (Desde y Hasta)', 'error'); return; }
-  if (desde > hasta) { notify('La fecha "Desde" no puede ser mayor que la fecha "Hasta"', 'error'); return; }
-
-  // 1) Filtrar historial por la regla de Juan Pablo + rango de fechas.
-  const filas = state.historial.filter(h => {
-    if (!_cuentaJP(h)) return false;
-    const iso = parseFechaHist(h.fecha);
-    return iso && iso >= desde && iso <= hasta;
-  });
-  if (!filas.length) { notify('No hay movimientos que contar en ese rango', 'error'); return; }
-
-  // 2) Lista de meses del rango (de desde a hasta), aunque alguno quede en cero.
-  const meses = [];
-  let y = parseInt(desde.slice(0, 4), 10), m = parseInt(desde.slice(5, 7), 10);
-  const yF = parseInt(hasta.slice(0, 4), 10), mF = parseInt(hasta.slice(5, 7), 10);
-  while ((y < yF || (y === yF && m <= mF)) && meses.length <= 120) {
-    meses.push(`${y}-${String(m).padStart(2, '0')}`);
-    m++; if (m > 12) { m = 1; y++; }
-  }
-
-  // 3) Pivote: { partida: { 'YYYY-MM': suma } }.
+// Construye el pivote (array de arrays) para un conjunto de filas YA filtradas.
+// Devuelve { aoa, nCols }. Todas las hojas comparten el mismo arreglo `meses`
+// para que las columnas (un mes cada una) queden alineadas entre hojas.
+function _aoaReporteJP(filas, meses, scopeLabel, desde, hasta) {
   const porPartida = {};
   filas.forEach(h => {
+    const iso = parseFechaHist(h.fecha);
+    if (!iso) return;                              // self-safe: ignora fechas inválidas
     const part = h.partida || 'Sin partida';
-    const mes = parseFechaHist(h.fecha).slice(0, 7);
+    const mes = iso.slice(0, 7);
     (porPartida[part] = porPartida[part] || {});
     porPartida[part][mes] = (porPartida[part][mes] || 0) + (parseFloat(h.importe) || 0);
   });
   const totalDe = p => meses.reduce((s, me) => s + (porPartida[p][me] || 0), 0);
   const partidas = Object.keys(porPartida).sort((a, b) => totalDe(b) - totalDe(a));
-
   const multiMes = meses.length > 1;
   const etiqueta = ym => { const [yy, mm] = ym.split('-'); return `${_MESES_JP[+mm - 1]} ${yy}`; };
 
-  // 4) Armar la hoja (array de arrays).
   const aoa = [];
-  aoa.push(['Reporte Juan Pablo']);
+  aoa.push([`Reporte Juan Pablo — ${scopeLabel}`]);
   aoa.push([`Periodo: ${fmtFecha(desde)} a ${fmtFecha(hasta)}`]);
   aoa.push(['Incluye Pagos, Aportaciones e intereses de crédito. Excluye traspasos, préstamos y pago de deuda.']);
   aoa.push([]);
@@ -585,20 +573,92 @@ export function generarReporteJuanPablo() {
     aoa.push(row);
   });
   aoa.push(['TOTAL', ...meses.map(me => totMes[me]), ...(multiMes ? [granTotal] : [])]);
+  return { aoa, nCols: 1 + meses.length + (multiMes ? 1 : 0) };
+}
 
-  // 5) Excel: anchos de columna + formato moneda en las celdas numéricas.
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [{ wch: 30 }, ...meses.map(() => ({ wch: 16 })), ...(multiMes ? [{ wch: 18 }] : [])];
-  const nCols = 1 + meses.length + (multiMes ? 1 : 0);
-  for (let r = 5; r < aoa.length; r++) {            // fila 4 = encabezado; datos desde la 5
-    for (let c = 1; c < nCols; c++) {
-      const ref = XLSX.utils.encode_cell({ r, c });
-      if (ws[ref] && typeof ws[ref].v === 'number') ws[ref].z = '"$"#,##0.00';
-    }
+// Nombre válido para una hoja de Excel: ≤31 chars, sin : \ / ? * [ ], y único en el libro.
+function _nombreHoja(raw, usados) {
+  let n = String(raw || 'Hoja').replace(/[:\\/?*\[\]]/g, ' ').trim().slice(0, 31) || 'Hoja';
+  const base = n; let i = 2;
+  while (usados.has(n)) { const suf = ` (${i++})`; n = base.slice(0, 31 - suf.length) + suf; }
+  usados.add(n);
+  return n;
+}
+
+export function generarReporteJuanPablo() {
+  if (!window.XLSX) { notify('Cargando la librería de Excel, intenta de nuevo en 2 segundos', 'error'); return; }
+  const desde = document.getElementById('rjp-desde')?.value || '';
+  const hasta = document.getElementById('rjp-hasta')?.value || '';
+  const fp = document.getElementById('rjp-proyecto')?.value || '';
+  if (!desde || !hasta) { notify('Elige el rango de fechas (Desde y Hasta)', 'error'); return; }
+  if (desde > hasta) { notify('La fecha "Desde" no puede ser mayor que la fecha "Hasta"', 'error'); return; }
+
+  // 1) Filas que cuentan (regla de Juan Pablo) dentro del rango.
+  let filas = state.historial.filter(h => {
+    if (!_cuentaJP(h)) return false;
+    const iso = parseFechaHist(h.fecha);
+    return iso && iso >= desde && iso <= hasta;
+  });
+  if (fp) filas = filas.filter(h => proyectoMatch(h.proyecto, fp));
+  if (!filas.length) {
+    notify(fp ? 'No hay movimientos de ese proyecto en el rango' : 'No hay pagos, aportaciones ni intereses de crédito en ese rango (traspasos y préstamos no cuentan)', 'error');
+    return;
   }
+
+  // 2) Meses del rango (de desde a hasta), aunque alguno quede en cero.
+  const meses = [];
+  let y = parseInt(desde.slice(0, 4), 10), m = parseInt(desde.slice(5, 7), 10);
+  const yF = parseInt(hasta.slice(0, 4), 10), mF = parseInt(hasta.slice(5, 7), 10);
+  while ((y < yF || (y === yF && m <= mF)) && meses.length < 1200) {  // tope: solo backstop anti-bug
+    meses.push(`${y}-${String(m).padStart(2, '0')}`);
+    m++; if (m > 12) { m = 1; y++; }
+  }
+
+  // 3) Crear el libro y un ayudante que arma+formatea cada hoja.
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Reporte Juan Pablo');
+  const usados = new Set();
+  const addHoja = (nombre, filasHoja, scopeLabel) => {
+    const { aoa, nCols } = _aoaReporteJP(filasHoja, meses, scopeLabel, desde, hasta);
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{ wch: 30 }, ...meses.map(() => ({ wch: 16 })), ...(meses.length > 1 ? [{ wch: 18 }] : [])];
+    for (let r = 5; r < aoa.length; r++) {          // fila 4 = encabezado; datos desde la 5
+      for (let c = 1; c < nCols; c++) {
+        const ref = XLSX.utils.encode_cell({ r, c });
+        if (ws[ref] && typeof ws[ref].v === 'number') ws[ref].z = '"$"#,##0.00';
+      }
+    }
+    XLSX.utils.book_append_sheet(wb, ws, _nombreHoja(nombre, usados));
+  };
+
+  if (fp) {
+    // Un solo proyecto → una hoja.
+    addHoja(fp, filas, fp);
+  } else {
+    // Consolidado + una hoja por proyecto. Cada fila cae en UN solo bucket
+    // (el primer proyecto activo que matchee, o su proyecto crudo / "Sin proyecto"),
+    // así la suma de las hojas por proyecto cuadra exacto con el consolidado.
+    addHoja('Consolidado', filas, 'Consolidado (todos los proyectos)');
+    const activos = state.proyectos.filter(p => p.activo !== false);
+    const bucketDe = h => {
+      // Coincidencia más específica: entre los activos que matchean, gana el de
+      // nombre normalizado más largo (así "Concentradora DT" gana sobre un "DT").
+      const matches = activos.filter(pp => proyectoMatch(h.proyecto, pp.nombre));
+      if (matches.length) {
+        matches.sort((a, b) => _normJP(b.nombre).length - _normJP(a.nombre).length);
+        return matches[0].nombre;
+      }
+      return h.proyecto || 'Sin proyecto';
+    };
+    const grupos = {};
+    filas.forEach(h => { const b = bucketDe(h); (grupos[b] = grupos[b] || []).push(h); });
+    const orden = [
+      ...activos.map(p => p.nombre).filter(n => grupos[n]),                       // activos con datos, en orden de catálogo
+      ...Object.keys(grupos).filter(n => !activos.some(p => p.nombre === n)).sort() // extras (inactivos / sin proyecto)
+    ];
+    orden.forEach(n => addHoja(n, grupos[n], n));
+  }
+
   XLSX.writeFile(wb, `Reporte_Juan_Pablo_${desde}_a_${hasta}.xlsx`);
   cerrar('modal-reporte-jp');
-  notify('✅ Reporte generado', 'success');
+  notify(fp ? '✅ Reporte generado' : '✅ Reporte generado (consolidado + por proyecto)', 'success');
 }
