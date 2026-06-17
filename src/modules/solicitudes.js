@@ -107,7 +107,7 @@ function resolverUnidadPorCodigo(codigo, proyecto) {
 //  - metodo: 'directo' | 'equitativo' | 'indiviso' | 'custom' | null
 //  - errores: array de strings (bloquean carga)
 //  - warnings: array de strings (no bloquean)
-function parseReparto(repartoRaw, unidadesRaw, proyecto) {
+export function parseReparto(repartoRaw, unidadesRaw, proyecto) {
   const errores = [];
   const warnings = [];
   let asignaciones = [];

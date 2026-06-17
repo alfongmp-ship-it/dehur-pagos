@@ -12,7 +12,8 @@
 import { state } from '../state.js';
 import { fmt } from '../ui/format.js';
 import { createExcelImporter, normalizarFechaISO, normalizarFechaDDMMYYYY, parseImporte } from '../services/excel-import.js';
-import { gsSaveFacturas, esPorFila, sbGuardarFila } from '../services/google-sync.js';
+import { gsSaveFacturas, esPorFila, sbGuardarFila, gsSaveCostoAsignaciones } from '../services/google-sync.js';
+import { parseReparto } from './solicitudes.js';
 
 const norm = s => String(s || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 const r2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -47,22 +48,35 @@ export const facturasImporter = createExcelImporter({
     { key: 'estado_sat', label: 'Estado SAT', width: 14 },
     { key: 'tipo_comprobante', label: 'Tipo comprobante', width: 18 },
     { key: 'proyecto', label: 'Proyecto', width: 18 },
+    { key: 'reparto', label: 'Reparto (directo/equitativo/indiviso/custom)', width: 36 },
+    { key: 'unidades', label: 'Unidades (códigos, ver Referencia)', width: 28 },
+    { key: 'partida', label: 'Partida (si hay reparto)', width: 20 },
+    { key: 'sub_partida', label: 'Sub-partida (si la partida la pide)', width: 26 },
     { key: 'observaciones', label: 'Observaciones', width: 28 }
   ],
 
   previewColumns: [
     { key: 'numero_factura', label: 'Folio', css: '90px' },
-    { key: 'uuid', label: 'UUID', css: '160px', style: "font-family:'DM Mono',monospace;font-size:9px;" },
-    { key: 'fecha', label: 'Fecha', css: '85px' },
+    { key: 'uuid', label: 'UUID', css: '150px', style: "font-family:'DM Mono',monospace;font-size:9px;" },
+    { key: 'fecha', label: 'Fecha', css: '80px' },
     { key: 'proveedor', label: 'Proveedor', css: '1fr' },
-    { key: 'monto_total', label: 'Total', css: '100px', align: 'right', render: r => fmt(+r.monto_total || 0) }
+    { key: 'monto_total', label: 'Total', css: '95px', align: 'right', render: r => fmt(+r.monto_total || 0) },
+    { key: 'reparto', label: 'Reparto', css: '110px' }
   ],
 
   referencia: () => [
     { header: 'Proveedores (ID - Nombre)', valores: state.proveedores.filter(p => p.activo !== false).map(p => `${p.id} - ${p.nombre}`) },
     { header: 'Proyectos', valores: state.proyectos.filter(p => p.activo !== false).map(p => p.nombre) },
     { header: 'Estado SAT', valores: ['Vigente', 'Cancelada'] },
-    { header: 'Tipo comprobante', valores: ['Factura', 'Nota de crédito', 'Complemento de pago', 'Otro'] }
+    { header: 'Tipo comprobante', valores: ['Factura', 'Nota de crédito', 'Complemento de pago', 'Otro'] },
+    { header: 'Partidas', valores: (state.partidasCatalogo || []).filter(p => p.activa !== false).map(p => p.partida) },
+    { header: 'Reparto: cómo llenar', valores: [
+      'directo  → Unidades = 1 código (ej. A-1)',
+      'equitativo → Unidades = varios con / (ej. A-1/A-2/A-3)',
+      'indiviso → Unidades vacío (todas las activas por % indiviso)',
+      'custom → Unidades = código:% con / (ej. A-1:60/A-2:40)',
+      'vacío → no reparte (la asignas después a mano)'
+    ] }
   ],
 
   ejemplos: () => {
@@ -85,6 +99,10 @@ export const facturasImporter = createExcelImporter({
       estado_sat: 'Vigente',
       tipo_comprobante: 'Factura',
       proyecto: proy ? proy.nombre : '',
+      reparto: 'indiviso',
+      unidades: '',
+      partida: (state.partidasCatalogo || []).find(p => p.activa !== false)?.partida || '',
+      sub_partida: '',
       observaciones: ''
     }];
   },
@@ -161,6 +179,48 @@ export const facturasImporter = createExcelImporter({
     if (estadoSat === 'Cancelada') avisos.push('Estado SAT: Cancelada');
     const tipoComp = String(raw.tipo_comprobante ?? '').trim() || 'Factura';
 
+    // ===== Reparto OPCIONAL (devengado) =====
+    // Si la fila trae reparto, se genera al importar; si algo falla, la factura SE
+    // IMPORTA SIN repartir (aviso) — nunca se pierde la factura por un reparto malo.
+    let repartoPlan = null;
+    let repartoLabel = '—';
+    const repartoRaw = String(raw.reparto ?? '').trim();
+    if (repartoRaw && norm(repartoRaw) !== 'vacio') {
+      const pr = parseReparto(raw.reparto, raw.unidades, proyecto);
+      (pr.warnings || []).forEach(w => avisos.push('Reparto: ' + w));
+      if (pr.errores && pr.errores.length) {
+        avisos.push('Reparto inválido (' + pr.errores[0] + ') — se importa SIN repartir');
+        repartoLabel = '⚠ inválido';
+      } else {
+        const asigs = (pr.asignaciones || []).filter(a => a.unidad_id);
+        if (!asigs.length) {
+          avisos.push('Reparto sin unidades válidas — se importa SIN repartir');
+          repartoLabel = '⚠ sin unidades';
+        } else {
+          const partidaTxt = String(raw.partida ?? '').trim();
+          const cat = (state.partidasCatalogo || []).find(p => p.activa !== false && norm(p.partida) === norm(partidaTxt));
+          if (!partidaTxt || !cat) {
+            avisos.push('El reparto requiere una Partida válida del catálogo — se importa SIN repartir');
+            repartoLabel = '⚠ sin partida';
+          } else {
+            const subs = Array.isArray(cat.subpartidas) ? cat.subpartidas : [];
+            let subOv = '';
+            let okSub = true;
+            if (subs.length) {
+              const subTxt = String(raw.sub_partida ?? '').trim();
+              const subMatch = subs.find(s => norm(s) === norm(subTxt));
+              if (!subMatch) { avisos.push(`La partida "${cat.partida}" requiere una Sub-partida válida — se importa SIN repartir`); okSub = false; repartoLabel = '⚠ sin sub-partida'; }
+              else subOv = subMatch;
+            }
+            if (okSub) {
+              repartoPlan = { metodo: pr.metodo, asignaciones: asigs.map(a => ({ unidad_id: a.unidad_id, pct: a.pct })), partida_override: cat.partida, sub_partida_override: subOv };
+              repartoLabel = pr.metodo + ' (' + asigs.length + ')';
+            }
+          }
+        }
+      }
+    }
+
     const registro = {
       numero_factura: folio,
       razon_social: String(raw.razon_social ?? '').trim() || prov.nombre,
@@ -185,14 +245,16 @@ export const facturasImporter = createExcelImporter({
       uuid,
       rfc_emisor: (rfcExcel || prov.rfc || '').toUpperCase(),
       estado_sat: estadoSat,
-      tipo_comprobante: tipoComp
+      tipo_comprobante: tipoComp,
+      _reparto: repartoPlan            // transitorio: se consume en insertar()
     };
     const preview = {
       numero_factura: folio,
       uuid,
       fecha: normalizarFechaDDMMYYYY(raw.fecha_factura),
       proveedor: `${provId} - ${prov.nombre}`,
-      monto_total: montoTotal
+      monto_total: montoTotal,
+      reparto: repartoLabel
     };
     return { registro, avisos, preview };
   },
@@ -200,15 +262,39 @@ export const facturasImporter = createExcelImporter({
   insertar: (registros) => {
     let nextId = state.facturas.reduce((mx, f) => Math.max(mx, f.factura_id || 0), 0) + 1;
     const porFila = esPorFila('facturas');
+    const hoyISO = new Date().toISOString().slice(0, 10);
+    let creoAsig = false;
     registros.forEach(r => {
       delete r.monto;                 // alias solo para el total del botón
+      const plan = r._reparto; delete r._reparto;  // transitorio
       r.factura_id = nextId++;
       r.saldo_pendiente = Math.max(0, (r.monto_total || 0) - (r.monto_pagado || 0));
       state.facturas.push(r);
       if (porFila) sbGuardarFila('facturas', r);
+      // Devengado: si la fila traía reparto, genera las asignaciones de la factura
+      // (sobre su monto_total), igual que el botón "Repartir".
+      if (plan && plan.asignaciones.length) {
+        plan.asignaciones.forEach(a => {
+          state.costoAsignaciones.push({
+            asignacion_id: state.nextAsignacionId++,
+            pago_id: '',
+            factura_id: String(r.factura_id),
+            unidad_id: a.unidad_id,
+            proyecto: r.proyecto,
+            metodo: plan.metodo,
+            monto_asignado: r2((r.monto_total || 0) * (a.pct / 100)),
+            factor: a.pct / 100,
+            fecha_asignacion: hoyISO,
+            partida_override: plan.partida_override,
+            sub_partida_override: plan.sub_partida_override
+          });
+        });
+        creoAsig = true;
+      }
     });
     const cnt = document.getElementById('cnt-fact');
     if (cnt) cnt.textContent = state.facturas.length;
+    if (creoAsig) gsSaveCostoAsignaciones();
   },
 
   save: async () => {
