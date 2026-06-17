@@ -303,9 +303,11 @@ export function guardarFactura() {
   const fechaFact = document.getElementById('f-fecha-factura').value;
   const monto = parseFloat(document.getElementById('f-monto').value) || 0;
   const subtotal = parseFloat(document.getElementById('f-subtotal').value) || 0;
+  const uuid = document.getElementById('f-uuid').value.trim();
 
   if (!provId) { notify('Selecciona un proveedor', 'error'); return; }
   if (!folio) { notify('El folio es obligatorio', 'error'); return; }
+  if (!uuid) { notify('El UUID (folio fiscal) es obligatorio', 'error'); return; }
   if (!fechaFact) { notify('La fecha de factura es obligatoria', 'error'); return; }
   if (subtotal <= 0) { notify('El subtotal es obligatorio', 'error'); return; }
   if (monto <= 0) { notify('El total debe ser mayor a 0', 'error'); return; }
@@ -330,7 +332,7 @@ export function guardarFactura() {
     proyecto: document.getElementById('f-proyecto').value,
     observaciones: document.getElementById('f-obs').value.trim(),
     activo: true,
-    uuid: document.getElementById('f-uuid').value.trim(),
+    uuid,
     // Datos fiscales del CFDI (Fase 2).
     subtotal,
     descuento: parseFloat(document.getElementById('f-descuento').value) || 0,

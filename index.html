@@ -1301,7 +1301,7 @@
       <div class="field span2"><label>Razón Social</label><input type="text" id="f-razon-social" placeholder="Nombre de la empresa en la factura"></div>
       <div class="field span2" style="position:relative;"><label>Proveedor *</label><input type="hidden" id="f-proveedor-id"><input type="text" id="f-proveedor" placeholder="Escribe ID o nombre..." oninput="filtrarProvFactura()" onfocus="filtrarProvFactura()" autocomplete="off"><div id="f-prov-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:200px;overflow-y:auto;background:var(--surface2);border:1px solid var(--border);border-radius:8px;z-index:10;margin-top:2px;"></div></div>
       <div class="field"><label>Número Factura *</label><input id="f-folio" placeholder="Ej: A-001"></div>
-      <div class="field"><label>UUID (folio fiscal)</label><input id="f-uuid" placeholder="Opcional" style="font-family:'DM Mono',monospace;font-size:11px;"></div>
+      <div class="field"><label>UUID (folio fiscal) *</label><input id="f-uuid" placeholder="Obligatorio" style="font-family:'DM Mono',monospace;font-size:11px;"></div>
       <div class="field"><label>Tipo de comprobante</label><select id="f-tipo-comprobante"><option>Factura</option><option>Nota de crédito</option><option>Complemento de pago</option><option>Otro</option></select></div>
       <div class="field"><label>Estado SAT</label><select id="f-estado-sat"><option>Vigente</option><option>Cancelada</option></select></div>
       <div class="field span2"><label>RFC Emisor</label><input id="f-rfc-emisor" placeholder="Se autollena del proveedor" style="font-family:'DM Mono',monospace;text-transform:uppercase;"></div>
