@@ -218,6 +218,12 @@ export function createExcelImporter(config) {
       return;
     }
     parsedResult = parsearFilas(rows.slice(3));
+    // Bloqueo global opcional (p.ej. facturas: reparto mal escrito bloquea TODA la
+    // carga hasta corregir el Excel). Si devuelve un mensaje, no se muestra preview.
+    if (typeof config.bloqueoGlobal === 'function') {
+      const bloqueo = config.bloqueoGlobal(parsedResult);
+      if (bloqueo) { parsedResult = null; notify(bloqueo, 'error'); return; }
+    }
     mostrarPreview(parsedResult);
   }
 

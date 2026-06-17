@@ -24,6 +24,7 @@ const UUID_RE = /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/
 // que el framework llama UNA vez al inicio de cada parseo (antes de validar filas).
 let _uuidExist, _folioProvExist, _mfpExist;
 let _uuidLote, _folioProvLote, _mfpLote;
+let _repartoErrores;   // si hay reparto mal escrito, se BLOQUEA toda la carga (bloqueoGlobal)
 
 export const facturasImporter = createExcelImporter({
   key: 'facturas',
@@ -113,6 +114,7 @@ export const facturasImporter = createExcelImporter({
   existingKeyset: () => {
     _uuidExist = new Set(); _folioProvExist = new Set(); _mfpExist = new Set();
     _uuidLote = new Set(); _folioProvLote = new Set(); _mfpLote = new Set();
+    _repartoErrores = [];
     state.facturas.forEach(f => {
       if (f.uuid) _uuidExist.add(norm(f.uuid));
       _folioProvExist.add(norm(f.numero_factura) + '|' + f.proveedor_id);
@@ -180,28 +182,27 @@ export const facturasImporter = createExcelImporter({
     const tipoComp = String(raw.tipo_comprobante ?? '').trim() || 'Factura';
 
     // ===== Reparto OPCIONAL (devengado) =====
-    // Si la fila trae reparto, se genera al importar; si algo falla, la factura SE
-    // IMPORTA SIN repartir (aviso) — nunca se pierde la factura por un reparto malo.
+    // Si la fila trae reparto y está MAL, se BLOQUEA toda la carga (se acumula en
+    // _repartoErrores → bloqueoGlobal) hasta corregir el Excel. Si va en blanco, la
+    // factura se importa sin repartir (se asigna a mano después).
     let repartoPlan = null;
     let repartoLabel = '—';
     const repartoRaw = String(raw.reparto ?? '').trim();
+    const _errRep = msg => { _repartoErrores.push(`Factura ${folio}: ${msg}`); repartoLabel = '⛔ ' + msg; };
     if (repartoRaw && norm(repartoRaw) !== 'vacio') {
       const pr = parseReparto(raw.reparto, raw.unidades, proyecto);
       (pr.warnings || []).forEach(w => avisos.push('Reparto: ' + w));
       if (pr.errores && pr.errores.length) {
-        avisos.push('Reparto inválido (' + pr.errores[0] + ') — se importa SIN repartir');
-        repartoLabel = '⚠ inválido';
+        _errRep('reparto inválido (' + pr.errores[0] + ')');
       } else {
         const asigs = (pr.asignaciones || []).filter(a => a.unidad_id);
         if (!asigs.length) {
-          avisos.push('Reparto sin unidades válidas — se importa SIN repartir');
-          repartoLabel = '⚠ sin unidades';
+          _errRep('el reparto no tiene unidades válidas');
         } else {
           const partidaTxt = String(raw.partida ?? '').trim();
           const cat = (state.partidasCatalogo || []).find(p => p.activa !== false && norm(p.partida) === norm(partidaTxt));
           if (!partidaTxt || !cat) {
-            avisos.push('El reparto requiere una Partida válida del catálogo — se importa SIN repartir');
-            repartoLabel = '⚠ sin partida';
+            _errRep('el reparto requiere una Partida válida del catálogo');
           } else {
             const subs = Array.isArray(cat.subpartidas) ? cat.subpartidas : [];
             let subOv = '';
@@ -209,7 +210,7 @@ export const facturasImporter = createExcelImporter({
             if (subs.length) {
               const subTxt = String(raw.sub_partida ?? '').trim();
               const subMatch = subs.find(s => norm(s) === norm(subTxt));
-              if (!subMatch) { avisos.push(`La partida "${cat.partida}" requiere una Sub-partida válida — se importa SIN repartir`); okSub = false; repartoLabel = '⚠ sin sub-partida'; }
+              if (!subMatch) { _errRep(`la partida "${cat.partida}" requiere una Sub-partida válida`); okSub = false; }
               else subOv = subMatch;
             }
             if (okSub) {
@@ -303,6 +304,15 @@ export const facturasImporter = createExcelImporter({
 
   postCommit: () => {
     if (window.renderFacturas) window.renderFacturas();
+  },
+
+  // Si alguna fila trae el reparto MAL escrito, se bloquea TODA la carga (como en
+  // solicitudes) hasta que el Excel venga sin errores de reparto.
+  bloqueoGlobal: () => {
+    if (!_repartoErrores || !_repartoErrores.length) return null;
+    const detalle = _repartoErrores.slice(0, 8).join('\n');
+    const extra = _repartoErrores.length > 8 ? `\n…y ${_repartoErrores.length - 8} más` : '';
+    return `⛔ Carga bloqueada: ${_repartoErrores.length} factura(s) con el reparto mal escrito:\n${detalle}${extra}\n\nCorrige el reparto en el Excel y vuelve a subirlo.`;
   }
 });
 
