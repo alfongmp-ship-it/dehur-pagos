@@ -15,6 +15,7 @@ import { abrirImportHistorial, descargarPlantillaHistorial } from './modules/his
 import { abrirImportProveedores } from './modules/proveedores-import.js';
 import { abrirImportEmpleados } from './modules/empleados-import.js';
 import { abrirImportTraspasos } from './modules/traspasos-import.js';
+import { abrirImportFacturas, descargarPlantillaFacturas } from './modules/facturas-import.js';
 import { excelImportConfirmar, excelImportCerrar, excelImportHandleDrop, excelImportHandleFile, excelImportDescargarPlantilla, excelImportRefreshTotales } from './services/excel-import.js';
 import { initAuthGate, setupAuthListener, handleLoginSubmit, handleLogout, toggleUserMenu } from './services/auth-gate.js';
 import { fetchMantenimiento, setMantenimiento } from './services/supabase.js';
@@ -180,6 +181,8 @@ window.descargarPlantillaHistorial = descargarPlantillaHistorial;
 window.abrirImportProveedores = abrirImportProveedores;
 window.abrirImportEmpleados = abrirImportEmpleados;
 window.abrirImportTraspasos = abrirImportTraspasos;
+window.abrirImportFacturas = abrirImportFacturas;
+window.descargarPlantillaFacturas = descargarPlantillaFacturas;
 window.excelImportConfirmar = excelImportConfirmar;
 window.excelImportCerrar = excelImportCerrar;
 window.excelImportHandleDrop = excelImportHandleDrop;

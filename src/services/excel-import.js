@@ -2,7 +2,7 @@
 // Cada modulo provee una config con sus columnas, validacion, dedupe e insercion.
 // El framework se encarga del modal, drop-zone, parse, preview, totales y commit.
 
-import { state } from '../state.js';
+import { state, puedeEditar, puedeFacturas } from '../state.js';
 import { notify } from '../ui/notify.js';
 import { fmt } from '../ui/format.js';
 
@@ -155,7 +155,11 @@ export function createExcelImporter(config) {
   }
 
   function abrir() {
-    if (!state.gsToken) { notify('Conecta Google Sheets primero', 'error'); return; }
+    // Gate por ROL (no por Google): la app guarda sin Google desde Etapa 2. Permite
+    // a quien puede editar (admin/capturista) y al rol 'facturas' (Gonzalo); deja
+    // fuera a lector/contabilidad. Los botones por página (req-editor/req-facturas)
+    // controlan además quién ve cada importador.
+    if (!puedeEditar() && !puedeFacturas()) { notify('No tienes permiso para importar', 'error'); return; }
     activeImporter = api;
     parsedResult = null;
 
