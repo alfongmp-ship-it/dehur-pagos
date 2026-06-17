@@ -159,6 +159,25 @@ function estatusBadge(estatus) {
   return `<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:600;background:${style};">${estatus}</span>`;
 }
 
+// Recalcula saldo_pendiente y estatus_factura (estado de PAGO) a partir de
+// monto_total y monto_pagado. Fuente ÚNICA usada por guardar/vincular/eliminar
+// para que las 3 rutas no diverjan (saldo siempre clampado a 0; estatus coherente
+// con lo pagado). NO toca estado_sat (fiscal, independiente) ni respeta 'cancelada'
+// aquí — eso solo aplica a facturas sin pagos (ver guardarFactura).
+function recalcularSaldoEstatus(fact) {
+  fact.saldo_pendiente = Math.max(0, (fact.monto_total || 0) - (fact.monto_pagado || 0));
+  if ((fact.monto_pagado || 0) <= 0) {
+    fact.estatus_factura = 'pendiente';
+    fact.fecha_pago_total = '';
+  } else if (fact.saldo_pendiente <= 0) {
+    fact.estatus_factura = 'pagada';
+    if (!fact.fecha_pago_total) fact.fecha_pago_total = new Date().toISOString().split('T')[0];
+  } else {
+    fact.estatus_factura = 'parcial';
+    fact.fecha_pago_total = '';
+  }
+}
+
 // Estado fiscal del CFDI (Vigente/Cancelada) — distinto del estatus de PAGO.
 function estadoSatBadge(estado) {
   const e = estado || 'Vigente';
@@ -327,7 +346,7 @@ export function guardarFactura() {
     fecha_pago_total: existing ? existing.fecha_pago_total || '' : '',
     monto_total: monto,
     monto_pagado: pagado,
-    saldo_pendiente: monto - pagado,
+    saldo_pendiente: Math.max(0, monto - pagado),
     estatus_factura: document.getElementById('f-estatus').value,
     proyecto: document.getElementById('f-proyecto').value,
     observaciones: document.getElementById('f-obs').value.trim(),
@@ -343,6 +362,11 @@ export function guardarFactura() {
     estado_sat: document.getElementById('f-estado-sat').value,
     tipo_comprobante: document.getElementById('f-tipo-comprobante').value
   };
+
+  // Si la factura YA tiene pagos, el saldo y el estatus de PAGO se DERIVAN de lo
+  // pagado (no se leen del menú) para que no queden incoherentes al editar el
+  // desglose. Sin pagos se respeta lo elegido en el menú (p.ej. 'cancelada').
+  if (pagado > 0) recalcularSaldoEstatus(obj);
 
   if (state.editFactId) {
     const i = state.facturas.findIndex(f => f.factura_id === state.editFactId);
@@ -368,14 +392,14 @@ export function renderFacturaPagos() {
   if (!tb) return;
 
   if (!datosListos()) {
-    tb.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔒</div><div>Conecta Google Sheets para ver esta información</div></div></td></tr>';
+    tb.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔒</div><div>Conecta Google Sheets para ver esta información</div></div></td></tr>';
     const sub = document.getElementById('fp-subtitulo'); if (sub) sub.textContent = '';
     const cnt = document.getElementById('cnt-fp'); if (cnt) cnt.textContent = '0';
     return;
   }
 
   if (!state.facturaPagos.length) {
-    tb.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">💳</div><div>Sin pagos a facturas registrados</div></div></td></tr>';
+    tb.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">💳</div><div>Sin pagos a facturas registrados</div></div></td></tr>';
     document.getElementById('fp-subtitulo').textContent = '';
     return;
   }
@@ -405,7 +429,7 @@ export function renderFacturaPagos() {
     : `${state.facturaPagos.length} registros`;
 
   if (!fil.length) {
-    tb.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔍</div><div>Sin resultados</div></div></td></tr>';
+    tb.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔍</div><div>Sin resultados</div></div></td></tr>';
     return;
   }
 
@@ -413,11 +437,13 @@ export function renderFacturaPagos() {
     const prov = state.proveedores.find(p => p.id === fp.proveedor_id);
     const provNombre = prov ? prov.nombre : `ID ${fp.proveedor_id}`;
     const estBadge = estatusBadge(fp.estatus);
+    const fact = state.facturas.find(f => f.factura_id === fp.factura_id);
     return `<tr>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${fp.factura_pago_id}</td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;">${fp.factura_id}</td>
       <td><div style="font-weight:500;font-size:12px;">${provNombre}</div></td>
       <td style="font-family:'DM Mono',monospace;font-weight:500;text-align:right;color:var(--accent);">${fmt(fp.monto_aplicado)}</td>
+      <td style="font-family:'DM Mono',monospace;text-align:right;color:${fact && fact.saldo_pendiente > 0 ? 'var(--accent)' : 'var(--muted)'};">${fact ? fmt(fact.saldo_pendiente) : '—'}</td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${fmtFecha(fp.fecha_pago)}</td>
       <td>${estBadge}</td>
       <td style="font-size:11px;color:var(--muted);">${(fp.observaciones || '').substring(0, 40)}</td>
@@ -434,14 +460,7 @@ export function eliminarPagoFactura(fpId) {
   const fact = state.facturas.find(f => f.factura_id === fp.factura_id);
   if (fact) {
     fact.monto_pagado = Math.max(0, (fact.monto_pagado || 0) - fp.monto_aplicado);
-    fact.saldo_pendiente = fact.monto_total - fact.monto_pagado;
-    if (fact.monto_pagado <= 0) {
-      fact.estatus_factura = 'pendiente';
-      fact.fecha_pago_total = '';
-    } else if (fact.saldo_pendiente > 0) {
-      fact.estatus_factura = 'parcial';
-      fact.fecha_pago_total = '';
-    }
+    recalcularSaldoEstatus(fact);
   }
 
   state.facturaPagos = state.facturaPagos.filter(x => x.factura_pago_id !== fpId);
@@ -541,15 +560,9 @@ export function vincularPagoAFactura(pagoId) {
   };
   state.facturaPagos.push(nuevoFp);
 
-  // Mismo recálculo que el auto-enlace de confirmar-pagos.js.
+  // Mismo recálculo que el auto-enlace de confirmar-pagos.js (fuente única).
   fact.monto_pagado = (fact.monto_pagado || 0) + importe;
-  fact.saldo_pendiente = Math.max(0, fact.monto_total - fact.monto_pagado);
-  if (fact.saldo_pendiente <= 0) {
-    fact.estatus_factura = 'pagada';
-    fact.fecha_pago_total = new Date().toISOString().split('T')[0];
-  } else if (fact.monto_pagado > 0) {
-    fact.estatus_factura = 'parcial';
-  }
+  recalcularSaldoEstatus(fact);
 
   // Deja la liga registrada en el pago del historial.
   pago.factura_id = String(fact.factura_id);
