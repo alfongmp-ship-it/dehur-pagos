@@ -3,7 +3,7 @@ import { fmt, fmtFecha, hoyFecha } from '../ui/format.js';
 import { proyTag } from '../ui/badges.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
-import { gsSaveFacturas, gsSaveFacturaPagos, esPorFila, sbGuardarFila, sbBorrarFila, ensureHistorialIds } from '../services/google-sync.js';
+import { gsSaveFacturas, gsSaveFacturaPagos, esPorFila, sbGuardarFila, sbBorrarFila, ensureHistorialIds, gsSaveCostoAsignaciones } from '../services/google-sync.js';
 import { proyectoMatch } from '../config/proyectos.js';
 
 function diasAlVencimiento(fechaVenc) {
@@ -99,11 +99,15 @@ export function renderFacturas() {
     return;
   }
 
+  // Facturas que ya tienen reparto de costo (devengado).
+  const conReparto = new Set(state.costoAsignaciones.filter(a => a.factura_id).map(a => String(a.factura_id)));
   tb.innerHTML = fil.map(f => {
     const provNombre = f.nombre_proveedor || f.razon_social || `ID ${f.proveedor_id}`;
     const estBadge = estatusBadge(f.estatus_factura);
     const vBadge = vencimientoBadge(f);
     const vColor = vencimientoColor(f);
+    const repartida = conReparto.has(String(f.factura_id));
+    const btnRepartir = `<button class="btn btn-ghost req-facturas" style="padding:4px 8px;font-size:11px;${repartida ? '' : 'color:var(--orange);'}" onclick="abrirRepartirFactura(${f.factura_id})" title="${repartida ? 'Reparto del costo (devengado) asignado' : 'Falta repartir el costo a unidades'}">${repartida ? 'Reparto ✓' : '⚠ Repartir'}</button>`;
     return `<tr>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${f.factura_id}</td>
       <td style="font-size:11px;">${f.numero_factura || '—'}</td>
@@ -116,7 +120,7 @@ export function renderFacturas() {
       <td>${estBadge}</td>
       <td>${estadoSatBadge(f.estado_sat)}</td>
       <td>${proyTag(f.proyecto)}</td>
-      <td style="text-align:right;"><button class="btn btn-ghost req-facturas" style="padding:4px 8px;font-size:11px;" onclick="editarFactura(${f.factura_id})">Editar</button></td>
+      <td style="text-align:right;white-space:nowrap;">${btnRepartir} <button class="btn btn-ghost req-facturas" style="padding:4px 8px;font-size:11px;" onclick="editarFactura(${f.factura_id})">Editar</button></td>
     </tr>`;
   }).join('');
 }
@@ -383,6 +387,16 @@ export function guardarFactura() {
   const porFila = esPorFila('facturas');
   gsSaveFacturas({ porFila });
   if (porFila) sbGuardarFila('facturas', obj);
+
+  // Devengado (Fase B): si cambió el total y la factura ya estaba repartida,
+  // recalcula los montos del reparto manteniendo las proporciones (factor).
+  if (state.editFactId && existing && (existing.monto_total || 0) !== monto) {
+    const asigs = state.costoAsignaciones.filter(a => String(a.factura_id) === String(obj.factura_id));
+    if (asigs.length) {
+      asigs.forEach(a => { a.monto_asignado = Math.round((monto * (a.factor || 0) + Number.EPSILON) * 100) / 100; });
+      gsSaveCostoAsignaciones();
+    }
+  }
 }
 
 // ===== Factura Pagos (solo lectura) =====

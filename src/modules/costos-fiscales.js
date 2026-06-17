@@ -17,6 +17,7 @@ let cfProyecto = '';        // proyecto activo
 let cfTab = 'unidades';     // sub-pestaña: unidades | asignar | presupuestos | reportes
 let cfUnidadDetalle = null; // unidad_id seleccionada en presupuestos/reportes
 let cfPagoAsignar = null;   // pago_id en proceso de asignación
+let cfFacturaAsignar = null; // factura_id en proceso de reparto (devengado)
 let cfChartUnidad = null;
 let cfPlanoModo = 'vista';      // 'vista' | 'editor'
 let cfPlanoColor = 'avance';     // 'avance' | 'estatus'
@@ -43,6 +44,18 @@ function unidadById(id) { return state.unidades.find(u => u.unidad_id === id); }
 function historialIdSet() { return new Set(state.historial.map(h => h.id).filter(Boolean)); }
 
 function pagoById(id) { return state.historial.find(h => String(h.id) === String(id)); }
+function facturaById(id) { return state.facturas.find(f => String(f.factura_id) === String(id)); }
+
+// El modal de reparto sirve a un PAGO (cfPagoAsignar) o a una FACTURA (cfFacturaAsignar,
+// devengado sobre su monto_total). Estos helpers aíslan la diferencia.
+function cfEsFactura() { return cfFacturaAsignar != null; }
+function cfImporteObjetivo() {
+  if (cfEsFactura()) { const f = facturaById(cfFacturaAsignar); return f ? (f.monto_total || 0) : 0; }
+  const p = pagoById(cfPagoAsignar); return p ? (p.importe || 0) : 0;
+}
+function cfObjetivoValido() {
+  return cfEsFactura() ? !!facturaById(cfFacturaAsignar) : !!pagoById(cfPagoAsignar);
+}
 
 function partidasConocidas() {
   // Fuente principal: catálogo activo. Se conservan partidas legacy de historial/
@@ -65,8 +78,37 @@ function asignacionesDeUnidad(unidadId) {
   return state.costoAsignaciones.filter(a => a.unidad_id === unidadId);
 }
 
+// ===== Devengado vs Pagado-sin-factura (Fase A) =====
+// Una asignación de FACTURA (factura_id lleno) = DEVENGADO (salvo factura Cancelada).
+// Una asignación de PAGO (pago_id) = PAGADO-SIN-FACTURA, pero SOLO cuenta si ese pago
+// NO tiene factura_id (si lo tiene, el costo ya lo aporta la factura → no se duplica).
+function _pagosConFacturaSet() {
+  return new Set(state.historial.filter(h => h.factura_id && String(h.factura_id) !== '').map(h => String(h.id)));
+}
+function _facturasCanceladasSet() {
+  return new Set((state.facturas || []).filter(f => f.estado_sat === 'Cancelada').map(f => String(f.factura_id)));
+}
+// 'devengado' | 'pagado' | null (no cuenta, para evitar doble conteo o factura cancelada)
+function _tipoAsignacion(a, pagosConFactura, factCanceladas) {
+  if (a.factura_id) return factCanceladas.has(String(a.factura_id)) ? null : 'devengado';
+  return pagosConFactura.has(String(a.pago_id)) ? null : 'pagado';
+}
+
+// Devuelve { devengado, pagadoSinFactura, total } de una unidad.
+function costoAsignadoDesglose(unidadId) {
+  const pcf = _pagosConFacturaSet();
+  const fc = _facturasCanceladasSet();
+  let devengado = 0, pagadoSinFactura = 0;
+  asignacionesDeUnidad(unidadId).forEach(a => {
+    const t = _tipoAsignacion(a, pcf, fc);
+    if (t === 'devengado') devengado += a.monto_asignado || 0;
+    else if (t === 'pagado') pagadoSinFactura += a.monto_asignado || 0;
+  });
+  return { devengado, pagadoSinFactura, total: devengado + pagadoSinFactura };
+}
+
 function costoAsignadoUnidad(unidadId) {
-  return asignacionesDeUnidad(unidadId).reduce((s, a) => s + (a.monto_asignado || 0), 0);
+  return costoAsignadoDesglose(unidadId).total;
 }
 
 function presupuestoRowsUnidad(unidadId) {
@@ -90,17 +132,24 @@ function avancePct(real, presupuesto) {
   return (real / presupuesto) * 100;
 }
 
-// Devuelve { partida: {presupuestado, costoInicial, asignado, real} }
+// Devuelve { partida: {presupuestado, costoInicial, devengado, pagadoSinFactura, asignado, real} }
 function desglosePorPartida(unidadId) {
   const out = {};
-  const get = k => (out[k] = out[k] || { presupuestado: 0, costoInicial: 0, asignado: 0, real: 0 });
+  const get = k => (out[k] = out[k] || { presupuestado: 0, costoInicial: 0, devengado: 0, pagadoSinFactura: 0, asignado: 0, real: 0 });
   presupuestoRowsUnidad(unidadId).forEach(p => {
     const k = p.partida || 'Sin partida';
     get(k).presupuestado += p.monto_presupuestado || 0;
     get(k).costoInicial += p.costo_inicial || 0;
   });
+  const pcf = _pagosConFacturaSet();
+  const fc = _facturasCanceladasSet();
   asignacionesDeUnidad(unidadId).forEach(a => {
-    get(partidaDeAsignacion(a)).asignado += a.monto_asignado || 0;
+    const t = _tipoAsignacion(a, pcf, fc);
+    if (!t) return; // no cuenta (doble conteo evitado o factura cancelada)
+    const row = get(partidaDeAsignacion(a));
+    if (t === 'devengado') row.devengado += a.monto_asignado || 0;
+    else row.pagadoSinFactura += a.monto_asignado || 0;
+    row.asignado += a.monto_asignado || 0;
   });
   Object.values(out).forEach(v => { v.real = v.costoInicial + v.asignado; });
   return out;
@@ -135,7 +184,12 @@ function pagosAsignados() {
 
 function asignacionesHuerfanas() {
   const ids = historialIdSet();
-  return state.costoAsignaciones.filter(a => !ids.has(String(a.pago_id)));
+  const factIds = new Set((state.facturas || []).map(f => String(f.factura_id)).filter(Boolean));
+  // Una asignación de factura es huérfana solo si su factura ya no existe; una de
+  // pago, solo si su pago ya no existe.
+  return state.costoAsignaciones.filter(a =>
+    a.factura_id ? !factIds.has(String(a.factura_id)) : !ids.has(String(a.pago_id))
+  );
 }
 
 // ---------- render principal ----------
@@ -494,9 +548,12 @@ export function cfFiltrarAsignados() {
 export async function cfLimpiarHuerfanas() {
   const huerfanas = asignacionesHuerfanas();
   if (!huerfanas.length) return;
-  if (!confirm(`¿Eliminar ${huerfanas.length} asignación(es) huérfana(s)? Corresponden a pagos que ya no existen.`)) return;
+  if (!confirm(`¿Eliminar ${huerfanas.length} asignación(es) huérfana(s)? Corresponden a pagos o facturas que ya no existen.`)) return;
   const ids = historialIdSet();
-  state.costoAsignaciones = state.costoAsignaciones.filter(a => ids.has(String(a.pago_id)));
+  const factIds = new Set((state.facturas || []).map(f => String(f.factura_id)).filter(Boolean));
+  state.costoAsignaciones = state.costoAsignaciones.filter(a =>
+    a.factura_id ? factIds.has(String(a.factura_id)) : ids.has(String(a.pago_id))
+  );
   await gsSaveCostoAsignaciones();
   notify('Asignaciones huérfanas eliminadas');
   renderPanel();
@@ -507,6 +564,8 @@ export function abrirAsignarCosto(pagoId) {
   if (!pago) { notify('Pago no encontrado', 'error'); return; }
   if (!unidadesDeProyecto().length) { notify('Primero crea unidades en este proyecto', 'error'); return; }
   cfPagoAsignar = pagoId;
+  cfFacturaAsignar = null;
+  const tit = document.getElementById('asignar-titulo'); if (tit) tit.textContent = 'Asignar Costo a Unidades';
 
   document.getElementById('asignar-info').innerHTML = `
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:14px;">
@@ -524,6 +583,72 @@ export function reasignarCosto(pagoId) {
   // Reabre el modal; guardarAsignacionCosto reemplaza las asignaciones previas.
   // No se borra nada hasta confirmar, así cancelar no pierde datos.
   abrirAsignarCosto(pagoId);
+}
+
+// Devengado (Fase B): reparte el costo de una FACTURA (sobre su monto_total) a las
+// casas de su proyecto. Reusa el mismo modal que el reparto de pagos.
+export function abrirRepartirFactura(facturaId) {
+  const f = facturaById(facturaId);
+  if (!f) { notify('Factura no encontrada', 'error'); return; }
+  if (!f.proyecto) { notify('La factura no tiene proyecto; asígnale uno para repartir su costo', 'error'); return; }
+  if (!(f.monto_total > 0)) { notify('La factura no tiene monto para repartir', 'error'); return; }
+  cfProyecto = f.proyecto;                 // el reparto va a las unidades de ese proyecto
+  if (!unidadesDeProyecto().length) { notify('El proyecto "' + f.proyecto + '" no tiene unidades', 'error'); return; }
+  cfFacturaAsignar = facturaId;
+  cfPagoAsignar = null;
+  const tit = document.getElementById('asignar-titulo'); if (tit) tit.textContent = 'Repartir Factura (devengado)';
+
+  const prov = f.nombre_proveedor || f.razon_social || ('ID ' + f.proveedor_id);
+  const previa = state.costoAsignaciones.find(a => String(a.factura_id) === String(facturaId));
+  document.getElementById('asignar-info').innerHTML = `
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:14px;">
+      <div style="font-weight:600;">🧾 Factura ${f.numero_factura || ''} · ${prov}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px;">${f.proyecto} · devengado sobre el total de la factura</div>
+      <div style="font-family:'DM Mono',monospace;font-size:18px;color:var(--accent);font-weight:700;margin-top:6px;">${fmt(f.monto_total || 0)}</div>
+    </div>
+    ${_repartoFacturaPartidaHTML(previa ? previa.partida_override : '')}`;
+
+  const metPrevio = previa ? previa.metodo : 'directo';
+  const radio = document.querySelector(`input[name="cf-metodo"][value="${metPrevio}"]`) || document.querySelector('input[name="cf-metodo"][value="directo"]');
+  if (radio) radio.checked = true;
+  renderMetodoBody();
+  cfFacturaPartidaChange();                // arma la cascada de sub-partida
+  if (previa && previa.sub_partida_override) {
+    const sub = document.getElementById('rf-subpartida'); if (sub) sub.value = previa.sub_partida_override;
+  }
+  document.getElementById('modal-asignar-costo').classList.add('open');
+}
+
+// Selector de partida (+ sub-partida en cascada) para el reparto de factura.
+function _repartoFacturaPartidaHTML(partidaSel) {
+  const cats = (state.partidasCatalogo || []).filter(p => p.activa !== false);
+  const opts = cats.map(p => `<option value="${p.partida}" ${p.partida === partidaSel ? 'selected' : ''}>${p.partida}</option>`).join('');
+  return `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+      <div><label style="font-size:12px;color:var(--muted);">Partida *</label>
+        <select id="rf-partida" class="filter-select" style="width:100%;margin-top:4px;" onchange="cfFacturaPartidaChange()">
+          <option value="">— Selecciona —</option>${opts}
+        </select></div>
+      <div id="rf-subpartida-wrap" style="display:none;"><label style="font-size:12px;color:var(--muted);">Sub-partida *</label>
+        <select id="rf-subpartida" class="filter-select" style="width:100%;margin-top:4px;"></select></div>
+    </div>`;
+}
+
+// Cascada: al elegir partida, puebla sub-partida si esa partida tiene sub-partidas.
+export function cfFacturaPartidaChange() {
+  const partSel = document.getElementById('rf-partida');
+  const subWrap = document.getElementById('rf-subpartida-wrap');
+  const subSel = document.getElementById('rf-subpartida');
+  if (!partSel || !subSel) return;
+  const cat = (state.partidasCatalogo || []).find(p => p.partida === partSel.value);
+  const subs = (cat && Array.isArray(cat.subpartidas)) ? cat.subpartidas : [];
+  if (subs.length) {
+    subSel.innerHTML = '<option value="">— Selecciona —</option>' + subs.map(s => `<option>${s}</option>`).join('');
+    if (subWrap) subWrap.style.display = '';
+  } else {
+    subSel.innerHTML = '';
+    if (subWrap) subWrap.style.display = 'none';
+  }
 }
 
 export async function eliminarAsignacionCosto(pagoId) {
@@ -577,7 +702,6 @@ function renderMetodoBody() {
       </div>
       <div class="cf-picker-count" id="cf-picker-count"></div>`;
   } else if (metodo === 'custom') {
-    const pago = pagoById(cfPagoAsignar);
     body.innerHTML = `
       <div class="cf-picker-tools">
         <input type="text" class="cf-picker-search" placeholder="🔍 Buscar casa..." oninput="cfFiltrarUnidades()">
@@ -591,7 +715,7 @@ function renderMetodoBody() {
               oninput="cfPreviewReparto()" style="text-align:right;font-family:'DM Mono',monospace;">
           </div>`).join('')}
       </div>
-      <div class="cf-picker-count">Importe del pago a repartir: <strong>${fmt(pago ? pago.importe : 0)}</strong></div>`;
+      <div class="cf-picker-count">Importe a repartir: <strong>${fmt(cfImporteObjetivo())}</strong></div>`;
   } else if (metodo === 'indiviso') {
     body.innerHTML = `
       <div style="font-size:12px;color:var(--muted);background:rgba(155,127,232,.1);border:1px solid rgba(155,127,232,.3);border-radius:8px;padding:10px;">
@@ -621,9 +745,8 @@ export function cfSelTodas(valor) {
 }
 
 function calcularReparto() {
-  const pago = pagoById(cfPagoAsignar);
-  if (!pago) return [];
-  const importe = pago.importe || 0;
+  if (!cfObjetivoValido()) return [];
+  const importe = cfImporteObjetivo();
   const metodo = metodoSeleccionado();
   const unidades = unidadesDeProyecto();
 
@@ -681,8 +804,7 @@ function calcularReparto() {
 // Reparte el monto restante del pago en partes iguales entre las casas
 // que aún no tienen monto capturado (método personalizado).
 export function cfRepartirResto() {
-  const pago = pagoById(cfPagoAsignar);
-  if (!pago) return;
+  if (!cfObjetivoValido()) return;
   const inputs = [...document.querySelectorAll('.cf-custom-monto')];
   let asignado = 0;
   const vacias = [];
@@ -692,7 +814,7 @@ export function cfRepartirResto() {
     else vacias.push(inp);
   });
   if (!vacias.length) { notify('No hay casas vacías para repartir el resto', 'error'); return; }
-  const resto = (pago.importe || 0) - asignado;
+  const resto = cfImporteObjetivo() - asignado;
   if (resto <= 0) { notify('Ya no queda monto por repartir', 'error'); return; }
   const base = r2(resto / vacias.length);
   vacias.forEach((inp, i) => {
@@ -712,13 +834,12 @@ export function cfPreviewReparto() {
   const cont = document.getElementById('asignar-preview');
   if (!cont) return;
   const reparto = calcularReparto();
-  const pago = pagoById(cfPagoAsignar);
   if (!reparto.length) {
     cont.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:8px 0;">Selecciona al menos una unidad.</div>';
     return;
   }
   const suma = r2(reparto.reduce((s, x) => s + x.monto, 0));
-  const ok = Math.abs(suma - (pago.importe || 0)) < 0.01;
+  const ok = Math.abs(suma - cfImporteObjetivo()) < 0.01;
   cont.innerHTML = `
     <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:10px 0 4px;">Vista previa del reparto</div>
     <div style="max-height:150px;overflow:auto;border:1px solid var(--border);border-radius:8px;">
@@ -737,43 +858,62 @@ export function cfPreviewReparto() {
 }
 
 export async function guardarAsignacionCosto() {
-  const pago = pagoById(cfPagoAsignar);
-  if (!pago) return;
+  if (!cfObjetivoValido()) return;
+  const esFact = cfEsFactura();
   const reparto = calcularReparto();
   if (!reparto.length) { notify('Selecciona al menos una unidad', 'error'); return; }
   const metodo = metodoSeleccionado();
+  const importe = cfImporteObjetivo();
 
-  // El método personalizado debe cuadrar exactamente con el importe del pago.
+  // El método personalizado debe cuadrar exactamente con el importe a repartir.
   if (metodo === 'custom') {
     const suma = r2(reparto.reduce((s, x) => s + x.monto, 0));
-    if (Math.abs(suma - (pago.importe || 0)) > 0.01) {
-      notify(`La suma asignada (${fmt(suma)}) debe ser igual al importe del pago (${fmt(pago.importe || 0)})`, 'error');
+    if (Math.abs(suma - importe) > 0.01) {
+      notify(`La suma asignada (${fmt(suma)}) debe ser igual al importe a repartir (${fmt(importe)})`, 'error');
       return;
     }
   }
 
-  const hoy = new Date().toISOString().slice(0, 10);
+  // Reparto de FACTURA: exige partida (y sub-partida si la partida la tiene).
+  let partidaOv = '', subPartidaOv = '';
+  if (esFact) {
+    partidaOv = (document.getElementById('rf-partida')?.value || '').trim();
+    if (!partidaOv) { notify('Selecciona la partida de la factura', 'error'); return; }
+    const subWrap = document.getElementById('rf-subpartida-wrap');
+    if (subWrap && subWrap.style.display !== 'none') {
+      subPartidaOv = (document.getElementById('rf-subpartida')?.value || '').trim();
+      if (!subPartidaOv) { notify('Selecciona la sub-partida', 'error'); return; }
+    }
+  }
 
-  // Quitar asignaciones previas de este pago (por si es reasignación)
-  state.costoAsignaciones = state.costoAsignaciones.filter(a => String(a.pago_id) !== String(cfPagoAsignar));
+  const hoy = new Date().toISOString().slice(0, 10);
+  // Quitar reparto previo del MISMO objetivo (reasignación), sin tocar el otro tipo.
+  if (esFact) {
+    state.costoAsignaciones = state.costoAsignaciones.filter(a => String(a.factura_id) !== String(cfFacturaAsignar));
+  } else {
+    state.costoAsignaciones = state.costoAsignaciones.filter(a => a.factura_id || String(a.pago_id) !== String(cfPagoAsignar));
+  }
 
   reparto.forEach(x => {
     state.costoAsignaciones.push({
       asignacion_id: state.nextAsignacionId++,
-      pago_id: String(cfPagoAsignar),
+      pago_id: esFact ? '' : String(cfPagoAsignar),
+      factura_id: esFact ? String(cfFacturaAsignar) : '',
       unidad_id: x.unidad_id,
       proyecto: cfProyecto,
       metodo,
       monto_asignado: x.monto,
       factor: x.factor,
       fecha_asignacion: hoy,
-      partida_override: '',
+      partida_override: partidaOv,
+      sub_partida_override: subPartidaOv,
     });
   });
 
   cerrar('modal-asignar-costo');
   await gsSaveCostoAsignaciones();
-  notify('Costo asignado a ' + reparto.length + ' unidad(es)');
+  notify((esFact ? 'Factura repartida a ' : 'Costo asignado a ') + reparto.length + ' unidad(es)');
+  if (esFact && window.renderFacturas) window.renderFacturas();
   renderPanel();
 }
 
@@ -902,18 +1042,23 @@ function renderReportesTab(panel) {
 
   const filas = unidades.map(u => {
     const presu = presupuestoTotalUnidad(u.unidad_id);
-    const real = costoRealUnidad(u.unidad_id);
+    const ini = costoInicialUnidad(u.unidad_id);
+    const des = costoAsignadoDesglose(u.unidad_id);
+    const real = ini + des.total;
     const av = avancePct(real, presu);
-    return { u, presu, real, av, variacion: presu - real };
+    return { u, presu, real, devengado: des.devengado, pagado: des.pagadoSinFactura, av, variacion: presu - real };
   });
   const totPresu = filas.reduce((s, f) => s + f.presu, 0);
   const totReal = filas.reduce((s, f) => s + f.real, 0);
+  const totDev = filas.reduce((s, f) => s + f.devengado, 0);
+  const totPag = filas.reduce((s, f) => s + f.pagado, 0);
 
   panel.innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
       <div class="stat-card"><div class="stat-label">Presupuesto total</div><div class="stat-value" style="color:var(--blue);">${fmt(totPresu)}</div><div class="stat-sub">${unidades.length} unidades</div></div>
-      <div class="stat-card"><div class="stat-label">Costo real acumulado</div><div class="stat-value" style="color:var(--accent);">${fmt(totReal)}</div><div class="stat-sub">Inicial + asignaciones</div></div>
-      <div class="stat-card"><div class="stat-label">Avance global</div><div class="stat-value" style="color:${avanceColor(avancePct(totReal, totPresu))};">${totPresu > 0 ? (totReal / totPresu * 100).toFixed(1) + '%' : '—'}</div><div class="stat-sub">${fmt(totPresu - totReal)} por ejercer</div></div>
+      <div class="stat-card"><div class="stat-label">Devengado (facturas)</div><div class="stat-value" style="color:var(--accent);">${fmt(totDev)}</div><div class="stat-sub">Costo facturado</div></div>
+      <div class="stat-card"><div class="stat-label">Pagado sin factura</div><div class="stat-value" style="color:var(--green);">${fmt(totPag)}</div><div class="stat-sub">Pagos sin CFDI</div></div>
+      <div class="stat-card"><div class="stat-label">Costo real</div><div class="stat-value" style="color:var(--accent);">${fmt(totReal)}</div><div class="stat-sub">${totPresu > 0 ? 'Avance ' + (totReal / totPresu * 100).toFixed(1) + '%' : 'Inicial + asignaciones'}</div></div>
     </div>
 
     <div class="table-wrap" style="margin-bottom:20px;">
@@ -921,16 +1066,20 @@ function renderReportesTab(panel) {
         <thead><tr>
           <th>Unidad</th>
           <th style="text-align:right">Presupuesto</th>
+          <th style="text-align:right">Devengado</th>
+          <th style="text-align:right">Pagado s/fact</th>
           <th style="text-align:right">Costo real</th>
           <th style="text-align:right">Variación</th>
-          <th style="width:160px;">% Avance</th>
+          <th style="width:140px;">% Avance</th>
           <th></th>
         </tr></thead>
         <tbody>${filas.map(f => `
           <tr>
             <td style="font-weight:600;">${f.u.nombre}</td>
             <td style="text-align:right;font-family:'DM Mono',monospace;">${fmt(f.presu)}</td>
-            <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--accent);">${fmt(f.real)}</td>
+            <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--accent);">${fmt(f.devengado)}</td>
+            <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--green);">${fmt(f.pagado)}</td>
+            <td style="text-align:right;font-family:'DM Mono',monospace;font-weight:600;">${fmt(f.real)}</td>
             <td style="text-align:right;font-family:'DM Mono',monospace;color:${f.variacion < 0 ? 'var(--red)' : 'var(--green)'};">${fmt(f.variacion)}</td>
             <td>${barraAvance(f.av)}</td>
             <td style="text-align:right;"><button class="btn btn-ghost btn-sm" onclick="cfVerUnidad(${f.u.unidad_id})">Detalle</button></td>

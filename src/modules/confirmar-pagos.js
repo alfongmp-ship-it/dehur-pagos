@@ -133,8 +133,11 @@ export async function confirmarPagos() {
   if (_pfHist) insertados.forEach(({ h }) => sbGuardarFila('historial', h));
 
   // Auto-crear asignaciones de costo planificadas desde la solicitud (obra).
+  // DEVENGADO (Fase A): si el pago trae factura_id, el costo lo aporta la FACTURA
+  // (su propio reparto), NO el pago → se omite el reparto del pago para no duplicar.
   let asignacionesCreadas = 0;
   insertados.forEach(({ d, h }) => {
+    if (h.factura_id) return; // el costo va por la factura (devengado)
     if (!d.asignacionesPlanificadas?.length) return;
     d.asignacionesPlanificadas.forEach(asg => {
       if (!asg.unidad_id) return; // casa no encontrada en catálogo: se omite
@@ -161,6 +164,7 @@ export async function confirmarPagos() {
   // así que es seguro llamarlo siempre. Respeta opt-out (repartoMetodo='vacio').
   let autoIndivCreadas = 0;
   insertados.forEach(({ d, h }) => {
+    if (h.factura_id) return; // con factura el costo es devengado (lo aporta la factura)
     autoIndivCreadas += aplicarAutoIndiviso(h, d.repartoMetodo);
   });
 

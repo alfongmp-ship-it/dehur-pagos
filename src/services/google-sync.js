@@ -476,7 +476,10 @@ export async function gsLoadAll() {
         monto_asignado: parseFloat(r[5]) || 0,
         factor: parseFloat(r[6]) || 0,
         fecha_asignacion: r[7] || '',
-        partida_override: r[8] || ''
+        partida_override: r[8] || '',
+        // Devengado (Fase A): si factura_id está lleno, el reparto es de una FACTURA.
+        factura_id: r[9] || '',
+        sub_partida_override: r[10] || ''
       }));
       state.nextAsignacionId = state.costoAsignaciones.reduce((m, a) => Math.max(m, a.asignacion_id), 0) + 1;
     }
@@ -592,8 +595,15 @@ async function finalizarCarga() {
   // Solo si AMBAS entidades cargaron OK — para no borrar nada si una falló.
   if (state.cargado.historial === true && state.cargado.costoAsignaciones === true) {
     const idsHist = new Set(state.historial.map(h => String(h.id)).filter(Boolean));
+    // Devengado (Fase A): una asignación de FACTURA (factura_id lleno, pago_id vacío)
+    // NO es huérfana aunque no tenga pago. Conservarla si su factura existe; y si las
+    // facturas no cargaron OK, conservarla por seguridad (no borrar a ciegas).
+    const factOk = state.cargado.facturas === true;
+    const idsFact = new Set(state.facturas.map(f => String(f.factura_id)).filter(Boolean));
     const antesAsig = state.costoAsignaciones.length;
-    state.costoAsignaciones = state.costoAsignaciones.filter(a => idsHist.has(String(a.pago_id)));
+    state.costoAsignaciones = state.costoAsignaciones.filter(a =>
+      a.factura_id ? (!factOk || idsFact.has(String(a.factura_id))) : idsHist.has(String(a.pago_id))
+    );
     const eliminadas = antesAsig - state.costoAsignaciones.length;
     if (eliminadas > 0) {
       try { await gsSaveCostoAsignaciones(); } catch (e) { console.error('Auto-limpia huérfanas: error guardando', e); }
@@ -783,7 +793,8 @@ export async function sbLoadAll() {
     state.costoAsignaciones = rows.map(r => ({
       asignacion_id: toInt(r.asignacion_id), pago_id: r.pago_id || '', unidad_id: toInt(r.unidad_id),
       proyecto: r.proyecto || '', metodo: r.metodo || 'directo', monto_asignado: toNum(r.monto_asignado),
-      factor: toNum(r.factor), fecha_asignacion: r.fecha_asignacion || '', partida_override: r.partida_override || ''
+      factor: toNum(r.factor), fecha_asignacion: r.fecha_asignacion || '', partida_override: r.partida_override || '',
+      factura_id: r.factura_id || '', sub_partida_override: r.sub_partida_override || ''
     }));
   });
 
@@ -875,7 +886,18 @@ export function ensureHistorialIds() {
 export async function purgarAsignacionesDePago(pagoId) {
   if (!pagoId || !puedeEditar()) return;
   const antes = state.costoAsignaciones.length;
-  state.costoAsignaciones = state.costoAsignaciones.filter(a => String(a.pago_id) !== String(pagoId));
+  state.costoAsignaciones = state.costoAsignaciones.filter(a => a.factura_id || String(a.pago_id) !== String(pagoId));
+  if (state.costoAsignaciones.length !== antes) {
+    await gsSaveCostoAsignaciones();
+  }
+}
+
+// Devengado (Fase A): elimina las asignaciones de costo de una FACTURA (al darla de
+// baja). Análogo a purgarAsignacionesDePago pero por factura_id.
+export async function purgarAsignacionesDeFactura(facturaId) {
+  if (facturaId == null || (!puedeEditar() && !puedeFacturas())) return;
+  const antes = state.costoAsignaciones.length;
+  state.costoAsignaciones = state.costoAsignaciones.filter(a => String(a.factura_id) !== String(facturaId));
   if (state.costoAsignaciones.length !== antes) {
     await gsSaveCostoAsignaciones();
   }
@@ -1026,16 +1048,18 @@ export async function gsSavePresupuestoUnidad() {
 }
 
 export async function gsSaveCostoAsignaciones() {
-  if (!puedeEditar()) return;
+  if (!puedeEditar() && !puedeFacturas()) return;   // rol 'facturas' reparte facturas (devengado)
   if (!guardarPermitido('costoAsignaciones', state.costoAsignaciones)) return;
   try {
     const rows = state.costoAsignaciones.map(a => [
       a.asignacion_id, a.pago_id, a.unidad_id, a.proyecto || '', a.metodo || 'directo',
-      a.monto_asignado || 0, a.factor || 0, a.fecha_asignacion || '', a.partida_override || ''
+      a.monto_asignado || 0, a.factor || 0, a.fecha_asignacion || '', a.partida_override || '',
+      a.factura_id || '', a.sub_partida_override || ''
     ]);
     await gsClearAndWrite('costo_asignaciones', rows, [
       'asignacion_id', 'pago_id', 'unidad_id', 'proyecto', 'metodo',
-      'monto_asignado', 'factor', 'fecha_asignacion', 'partida_override'
+      'monto_asignado', 'factor', 'fecha_asignacion', 'partida_override',
+      'factura_id', 'sub_partida_override'
     ]);
     await sbEspejar('costoAsignaciones');
   } catch (e) { console.error('gsSaveCostoAsignaciones', e); }
@@ -1243,7 +1267,8 @@ function _rowsCostoAsignaciones() {
   return _dedupBy(state.costoAsignaciones.map(a => ({
     asignacion_id: _sbStr(a.asignacion_id), pago_id: _sbStr(a.pago_id), unidad_id: _sbStr(a.unidad_id),
     proyecto: _sbStr(a.proyecto), metodo: _sbStr(a.metodo), monto_asignado: _sbNum(a.monto_asignado),
-    factor: _sbNum(a.factor), fecha_asignacion: _sbStr(a.fecha_asignacion), partida_override: _sbStr(a.partida_override)
+    factor: _sbNum(a.factor), fecha_asignacion: _sbStr(a.fecha_asignacion), partida_override: _sbStr(a.partida_override),
+    factura_id: _sbStr(a.factura_id), sub_partida_override: _sbStr(a.sub_partida_override)
   })), 'asignacion_id');
 }
 function _rowPartidaCatalogo(p) {
