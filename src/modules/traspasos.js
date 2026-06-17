@@ -2,7 +2,8 @@ import { state, datosListos, puedeEditar } from '../state.js';
 import { fmt, fmtFecha } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
-import { gsSaveTraspasos, saveData, gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveMovimientosInternos, ensureHistorialIds, esPorFila, sbGuardarFila, sbBorrarFila } from '../services/google-sync.js';
+import { gsSaveTraspasos, saveData, gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveMovimientosInternos, ensureHistorialIds, esPorFila, sbGuardarFila, sbBorrarFila, gsSaveCostoAsignaciones } from '../services/google-sync.js';
+import { aplicarAutoIndiviso } from './confirmar-pagos.js';
 import { saveProy } from '../config/proyectos.js';
 import { getPartidasParaSelect } from '../config/sub-partidas.js';
 import { parseFechaHist } from './historial.js';
@@ -363,6 +364,10 @@ export function guardarTraspaso() {
         // la numera y se guarda por fila a Supabase.
         ensureHistorialIds();
         if (esPorFila('historial')) sbGuardarFila('historial', state.historial[0]);
+        // Devengado/reparto: las APORTACIONES (nómina, impuestos, etc.) afectan SIEMPRE
+        // por indiviso a TODAS las unidades activas del proyecto. Se reparte automático
+        // al registrarla (de aquí en adelante); las históricas se asignan a mano.
+        if (aplicarAutoIndiviso(state.historial[0], null, true) > 0) gsSaveCostoAsignaciones();
         const cntHist = document.getElementById('cnt-hist');
         if (cntHist) cntHist.textContent = state.historial.length;
         if (window.renderHistorial) window.renderHistorial();

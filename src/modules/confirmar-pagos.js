@@ -12,12 +12,15 @@ const _normPart = s => String(s || '').trim().toLowerCase()
 // CONSTRUCCION y que no tenga aún asignaciones de costo. Devuelve la cantidad
 // de asignaciones creadas (0 si no aplica). El llamador es responsable de
 // invocar gsSaveCostoAsignaciones() después si se creó al menos una.
-export function aplicarAutoIndiviso(h, repartoMetodo) {
+export function aplicarAutoIndiviso(h, repartoMetodo, forzar = false) {
   if (!h || !h.id || !h.proyecto) return 0;
   if (repartoMetodo === 'vacio') return 0;                     // opt-out explícito
-  const part = _normPart(h.partida);
-  if (!part || part === 'construccion') return 0;              // sin partida o construccion → no aplica
-  // No duplicar si ya hay asignaciones para este pago
+  if (!forzar) {
+    const part = _normPart(h.partida);
+    if (!part || part === 'construccion') return 0;            // sin partida o construccion → no aplica
+  }
+  // `forzar` (p.ej. APORTACIONES): siempre reparte por indiviso a las activas, sin
+  // importar la partida. No duplicar si ya hay asignaciones para este pago.
   if (state.costoAsignaciones.some(a => String(a.pago_id) === String(h.id))) return 0;
 
   const unidades = state.unidades.filter(u => u.activo !== false && u.proyecto === h.proyecto);
