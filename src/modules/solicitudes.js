@@ -161,6 +161,12 @@ export function parseReparto(repartoRaw, unidadesRaw, proyecto) {
     return { asignaciones, metodo, errores, warnings };
   }
 
+  // Separadores '/' de m\u00e1s o c\u00f3digo vac\u00edo (A-1//A-2, A-1/, /A-1) \u2192 error (bloquea).
+  if (unidadesStr.split('/').map(x => x.trim()).some(seg => seg === '')) {
+    errores.push(`Unidades='${unidadesRaw}' tiene separadores '/' de m\u00e1s o un c\u00f3digo vac\u00edo. Quita el '/' sobrante.`);
+    return { asignaciones, metodo, errores, warnings };
+  }
+
   if (metodo === 'directo') {
     const codigos = splitCodigos(unidadesStr);
     if (codigos.length !== 1) {
@@ -421,10 +427,13 @@ export function parsearSolicitud(wb, filename) {
   // Resumir avisos de partida/reparto desde warningsGlobales
   const sinCatalogo = state.solicitudesData.filter(s => s.partidaOriginal && s.mapeoEstado === 'no-catalogo').length;
   const sinMapeo = state.solicitudesData.filter(s => s.mapeoEstado === 'sin-mapeo').length;
+  // Filas que se suben SIN reparto (en blanco; 'vacio' es opt-out explícito, no cuenta).
+  const sinReparto = state.solicitudesData.filter(s => !s.repartoMetodo).length;
   const partes = [`${state.solicitudesData.length} solicitudes cargadas`];
   if (sinCuenta) partes.push(`⚠ ${sinCuenta} sin cuenta`);
   if (sinCatalogo) partes.push(`⚠ ${sinCatalogo} partida${sinCatalogo === 1 ? '' : 's'} fuera del catálogo Obra`);
   if (sinMapeo) partes.push(`⚠ ${sinMapeo} sin mapeo Admin`);
+  if (sinReparto) partes.push(`⚠ ${sinReparto} sin reparto (se asignan por indiviso al confirmar, o a mano)`);
   notify(partes.join(' · '));
 }
 
