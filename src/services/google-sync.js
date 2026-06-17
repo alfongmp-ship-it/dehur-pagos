@@ -1,4 +1,4 @@
-import { state, puedeEditar, esAdmin } from '../state.js';
+import { state, puedeEditar, esAdmin, puedeFacturas } from '../state.js';
 import { notify } from '../ui/notify.js';
 import { gsReadSheet, gsWriteRange, gsClearAndWrite, gsAppendRow } from './google-sheets.js';
 import { normalizeBanco } from '../config/bancos.js';
@@ -284,7 +284,16 @@ export async function gsLoadAll() {
         proyecto: r[12] || '',
         observaciones: r[13] || '',
         activo: r[14] !== 'false',
-        uuid: r[15] || ''
+        uuid: r[15] || '',
+        // Fase 2: campos fiscales (CFDI), leídos por posición (índices 16-23).
+        subtotal: parseFloat(String(r[16]).replace(/,/g, '')) || 0,
+        descuento: parseFloat(String(r[17]).replace(/,/g, '')) || 0,
+        iva_trasladado: parseFloat(String(r[18]).replace(/,/g, '')) || 0,
+        retencion_iva: parseFloat(String(r[19]).replace(/,/g, '')) || 0,
+        retencion_isr: parseFloat(String(r[20]).replace(/,/g, '')) || 0,
+        rfc_emisor: r[21] || '',
+        estado_sat: r[22] || 'Vigente',
+        tipo_comprobante: r[23] || 'Factura'
       }));
     }
 
@@ -693,7 +702,11 @@ export async function sbLoadAll() {
       fecha_pago_total: r.fecha_pago_total || '', monto_total: toNum(r.monto_total),
       monto_pagado: toNum(r.monto_pagado), saldo_pendiente: toNum(r.saldo_pendiente),
       estatus_factura: r.estatus_factura || 'pendiente', proyecto: r.proyecto || '',
-      observaciones: r.observaciones || '', activo: r.activo !== false, uuid: r.uuid || ''
+      observaciones: r.observaciones || '', activo: r.activo !== false, uuid: r.uuid || '',
+      // Fase 2: campos fiscales (CFDI).
+      subtotal: toNum(r.subtotal), descuento: toNum(r.descuento), iva_trasladado: toNum(r.iva_trasladado),
+      retencion_iva: toNum(r.retencion_iva), retencion_isr: toNum(r.retencion_isr),
+      rfc_emisor: r.rfc_emisor || '', estado_sat: r.estado_sat || 'Vigente', tipo_comprobante: r.tipo_comprobante || 'Factura'
     }));
   });
 
@@ -1128,7 +1141,12 @@ function _rowFactura(f) {
     monto_total: _sbNum(f.monto_total), monto_pagado: _sbNum(f.monto_pagado),
     saldo_pendiente: _sbNum(f.saldo_pendiente), estatus_factura: _sbStr(f.estatus_factura),
     proyecto: _sbStr(f.proyecto), observaciones: _sbStr(f.observaciones),
-    activo: f.activo !== false, uuid: _sbStr(f.uuid)
+    activo: f.activo !== false, uuid: _sbStr(f.uuid),
+    // Fase 2: datos fiscales del CFDI.
+    subtotal: _sbNum(f.subtotal), descuento: _sbNum(f.descuento),
+    iva_trasladado: _sbNum(f.iva_trasladado), retencion_iva: _sbNum(f.retencion_iva),
+    retencion_isr: _sbNum(f.retencion_isr), rfc_emisor: _sbStr(f.rfc_emisor),
+    estado_sat: _sbStr(f.estado_sat) || 'Vigente', tipo_comprobante: _sbStr(f.tipo_comprobante) || 'Factura'
   };
 }
 function _rowsFacturas() {
@@ -1300,7 +1318,12 @@ async function sbEspejar(key) {
 // si falla, avisa pero NO rompe el guardado a Sheets. `item` es el objeto del
 // state (un proveedor, etc.); usa el mapeo `rowOne` de SB_ENTIDADES[key].
 export async function sbGuardarFila(key, item) {
-  if (!puedeEditar()) return;   // backstop de rol: solo_lectura/contabilidad/lector nunca escriben
+  // Backstop de rol: solo_lectura/contabilidad/lector nunca escriben. El rol
+  // 'facturas' (Gonzalo) SÍ escribe facturas/facturaPagos, y 'historial' SOLO
+  // vía la herramienta de vincular pago→factura (no tiene otra vía de UI: todos
+  // los editores del historial van con .req-editor, que ese rol no ve).
+  const esFactKey = key === 'facturas' || key === 'facturaPagos' || key === 'historial';
+  if (!puedeEditar() && !(esFactKey && puedeFacturas())) return;
   if (!sbReady()) return;
   const def = SB_ENTIDADES[key];
   if (!def || !def.rowOne || !def.idCol) return;
@@ -1314,7 +1337,10 @@ export async function sbGuardarFila(key, item) {
 
 // Borra UNA fila de Supabase (Fase 3). `idValue` = el id de la fila a borrar.
 export async function sbBorrarFila(key, idValue) {
-  if (!puedeEditar()) return;   // backstop de rol
+  // Backstop de rol (ver sbGuardarFila): 'facturas' borra facturaPagos al
+  // eliminar un pago a factura.
+  const esFactKey = key === 'facturas' || key === 'facturaPagos' || key === 'historial';
+  if (!puedeEditar() && !(esFactKey && puedeFacturas())) return;
   if (!sbReady()) return;
   const def = SB_ENTIDADES[key];
   if (!def || !def.idCol) return;
@@ -1413,17 +1439,19 @@ export async function gsSaveEmpleados(opts = {}) {
 }
 
 export async function gsSaveFacturas(opts = {}) {
-  if (!puedeEditar()) return;
+  if (!puedeEditar() && !puedeFacturas()) return;
   if (!guardarPermitido('facturas', state.facturas)) return;
   try {
-    const rows = state.facturas.map(f => [f.factura_id, f.numero_factura || '', f.razon_social || '', f.proveedor_id, f.nombre_proveedor || '', f.fecha_factura, f.fecha_vencimiento || '', f.fecha_pago_total || '', f.monto_total, f.monto_pagado, f.saldo_pendiente, f.estatus_factura, f.proyecto, f.observaciones, f.activo, f.uuid || '']);
-    await gsClearAndWrite('facturas', rows, ['factura_id', 'Numero_Fcatura', 'razon_social', 'proveedor_id', 'nombre_proveedor', 'fecha_factura', 'fecha_vencimiento', 'fecha_pago_total', 'monto_total', 'monto_pagado', 'saldo_pendiente', 'estatus_factura', 'proyecto', 'observaciones', 'activo', 'uuid']);
+    // Fase 2: los 8 campos fiscales (CFDI) van AL FINAL (índices 16-23) para no
+    // desalinear las filas viejas del Sheet, que se leen por posición en gsLoadAll.
+    const rows = state.facturas.map(f => [f.factura_id, f.numero_factura || '', f.razon_social || '', f.proveedor_id, f.nombre_proveedor || '', f.fecha_factura, f.fecha_vencimiento || '', f.fecha_pago_total || '', f.monto_total, f.monto_pagado, f.saldo_pendiente, f.estatus_factura, f.proyecto, f.observaciones, f.activo, f.uuid || '', f.subtotal || 0, f.descuento || 0, f.iva_trasladado || 0, f.retencion_iva || 0, f.retencion_isr || 0, f.rfc_emisor || '', f.estado_sat || '', f.tipo_comprobante || '']);
+    await gsClearAndWrite('facturas', rows, ['factura_id', 'Numero_Factura', 'razon_social', 'proveedor_id', 'nombre_proveedor', 'fecha_factura', 'fecha_vencimiento', 'fecha_pago_total', 'monto_total', 'monto_pagado', 'saldo_pendiente', 'estatus_factura', 'proyecto', 'observaciones', 'activo', 'uuid', 'subtotal', 'descuento', 'iva_trasladado', 'retencion_iva', 'retencion_isr', 'rfc_emisor', 'estado_sat', 'tipo_comprobante']);
     if (!opts.porFila) await sbEspejar('facturas');
   } catch (e) { console.error('gsSaveFacturas', e); }
 }
 
 export async function gsSaveFacturaPagos(opts = {}) {
-  if (!puedeEditar()) return;
+  if (!puedeEditar() && !puedeFacturas()) return;
   if (!guardarPermitido('facturaPagos', state.facturaPagos)) return;
   try {
     const rows = state.facturaPagos.map(fp => [fp.factura_pago_id, fp.factura_id, fp.pago_id, fp.proveedor_id, fp.monto_aplicado, fp.fecha_pago, fp.estatus, fp.observaciones]);

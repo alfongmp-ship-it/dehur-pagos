@@ -21,7 +21,7 @@ import { fetchMantenimiento, setMantenimiento } from './services/supabase.js';
 import { renderConfirmarPagos, toggleConfPago, toggleAllConf, confirmarPagos, eliminarPendiente } from './modules/confirmar-pagos.js';
 import { renderCola, abrirPagoRapido, abrirModalPago, buscarModal, selPago, agregarACola, confirmarPagoDirecto, checkCuentaOrigenPago, abrirModalNominaDisp, filtrarNomDisp, agregarNominaACola, qDel, limpiarCola, buscarRapido, quickAdd, generarArchivo, togglePagoSubPartida } from './modules/dispersion.js';
 import { handleSolDrop, handleSolFile, descargarPlantilla, parsearSolicitud, renderSolicitudes, toggleSol, seleccionarTodosSol, nuevaSolicitud, abrirVincular, renderVincBusqueda, seleccionarProvExistente, renderVincTipo, validarVincCuenta, confirmarNuevoProv, enviarACola } from './modules/solicitudes.js';
-import { renderFacturas, renderFacturaPagos, abrirNuevaFactura, editarFactura, guardarFactura, filtrarProvFactura, selProvFactura, eliminarPagoFactura } from './modules/facturas.js';
+import { renderFacturas, renderFacturaPagos, abrirNuevaFactura, editarFactura, guardarFactura, filtrarProvFactura, selProvFactura, eliminarPagoFactura, abrirBuscadorPagosFactura, filtrarPagosParaFactura, vincularPagoAFactura, recalcularTotalFactura } from './modules/facturas.js';
 import { renderTraspasos, abrirNuevoTraspaso, editarTraspaso, guardarTraspaso, eliminarTraspaso, actualizarTipoDetectado, togglePartidaTraspaso, sincronizarAportacionesATraspasos } from './modules/traspasos.js';
 import { renderResumenTraspasos, filtrarResumen } from './modules/resumen-traspasos.js';
 import { calcularClabeProy, selColor, abrirModalProyecto, guardarProyecto, toggleProyecto, renderConfigProyectos } from './modules/config-page.js';
@@ -140,6 +140,10 @@ window.guardarFactura = guardarFactura;
 window.filtrarProvFactura = filtrarProvFactura;
 window.selProvFactura = selProvFactura;
 window.eliminarPagoFactura = eliminarPagoFactura;
+window.abrirBuscadorPagosFactura = abrirBuscadorPagosFactura;
+window.filtrarPagosParaFactura = filtrarPagosParaFactura;
+window.vincularPagoAFactura = vincularPagoAFactura;
+window.recalcularTotalFactura = recalcularTotalFactura;
 
 // Traspasos y Préstamos
 window.renderTraspasos = renderTraspasos;

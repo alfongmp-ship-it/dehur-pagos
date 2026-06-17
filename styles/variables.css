@@ -167,8 +167,16 @@ body {
 /* El bloqueo REAL está en los handlers + backstop de guardado; esto es solo UX. */
 /* .req-admin → solo el admin (borrado en bloque, configuración, Google/respaldo). */
 body:not([data-rol="admin"]) .req-admin { display: none !important; }
-/* .req-editor → admin y capturista (capturar/editar); los perfiles de solo-ver lo ocultan. */
+/* .req-editor → admin y capturista (capturar/editar); los perfiles de solo-ver lo ocultan.
+   'facturas' también lo oculta: ese rol edita SOLO facturas (vía .req-facturas), no el resto. */
 body[data-rol="lector"] .req-editor,
 body[data-rol="contabilidad"] .req-editor,
 body[data-rol="solo_lectura"] .req-editor,
-body[data-rol="aprobador"] .req-editor { display: none !important; }
+body[data-rol="aprobador"] .req-editor,
+body[data-rol="facturas"] .req-editor { display: none !important; }
+/* .req-facturas → admin, capturista y facturas (crear/editar facturas y vincular pagos).
+   Se oculta para los perfiles de solo-ver. */
+body[data-rol="lector"] .req-facturas,
+body[data-rol="contabilidad"] .req-facturas,
+body[data-rol="solo_lectura"] .req-facturas,
+body[data-rol="aprobador"] .req-facturas { display: none !important; }

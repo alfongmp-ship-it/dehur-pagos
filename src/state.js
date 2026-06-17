@@ -84,6 +84,13 @@ export function puedeEditar() {
   return r === 'admin' || r === 'capturista';
 }
 
+// Puede crear/editar facturas y vincular pagos a facturas. Rol dedicado 'facturas'
+// (Gonzalo) además de los que ya editan. 'contabilidad' (Ericka) queda solo-ver.
+export function puedeFacturas() {
+  const r = rol();
+  return r === 'admin' || r === 'capturista' || r === 'facturas';
+}
+
 // Solo el admin: borrado EN BLOQUE, configuración (proyectos/partidas/cuentas),
 // conectar Google + "Respaldar a Sheets".
 export function esAdmin() {
@@ -93,7 +100,8 @@ export function esAdmin() {
 // Etiqueta amigable del rol para el badge de usuario.
 const ROL_LABEL = {
   admin: 'Admin', capturista: 'Capturista', contabilidad: 'Contabilidad',
-  lector: 'Lector', aprobador: 'Aprobador', solo_lectura: 'Solo lectura'
+  lector: 'Lector', aprobador: 'Aprobador', solo_lectura: 'Solo lectura',
+  facturas: 'Facturas'
 };
 export function rolLabel() {
   return ROL_LABEL[rol()] || rol();

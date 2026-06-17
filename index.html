@@ -330,7 +330,7 @@
     <div id="page-facturas" style="display:none">
       <div class="page-header">
         <div><div class="page-title">Facturas</div><div class="page-subtitle">Registro de facturas por proveedor</div></div>
-        <button class="btn btn-primary req-editor" onclick="abrirNuevaFactura()">+ Nueva Factura</button>
+        <button class="btn btn-primary req-facturas" onclick="abrirNuevaFactura()">+ Nueva Factura</button>
       </div>
       <div id="fact-stats" class="stats-row-4" style="display:none"></div>
       <div style="margin-bottom:10px;">
@@ -341,6 +341,10 @@
           <option value="">Todos los estatus</option>
           <option>pendiente</option><option>parcial</option><option>pagada</option><option>cancelada</option>
         </select>
+        <select class="filter-select" id="ff-estado-sat" onchange="renderFacturas()">
+          <option value="">Estado SAT: todos</option>
+          <option>Vigente</option><option>Cancelada</option>
+        </select>
         <select class="filter-select" id="ff-proy" onchange="renderFacturas()">
           <option value="">Todos los proyectos</option>
         </select>
@@ -348,7 +352,7 @@
       <div id="fact-subtitulo" style="font-size:11px;color:var(--muted);margin-bottom:6px;"></div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th style="width:50px">ID</th><th>Núm. Factura</th><th>Proveedor</th><th>Fecha</th><th>Vencimiento</th><th style="text-align:right">Total</th><th style="text-align:right">Pagado</th><th style="text-align:right">Saldo</th><th>Estatus</th><th>Proyecto</th><th style="text-align:right">Acciones</th></tr></thead>
+          <thead><tr><th style="width:50px">ID</th><th>Núm. Factura</th><th>Proveedor</th><th>Fecha</th><th>Vencimiento</th><th style="text-align:right">Total</th><th style="text-align:right">Pagado</th><th style="text-align:right">Saldo</th><th>Estatus</th><th>Estado SAT</th><th>Proyecto</th><th style="text-align:right">Acciones</th></tr></thead>
           <tbody id="tbody-fact"></tbody>
         </table>
       </div>
@@ -1297,13 +1301,30 @@
       <div class="field span2"><label>Razón Social</label><input type="text" id="f-razon-social" placeholder="Nombre de la empresa en la factura"></div>
       <div class="field span2" style="position:relative;"><label>Proveedor *</label><input type="hidden" id="f-proveedor-id"><input type="text" id="f-proveedor" placeholder="Escribe ID o nombre..." oninput="filtrarProvFactura()" onfocus="filtrarProvFactura()" autocomplete="off"><div id="f-prov-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:200px;overflow-y:auto;background:var(--surface2);border:1px solid var(--border);border-radius:8px;z-index:10;margin-top:2px;"></div></div>
       <div class="field"><label>Número Factura *</label><input id="f-folio" placeholder="Ej: A-001"></div>
-      <div class="field"><label>UUID</label><input id="f-uuid" placeholder="Opcional" style="font-family:'DM Mono',monospace;font-size:11px;"></div>
+      <div class="field"><label>UUID (folio fiscal)</label><input id="f-uuid" placeholder="Opcional" style="font-family:'DM Mono',monospace;font-size:11px;"></div>
+      <div class="field"><label>Tipo de comprobante</label><select id="f-tipo-comprobante"><option>Factura</option><option>Nota de crédito</option><option>Complemento de pago</option><option>Otro</option></select></div>
+      <div class="field"><label>Estado SAT</label><select id="f-estado-sat"><option>Vigente</option><option>Cancelada</option></select></div>
+      <div class="field span2"><label>RFC Emisor</label><input id="f-rfc-emisor" placeholder="Se autollena del proveedor" style="font-family:'DM Mono',monospace;text-transform:uppercase;"></div>
       <div class="field"><label>Fecha Factura *</label><input type="date" id="f-fecha-factura"></div>
       <div class="field"><label>Fecha Vencimiento</label><input type="date" id="f-fecha-vencimiento"></div>
-      <div class="field"><label>Monto Total *</label><input type="number" id="f-monto" step="0.01" placeholder="0.00" style="font-family:'DM Mono',monospace;"></div>
-      <div class="field"><label>Estatus</label><select id="f-estatus"><option>pendiente</option><option>parcial</option><option>pagada</option><option>cancelada</option></select></div>
+      <div class="field"><label>Subtotal *</label><input type="number" id="f-subtotal" step="0.01" placeholder="0.00" oninput="recalcularTotalFactura()" style="font-family:'DM Mono',monospace;"></div>
+      <div class="field"><label>Descuento</label><input type="number" id="f-descuento" step="0.01" value="0" oninput="recalcularTotalFactura()" style="font-family:'DM Mono',monospace;"></div>
+      <div class="field"><label>IVA</label><input type="number" id="f-iva" step="0.01" placeholder="0.00" oninput="this.dataset.touched='1';recalcularTotalFactura()" style="font-family:'DM Mono',monospace;"></div>
+      <div class="field"><label>Retención IVA</label><input type="number" id="f-retiva" step="0.01" value="0" oninput="recalcularTotalFactura()" style="font-family:'DM Mono',monospace;"></div>
+      <div class="field"><label>Retención ISR</label><input type="number" id="f-retisr" step="0.01" value="0" oninput="recalcularTotalFactura()" style="font-family:'DM Mono',monospace;"></div>
+      <div class="field"><label>Total (calculado)</label><input type="number" id="f-monto" step="0.01" placeholder="0.00" style="font-family:'DM Mono',monospace;font-weight:600;"></div>
+      <div class="field"><label>Estatus de pago</label><select id="f-estatus"><option>pendiente</option><option>parcial</option><option>pagada</option><option>cancelada</option></select></div>
       <div class="field"><label>Proyecto</label><select id="f-proyecto"></select></div>
       <div class="field span2"><label>Observaciones</label><textarea id="f-obs" rows="2" placeholder="Opcional" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-size:12px;resize:vertical;"></textarea></div>
+    </div>
+    <!-- Vincular pagos ya existentes del historial a esta factura (solo en edición). -->
+    <div id="fact-pagos-vinc" class="req-facturas" style="display:none;margin-top:8px;border-top:1px solid var(--border);padding-top:10px;">
+      <button type="button" class="btn btn-ghost" style="font-size:12px;" onclick="abrirBuscadorPagosFactura()">+ Vincular pago existente</button>
+      <div id="fact-pagos-vinc-panel" style="display:none;margin-top:8px;">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:6px;">Pagos del historial sin factura, del mismo proveedor:</div>
+        <div class="search-box" style="margin-bottom:6px;"><span class="search-icon">🔍</span><input type="text" id="fact-pagos-buscar" placeholder="Buscar por concepto, monto o fecha..." oninput="filtrarPagosParaFactura()"></div>
+        <div id="fact-pagos-result" style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;"></div>
+      </div>
     </div>
     <div class="form-actions"><button class="btn btn-ghost" onclick="cerrar('modal-factura')">Cancelar</button><button class="btn btn-primary" onclick="guardarFactura()">Guardar</button></div>
   </div>

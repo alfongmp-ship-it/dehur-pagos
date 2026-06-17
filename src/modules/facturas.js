@@ -1,9 +1,9 @@
 import { state, datosListos } from '../state.js';
-import { fmt, fmtFecha } from '../ui/format.js';
+import { fmt, fmtFecha, hoyFecha } from '../ui/format.js';
 import { proyTag } from '../ui/badges.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
-import { gsSaveFacturas, gsSaveFacturaPagos, esPorFila, sbGuardarFila, sbBorrarFila } from '../services/google-sync.js';
+import { gsSaveFacturas, gsSaveFacturaPagos, esPorFila, sbGuardarFila, sbBorrarFila, ensureHistorialIds } from '../services/google-sync.js';
 import { proyectoMatch } from '../config/proyectos.js';
 
 function diasAlVencimiento(fechaVenc) {
@@ -73,7 +73,7 @@ export function renderFacturas() {
   if (!tb) return;
 
   if (!datosListos()) {
-    tb.innerHTML = '<tr><td colspan="11"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔒</div><div>Conecta Google Sheets para ver esta información</div></div></td></tr>';
+    tb.innerHTML = '<tr><td colspan="12"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔒</div><div>Conecta Google Sheets para ver esta información</div></div></td></tr>';
     const sub = document.getElementById('fact-subtitulo'); if (sub) sub.textContent = '';
     const cnt = document.getElementById('cnt-fact'); if (cnt) cnt.textContent = '0';
     return;
@@ -83,7 +83,7 @@ export function renderFacturas() {
   renderFactStats();
 
   if (!state.facturas.length) {
-    tb.innerHTML = '<tr><td colspan="11"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🧾</div><div>Sin facturas registradas</div></div></td></tr>';
+    tb.innerHTML = '<tr><td colspan="12"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🧾</div><div>Sin facturas registradas</div></div></td></tr>';
     document.getElementById('fact-subtitulo').textContent = '';
     return;
   }
@@ -95,7 +95,7 @@ export function renderFacturas() {
     : `${state.facturas.length} facturas`;
 
   if (!fil.length) {
-    tb.innerHTML = '<tr><td colspan="11"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔍</div><div>Sin resultados con los filtros actuales</div></div></td></tr>';
+    tb.innerHTML = '<tr><td colspan="12"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔍</div><div>Sin resultados con los filtros actuales</div></div></td></tr>';
     return;
   }
 
@@ -114,8 +114,9 @@ export function renderFacturas() {
       <td style="font-family:'DM Mono',monospace;text-align:right;color:var(--green);">${fmt(f.monto_pagado)}</td>
       <td style="font-family:'DM Mono',monospace;font-weight:500;text-align:right;color:${f.saldo_pendiente > 0 ? 'var(--accent)' : 'var(--muted)'};">${fmt(f.saldo_pendiente)}</td>
       <td>${estBadge}</td>
+      <td>${estadoSatBadge(f.estado_sat)}</td>
       <td>${proyTag(f.proyecto)}</td>
-      <td style="text-align:right;"><button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="editarFactura(${f.factura_id})">Editar</button></td>
+      <td style="text-align:right;"><button class="btn btn-ghost req-facturas" style="padding:4px 8px;font-size:11px;" onclick="editarFactura(${f.factura_id})">Editar</button></td>
     </tr>`;
   }).join('');
 }
@@ -123,14 +124,16 @@ export function renderFacturas() {
 function getFilteredFacturas() {
   const q = (document.getElementById('buscar-fact')?.value || '').toLowerCase();
   const fe = document.getElementById('ff-estatus')?.value || '';
+  const fes = document.getElementById('ff-estado-sat')?.value || '';
   const fp = document.getElementById('ff-proy')?.value || '';
   return state.facturas.filter(f => {
     if (q) {
       const prov = state.proveedores.find(p => p.id === f.proveedor_id);
       const provNombre = prov ? prov.nombre.toLowerCase() : '';
-      if (!(/^\d+$/.test(q) ? String(f.factura_id) === q || String(f.proveedor_id) === q : provNombre.includes(q) || (f.numero_factura || '').toLowerCase().includes(q) || (f.nombre_proveedor || '').toLowerCase().includes(q))) return false;
+      if (!(/^\d+$/.test(q) ? String(f.factura_id) === q || String(f.proveedor_id) === q : provNombre.includes(q) || (f.numero_factura || '').toLowerCase().includes(q) || (f.nombre_proveedor || '').toLowerCase().includes(q) || (f.rfc_emisor || '').toLowerCase().includes(q) || (f.uuid || '').toLowerCase().includes(q))) return false;
     }
     if (fe && f.estatus_factura !== fe) return false;
+    if (fes && (f.estado_sat || 'Vigente') !== fes) return false;
     if (fp && !proyectoMatch(f.proyecto, fp)) return false;
     return true;
   });
@@ -154,6 +157,15 @@ function estatusBadge(estatus) {
   };
   const style = colors[estatus] || 'rgba(200,169,110,.15);color:var(--accent)';
   return `<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:600;background:${style};">${estatus}</span>`;
+}
+
+// Estado fiscal del CFDI (Vigente/Cancelada) — distinto del estatus de PAGO.
+function estadoSatBadge(estado) {
+  const e = estado || 'Vigente';
+  const style = e === 'Cancelada'
+    ? 'rgba(231,76,60,.15);color:#e74c3c'
+    : 'rgba(39,174,96,.15);color:#27ae60';
+  return `<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:600;background:${style};">${e}</span>`;
 }
 
 // ===== CRUD Facturas =====
@@ -195,6 +207,29 @@ export function selProvFactura(id) {
   document.getElementById('f-proveedor').value = p.nombre;
   document.getElementById('f-proveedor-id').value = id;
   document.getElementById('f-prov-dropdown').style.display = 'none';
+  // Autollenar datos fiscales del emisor desde el proveedor (solo si están vacíos,
+  // para no pisar lo que ya se capturó del XML).
+  const rfcEl = document.getElementById('f-rfc-emisor');
+  if (rfcEl && !rfcEl.value) rfcEl.value = (p.rfc || '').toUpperCase();
+  const rsEl = document.getElementById('f-razon-social');
+  if (rsEl && !rsEl.value) rsEl.value = p.nombre || '';
+}
+
+// Recalcula IVA sugerido y el Total a partir del desglose fiscal. IVA = (subtotal -
+// descuento) * 0.16, pero NO se pisa si el usuario lo editó a mano (dataset.touched).
+// El Total solo se autocalcula cuando hay subtotal (>0): así no machaca el monto de
+// facturas viejas que solo tienen Total.
+export function recalcularTotalFactura() {
+  const num = id => parseFloat(document.getElementById(id).value) || 0;
+  const subtotal = num('f-subtotal');
+  const ivaEl = document.getElementById('f-iva');
+  if (!ivaEl.dataset.touched) {
+    ivaEl.value = Math.round(((subtotal - num('f-descuento')) * 0.16 + Number.EPSILON) * 100) / 100;
+  }
+  if (subtotal > 0) {
+    const total = subtotal - num('f-descuento') + num('f-iva') - num('f-retiva') - num('f-retisr');
+    document.getElementById('f-monto').value = Math.round((total + Number.EPSILON) * 100) / 100;
+  }
 }
 
 export function abrirNuevaFactura() {
@@ -212,6 +247,18 @@ export function abrirNuevaFactura() {
   document.getElementById('f-estatus').value = 'pendiente';
   document.getElementById('f-proyecto').value = '';
   document.getElementById('f-obs').value = '';
+  // Campos fiscales (CFDI) nuevos.
+  document.getElementById('f-tipo-comprobante').value = 'Factura';
+  document.getElementById('f-estado-sat').value = 'Vigente';
+  document.getElementById('f-rfc-emisor').value = '';
+  document.getElementById('f-subtotal').value = '';
+  document.getElementById('f-descuento').value = '0';
+  const ivaNew = document.getElementById('f-iva'); ivaNew.value = ''; delete ivaNew.dataset.touched;
+  document.getElementById('f-retiva').value = '0';
+  document.getElementById('f-retisr').value = '0';
+  // Vincular pagos existentes solo aplica a una factura YA creada (necesita saldo).
+  ocultarBuscadorPagosFactura();
+  document.getElementById('fact-pagos-vinc').style.display = 'none';
   populateFacturaSelects();
   document.getElementById('modal-factura').classList.add('open');
 }
@@ -235,6 +282,18 @@ export function editarFactura(id) {
   document.getElementById('f-estatus').value = f.estatus_factura;
   document.getElementById('f-proyecto').value = f.proyecto;
   document.getElementById('f-obs').value = f.observaciones || '';
+  // Campos fiscales (CFDI). El RFC cae al del proveedor si la factura no lo trae.
+  document.getElementById('f-tipo-comprobante').value = f.tipo_comprobante || 'Factura';
+  document.getElementById('f-estado-sat').value = f.estado_sat || 'Vigente';
+  document.getElementById('f-rfc-emisor').value = (f.rfc_emisor || (prov && prov.rfc) || '').toUpperCase();
+  document.getElementById('f-subtotal').value = f.subtotal || 0;
+  document.getElementById('f-descuento').value = f.descuento || 0;
+  const ivaEdit = document.getElementById('f-iva'); ivaEdit.value = f.iva_trasladado || 0; ivaEdit.dataset.touched = '1';
+  document.getElementById('f-retiva').value = f.retencion_iva || 0;
+  document.getElementById('f-retisr').value = f.retencion_isr || 0;
+  // En edición sí se puede vincular pagos del historial a esta factura.
+  document.getElementById('fact-pagos-vinc').style.display = '';
+  ocultarBuscadorPagosFactura();
   document.getElementById('modal-factura').classList.add('open');
 }
 
@@ -243,11 +302,13 @@ export function guardarFactura() {
   const folio = document.getElementById('f-folio').value.trim();
   const fechaFact = document.getElementById('f-fecha-factura').value;
   const monto = parseFloat(document.getElementById('f-monto').value) || 0;
+  const subtotal = parseFloat(document.getElementById('f-subtotal').value) || 0;
 
   if (!provId) { notify('Selecciona un proveedor', 'error'); return; }
   if (!folio) { notify('El folio es obligatorio', 'error'); return; }
   if (!fechaFact) { notify('La fecha de factura es obligatoria', 'error'); return; }
-  if (monto <= 0) { notify('El monto debe ser mayor a 0', 'error'); return; }
+  if (subtotal <= 0) { notify('El subtotal es obligatorio', 'error'); return; }
+  if (monto <= 0) { notify('El total debe ser mayor a 0', 'error'); return; }
 
   const existing = state.editFactId ? state.facturas.find(f => f.factura_id === state.editFactId) : null;
   const pagado = existing ? existing.monto_pagado : 0;
@@ -269,7 +330,16 @@ export function guardarFactura() {
     proyecto: document.getElementById('f-proyecto').value,
     observaciones: document.getElementById('f-obs').value.trim(),
     activo: true,
-    uuid: document.getElementById('f-uuid').value.trim()
+    uuid: document.getElementById('f-uuid').value.trim(),
+    // Datos fiscales del CFDI (Fase 2).
+    subtotal,
+    descuento: parseFloat(document.getElementById('f-descuento').value) || 0,
+    iva_trasladado: parseFloat(document.getElementById('f-iva').value) || 0,
+    retencion_iva: parseFloat(document.getElementById('f-retiva').value) || 0,
+    retencion_isr: parseFloat(document.getElementById('f-retisr').value) || 0,
+    rfc_emisor: document.getElementById('f-rfc-emisor').value.trim().toUpperCase(),
+    estado_sat: document.getElementById('f-estado-sat').value,
+    tipo_comprobante: document.getElementById('f-tipo-comprobante').value
   };
 
   if (state.editFactId) {
@@ -349,7 +419,7 @@ export function renderFacturaPagos() {
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${fmtFecha(fp.fecha_pago)}</td>
       <td>${estBadge}</td>
       <td style="font-size:11px;color:var(--muted);">${(fp.observaciones || '').substring(0, 40)}</td>
-      <td style="text-align:right;"><button class="btn btn-ghost" style="padding:4px 6px;font-size:11px;color:#e74c3c;" onclick="eliminarPagoFactura(${fp.factura_pago_id})">✕</button></td>
+      <td style="text-align:right;"><button class="btn btn-ghost req-facturas" style="padding:4px 6px;font-size:11px;color:#e74c3c;" onclick="eliminarPagoFactura(${fp.factura_pago_id})">✕</button></td>
     </tr>`;
   }).join('');
 }
@@ -386,4 +456,118 @@ export function eliminarPagoFactura(fpId) {
   document.getElementById('cnt-fact').textContent = state.facturas.length;
   document.getElementById('cnt-fp').textContent = state.facturaPagos.length;
   notify('Pago a factura eliminado');
+}
+
+// ===== Vincular un pago YA existente del historial → factura (Fase 1) =====
+// Reutiliza la lógica del auto-enlace de confirmar-pagos.js (al confirmar un pago
+// con factura_id): crea el facturaPago, actualiza saldo/estatus de la factura y
+// marca factura_id en el pago. NO toca costoAsignaciones: en Fase 1 el reparto de
+// costo sigue viviendo en el pago; la factura todavía no es fuente de costo (eso
+// es Fase 2), así que no hay doble conteo.
+
+function ocultarBuscadorPagosFactura() {
+  const panel = document.getElementById('fact-pagos-vinc-panel');
+  if (panel) panel.style.display = 'none';
+}
+
+export function abrirBuscadorPagosFactura() {
+  const panel = document.getElementById('fact-pagos-vinc-panel');
+  if (panel) panel.style.display = '';
+  const inp = document.getElementById('fact-pagos-buscar');
+  if (inp) inp.value = '';
+  filtrarPagosParaFactura();
+}
+
+export function filtrarPagosParaFactura() {
+  const cont = document.getElementById('fact-pagos-result');
+  if (!cont) return;
+  const fact = state.facturas.find(x => x.factura_id === state.editFactId);
+  if (!fact) { cont.innerHTML = ''; return; }
+  const q = (document.getElementById('fact-pagos-buscar')?.value || '').toLowerCase().trim();
+  // Candidatos: pagos del historial SIN factura, del MISMO proveedor de la factura.
+  const cand = state.historial.filter(h => {
+    if (h.factura_id && String(h.factura_id) !== '') return false;
+    if (parseInt(h.proveedor_id) !== fact.proveedor_id) return false;
+    if (!q) return true;
+    return (h.concepto || '').toLowerCase().includes(q) ||
+           (h.nombre || '').toLowerCase().includes(q) ||
+           String(h.importe).includes(q) ||
+           (h.fecha || '').includes(q);
+  }).slice(0, 30);
+
+  if (!cand.length) {
+    cont.innerHTML = '<div style="padding:10px;font-size:11px;color:var(--muted);">Sin pagos sin factura de este proveedor</div>';
+    return;
+  }
+  cont.innerHTML = cand.map(h => `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);">
+      <div style="min-width:0;">
+        <div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${h.concepto || h.nombre || '—'}</div>
+        <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;">${fmtFecha(h.fecha)} · ${fmt(h.importe)}${h.proyecto ? ' · ' + h.proyecto : ''}</div>
+      </div>
+      <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;flex-shrink:0;" onclick="vincularPagoAFactura(${h.id})">Vincular</button>
+    </div>`).join('');
+}
+
+export function vincularPagoAFactura(pagoId) {
+  const fact = state.facturas.find(x => x.factura_id === state.editFactId);
+  if (!fact) { notify('Abre una factura primero', 'error'); return; }
+  if (fact.estatus_factura === 'pagada' || fact.estatus_factura === 'cancelada') {
+    notify('La factura ya está ' + fact.estatus_factura, 'error'); return;
+  }
+  ensureHistorialIds(); // asegura pago.id estable para guardar la fila
+  const pago = state.historial.find(h => h.id === pagoId);
+  if (!pago) { notify('No se encontró el pago', 'error'); return; }
+  if (pago.factura_id && String(pago.factura_id) !== '' && parseInt(pago.factura_id) !== fact.factura_id) {
+    notify('Ese pago ya está vinculado a la factura ' + pago.factura_id, 'error'); return;
+  }
+  if (parseInt(pago.proveedor_id) !== fact.proveedor_id) {
+    if (!confirm('El proveedor del pago no coincide con el de la factura. ¿Vincular de todos modos?')) return;
+  }
+  const importe = pago.importe || 0;
+
+  const fpId = state.facturaPagos.reduce((max, fp) => Math.max(max, fp.factura_pago_id), 0) + 1;
+  const nuevoFp = {
+    factura_pago_id: fpId,
+    factura_id: fact.factura_id,
+    pago_id: pago.id || 0,
+    proveedor_id: parseInt(pago.proveedor_id) || 0,
+    monto_aplicado: importe,
+    fecha_pago: pago.fecha || hoyFecha(),
+    estatus: 'aplicado',
+    observaciones: pago.concepto || ''
+  };
+  state.facturaPagos.push(nuevoFp);
+
+  // Mismo recálculo que el auto-enlace de confirmar-pagos.js.
+  fact.monto_pagado = (fact.monto_pagado || 0) + importe;
+  fact.saldo_pendiente = Math.max(0, fact.monto_total - fact.monto_pagado);
+  if (fact.saldo_pendiente <= 0) {
+    fact.estatus_factura = 'pagada';
+    fact.fecha_pago_total = new Date().toISOString().split('T')[0];
+  } else if (fact.monto_pagado > 0) {
+    fact.estatus_factura = 'parcial';
+  }
+
+  // Deja la liga registrada en el pago del historial.
+  pago.factura_id = String(fact.factura_id);
+
+  // Guardado por fila (Fase 3). NO se toca costoAsignaciones (modelo Fase 1).
+  const pfF = esPorFila('facturas');
+  const pfFp = esPorFila('facturaPagos');
+  const pfH = esPorFila('historial');
+  gsSaveFacturas({ porFila: pfF });
+  gsSaveFacturaPagos({ porFila: pfFp });
+  if (pfF) sbGuardarFila('facturas', fact);
+  if (pfFp) sbGuardarFila('facturaPagos', nuevoFp);
+  if (pfH) sbGuardarFila('historial', pago);
+
+  renderFacturas();
+  renderFacturaPagos();
+  filtrarPagosParaFactura();              // el pago ya no aparece como candidato
+  const sel = document.getElementById('f-estatus');
+  if (sel) sel.value = fact.estatus_factura; // refleja el estatus nuevo en el modal abierto
+  document.getElementById('cnt-fp').textContent = state.facturaPagos.length;
+  if (window.renderHistorial) window.renderHistorial();
+  notify(`Pago de ${fmt(importe)} vinculado a la factura`);
 }
