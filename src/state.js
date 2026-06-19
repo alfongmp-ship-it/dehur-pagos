@@ -91,6 +91,13 @@ export function puedeFacturas() {
   return r === 'admin' || r === 'capturista' || r === 'facturas';
 }
 
+// Borrar facturas (corregir errores): solo admin y el rol 'facturas' (Gonzalo).
+// Capturista NO — es una acción destructiva acotada a quienes manejan facturas.
+export function puedeBorrarFacturas() {
+  const r = rol();
+  return r === 'admin' || r === 'facturas';
+}
+
 // Solo el admin: borrado EN BLOQUE, configuración (proyectos/partidas/cuentas),
 // conectar Google + "Respaldar a Sheets".
 export function esAdmin() {

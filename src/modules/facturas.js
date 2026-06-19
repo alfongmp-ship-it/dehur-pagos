@@ -1,9 +1,9 @@
-import { state, datosListos } from '../state.js';
+import { state, datosListos, puedeBorrarFacturas } from '../state.js';
 import { fmt, fmtFecha, hoyFecha } from '../ui/format.js';
 import { proyTag } from '../ui/badges.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
-import { gsSaveFacturas, gsSaveFacturaPagos, esPorFila, sbGuardarFila, sbBorrarFila, ensureHistorialIds, gsSaveCostoAsignaciones } from '../services/google-sync.js';
+import { gsSaveFacturas, gsSaveFacturaPagos, esPorFila, sbGuardarFila, sbBorrarFila, ensureHistorialIds, gsSaveCostoAsignaciones, purgarAsignacionesDeFactura } from '../services/google-sync.js';
 import { proyectoMatch } from '../config/proyectos.js';
 
 function diasAlVencimiento(fechaVenc) {
@@ -282,6 +282,7 @@ export function abrirNuevaFactura() {
   // Vincular pagos existentes solo aplica a una factura YA creada (necesita saldo).
   ocultarBuscadorPagosFactura();
   document.getElementById('fact-pagos-vinc').style.display = 'none';
+  document.getElementById('fact-eliminar-btn').style.display = 'none'; // no se borra algo que no existe
   populateFacturaSelects();
   document.getElementById('modal-factura').classList.add('open');
 }
@@ -316,6 +317,8 @@ export function editarFactura(id) {
   document.getElementById('f-retisr').value = f.retencion_isr || 0;
   // En edición sí se puede vincular pagos del historial a esta factura.
   document.getElementById('fact-pagos-vinc').style.display = '';
+  // El botón Eliminar aparece al editar; el CSS (.req-borrar-factura) decide si el rol lo ve.
+  document.getElementById('fact-eliminar-btn').style.display = '';
   ocultarBuscadorPagosFactura();
   document.getElementById('modal-factura').classList.add('open');
 }
@@ -397,6 +400,57 @@ export function guardarFactura() {
       gsSaveCostoAsignaciones();
     }
   }
+}
+
+// Borrar una factura (corregir errores). Solo admin + rol 'facturas'. Limpia su
+// cascada: pagos a factura (los pagos del historial se conservan, solo se
+// desvinculan), su devengado (asignaciones de costo) y la propia factura.
+export function eliminarFactura() {
+  if (!puedeBorrarFacturas()) { notify('No tienes permiso para borrar facturas', 'error'); return; }
+  const id = state.editFactId;
+  const fact = state.facturas.find(f => f.factura_id === id);
+  if (!fact) { notify('Abre una factura primero', 'error'); return; }
+
+  const fps = state.facturaPagos.filter(fp => fp.factura_id === id);
+  const aviso = fps.length
+    ? `Esta factura tiene ${fps.length} pago(s) aplicados: se DESVINCULARÁN (los pagos del historial se conservan).\n\n`
+    : '';
+  if (!confirm(`${aviso}¿Eliminar la factura ${fact.numero_factura || ''} (#${id})? No se puede deshacer.`)) return;
+
+  const porFilaF = esPorFila('facturas');
+  const porFilaFp = esPorFila('facturaPagos');
+  const porFilaH = esPorFila('historial');
+
+  // 1) Quitar los pagos aplicados a esta factura (el pago del historial NO se borra).
+  fps.forEach(fp => { if (porFilaFp) sbBorrarFila('facturaPagos', fp.factura_pago_id); });
+  state.facturaPagos = state.facturaPagos.filter(fp => fp.factura_id !== id);
+
+  // 2) Desvincular del historial los pagos que apuntaban a esta factura.
+  state.historial.forEach(h => {
+    if (h.factura_id && String(h.factura_id) === String(id)) {
+      h.factura_id = '';
+      if (porFilaH) sbGuardarFila('historial', h);
+    }
+  });
+
+  // 3) Borrar el devengado (reparto a unidades) de esta factura.
+  purgarAsignacionesDeFactura(id);
+
+  // 4) Quitar la factura.
+  state.facturas = state.facturas.filter(f => f.factura_id !== id);
+  if (porFilaF) sbBorrarFila('facturas', id);
+
+  // 5) Guardar (a Sheets) y refrescar.
+  gsSaveFacturas({ porFila: porFilaF });
+  gsSaveFacturaPagos({ porFila: porFilaFp });
+  cerrar('modal-factura');
+  state.editFactId = null;
+  renderFacturas();
+  renderFacturaPagos();
+  document.getElementById('cnt-fact').textContent = state.facturas.length;
+  document.getElementById('cnt-fp').textContent = state.facturaPagos.length;
+  if (window.renderHistorial) window.renderHistorial();
+  notify('Factura eliminada');
 }
 
 // ===== Factura Pagos (solo lectura) =====

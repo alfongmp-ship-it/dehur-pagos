@@ -1329,7 +1329,10 @@
         <div id="fact-pagos-result" style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;"></div>
       </div>
     </div>
-    <div class="form-actions"><button class="btn btn-ghost" onclick="cerrar('modal-factura')">Cancelar</button><button class="btn btn-primary" onclick="guardarFactura()">Guardar</button></div>
+    <div class="form-actions" style="justify-content:space-between;">
+      <button id="fact-eliminar-btn" class="btn btn-ghost req-borrar-factura" style="display:none;color:#e74c3c;border-color:#e74c3c;" onclick="eliminarFactura()">🗑 Eliminar factura</button>
+      <div style="display:flex;gap:8px;margin-left:auto;"><button class="btn btn-ghost" onclick="cerrar('modal-factura')">Cancelar</button><button class="btn btn-primary" onclick="guardarFactura()">Guardar</button></div>
+    </div>
   </div>
 </div>
 

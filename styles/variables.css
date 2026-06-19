@@ -180,3 +180,9 @@ body[data-rol="lector"] .req-facturas,
 body[data-rol="contabilidad"] .req-facturas,
 body[data-rol="solo_lectura"] .req-facturas,
 body[data-rol="aprobador"] .req-facturas { display: none !important; }
+/* .req-borrar-factura → SOLO admin y facturas (borrar facturas). Oculta también a capturista. */
+body[data-rol="capturista"] .req-borrar-factura,
+body[data-rol="lector"] .req-borrar-factura,
+body[data-rol="contabilidad"] .req-borrar-factura,
+body[data-rol="solo_lectura"] .req-borrar-factura,
+body[data-rol="aprobador"] .req-borrar-factura { display: none !important; }
