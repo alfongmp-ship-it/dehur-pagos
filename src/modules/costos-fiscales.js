@@ -78,25 +78,37 @@ function asignacionesDeUnidad(unidadId) {
   return state.costoAsignaciones.filter(a => a.unidad_id === unidadId);
 }
 
-// ===== Devengado vs Pagado-sin-factura (Fase A) =====
+// ===== Devengado vs Pagado-sin-factura =====
 // Una asignación de FACTURA (factura_id lleno) = DEVENGADO (salvo factura Cancelada).
-// Una asignación de PAGO (pago_id) = PAGADO-SIN-FACTURA, pero SOLO cuenta si ese pago
-// NO tiene factura_id (si lo tiene, el costo ya lo aporta la factura → no se duplica).
-function _pagosConFacturaSet() {
-  return new Set(state.historial.filter(h => h.factura_id && String(h.factura_id) !== '').map(h => String(h.id)));
+// Una asignación de PAGO (pago_id) = PAGADO. El reparto del pago SOLO se suprime (para no
+// duplicar) cuando su costo YA lo aporta el devengado de la factura, es decir cuando esa
+// factura está REPARTIDA (tiene asignaciones propias) y NO está cancelada. Un pago con
+// factura_id cuya factura no está repartida (o está cancelada) SIGUE contando como
+// 'pagado': de lo contrario su costo desaparecería del reporte aunque el reparto exista.
+function _facturasRepartidasSet() {
+  return new Set(state.costoAsignaciones.filter(a => a.factura_id).map(a => String(a.factura_id)));
 }
 function _facturasCanceladasSet() {
   return new Set((state.facturas || []).filter(f => f.estado_sat === 'Cancelada').map(f => String(f.factura_id)));
 }
-// 'devengado' | 'pagado' | null (no cuenta, para evitar doble conteo o factura cancelada)
-function _tipoAsignacion(a, pagosConFactura, factCanceladas) {
+// Pagos cuyo costo ya cubre el devengado de su factura (repartida y no cancelada) → no se recuentan.
+function _pagosCubiertosPorFacturaSet() {
+  const repartidas = _facturasRepartidasSet();
+  const canceladas = _facturasCanceladasSet();
+  return new Set(state.historial
+    .filter(h => h.factura_id && String(h.factura_id) !== ''
+      && repartidas.has(String(h.factura_id)) && !canceladas.has(String(h.factura_id)))
+    .map(h => String(h.id)));
+}
+// 'devengado' | 'pagado' | null (no cuenta: factura cancelada, o pago ya cubierto por su factura repartida)
+function _tipoAsignacion(a, pagosCubiertos, factCanceladas) {
   if (a.factura_id) return factCanceladas.has(String(a.factura_id)) ? null : 'devengado';
-  return pagosConFactura.has(String(a.pago_id)) ? null : 'pagado';
+  return pagosCubiertos.has(String(a.pago_id)) ? null : 'pagado';
 }
 
 // Devuelve { devengado, pagadoSinFactura, total } de una unidad.
 function costoAsignadoDesglose(unidadId) {
-  const pcf = _pagosConFacturaSet();
+  const pcf = _pagosCubiertosPorFacturaSet();
   const fc = _facturasCanceladasSet();
   let devengado = 0, pagadoSinFactura = 0;
   asignacionesDeUnidad(unidadId).forEach(a => {
@@ -141,7 +153,7 @@ function desglosePorPartida(unidadId) {
     get(k).presupuestado += p.monto_presupuestado || 0;
     get(k).costoInicial += p.costo_inicial || 0;
   });
-  const pcf = _pagosConFacturaSet();
+  const pcf = _pagosCubiertosPorFacturaSet();
   const fc = _facturasCanceladasSet();
   asignacionesDeUnidad(unidadId).forEach(a => {
     const t = _tipoAsignacion(a, pcf, fc);
