@@ -76,6 +76,7 @@ export const facturasImporter = createExcelImporter({
       'equitativo → Unidades = varios con / (ej. A-1/A-2/A-3)',
       'indiviso → Unidades vacío (todas las activas por % indiviso)',
       'custom → Unidades = código:% con / (ej. A-1:60/A-2:40)',
+      'custom MIXTO → usa INDIVISO (o AMENIDADES) como código para mandar ese % por indiviso a todas (ej. 101:20/INDIVISO:80)',
       'vacío → no reparte (la asignas después a mano)'
     ] }
   ],

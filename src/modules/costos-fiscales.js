@@ -718,6 +718,7 @@ function renderMetodoBody() {
       <div class="cf-picker-tools">
         <input type="text" class="cf-picker-search" placeholder="🔍 Buscar casa..." oninput="cfFiltrarUnidades()">
         <button type="button" class="btn btn-ghost btn-sm" onclick="cfRepartirResto()">Repartir resto entre vacías</button>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="cfRepartirRestoIndiviso()">Repartir resto por indiviso</button>
       </div>
       <div class="cf-picker" id="cf-picker-lista">
         ${unidades.map(u => `
@@ -831,6 +832,37 @@ export function cfRepartirResto() {
   const base = r2(resto / vacias.length);
   vacias.forEach((inp, i) => {
     inp.value = (i === vacias.length - 1) ? r2(resto - base * (vacias.length - 1)) : base;
+  });
+  cfPreviewReparto();
+}
+
+// Reparte el monto restante por INDIVISO entre TODAS las casas activas, sumándolo a lo
+// ya capturado (método personalizado). Sirve para repartos MIXTOS: parte directa a una
+// casa + el resto al área común por indiviso (ej. factura "101 directo / resto amenidades").
+export function cfRepartirRestoIndiviso() {
+  if (!cfObjetivoValido()) return;
+  const inputs = [...document.querySelectorAll('.cf-custom-monto')];
+  if (!inputs.length) return;
+  let capturado = 0;
+  inputs.forEach(inp => { capturado += parseFloat(inp.value) || 0; });
+  const resto = r2(cfImporteObjetivo() - capturado);
+  if (resto <= 0) { notify('Ya no queda monto por repartir', 'error'); return; }
+  const unidades = unidadesDeProyecto();
+  if (!unidades.length) { notify('No hay casas activas en este proyecto', 'error'); return; }
+  const totalPct = unidades.reduce((s, u) => s + (u.indiviso_pct || 0), 0);
+  const byUid = new Map(inputs.map(inp => [parseInt(inp.dataset.uid), inp]));
+  let suma = 0;
+  const partes = unidades.map(u => {
+    const factor = totalPct > 0 ? (u.indiviso_pct || 0) / totalPct : 1 / unidades.length;
+    const monto = r2(resto * factor);
+    suma += monto;
+    return { uid: u.unidad_id, monto };
+  });
+  // Ajuste de redondeo en la última casa para que cuadre exacto con el resto.
+  if (partes.length) partes[partes.length - 1].monto = r2(partes[partes.length - 1].monto + (resto - suma));
+  partes.forEach(p => {
+    const inp = byUid.get(p.uid);
+    if (inp) inp.value = r2((parseFloat(inp.value) || 0) + p.monto);
   });
   cfPreviewReparto();
 }

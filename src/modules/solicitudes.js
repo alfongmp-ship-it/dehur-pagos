@@ -107,6 +107,22 @@ function resolverUnidadPorCodigo(codigo, proyecto) {
 //  - metodo: 'directo' | 'equitativo' | 'indiviso' | 'custom' | null
 //  - errores: array de strings (bloquean carga)
 //  - warnings: array de strings (no bloquean)
+// Palabra clave de indiviso dentro de un reparto 'custom' (mezcla directo + indiviso):
+// ese % se reparte por indiviso entre TODAS las casas activas del proyecto.
+function _repIndivisoKw(codigo) {
+  const n = String(codigo).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, '');
+  return ['indiviso', 'amenidades', 'amenidad', 'comun', 'comunes', 'areacomun', 'areascomunes'].includes(n);
+}
+// Expande un % por indiviso entre las casas activas del proyecto → [{unidad_id, casa, pct}].
+// Devuelve null y empuja a `errores` si no hay casas o no tienen indiviso.
+function _repExpandirIndiviso(pct, proyecto, errores) {
+  const delProyecto = state.unidades.filter(u => u.activo !== false && normCodigo(u.proyecto) === normCodigo(proyecto));
+  if (!delProyecto.length) { errores.push(`indiviso:${pct} pero el proyecto '${proyecto}' no tiene casas.`); return null; }
+  const sumaInd = delProyecto.reduce((s, u) => s + (u.indiviso_pct || 0), 0);
+  if (sumaInd <= 0) { errores.push(`indiviso:${pct} pero las casas de '${proyecto}' no tienen indiviso_pct definido.`); return null; }
+  return delProyecto.map(u => ({ unidad_id: u.unidad_id, casa: u.nombre, pct: (u.indiviso_pct / sumaInd) * pct }));
+}
+
 export function parseReparto(repartoRaw, unidadesRaw, proyecto) {
   const errores = [];
   const warnings = [];
@@ -222,15 +238,30 @@ export function parseReparto(repartoRaw, unidadesRaw, proyecto) {
         return null;
       }
       sumaPct += pct;
+      // Token de indiviso (amenidades/común): reparte ESE % por indiviso entre todas.
+      if (_repIndivisoKw(codigo)) return _repExpandirIndiviso(pct, proyecto, errores);
       const u = resolverUnidadPorCodigo(codigo, proyecto);
       if (!u) noEncontradas.push(codigo);
-      return { unidad_id: u?.unidad_id || null, casa: u?.nombre || codigo, pct };
-    }).filter(Boolean);
+      return [{ unidad_id: u?.unidad_id || null, casa: u?.nombre || codigo, pct }];
+    }).flat().filter(Boolean);
     if (errores.length) return { asignaciones: [], metodo, errores, warnings };
     if (Math.abs(sumaPct - 100) > 0.5) {
       errores.push(`Suma de % en custom es ${sumaPct.toFixed(2)}, debe ser 100.`);
       return { asignaciones: [], metodo, errores, warnings };
     }
+    // Fusionar por unidad_id: una casa puede recibir parte directa + parte por indiviso.
+    const _mergedMap = new Map();
+    const merged = [];
+    for (const e of asignaciones) {
+      if (e.unidad_id != null && _mergedMap.has(e.unidad_id)) {
+        _mergedMap.get(e.unidad_id).pct += e.pct;
+      } else {
+        const it = { ...e };
+        merged.push(it);
+        if (e.unidad_id != null) _mergedMap.set(e.unidad_id, it);
+      }
+    }
+    asignaciones = merged;
     if (noEncontradas.length) warnings.push(`Unidades no encontradas: ${noEncontradas.join(', ')} \u2014 esas se omitir\u00e1n al auto-asignar.`);
     return { asignaciones, metodo, errores, warnings };
   }
