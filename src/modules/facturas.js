@@ -324,6 +324,7 @@ export function editarFactura(id) {
 }
 
 export function guardarFactura() {
+  const esNueva = !state.editFactId;
   const provId = parseInt(document.getElementById('f-proveedor-id').value);
   const folio = document.getElementById('f-folio').value.trim();
   const fechaFact = document.getElementById('f-fecha-factura').value;
@@ -399,6 +400,16 @@ export function guardarFactura() {
       asigs.forEach(a => { a.monto_asignado = Math.round((monto * (a.factor || 0) + Number.EPSILON) * 100) / 100; });
       gsSaveCostoAsignaciones();
     }
+  }
+
+  // Al CREAR una factura nueva con proyecto y casas activas, abre el repartidor de
+  // inmediato para asignar el costo (devengado) de corrido, sin que sea un paso aparte.
+  // Si no hay proyecto/casas o está cancelada, no se abre: queda el "⚠ Repartir" para
+  // después. No se bloquea: la factura ya quedó guardada pase lo que pase.
+  if (esNueva && obj.proyecto && obj.estado_sat !== 'Cancelada'
+      && state.unidades.some(u => u.activo !== false && u.proyecto === obj.proyecto)
+      && window.abrirRepartirFactura) {
+    window.abrirRepartirFactura(obj.factura_id);
   }
 }
 
