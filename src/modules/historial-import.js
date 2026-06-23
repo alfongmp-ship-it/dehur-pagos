@@ -148,6 +148,21 @@ export const historialImporter = createExcelImporter({
       const setPartidas = buildSetPartidas();
       if (!setPartidas.has(norm(partida))) avisos.push(`Partida "${partida}" no esta en catalogo`);
     }
+    // Validar el enlace a factura (si la columna Factura ID viene llena). Un id que NO existe
+    // se LIMPIA (el pago se importa sin enlace fantasma); cancelada/pagada/proveedor distinto
+    // solo se avisan. Mismo criterio que el flujo de confirmar.
+    let facturaIdLimpio = facturaId;
+    if (facturaId) {
+      const factImp = state.facturas.find(f => String(f.factura_id) === facturaId);
+      if (!factImp) {
+        avisos.push(`Factura ${facturaId} no existe — el pago se importa SIN ligar a factura`);
+        facturaIdLimpio = '';
+      } else {
+        if (factImp.estado_sat === 'Cancelada' || factImp.estatus_factura === 'cancelada') avisos.push(`Factura ${facturaId} esta cancelada`);
+        else if (factImp.estatus_factura === 'pagada') avisos.push(`Factura ${facturaId} ya esta pagada`);
+        if (factImp.proveedor_id && parseInt(proveedorId) && factImp.proveedor_id !== parseInt(proveedorId)) avisos.push(`El proveedor del pago no coincide con la factura ${facturaId}`);
+      }
+    }
 
     const registro = {
       fecha,
@@ -158,7 +173,7 @@ export const historialImporter = createExcelImporter({
       banco,
       tipo: tiposResueltos.tipo,
       proveedor_id: proveedorId,
-      factura_id: facturaId,
+      factura_id: facturaIdLimpio,
       cuenta_origen: cuentaOrigen,
       tipo_registro: tiposResueltos.tipo_registro,
       partida,

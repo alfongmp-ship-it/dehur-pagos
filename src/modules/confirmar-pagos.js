@@ -127,6 +127,24 @@ export async function confirmarPagos() {
   });
   // Asegurar IDs estables para poder vincular asignaciones de costos.
   ensureHistorialIds();
+  // Validar el enlace pago→factura ANTES de guardar/repartir/ligar. Si el factura_id es
+  // inválido (factura inexistente / cancelada / ya pagada / de otro proveedor) se avisa y se
+  // limpia h.factura_id: el pago se registra como pago NORMAL (con su reparto), nunca como un
+  // enlace fantasma. Mismo criterio que vincularPagoAFactura.
+  insertados.forEach(({ d, h }) => {
+    if (!h.factura_id) return;
+    const fact = state.facturas.find(f => f.factura_id === parseInt(h.factura_id));
+    const provPago = parseInt(d.proveedor_id) || 0;
+    let motivo = '';
+    if (!fact) motivo = `la factura ${h.factura_id} no existe`;
+    else if (fact.estado_sat === 'Cancelada' || fact.estatus_factura === 'cancelada') motivo = `la factura ${h.factura_id} está cancelada`;
+    else if (fact.estatus_factura === 'pagada') motivo = `la factura ${h.factura_id} ya está pagada`;
+    else if (fact.proveedor_id && provPago && fact.proveedor_id !== provPago) motivo = `el proveedor no coincide con la factura ${h.factura_id}`;
+    if (motivo) {
+      notify(`"${h.nombre || 'Pago'}": ${motivo}. Se registró SIN ligar a factura (su costo se reparte como pago normal).`, 'error');
+      h.factura_id = '';
+    }
+  });
   document.getElementById('cnt-hist').textContent = state.historial.length;
   // Fase 3: guarda por fila los pagos recién confirmados (ya con id estable tras
   // ensureHistorialIds). Las otras cascadas (saldos, facturas, asignaciones)
@@ -139,8 +157,9 @@ export async function confirmarPagos() {
   // DEVENGADO (Fase A): si el pago trae factura_id, el costo lo aporta la FACTURA
   // (su propio reparto), NO el pago → se omite el reparto del pago para no duplicar.
   let asignacionesCreadas = 0;
+  let repartoIgnorado = 0;
   insertados.forEach(({ d, h }) => {
-    if (h.factura_id) return; // el costo va por la factura (devengado)
+    if (h.factura_id) { if (d.asignacionesPlanificadas?.length) repartoIgnorado++; return; } // el costo va por la factura (devengado)
     if (!d.asignacionesPlanificadas?.length) return;
     d.asignacionesPlanificadas.forEach(asg => {
       if (!asg.unidad_id) return; // casa no encontrada en catálogo: se omite
@@ -174,12 +193,17 @@ export async function confirmarPagos() {
   if (asignacionesCreadas || autoIndivCreadas) {
     await gsSaveCostoAsignaciones();
   }
+  if (repartoIgnorado) {
+    notify(`${repartoIgnorado} pago(s) con factura: el costo se toma del reparto de la factura (devengado), no del pago.`, 'success');
+  }
 
-  // Registrar pagos a facturas y actualizar saldos de facturas
+  // Registrar el enlace pago→factura (facturaPago) y actualizar la factura. Se recorre
+  // `insertados` para usar el id REAL del historial (h.id), NO el id de la cola (d.id), y
+  // solo se liga lo que pasó la validación de arriba (h.factura_id válido).
   let factChanged = false;
-  confirmados.forEach(d => {
-    if (!d.factura_id) return;
-    const factId = parseInt(d.factura_id);
+  insertados.forEach(({ d, h }) => {
+    if (!h.factura_id) return;
+    const factId = parseInt(h.factura_id);
     const fact = state.facturas.find(f => f.factura_id === factId);
     if (!fact) return;
 
@@ -187,7 +211,7 @@ export async function confirmarPagos() {
     state.facturaPagos.push({
       factura_pago_id: fpId,
       factura_id: factId,
-      pago_id: d.id || 0,
+      pago_id: h.id,
       proveedor_id: parseInt(d.proveedor_id) || 0,
       monto_aplicado: d.importe,
       fecha_pago: fecha,

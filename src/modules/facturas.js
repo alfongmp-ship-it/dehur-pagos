@@ -542,6 +542,17 @@ export function eliminarPagoFactura(fpId) {
     recalcularSaldoEstatus(fact);
   }
 
+  // Desligar el pago del historial (simetría con eliminarFactura): el pago ya no está
+  // aplicado a esta factura, así que se libera su factura_id y su costo vuelve a poder
+  // registrarse como pago normal (deja de suprimirse en el reporte y vuelve a ser
+  // re-vinculable). Sin esto quedaba un enlace huérfano.
+  const porFilaH = esPorFila('historial');
+  let pagoDesligado = null;
+  if (fp.pago_id) {
+    pagoDesligado = state.historial.find(p => String(p.id) === String(fp.pago_id));
+    if (pagoDesligado) { pagoDesligado.factura_id = ''; if (porFilaH) sbGuardarFila('historial', pagoDesligado); }
+  }
+
   state.facturaPagos = state.facturaPagos.filter(x => x.factura_pago_id !== fpId);
   // Fase 3: la factura padre se re-guarda por fila (saldo recalculado) y el pago
   // borrado se quita por fila.
@@ -553,6 +564,10 @@ export function eliminarPagoFactura(fpId) {
   if (porFilaFp) sbBorrarFila('facturaPagos', fpId);
   renderFacturas();
   renderFacturaPagos();
+  if (pagoDesligado) {
+    if (window.renderHistorial) window.renderHistorial();
+    if (window.renderCostosFiscales) window.renderCostosFiscales();
+  }
   document.getElementById('cnt-fact').textContent = state.facturas.length;
   document.getElementById('cnt-fp').textContent = state.facturaPagos.length;
   notify('Pago a factura eliminado');
