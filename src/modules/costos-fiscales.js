@@ -18,6 +18,7 @@ let cfTab = 'unidades';     // sub-pestaña: unidades | asignar | presupuestos |
 let cfUnidadDetalle = null; // unidad_id seleccionada en presupuestos/reportes
 let cfPagoAsignar = null;   // pago_id en proceso de asignación
 let cfFacturaAsignar = null; // factura_id en proceso de reparto (devengado)
+let cfCustomModo = 'pct';   // método Personalizado: 'pct' (%) | 'monto' ($). Default %.
 let cfChartUnidad = null;
 let cfPlanoModo = 'vista';      // 'vista' | 'editor'
 let cfPlanoColor = 'avance';     // 'avance' | 'estatus'
@@ -577,6 +578,7 @@ export function abrirAsignarCosto(pagoId) {
   if (!unidadesDeProyecto().length) { notify('Primero crea unidades en este proyecto', 'error'); return; }
   cfPagoAsignar = pagoId;
   cfFacturaAsignar = null;
+  cfCustomModo = 'pct';
   const tit = document.getElementById('asignar-titulo'); if (tit) tit.textContent = 'Asignar Costo a Unidades';
 
   document.getElementById('asignar-info').innerHTML = `
@@ -608,6 +610,7 @@ export function abrirRepartirFactura(facturaId) {
   if (!unidadesDeProyecto().length) { notify('El proyecto "' + f.proyecto + '" no tiene unidades', 'error'); return; }
   cfFacturaAsignar = facturaId;
   cfPagoAsignar = null;
+  cfCustomModo = 'pct';
   const tit = document.getElementById('asignar-titulo'); if (tit) tit.textContent = 'Repartir Factura (devengado)';
 
   const prov = f.nombre_proveedor || f.razon_social || ('ID ' + f.proveedor_id);
@@ -714,8 +717,11 @@ function renderMetodoBody() {
       </div>
       <div class="cf-picker-count" id="cf-picker-count"></div>`;
   } else if (metodo === 'custom') {
+    const esPct = cfCustomModo !== 'monto';
+    const btnModo = (val, etiq) => `<button type="button" class="btn btn-sm" onclick="cfCustomSetModo('${val}')" style="border:1px solid var(--border);border-radius:6px;${(esPct ? 'pct' : 'monto') === val ? 'background:var(--accent);color:#1d1d1d;font-weight:700;border-color:var(--accent);' : 'background:transparent;color:var(--muted);'}">${etiq}</button>`;
     body.innerHTML = `
-      <div class="cf-picker-tools">
+      <div class="cf-picker-tools" style="flex-wrap:wrap;">
+        <div style="display:flex;gap:4px;">${btnModo('pct', '% Porcentaje')}${btnModo('monto', '$ Monto')}</div>
         <input type="text" class="cf-picker-search" placeholder="🔍 Buscar casa..." oninput="cfFiltrarUnidades()">
         <button type="button" class="btn btn-ghost btn-sm" onclick="cfRepartirResto()">Repartir resto entre vacías</button>
         <button type="button" class="btn btn-ghost btn-sm" onclick="cfRepartirRestoIndiviso()">Repartir resto por indiviso</button>
@@ -724,11 +730,11 @@ function renderMetodoBody() {
         ${unidades.map(u => `
           <div class="cf-pick-row" data-nombre="${(u.nombre || '').toLowerCase().replace(/"/g, '')}">
             <label>${u.nombre}</label>
-            <input type="number" step="0.01" class="cf-custom-monto" data-uid="${u.unidad_id}" placeholder="0.00"
+            <input type="number" step="0.01" class="cf-custom-monto" data-uid="${u.unidad_id}" placeholder="${esPct ? '0.00 %' : '0.00'}"
               oninput="cfPreviewReparto()" style="text-align:right;font-family:'DM Mono',monospace;">
           </div>`).join('')}
       </div>
-      <div class="cf-picker-count">Importe a repartir: <strong>${fmt(cfImporteObjetivo())}</strong></div>`;
+      <div class="cf-picker-count">${esPct ? 'Los porcentajes deben sumar <strong>100%</strong>' : 'Importe a repartir: <strong>' + fmt(cfImporteObjetivo()) + '</strong>'}</div>`;
   } else if (metodo === 'indiviso') {
     body.innerHTML = `
       <div style="font-size:12px;color:var(--muted);background:rgba(155,127,232,.1);border:1px solid rgba(155,127,232,.3);border-radius:8px;padding:10px;">
@@ -737,6 +743,13 @@ function renderMetodoBody() {
       </div>`;
   }
   cfPreviewReparto();
+}
+
+// Cambia el modo de captura del método Personalizado entre % y $ (re-renderiza,
+// lo que limpia los valores escritos). Default %.
+export function cfCustomSetModo(modo) {
+  cfCustomModo = (modo === 'monto') ? 'monto' : 'pct';
+  renderMetodoBody();
 }
 
 // Filtra las casas del picker por nombre según lo escrito en el buscador.
@@ -780,17 +793,24 @@ function calcularReparto() {
     return arr;
   }
   if (metodo === 'custom') {
+    const esPct = cfCustomModo !== 'monto';
     const arr = [];
+    let suma = 0;
     document.querySelectorAll('.cf-custom-monto').forEach(inp => {
-      const monto = parseFloat(inp.value) || 0;
-      if (monto > 0) {
-        arr.push({
-          unidad_id: parseInt(inp.dataset.uid),
-          factor: importe > 0 ? monto / importe : 0,
-          monto: r2(monto)
-        });
+      const v = parseFloat(inp.value) || 0;
+      if (v > 0) {
+        const monto = esPct ? r2(importe * v / 100) : r2(v);
+        arr.push({ unidad_id: parseInt(inp.dataset.uid), factor: importe > 0 ? monto / importe : 0, monto });
+        suma += monto;
       }
     });
+    // En modo %, si los porcentajes suman 100, ajusta el redondeo de la última casa para
+    // que los montos cuadren EXACTO con el importe (si no suman 100, se deja para que la
+    // validación marque el faltante).
+    if (esPct && arr.length) {
+      const sumaPct = [...document.querySelectorAll('.cf-custom-monto')].reduce((s, i) => s + (parseFloat(i.value) || 0), 0);
+      if (Math.abs(sumaPct - 100) < 0.01) arr[arr.length - 1].monto = r2(arr[arr.length - 1].monto + (importe - r2(suma)));
+    }
     return arr;
   }
   if (metodo === 'indiviso') {
@@ -818,6 +838,7 @@ function calcularReparto() {
 // que aún no tienen monto capturado (método personalizado).
 export function cfRepartirResto() {
   if (!cfObjetivoValido()) return;
+  const esPct = cfCustomModo !== 'monto';
   const inputs = [...document.querySelectorAll('.cf-custom-monto')];
   let asignado = 0;
   const vacias = [];
@@ -827,8 +848,9 @@ export function cfRepartirResto() {
     else vacias.push(inp);
   });
   if (!vacias.length) { notify('No hay casas vacías para repartir el resto', 'error'); return; }
-  const resto = cfImporteObjetivo() - asignado;
-  if (resto <= 0) { notify('Ya no queda monto por repartir', 'error'); return; }
+  const total = esPct ? 100 : cfImporteObjetivo();
+  const resto = r2(total - asignado);
+  if (resto <= 0) { notify('Ya no queda ' + (esPct ? 'porcentaje' : 'monto') + ' por repartir', 'error'); return; }
   const base = r2(resto / vacias.length);
   vacias.forEach((inp, i) => {
     inp.value = (i === vacias.length - 1) ? r2(resto - base * (vacias.length - 1)) : base;
@@ -841,12 +863,14 @@ export function cfRepartirResto() {
 // casa + el resto al área común por indiviso (ej. factura "101 directo / resto amenidades").
 export function cfRepartirRestoIndiviso() {
   if (!cfObjetivoValido()) return;
+  const esPct = cfCustomModo !== 'monto';
   const inputs = [...document.querySelectorAll('.cf-custom-monto')];
   if (!inputs.length) return;
   let capturado = 0;
   inputs.forEach(inp => { capturado += parseFloat(inp.value) || 0; });
-  const resto = r2(cfImporteObjetivo() - capturado);
-  if (resto <= 0) { notify('Ya no queda monto por repartir', 'error'); return; }
+  const total = esPct ? 100 : cfImporteObjetivo();
+  const resto = r2(total - capturado);
+  if (resto <= 0) { notify('Ya no queda ' + (esPct ? 'porcentaje' : 'monto') + ' por repartir', 'error'); return; }
   const unidades = unidadesDeProyecto();
   if (!unidades.length) { notify('No hay casas activas en este proyecto', 'error'); return; }
   const totalPct = unidades.reduce((s, u) => s + (u.indiviso_pct || 0), 0);
@@ -854,15 +878,15 @@ export function cfRepartirRestoIndiviso() {
   let suma = 0;
   const partes = unidades.map(u => {
     const factor = totalPct > 0 ? (u.indiviso_pct || 0) / totalPct : 1 / unidades.length;
-    const monto = r2(resto * factor);
-    suma += monto;
-    return { uid: u.unidad_id, monto };
+    const val = r2(resto * factor);
+    suma += val;
+    return { uid: u.unidad_id, val };
   });
   // Ajuste de redondeo en la última casa para que cuadre exacto con el resto.
-  if (partes.length) partes[partes.length - 1].monto = r2(partes[partes.length - 1].monto + (resto - suma));
+  if (partes.length) partes[partes.length - 1].val = r2(partes[partes.length - 1].val + (resto - suma));
   partes.forEach(p => {
     const inp = byUid.get(p.uid);
-    if (inp) inp.value = r2((parseFloat(inp.value) || 0) + p.monto);
+    if (inp) inp.value = r2((parseFloat(inp.value) || 0) + p.val);
   });
   cfPreviewReparto();
 }
@@ -909,11 +933,16 @@ export async function guardarAsignacionCosto() {
   const metodo = metodoSeleccionado();
   const importe = cfImporteObjetivo();
 
-  // El método personalizado debe cuadrar exactamente con el importe a repartir.
+  // El método personalizado debe cuadrar exactamente (100% en modo %, o el importe en modo $).
   if (metodo === 'custom') {
     const suma = r2(reparto.reduce((s, x) => s + x.monto, 0));
     if (Math.abs(suma - importe) > 0.01) {
-      notify(`La suma asignada (${fmt(suma)}) debe ser igual al importe a repartir (${fmt(importe)})`, 'error');
+      if (cfCustomModo !== 'monto') {
+        const sumaPct = [...document.querySelectorAll('.cf-custom-monto')].reduce((s, i) => s + (parseFloat(i.value) || 0), 0);
+        notify(`Los porcentajes deben sumar 100% (suman ${sumaPct.toFixed(2)}%)`, 'error');
+      } else {
+        notify(`La suma asignada (${fmt(suma)}) debe ser igual al importe a repartir (${fmt(importe)})`, 'error');
+      }
       return;
     }
   }
