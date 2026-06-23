@@ -129,10 +129,10 @@
     <div class="nav-item" id="nav-historial" onclick="showPage('historial',this)">
       <span>📋</span> Historial <span class="nav-count" id="cnt-hist">0</span>
     </div>
-    <div class="nav-item" id="nav-facturas" onclick="showPage('facturas',this)">
+    <div class="nav-item nav-obra" id="nav-facturas" onclick="showPage('facturas',this)">
       <span>🧾</span> Facturas <span class="nav-count" id="cnt-fact">0</span>
     </div>
-    <div class="nav-item" id="nav-factura-pagos" onclick="showPage('factura-pagos',this)">
+    <div class="nav-item nav-obra" id="nav-factura-pagos" onclick="showPage('factura-pagos',this)">
       <span>💳</span> Pagos a Facturas <span class="nav-count" id="cnt-fp">0</span>
     </div>
     <div class="nav-label">Empresa</div>
@@ -148,7 +148,7 @@
     <div class="nav-item" id="nav-flujo-salida" onclick="showPage('flujo-salida',this)">
       <span>💸</span> Flujo de Salida
     </div>
-    <div class="nav-item" id="nav-costos-fiscales" onclick="showPage('costos-fiscales',this)">
+    <div class="nav-item nav-obra" id="nav-costos-fiscales" onclick="showPage('costos-fiscales',this)">
       <span>🏠</span> Costos por Unidad
     </div>
     <div class="nav-item" id="nav-resumen-ejecutivo" onclick="showPage('resumen-ejecutivo',this)" style="display:none;">
@@ -987,6 +987,10 @@
       <div class="field span2" id="cp-sub-wrap" style="display:none;">
         <label>Sub-partida * <span style="color:var(--muted);font-weight:400;font-size:11px;">(solo CONSTRUCCION)</span></label>
         <select id="cp-subpartida"></select>
+      </div>
+      <div class="field span2" id="cp-proyecto-wrap" style="display:none;">
+        <label>Proyecto <span style="color:var(--muted);font-weight:400;font-size:11px;">(cambiarlo recoloca el reparto en las casas del nuevo proyecto)</span></label>
+        <select id="cp-proyecto"></select>
       </div>
       <div class="field span2" id="cp-fecha-wrap" style="display:none;">
         <label>Fecha <span style="color:var(--muted);font-weight:400;font-size:11px;">(deja igual si no la vas a cambiar)</span></label>

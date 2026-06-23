@@ -1,6 +1,14 @@
-import { state } from './state.js';
+import { state, rol } from './state.js';
+
+// El rol 'obra' (residente) solo navega a estas páginas; cualquier otra lo regresa a
+// Costos por Unidad. Es UX/defensa; el bloqueo de escritura real está en los guardados.
+const OBRA_PAGES = new Set(['facturas', 'factura-pagos', 'costos-fiscales']);
 
 export function showPage(name, el) {
+  if (rol() === 'obra' && !OBRA_PAGES.has(name)) {
+    name = 'costos-fiscales';
+    el = document.getElementById('nav-costos-fiscales');
+  }
   document.querySelectorAll('[id^="page-"]').forEach(p => p.style.display = 'none');
   document.getElementById('page-' + name).style.display = '';
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));

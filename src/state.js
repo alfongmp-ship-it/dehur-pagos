@@ -108,7 +108,7 @@ export function esAdmin() {
 const ROL_LABEL = {
   admin: 'Admin', capturista: 'Capturista', contabilidad: 'Contabilidad',
   lector: 'Lector', aprobador: 'Aprobador', solo_lectura: 'Solo lectura',
-  facturas: 'Facturas'
+  facturas: 'Facturas', obra: 'Obra'
 };
 export function rolLabel() {
   return ROL_LABEL[rol()] || rol();

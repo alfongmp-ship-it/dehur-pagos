@@ -186,3 +186,13 @@ body[data-rol="lector"] .req-borrar-factura,
 body[data-rol="contabilidad"] .req-borrar-factura,
 body[data-rol="solo_lectura"] .req-borrar-factura,
 body[data-rol="aprobador"] .req-borrar-factura { display: none !important; }
+/* .obra → residente de obra: SOLO-LECTURA (oculta TODOS los botones de editar) y menú
+   acotado a Facturas / Pagos a Facturas / Costos por Unidad (marcados .nav-obra); también
+   oculta los rótulos de sección y la barra de saldos del header. El gating de VISTA es UX;
+   el bloqueo de ESCRITURA real lo hacen los guardados por rol (no es editor ni facturas). */
+body[data-rol="obra"] .req-editor,
+body[data-rol="obra"] .req-facturas,
+body[data-rol="obra"] .req-borrar-factura { display: none !important; }
+body[data-rol="obra"] .nav-item:not(.nav-obra),
+body[data-rol="obra"] .nav-label,
+body[data-rol="obra"] #header-badges { display: none !important; }
