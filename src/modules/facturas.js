@@ -143,6 +143,36 @@ function getFilteredFacturas() {
   });
 }
 
+// Exporta el reporte de facturas (lo FILTRADO que se ve en pantalla) a un Excel real
+// (.xlsx) usando la librería XLSX ya cargada. Solo-lectura: no toca datos. Montos van como
+// números para que Excel los sume; incluye nota de crédito y el total neto.
+export function exportarFacturasExcel() {
+  if (!state.facturas.length) { notify('No hay facturas para exportar', 'error'); return; }
+  const fil = getFilteredFacturas();
+  if (!fil.length) { notify('No hay facturas con los filtros actuales', 'error'); return; }
+  const headers = ['ID', 'Folio', 'UUID', 'Proveedor', 'Razón social', 'RFC emisor',
+    'Fecha factura', 'Vencimiento', 'Subtotal', 'Descuento', 'IVA', 'Ret. IVA', 'Ret. ISR',
+    'NC monto', 'NC IVA', 'Total neto', 'Pagado', 'Saldo', 'Estatus pago', 'Estado SAT',
+    'Tipo comprobante', 'Proyecto', 'Observaciones'];
+  const rows = fil.map(f => {
+    const prov = state.proveedores.find(p => p.id === f.proveedor_id);
+    const provNombre = f.nombre_proveedor || (prov ? prov.nombre : '') || f.razon_social || `ID ${f.proveedor_id}`;
+    return [
+      f.factura_id, f.numero_factura || '', f.uuid || '', provNombre, f.razon_social || '',
+      f.rfc_emisor || '', fmtFecha(f.fecha_factura), fmtFecha(f.fecha_vencimiento) || '',
+      f.subtotal || 0, f.descuento || 0, f.iva_trasladado || 0, f.retencion_iva || 0, f.retencion_isr || 0,
+      f.nc_subtotal || 0, f.nc_iva || 0, f.monto_total || 0, f.monto_pagado || 0, f.saldo_pendiente || 0,
+      f.estatus_factura || '', f.estado_sat || 'Vigente', f.tipo_comprobante || 'Factura',
+      f.proyecto || '', f.observaciones || ''
+    ];
+  });
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Facturas');
+  XLSX.writeFile(wb, `facturas_dehur_${hoyFecha().replace(/\//g, '-')}.xlsx`);
+  notify(`Reporte exportado (${fil.length} factura${fil.length !== 1 ? 's' : ''})`);
+}
+
 function refreshFactProyectos() {
   const sel = document.getElementById('ff-proy');
   if (!sel) return;
