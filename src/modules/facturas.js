@@ -6,6 +6,10 @@ import { cerrar } from '../ui/modal.js';
 import { gsSaveFacturas, gsSaveFacturaPagos, esPorFila, sbGuardarFila, sbBorrarFila, ensureHistorialIds, gsSaveCostoAsignaciones, purgarAsignacionesDeFactura } from '../services/google-sync.js';
 import { proyectoMatch } from '../config/proyectos.js';
 
+// Empresas propias a las que se factura (receptor del CFDI). Lista corta editable:
+// agrega aquí si en el futuro facturan a otra razón social.
+const EMPRESAS_FACTURA = ['Dehur', 'Dehur Territorial'];
+
 function diasAlVencimiento(fechaVenc) {
   if (!fechaVenc) return null;
   const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
@@ -153,7 +157,7 @@ export function exportarFacturasExcel() {
   const headers = ['ID', 'Folio', 'UUID', 'Proveedor', 'Razón social', 'RFC emisor',
     'Fecha factura', 'Vencimiento', 'Subtotal', 'Descuento', 'IVA', 'Ret. IVA', 'Ret. ISR',
     'NC monto', 'NC IVA', 'Total neto', 'Pagado', 'Saldo', 'Estatus pago', 'Estado SAT',
-    'Tipo comprobante', 'Proyecto', 'Observaciones'];
+    'Tipo comprobante', 'Proyecto', 'Empresa facturada', 'Observaciones'];
   const rows = fil.map(f => {
     const prov = state.proveedores.find(p => p.id === f.proveedor_id);
     const provNombre = f.nombre_proveedor || (prov ? prov.nombre : '') || f.razon_social || `ID ${f.proveedor_id}`;
@@ -163,7 +167,7 @@ export function exportarFacturasExcel() {
       f.subtotal || 0, f.descuento || 0, f.iva_trasladado || 0, f.retencion_iva || 0, f.retencion_isr || 0,
       f.nc_subtotal || 0, f.nc_iva || 0, f.monto_total || 0, f.monto_pagado || 0, f.saldo_pendiente || 0,
       f.estatus_factura || '', f.estado_sat || 'Vigente', f.tipo_comprobante || 'Factura',
-      f.proyecto || '', f.observaciones || ''
+      f.proyecto || '', f.empresa || '', f.observaciones || ''
     ];
   });
   const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
@@ -227,6 +231,9 @@ function populateFacturaSelects() {
   const selProy = document.getElementById('f-proyecto');
   selProy.innerHTML = '<option value="">— Sin proyecto —</option>' +
     state.proyectos.filter(p => p.activo !== false).map(p => `<option>${p.nombre}</option>`).join('');
+  const selEmp = document.getElementById('f-empresa');
+  if (selEmp) selEmp.innerHTML = '<option value="">— Sin especificar —</option>' +
+    EMPRESAS_FACTURA.map(e => `<option>${e}</option>`).join('');
 }
 
 export function filtrarProvFactura() {
@@ -346,6 +353,7 @@ export function editarFactura(id) {
   document.getElementById('f-monto').value = f.monto_total;
   document.getElementById('f-estatus').value = f.estatus_factura;
   document.getElementById('f-proyecto').value = f.proyecto;
+  document.getElementById('f-empresa').value = f.empresa || '';
   document.getElementById('f-obs').value = f.observaciones || '';
   // Campos fiscales (CFDI). El RFC cae al del proveedor si la factura no lo trae.
   document.getElementById('f-tipo-comprobante').value = f.tipo_comprobante || 'Factura';
@@ -400,6 +408,7 @@ export function guardarFactura() {
     saldo_pendiente: Math.max(0, monto - pagado),
     estatus_factura: document.getElementById('f-estatus').value,
     proyecto: document.getElementById('f-proyecto').value,
+    empresa: document.getElementById('f-empresa').value,
     observaciones: document.getElementById('f-obs').value.trim(),
     activo: true,
     uuid,

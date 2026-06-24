@@ -711,7 +711,7 @@ export async function sbLoadAll() {
       fecha_factura: r.fecha_factura || '', fecha_vencimiento: r.fecha_vencimiento || '',
       fecha_pago_total: r.fecha_pago_total || '', monto_total: toNum(r.monto_total),
       monto_pagado: toNum(r.monto_pagado), saldo_pendiente: toNum(r.saldo_pendiente),
-      estatus_factura: r.estatus_factura || 'pendiente', proyecto: r.proyecto || '',
+      estatus_factura: r.estatus_factura || 'pendiente', proyecto: r.proyecto || '', empresa: r.empresa || '',
       observaciones: r.observaciones || '', activo: r.activo !== false, uuid: r.uuid || '',
       // Fase 2: campos fiscales (CFDI).
       subtotal: toNum(r.subtotal), descuento: toNum(r.descuento), iva_trasladado: toNum(r.iva_trasladado),
@@ -1165,7 +1165,7 @@ function _rowFactura(f) {
     fecha_vencimiento: _sbStr(f.fecha_vencimiento), fecha_pago_total: _sbStr(f.fecha_pago_total),
     monto_total: _sbNum(f.monto_total), monto_pagado: _sbNum(f.monto_pagado),
     saldo_pendiente: _sbNum(f.saldo_pendiente), estatus_factura: _sbStr(f.estatus_factura),
-    proyecto: _sbStr(f.proyecto), observaciones: _sbStr(f.observaciones),
+    proyecto: _sbStr(f.proyecto), empresa: _sbStr(f.empresa), observaciones: _sbStr(f.observaciones),
     activo: f.activo !== false, uuid: _sbStr(f.uuid),
     // Fase 2: datos fiscales del CFDI.
     subtotal: _sbNum(f.subtotal), descuento: _sbNum(f.descuento),
