@@ -243,15 +243,24 @@ export function selProvFactura(id) {
 // El Total solo se autocalcula cuando hay subtotal (>0): así no machaca el monto de
 // facturas viejas que solo tienen Total.
 export function recalcularTotalFactura() {
-  const num = id => parseFloat(document.getElementById(id).value) || 0;
+  const num = id => { const el = document.getElementById(id); return el ? (parseFloat(el.value) || 0) : 0; };
+  const round2 = v => Math.round((v + Number.EPSILON) * 100) / 100;
   const subtotal = num('f-subtotal');
   const ivaEl = document.getElementById('f-iva');
-  if (!ivaEl.dataset.touched) {
-    ivaEl.value = Math.round(((subtotal - num('f-descuento')) * 0.16 + Number.EPSILON) * 100) / 100;
+  if (ivaEl && !ivaEl.dataset.touched) {
+    ivaEl.value = round2((subtotal - num('f-descuento')) * 0.16);
+  }
+  // Nota de crédito: el IVA de la NC se autocalcula al 16% del monto NC (editable) y,
+  // junto con el monto NC, se RESTA del total → monto_total queda como el NETO a pagar.
+  const ncSub = num('f-nc-subtotal');
+  const ncIvaEl = document.getElementById('f-nc-iva');
+  if (ncIvaEl && !ncIvaEl.dataset.touched) {
+    ncIvaEl.value = ncSub > 0 ? round2(ncSub * 0.16) : 0;
   }
   if (subtotal > 0) {
-    const total = subtotal - num('f-descuento') + num('f-iva') - num('f-retiva') - num('f-retisr');
-    document.getElementById('f-monto').value = Math.round((total + Number.EPSILON) * 100) / 100;
+    const total = subtotal - num('f-descuento') + num('f-iva') - num('f-retiva') - num('f-retisr')
+                  - num('f-nc-subtotal') - num('f-nc-iva');
+    document.getElementById('f-monto').value = round2(total);
   }
 }
 
@@ -279,6 +288,8 @@ export function abrirNuevaFactura() {
   const ivaNew = document.getElementById('f-iva'); ivaNew.value = ''; delete ivaNew.dataset.touched;
   document.getElementById('f-retiva').value = '0';
   document.getElementById('f-retisr').value = '0';
+  document.getElementById('f-nc-subtotal').value = '0';
+  const ncIvaNew = document.getElementById('f-nc-iva'); ncIvaNew.value = '0'; delete ncIvaNew.dataset.touched;
   // Vincular pagos existentes solo aplica a una factura YA creada (necesita saldo).
   ocultarBuscadorPagosFactura();
   document.getElementById('fact-pagos-vinc').style.display = 'none';
@@ -315,6 +326,8 @@ export function editarFactura(id) {
   const ivaEdit = document.getElementById('f-iva'); ivaEdit.value = f.iva_trasladado || 0; ivaEdit.dataset.touched = '1';
   document.getElementById('f-retiva').value = f.retencion_iva || 0;
   document.getElementById('f-retisr').value = f.retencion_isr || 0;
+  document.getElementById('f-nc-subtotal').value = f.nc_subtotal || 0;
+  const ncIvaEdit = document.getElementById('f-nc-iva'); ncIvaEdit.value = f.nc_iva || 0; ncIvaEdit.dataset.touched = '1';
   // En edición sí se puede vincular pagos del historial a esta factura.
   document.getElementById('fact-pagos-vinc').style.display = '';
   // El botón Eliminar aparece al editar; el CSS (.req-borrar-factura) decide si el rol lo ve.
@@ -366,6 +379,9 @@ export function guardarFactura() {
     iva_trasladado: parseFloat(document.getElementById('f-iva').value) || 0,
     retencion_iva: parseFloat(document.getElementById('f-retiva').value) || 0,
     retencion_isr: parseFloat(document.getElementById('f-retisr').value) || 0,
+    // Nota de crédito (acumulada): resta del total → monto_total ya es el neto a pagar.
+    nc_subtotal: parseFloat(document.getElementById('f-nc-subtotal').value) || 0,
+    nc_iva: parseFloat(document.getElementById('f-nc-iva').value) || 0,
     rfc_emisor: document.getElementById('f-rfc-emisor').value.trim().toUpperCase(),
     estado_sat: document.getElementById('f-estado-sat').value,
     tipo_comprobante: document.getElementById('f-tipo-comprobante').value

@@ -716,6 +716,7 @@ export async function sbLoadAll() {
       // Fase 2: campos fiscales (CFDI).
       subtotal: toNum(r.subtotal), descuento: toNum(r.descuento), iva_trasladado: toNum(r.iva_trasladado),
       retencion_iva: toNum(r.retencion_iva), retencion_isr: toNum(r.retencion_isr),
+      nc_subtotal: toNum(r.nc_subtotal), nc_iva: toNum(r.nc_iva),
       rfc_emisor: r.rfc_emisor || '', estado_sat: r.estado_sat || 'Vigente', tipo_comprobante: r.tipo_comprobante || 'Factura'
     }));
   });
@@ -1169,7 +1170,9 @@ function _rowFactura(f) {
     // Fase 2: datos fiscales del CFDI.
     subtotal: _sbNum(f.subtotal), descuento: _sbNum(f.descuento),
     iva_trasladado: _sbNum(f.iva_trasladado), retencion_iva: _sbNum(f.retencion_iva),
-    retencion_isr: _sbNum(f.retencion_isr), rfc_emisor: _sbStr(f.rfc_emisor),
+    retencion_isr: _sbNum(f.retencion_isr),
+    nc_subtotal: _sbNum(f.nc_subtotal), nc_iva: _sbNum(f.nc_iva),
+    rfc_emisor: _sbStr(f.rfc_emisor),
     estado_sat: _sbStr(f.estado_sat) || 'Vigente', tipo_comprobante: _sbStr(f.tipo_comprobante) || 'Factura'
   };
 }

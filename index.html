@@ -1319,7 +1319,9 @@
       <div class="field"><label>IVA</label><input type="number" id="f-iva" step="0.01" placeholder="0.00" oninput="this.dataset.touched='1';recalcularTotalFactura()" style="font-family:'DM Mono',monospace;"></div>
       <div class="field"><label>Retención IVA</label><input type="number" id="f-retiva" step="0.01" value="0" oninput="recalcularTotalFactura()" style="font-family:'DM Mono',monospace;"></div>
       <div class="field"><label>Retención ISR</label><input type="number" id="f-retisr" step="0.01" value="0" oninput="recalcularTotalFactura()" style="font-family:'DM Mono',monospace;"></div>
-      <div class="field"><label>Total (calculado)</label><input type="number" id="f-monto" step="0.01" placeholder="0.00" style="font-family:'DM Mono',monospace;font-weight:600;"></div>
+      <div class="field"><label>Nota de crédito <span style="color:var(--muted);font-weight:400;font-size:11px;">(monto, baja el total)</span></label><input type="number" id="f-nc-subtotal" step="0.01" value="0" oninput="recalcularTotalFactura()" style="font-family:'DM Mono',monospace;"></div>
+      <div class="field"><label>IVA de la nota de crédito</label><input type="number" id="f-nc-iva" step="0.01" value="0" oninput="this.dataset.touched='1';recalcularTotalFactura()" style="font-family:'DM Mono',monospace;"></div>
+      <div class="field"><label>Total neto (calculado)</label><input type="number" id="f-monto" step="0.01" placeholder="0.00" style="font-family:'DM Mono',monospace;font-weight:600;"></div>
       <div class="field"><label>Estatus de pago</label><select id="f-estatus"><option>pendiente</option><option>parcial</option><option>pagada</option><option>cancelada</option></select></div>
       <div class="field"><label>Proyecto</label><select id="f-proyecto"></select></div>
       <div class="field span2"><label>Observaciones</label><textarea id="f-obs" rows="2" placeholder="Opcional" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-size:12px;resize:vertical;"></textarea></div>
