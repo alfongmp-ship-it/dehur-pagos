@@ -5,6 +5,7 @@ import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { gsSaveFacturas, gsSaveFacturaPagos, esPorFila, sbGuardarFila, sbBorrarFila, ensureHistorialIds, gsSaveCostoAsignaciones, purgarAsignacionesDeFactura } from '../services/google-sync.js';
 import { proyectoMatch } from '../config/proyectos.js';
+import { parseFechaHist } from './historial.js';
 
 // Empresas propias a las que se factura (receptor del CFDI). Lista corta editable:
 // agrega aquí si en el futuro facturan a otra razón social.
@@ -134,7 +135,7 @@ function getFilteredFacturas() {
   const fe = document.getElementById('ff-estatus')?.value || '';
   const fes = document.getElementById('ff-estado-sat')?.value || '';
   const fp = document.getElementById('ff-proy')?.value || '';
-  return state.facturas.filter(f => {
+  const fil = state.facturas.filter(f => {
     if (q) {
       const prov = state.proveedores.find(p => p.id === f.proveedor_id);
       const provNombre = prov ? prov.nombre.toLowerCase() : '';
@@ -145,6 +146,18 @@ function getFilteredFacturas() {
     if (fp && !proyectoMatch(f.proyecto, fp)) return false;
     return true;
   });
+  // Orden: por VENCIMIENTO ascendente (las vencidas / próximas a vencer arriba; las que no
+  // tienen vencimiento se van al fondo) y, como desempate, por FECHA DE FACTURA descendente
+  // (la más reciente arriba). Aplica a la lista y al export.
+  fil.sort((a, b) => {
+    const va = parseFechaHist(a.fecha_vencimiento) || '9999-12-31';
+    const vb = parseFechaHist(b.fecha_vencimiento) || '9999-12-31';
+    if (va !== vb) return va < vb ? -1 : 1;
+    const fa = parseFechaHist(a.fecha_factura) || '';
+    const fb = parseFechaHist(b.fecha_factura) || '';
+    return fa < fb ? 1 : (fa > fb ? -1 : 0);
+  });
+  return fil;
 }
 
 // Exporta el reporte de facturas (lo FILTRADO que se ve en pantalla) a un Excel real
