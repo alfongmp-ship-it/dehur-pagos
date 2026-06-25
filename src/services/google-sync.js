@@ -894,6 +894,39 @@ export async function purgarAsignacionesDePago(pagoId) {
   }
 }
 
+// Al borrar pago(s) del historial: quita sus facturaPagos y REVIERTE la factura ligada
+// (monto_pagado -= aplicado; recalcula saldo/estatus) para no dejar enlaces huérfanos ni
+// saldos inflados. No actúa sobre pagos sin facturaPago (ej. factura_id heredado del import).
+export async function purgarFacturaPagosDePagos(pagoIds) {
+  if (!puedeEditar() && !puedeFacturas()) return;
+  const set = new Set((pagoIds || []).map(String));
+  const fps = state.facturaPagos.filter(fp => set.has(String(fp.pago_id)));
+  if (!fps.length) return;
+  const tocadas = new Map();
+  fps.forEach(fp => {
+    const fact = state.facturas.find(f => String(f.factura_id) === String(fp.factura_id));
+    if (!fact) return;
+    fact.monto_pagado = Math.max(0, (fact.monto_pagado || 0) - (fp.monto_aplicado || 0));
+    fact.saldo_pendiente = Math.max(0, (fact.monto_total || 0) - (fact.monto_pagado || 0));
+    if ((fact.monto_pagado || 0) <= 0) { fact.estatus_factura = 'pendiente'; fact.fecha_pago_total = ''; }
+    else if (fact.saldo_pendiente <= 0) { fact.estatus_factura = 'pagada'; }
+    else { fact.estatus_factura = 'parcial'; fact.fecha_pago_total = ''; }
+    tocadas.set(fact.factura_id, fact);
+  });
+  const fpIds = new Set(fps.map(fp => fp.factura_pago_id));
+  state.facturaPagos = state.facturaPagos.filter(fp => !fpIds.has(fp.factura_pago_id));
+  const porFilaF = esPorFila('facturas');
+  const porFilaFp = esPorFila('facturaPagos');
+  await gsSaveFacturas({ porFila: porFilaF });
+  await gsSaveFacturaPagos({ porFila: porFilaFp });
+  if (porFilaF) tocadas.forEach(f => sbGuardarFila('facturas', f));
+  if (porFilaFp) fps.forEach(fp => sbBorrarFila('facturaPagos', fp.factura_pago_id));
+  const cF = document.getElementById('cnt-fact'); if (cF) cF.textContent = state.facturas.length;
+  const cFP = document.getElementById('cnt-fp'); if (cFP) cFP.textContent = state.facturaPagos.length;
+  if (window.renderFacturas) window.renderFacturas();
+  if (window.renderFacturaPagos) window.renderFacturaPagos();
+}
+
 // Devengado (Fase A): elimina las asignaciones de costo de una FACTURA (al darla de
 // baja). Análogo a purgarAsignacionesDePago pero por factura_id.
 export async function purgarAsignacionesDeFactura(facturaId) {

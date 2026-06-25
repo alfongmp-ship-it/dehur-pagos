@@ -2,7 +2,7 @@ import { state, datosListos, puedeEditar, esAdmin } from '../state.js';
 import { fmt, dl, fmtFecha } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { proyTag, catTag } from '../ui/badges.js';
-import { gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveTraspasos, gsSaveCostoAsignaciones, purgarAsignacionesDePago, esPorFila, sbGuardarFila, sbBorrarFila } from '../services/google-sync.js';
+import { gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveTraspasos, gsSaveCostoAsignaciones, purgarAsignacionesDePago, purgarFacturaPagosDePagos, esPorFila, sbGuardarFila, sbBorrarFila } from '../services/google-sync.js';
 import { saveProy, proyectoMatch } from '../config/proyectos.js';
 import { getPartidasParaSelect, getSubPartidas, subPartidaObligatoria } from '../config/sub-partidas.js';
 
@@ -244,6 +244,8 @@ export function eliminarHistorial(idx) {
   if (_pfHist && h.id) sbBorrarFila('historial', h.id);
   // Limpiar asignaciones de costo fiscal ligadas a este pago (evita huérfanas)
   if (h.id) purgarAsignacionesDePago(h.id);
+  // Si estaba ligado a una factura: quitar su facturaPago y revertir la factura.
+  if (h.id) purgarFacturaPagosDePagos([h.id]);
   document.getElementById('cnt-hist').textContent = state.historial.length;
   renderHistorial();
   if (window.renderCostosFiscales) window.renderCostosFiscales();
@@ -444,6 +446,8 @@ export function eliminarHistorialBulk() {
   if (saldoChanged) { saveProy(state.proyectos); gsSaveProyectos(); gsSaveCuentasPropias(); }
   if (traspasosChanged) gsSaveTraspasos();
   if (asigChanged) gsSaveCostoAsignaciones();
+  // Revertir facturas ligadas a los pagos borrados (quita facturaPagos + saldo/estatus).
+  purgarFacturaPagosDePagos([...ids]);
 
   // Render una sola vez.
   const cnt = document.getElementById('cnt-hist'); if (cnt) cnt.textContent = state.historial.length;
