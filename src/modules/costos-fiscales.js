@@ -286,6 +286,17 @@ function renderPanel() {
 // ========== TAB: UNIDADES ==========
 function renderUnidadesTab(panel) {
   const unidades = unidadesDeProyecto(true);
+  // Auto-consistencia: una casa con fecha de terminación pero aún 'En obra' (p.ej.
+  // capturada antes de esta lógica, o llegada por import) se marca Terminada y se
+  // persiste UNA sola vez (tras sanar ya no hay discrepancia → no vuelve a guardar).
+  if (puedeEditar()) {
+    const _fix = unidades.filter(u => u.fecha_termino && u.estatus === 'En obra');
+    if (_fix.length) {
+      const _pf = esPorFila('unidades');
+      _fix.forEach(u => { u.estatus = 'Terminada'; if (_pf) sbGuardarFila('unidades', u); });
+      gsSaveUnidades({ porFila: _pf });
+    }
+  }
   const sumaInd = unidades.filter(u => u.activo !== false).reduce((s, u) => s + (u.indiviso_pct || 0), 0);
   const indOk = Math.abs(sumaInd - 100) < 0.05;
 
