@@ -2,7 +2,7 @@
 // Capa nueva y aislada: asigna los pagos del historial a unidades (casas)
 // para conocer el costo real por casa. No toca el flujo de pagos existente.
 
-import { state, datosListos } from '../state.js';
+import { state, datosListos, puedeEditar } from '../state.js';
 import { fmt, fmtFecha } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
@@ -306,7 +306,7 @@ function renderUnidadesTab(panel) {
       <table>
         <thead><tr>
           <th>Unidad</th><th>Tipo</th><th style="text-align:right">% Indiviso</th>
-          <th style="text-align:right">Superficie</th><th>Estatus</th>
+          <th style="text-align:right">Superficie</th><th>Estatus</th><th>Terminación</th>
           <th style="text-align:right">Costo real</th><th style="text-align:right">Acciones</th>
         </tr></thead>
         <tbody>${unidades.map(u => {
@@ -317,6 +317,9 @@ function renderUnidadesTab(panel) {
             <td style="text-align:right;font-family:'DM Mono',monospace;">${(u.indiviso_pct || 0).toFixed(2)}%</td>
             <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--muted);">${u.superficie_m2 ? u.superficie_m2 + ' m²' : '—'}</td>
             <td><span style="font-size:11px;color:var(--muted);">${u.estatus || '—'}</span></td>
+            <td>${puedeEditar()
+              ? `<input type="date" value="${u.fecha_termino || ''}" onchange="setFechaTermino(${u.unidad_id}, this.value)" title="Fecha en que la casa salió del indiviso (vacío = sigue en obra)" style="font-size:11px;padding:2px 4px;width:130px;">`
+              : `<span style="font-size:11px;color:var(--muted);">${u.fecha_termino || '—'}</span>`}</td>
             <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--accent);">${fmt(real)}</td>
             <td style="text-align:right;white-space:nowrap;">
               <button class="btn btn-ghost btn-sm" onclick="editarUnidad(${u.unidad_id})">Editar</button>
@@ -399,6 +402,19 @@ export async function toggleUnidad(id) {
   await gsSaveUnidades({ porFila });
   if (porFila) sbGuardarFila('unidades', u);
   renderCostosFiscales();
+}
+
+// Captura rápida de la fecha de terminación (sale del pool de indiviso) desde la
+// tabla de unidades. Guarda solo esa casa; sin re-render para no perder el scroll
+// al capturar varias seguidas. gsSaveUnidades ya valida puedeEditar() por dentro.
+export async function setFechaTermino(id, value) {
+  const u = unidadById(id);
+  if (!u) return;
+  u.fecha_termino = value || '';
+  const porFila = esPorFila('unidades');
+  await gsSaveUnidades({ porFila });
+  if (porFila) sbGuardarFila('unidades', u);
+  notify(value ? `Terminación: ${u.nombre} → ${value}` : `${u.nombre}: sin fecha (sigue en obra)`);
 }
 
 export function abrirLoteUnidades() {

@@ -120,7 +120,7 @@ const RT = {
       return {
         unidad_id: toInt(r.unidad_id), proyecto: r.proyecto || '', nombre: r.nombre || '', tipo: r.tipo || '',
         indiviso_pct: toNum(r.indiviso_pct), superficie_m2: toNum(r.superficie_m2), estatus: r.estatus || 'En obra',
-        orden: toInt(r.orden), activo: r.activo !== false,
+        orden: toInt(r.orden), activo: r.activo !== false, fecha_termino: r.fecha_termino || '',
         plano_x: plano(r.plano_x), plano_y: plano(r.plano_y), plano_w: plano(r.plano_w), plano_h: plano(r.plano_h)
       };
     },
