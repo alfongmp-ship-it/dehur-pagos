@@ -403,6 +403,26 @@ export function guardarFactura() {
   if (subtotal <= 0) { notify('El subtotal es obligatorio', 'error'); return; }
   if (monto <= 0) { notify('El total debe ser mayor a 0', 'error'); return; }
 
+  // Anti-duplicados: evita registrar dos veces la misma factura. Al editar se
+  // compara contra las DEMÁS (se excluye la propia por factura_id). Misma lógica
+  // de detección que la importación por Excel (facturas-import.js).
+  const norm = s => String(s || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const otras = state.facturas.filter(f => f.factura_id !== state.editFactId);
+  // UUID idéntico = es la misma factura (folio fiscal único en el SAT) → bloquea.
+  const dupUuid = otras.find(f => f.uuid && norm(f.uuid) === norm(uuid));
+  if (dupUuid) { notify(`Ya existe una factura con ese UUID (folio fiscal): #${dupUuid.factura_id} · ${dupUuid.numero_factura || ''}`, 'error'); return; }
+  // Señales fuertes (no idénticas) → avisa y deja continuar si el usuario confirma.
+  const dupFolio = otras.find(f => String(f.proveedor_id) === String(provId) && norm(f.numero_factura) === norm(folio));
+  const dupMfp = otras.find(f => String(f.proveedor_id) === String(provId)
+    && (+f.monto_total || 0).toFixed(2) === monto.toFixed(2)
+    && (f.fecha_factura || '') === fechaFact);
+  if (dupFolio || dupMfp) {
+    const motivos = [];
+    if (dupFolio) motivos.push(`• Mismo folio "${folio}" y proveedor (factura #${dupFolio.factura_id}, ${dupFolio.fecha_factura})`);
+    if (dupMfp && dupMfp !== dupFolio) motivos.push(`• Mismo monto, fecha y proveedor (factura #${dupMfp.factura_id})`);
+    if (!confirm(`⚠️ Posible factura duplicada:\n\n${motivos.join('\n')}\n\n¿Guardar de todos modos?`)) return;
+  }
+
   const existing = state.editFactId ? state.facturas.find(f => f.factura_id === state.editFactId) : null;
   const pagado = existing ? existing.monto_pagado : 0;
 
