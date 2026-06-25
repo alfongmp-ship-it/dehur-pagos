@@ -316,7 +316,7 @@ function renderUnidadesTab(panel) {
             <td style="color:var(--muted);">${u.tipo || '—'}</td>
             <td style="text-align:right;font-family:'DM Mono',monospace;">${(u.indiviso_pct || 0).toFixed(2)}%</td>
             <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--muted);">${u.superficie_m2 ? u.superficie_m2 + ' m²' : '—'}</td>
-            <td><span style="font-size:11px;color:var(--muted);">${u.estatus || '—'}</span></td>
+            <td><span id="estatus-u-${u.unidad_id}" style="font-size:11px;color:var(--muted);">${u.estatus || '—'}</span></td>
             <td>${puedeEditar()
               ? `<input type="date" value="${u.fecha_termino || ''}" onchange="setFechaTermino(${u.unidad_id}, this.value)" title="Fecha en que la casa salió del indiviso (vacío = sigue en obra)" style="font-size:11px;padding:2px 4px;width:130px;">`
               : `<span style="font-size:11px;color:var(--muted);">${u.fecha_termino || '—'}</span>`}</td>
@@ -411,10 +411,16 @@ export async function setFechaTermino(id, value) {
   const u = unidadById(id);
   if (!u) return;
   u.fecha_termino = value || '';
+  // La fecha marca que la casa salió de obra → refleja el estatus en automático.
+  // No tocamos 'Entregada'/'Vendida' (ya están más allá de 'Terminada').
+  if (value && u.estatus === 'En obra') u.estatus = 'Terminada';
+  else if (!value && u.estatus === 'Terminada') u.estatus = 'En obra';
+  const cell = document.getElementById('estatus-u-' + id);
+  if (cell) cell.textContent = u.estatus || '—';
   const porFila = esPorFila('unidades');
   await gsSaveUnidades({ porFila });
   if (porFila) sbGuardarFila('unidades', u);
-  notify(value ? `Terminación: ${u.nombre} → ${value}` : `${u.nombre}: sin fecha (sigue en obra)`);
+  notify(value ? `Terminación: ${u.nombre} → ${value} · ${u.estatus}` : `${u.nombre}: sin fecha · ${u.estatus}`);
 }
 
 export function abrirLoteUnidades() {
