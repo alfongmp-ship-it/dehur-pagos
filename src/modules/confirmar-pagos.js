@@ -4,6 +4,16 @@ import { notify } from '../ui/notify.js';
 import { proyTag } from '../ui/badges.js';
 import { saveData, gsSaveHistorial, gsSavePendientes, gsSaveProyectos, gsSaveCuentasPropias, gsSaveFacturas, gsSaveFacturaPagos, gsSaveCostoAsignaciones, ensureHistorialIds, esPorFila, sbGuardarFila } from '../services/google-sync.js';
 import { saveProy } from '../config/proyectos.js';
+import { unidadEnIndivisoAFecha } from '../config/costos-fiscales.js';
+
+// DD/MM/YYYY (o ISO) → ISO 'YYYY-MM-DD'. Inline para no depender de historial.js (evita ciclo).
+const _isoFecha = f => {
+  const s = String(f || '');
+  if (!s) return '';
+  if (s.includes('-') && s.length >= 10) return s.slice(0, 10);
+  const p = s.split('/'); if (p.length === 3) { const [d, m, y] = p; return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`; }
+  return '';
+};
 
 const _normPart = s => String(s || '').trim().toLowerCase()
   .normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -23,7 +33,11 @@ export function aplicarAutoIndiviso(h, repartoMetodo, forzar = false) {
   // importar la partida. No duplicar si ya hay asignaciones para este pago.
   if (state.costoAsignaciones.some(a => String(a.pago_id) === String(h.id))) return 0;
 
-  const unidades = state.unidades.filter(u => u.activo !== false && u.proyecto === h.proyecto);
+  // Pool de indiviso a la FECHA del pago (casas que seguían en obra entonces); cae a todas
+  // las activas si ninguna calificó. Inerte si ninguna casa tiene fecha_termino (= como antes).
+  const activas = state.unidades.filter(u => u.activo !== false && u.proyecto === h.proyecto);
+  const pool = activas.filter(u => unidadEnIndivisoAFecha(u, _isoFecha(h.fecha)));
+  const unidades = pool.length ? pool : activas;
   if (!unidades.length) return 0;
 
   const sumaInd = unidades.reduce((s, u) => s + (u.indiviso_pct || 0), 0);

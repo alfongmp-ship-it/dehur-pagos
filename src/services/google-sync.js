@@ -777,6 +777,7 @@ export async function sbLoadAll() {
     state.unidades = rows.map(r => ({
       unidad_id: toInt(r.unidad_id), proyecto: r.proyecto || '', nombre: r.nombre || '', tipo: r.tipo || '',
       indiviso_pct: toNum(r.indiviso_pct), superficie_m2: toNum(r.superficie_m2), estatus: r.estatus || 'En obra',
+      fecha_termino: r.fecha_termino || '',
       orden: toInt(r.orden), activo: r.activo !== false,
       plano_x: plano(r.plano_x), plano_y: plano(r.plano_y), plano_w: plano(r.plano_w), plano_h: plano(r.plano_h)
     }));
@@ -1251,7 +1252,7 @@ function _rowUnidad(u) {
   return {
     unidad_id: _sbStr(u.unidad_id), proyecto: _sbStr(u.proyecto), nombre: _sbStr(u.nombre),
     tipo: _sbStr(u.tipo), indiviso_pct: _sbNum(u.indiviso_pct), superficie_m2: _sbNum(u.superficie_m2),
-    estatus: _sbStr(u.estatus), orden: _sbNum(u.orden), activo: u.activo !== false,
+    estatus: _sbStr(u.estatus), fecha_termino: _sbStr(u.fecha_termino), orden: _sbNum(u.orden), activo: u.activo !== false,
     plano_x: plano(u.plano_x), plano_y: plano(u.plano_y), plano_w: plano(u.plano_w), plano_h: plano(u.plano_h)
   };
 }

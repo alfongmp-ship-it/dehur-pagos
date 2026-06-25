@@ -191,7 +191,7 @@ export const facturasImporter = createExcelImporter({
     const repartoRaw = String(raw.reparto ?? '').trim();
     const _errRep = msg => { _repartoErrores.push(`Factura ${folio}: ${msg}`); repartoLabel = '⛔ ' + msg; };
     if (repartoRaw && norm(repartoRaw) !== 'vacio') {
-      const pr = parseReparto(raw.reparto, raw.unidades, proyecto);
+      const pr = parseReparto(raw.reparto, raw.unidades, proyecto, fechaFact);
       (pr.warnings || []).forEach(w => avisos.push('Reparto: ' + w));
       if (pr.errores && pr.errores.length) {
         _errRep('reparto inválido (' + pr.errores[0] + ')');

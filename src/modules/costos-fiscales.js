@@ -7,8 +7,9 @@ import { fmt, fmtFecha } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { proyectoMatch } from '../config/proyectos.js';
-import { ESTATUS_UNIDAD, METODO_LABEL } from '../config/costos-fiscales.js';
+import { ESTATUS_UNIDAD, METODO_LABEL, unidadEnIndivisoAFecha } from '../config/costos-fiscales.js';
 import { planoDeProyecto } from '../config/planos.js';
+import { parseFechaHist } from './historial.js';
 import { gsSaveUnidades, gsSavePresupuestoUnidad, gsSaveCostoAsignaciones, esPorFila, sbGuardarFila } from '../services/google-sync.js';
 
 const PALETA = ['#c8a96e', '#5a9be0', '#4caf7d', '#e07a3a', '#9b7fe8', '#e05a5a', '#27ae60', '#3498db'];
@@ -53,6 +54,12 @@ function cfEsFactura() { return cfFacturaAsignar != null; }
 function cfImporteObjetivo() {
   if (cfEsFactura()) { const f = facturaById(cfFacturaAsignar); return f ? (f.monto_total || 0) : 0; }
   const p = pagoById(cfPagoAsignar); return p ? (p.importe || 0) : 0;
+}
+// Fecha (ISO) del documento que se reparte (factura o pago). El indiviso solo usa las casas
+// que seguían en obra a esa fecha (ver unidadEnIndivisoAFecha).
+function cfFechaObjetivo() {
+  if (cfEsFactura()) { const f = facturaById(cfFacturaAsignar); return f ? parseFechaHist(f.fecha_factura) : ''; }
+  const p = pagoById(cfPagoAsignar); return p ? parseFechaHist(p.fecha) : '';
 }
 function cfObjetivoValido() {
   return cfEsFactura() ? !!facturaById(cfFacturaAsignar) : !!pagoById(cfPagoAsignar);
@@ -330,6 +337,7 @@ export function abrirNuevaUnidad() {
   document.getElementById('un-tipo').value = '';
   document.getElementById('un-indiviso').value = '';
   document.getElementById('un-superficie').value = '';
+  document.getElementById('un-fecha-termino').value = '';
   document.getElementById('un-estatus').innerHTML = ESTATUS_UNIDAD.map(e => `<option>${e}</option>`).join('');
   document.getElementById('modal-unidad').classList.add('open');
 }
@@ -343,6 +351,7 @@ export function editarUnidad(id) {
   document.getElementById('un-tipo').value = u.tipo || '';
   document.getElementById('un-indiviso').value = u.indiviso_pct || '';
   document.getElementById('un-superficie').value = u.superficie_m2 || '';
+  document.getElementById('un-fecha-termino').value = u.fecha_termino || '';
   document.getElementById('un-estatus').innerHTML = ESTATUS_UNIDAD.map(e => `<option${e === u.estatus ? ' selected' : ''}>${e}</option>`).join('');
   document.getElementById('modal-unidad').classList.add('open');
 }
@@ -356,6 +365,7 @@ export async function guardarUnidad() {
     tipo: document.getElementById('un-tipo').value.trim(),
     indiviso_pct: indiviso,
     superficie_m2: parseFloat(document.getElementById('un-superficie').value) || 0,
+    fecha_termino: document.getElementById('un-fecha-termino').value || '',
     estatus: document.getElementById('un-estatus').value,
   };
   if (state.editUnidadId) {
@@ -814,15 +824,20 @@ function calcularReparto() {
     return arr;
   }
   if (metodo === 'indiviso') {
-    if (!unidades.length) return [];
-    const totalPct = unidades.reduce((s, u) => s + (u.indiviso_pct || 0), 0);
+    // Pool de indiviso A LA FECHA del documento: solo las casas que seguían en obra entonces.
+    // Si ninguna calificó (fecha rara), cae a todas las activas para no perder el reparto.
+    const fechaDoc = cfFechaObjetivo();
+    const pool0 = unidades.filter(u => unidadEnIndivisoAFecha(u, fechaDoc));
+    const pool = pool0.length ? pool0 : unidades;
+    if (!pool.length) return [];
+    const totalPct = pool.reduce((s, u) => s + (u.indiviso_pct || 0), 0);
     let arr;
     if (totalPct <= 0) {
-      const n = unidades.length;
+      const n = pool.length;
       const base = r2(importe / n);
-      arr = unidades.map(u => ({ unidad_id: u.unidad_id, factor: 1 / n, monto: base }));
+      arr = pool.map(u => ({ unidad_id: u.unidad_id, factor: 1 / n, monto: base }));
     } else {
-      arr = unidades.map(u => {
+      arr = pool.map(u => {
         const factor = (u.indiviso_pct || 0) / totalPct;
         return { unidad_id: u.unidad_id, factor, monto: r2(importe * factor) };
       });
@@ -871,7 +886,11 @@ export function cfRepartirRestoIndiviso() {
   const total = esPct ? 100 : cfImporteObjetivo();
   const resto = r2(total - capturado);
   if (resto <= 0) { notify('Ya no queda ' + (esPct ? 'porcentaje' : 'monto') + ' por repartir', 'error'); return; }
-  const unidades = unidadesDeProyecto();
+  // Pool de indiviso a la fecha del documento; cae a todas las activas si ninguna calificó.
+  const fechaDoc = cfFechaObjetivo();
+  const activas = unidadesDeProyecto();
+  const pool = activas.filter(u => unidadEnIndivisoAFecha(u, fechaDoc));
+  const unidades = pool.length ? pool : activas;
   if (!unidades.length) { notify('No hay casas activas en este proyecto', 'error'); return; }
   const totalPct = unidades.reduce((s, u) => s + (u.indiviso_pct || 0), 0);
   const byUid = new Map(inputs.map(inp => [parseInt(inp.dataset.uid), inp]));

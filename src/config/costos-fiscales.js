@@ -17,3 +17,14 @@ export const METODO_LABEL = {
   indiviso: 'Área común (por indiviso)',
   custom: 'Proporción personalizada',
 };
+
+// ¿La casa está en el pool de INDIVISO a una fecha dada? Sí, si sigue activa y todavía NO
+// había salido (terminado) a esa fecha. `fecha_termino` vacío = sigue en obra (siempre en el
+// pool). Sin fechaISO se usa hoy. Las fechas deben venir en ISO 'YYYY-MM-DD' (los llamadores
+// normalizan con parseFechaHist). Inerte mientras ninguna casa tenga fecha_termino → igual que hoy.
+export function unidadEnIndivisoAFecha(u, fechaISO) {
+  if (!u || u.activo === false) return false;
+  if (!u.fecha_termino) return true;
+  const d = fechaISO || new Date().toISOString().slice(0, 10);
+  return String(u.fecha_termino) > d;
+}

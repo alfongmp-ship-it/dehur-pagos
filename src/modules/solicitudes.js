@@ -7,6 +7,7 @@ import { cerrar } from '../ui/modal.js';
 import { buscarProveedorSol, normalizar } from '../matching/fuzzy.js';
 import { gsSaveAlias } from '../services/google-sync.js';
 import { renderCola } from './dispersion.js';
+import { unidadEnIndivisoAFecha } from '../config/costos-fiscales.js';
 // Resuelve un nombre de partida-obra al item del catálogo Obra del proyecto.
 // Busca primero el item específico del proyecto; si no, cae al maestro (sin proyecto).
 function resolverPartidaObra(nombreObra, proyecto) {
@@ -115,15 +116,15 @@ function _repIndivisoKw(codigo) {
 }
 // Expande un % por indiviso entre las casas activas del proyecto → [{unidad_id, casa, pct}].
 // Devuelve null y empuja a `errores` si no hay casas o no tienen indiviso.
-function _repExpandirIndiviso(pct, proyecto, errores) {
-  const delProyecto = state.unidades.filter(u => u.activo !== false && normCodigo(u.proyecto) === normCodigo(proyecto));
+function _repExpandirIndiviso(pct, proyecto, errores, fechaISO) {
+  const delProyecto = state.unidades.filter(u => unidadEnIndivisoAFecha(u, fechaISO) && normCodigo(u.proyecto) === normCodigo(proyecto));
   if (!delProyecto.length) { errores.push(`indiviso:${pct} pero el proyecto '${proyecto}' no tiene casas.`); return null; }
   const sumaInd = delProyecto.reduce((s, u) => s + (u.indiviso_pct || 0), 0);
   if (sumaInd <= 0) { errores.push(`indiviso:${pct} pero las casas de '${proyecto}' no tienen indiviso_pct definido.`); return null; }
   return delProyecto.map(u => ({ unidad_id: u.unidad_id, casa: u.nombre, pct: (u.indiviso_pct / sumaInd) * pct }));
 }
 
-export function parseReparto(repartoRaw, unidadesRaw, proyecto) {
+export function parseReparto(repartoRaw, unidadesRaw, proyecto, fechaISO) {
   const errores = [];
   const warnings = [];
   let asignaciones = [];
@@ -152,7 +153,7 @@ export function parseReparto(repartoRaw, unidadesRaw, proyecto) {
 
   if (metodo === 'indiviso') {
     if (unidadesStr) warnings.push(`Columna Unidades se ignora cuando Reparto='indiviso' (se reparte entre TODAS las casas del proyecto).`);
-    const delProyecto = state.unidades.filter(u => u.activo !== false && normCodigo(u.proyecto) === normCodigo(proyecto));
+    const delProyecto = state.unidades.filter(u => unidadEnIndivisoAFecha(u, fechaISO) && normCodigo(u.proyecto) === normCodigo(proyecto));
     if (!delProyecto.length) {
       errores.push(`No hay unidades en el proyecto '${proyecto}' para repartir por indiviso.`);
       return { asignaciones, metodo, errores, warnings };
@@ -239,7 +240,7 @@ export function parseReparto(repartoRaw, unidadesRaw, proyecto) {
       }
       sumaPct += pct;
       // Token de indiviso (amenidades/común): reparte ESE % por indiviso entre todas.
-      if (_repIndivisoKw(codigo)) return _repExpandirIndiviso(pct, proyecto, errores);
+      if (_repIndivisoKw(codigo)) return _repExpandirIndiviso(pct, proyecto, errores, fechaISO);
       const u = resolverUnidadPorCodigo(codigo, proyecto);
       if (!u) noEncontradas.push(codigo);
       return [{ unidad_id: u?.unidad_id || null, casa: u?.nombre || codigo, pct }];
