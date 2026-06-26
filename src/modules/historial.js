@@ -1,5 +1,5 @@
 import { state, datosListos, puedeEditar, esAdmin } from '../state.js';
-import { fmt, dl, fmtFecha } from '../ui/format.js';
+import { fmt, dl, fmtFecha, escapeHtml } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { proyTag, catTag } from '../ui/badges.js';
 import { gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveTraspasos, gsSaveCostoAsignaciones, purgarAsignacionesDePago, purgarFacturaPagosDePagos, esPorFila, sbGuardarFila, sbBorrarFila } from '../services/google-sync.js';
@@ -54,7 +54,7 @@ export function renderHistorial() {
     const partidaVal = h.partida || '—';
     const subPartidaVal = h.sub_partida || '—';
     const conceptoVal = h.concepto || '';
-    return `<div class="hist-row"><div style="text-align:center;"><input type="checkbox" class="req-admin" ${histSel.has(String(h.id)) ? 'checked' : ''} onclick="toggleHistSel('${String(h.id).replace(/'/g, "\\'")}', event)" style="cursor:pointer;" title="Seleccionar"></div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.proveedor_id || '—'}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.factura_id || '—'}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${fmtFecha(h.fecha)}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${h.cuenta_origen || ''}">${h.cuenta_origen || '—'}</div><div style="${TRUNC}"><div style="font-weight:500;font-size:12px;${TRUNC}" title="${h.nombre}">${h.nombre}</div><div style="font-size:11px;color:var(--muted);${TRUNC}">${h.banco} · ${h.tipo}</div></div><div>${trBadge}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${tipoProv}">${tipoProv}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${subcat}">${subcat}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${partidaVal}">${partidaVal}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${subPartidaVal}">${subPartidaVal}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${conceptoVal.replace(/"/g, '&quot;')}">${conceptoVal || '—'}</div><div style="font-family:'DM Mono',monospace;font-weight:500;color:var(--accent);text-align:right;">${fmt(h.importe)}</div><div>${proyTag(h.proyecto)}</div><div style="text-align:right;display:flex;gap:2px;justify-content:flex-end;"><button class="btn btn-ghost btn-sm" onclick="editarPartidaPago(${state.historial.indexOf(h)})" style="font-size:11px;padding:2px 5px;" title="Editar partida / sub-partida">✏️</button><button class="btn btn-ghost btn-sm" onclick="eliminarHistorial(${state.historial.indexOf(h)})" style="color:#e74c3c;font-size:11px;padding:2px 5px;" title="Eliminar">✕</button></div></div>`;
+    return `<div class="hist-row"><div style="text-align:center;"><input type="checkbox" class="req-admin" ${histSel.has(String(h.id)) ? 'checked' : ''} onclick="toggleHistSel('${String(h.id).replace(/'/g, "\\'")}', event)" style="cursor:pointer;" title="Seleccionar"></div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.proveedor_id || '—'}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.factura_id || '—'}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${fmtFecha(h.fecha)}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${escapeHtml(h.cuenta_origen || '')}">${escapeHtml(h.cuenta_origen || '—')}</div><div style="${TRUNC}"><div style="font-weight:500;font-size:12px;${TRUNC}" title="${escapeHtml(h.nombre)}">${escapeHtml(h.nombre)}</div><div style="font-size:11px;color:var(--muted);${TRUNC}">${escapeHtml(h.banco)} · ${escapeHtml(h.tipo)}</div></div><div>${trBadge}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${escapeHtml(tipoProv)}">${escapeHtml(tipoProv)}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${escapeHtml(subcat)}">${escapeHtml(subcat)}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${escapeHtml(partidaVal)}">${escapeHtml(partidaVal)}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${escapeHtml(subPartidaVal)}">${escapeHtml(subPartidaVal)}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${escapeHtml(conceptoVal)}">${escapeHtml(conceptoVal || '—')}</div><div style="font-family:'DM Mono',monospace;font-weight:500;color:var(--accent);text-align:right;">${fmt(h.importe)}</div><div>${proyTag(h.proyecto)}</div><div style="text-align:right;display:flex;gap:2px;justify-content:flex-end;"><button class="btn btn-ghost btn-sm" onclick="editarPartidaPago(${state.historial.indexOf(h)})" style="font-size:11px;padding:2px 5px;" title="Editar partida / sub-partida">✏️</button><button class="btn btn-ghost btn-sm" onclick="eliminarHistorial(${state.historial.indexOf(h)})" style="color:#e74c3c;font-size:11px;padding:2px 5px;" title="Eliminar">✕</button></div></div>`;
   }).join('');
 
   // Borrado en bloque: descarta de la selección ids que ya no existen y refresca la barra.
@@ -68,7 +68,7 @@ function refreshHistProyectos() {
   if (!sel) return;
   const val = sel.value;
   const opts = state.proyectos.filter(p => p.activo !== false).map(p => p.nombre);
-  sel.innerHTML = '<option value="">Todos los proyectos</option>' + opts.map(n => `<option>${n}</option>`).join('');
+  sel.innerHTML = '<option value="">Todos los proyectos</option>' + opts.map(n => `<option>${escapeHtml(n)}</option>`).join('');
   sel.value = val;
 }
 
@@ -81,7 +81,7 @@ function refreshHistPartidas() {
   const enHistorial = [...new Set(state.historial.map(h => h.partida).filter(Boolean))];
   const opts = getPartidasParaSelect(enHistorial);
   sel.innerHTML = '<option value="">Todas las partidas</option>' +
-    opts.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
+    opts.map(o => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`).join('');
   sel.value = val;
 }
 
@@ -102,7 +102,7 @@ function refreshHistSubPartidas() {
   }
   sel.disabled = false;
   sel.innerHTML = '<option value="">Todas las sub-partidas</option>' +
-    subs.map(s => `<option value="${s}">${s}</option>`).join('');
+    subs.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
   sel.value = subs.includes(val) ? val : '';
 }
 
@@ -334,7 +334,7 @@ function _poblarModalPartida(partidaActual, subActual) {
   if (partidaActual) legacy.push(partidaActual);
   const opts = getPartidasParaSelect(legacy);
   selP.innerHTML = '<option value="">— Selecciona partida —</option>' +
-    opts.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
+    opts.map(o => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`).join('');
   selP.value = partidaActual || '';
   selP.dataset.subActual = subActual || '';
   actualizarSubpartidaCambiar();
@@ -349,7 +349,7 @@ export function actualizarSubpartidaCambiar() {
   if (subPartidaObligatoria(selP.value)) {
     const subs = getSubPartidas(selP.value);
     selS.innerHTML = '<option value="">— Selecciona sub-partida —</option>' +
-      subs.map(s => `<option value="${s}">${s}</option>`).join('');
+      subs.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
     selS.value = selP.dataset.subActual || '';
     wrap.style.display = '';
   } else {
