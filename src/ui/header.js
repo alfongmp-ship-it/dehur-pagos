@@ -1,5 +1,5 @@
 import { state, datosListos } from '../state.js';
-import { fmt } from './format.js';
+import { fmt, escapeHtml } from './format.js';
 
 export function actualizarDisplaySaldo() {
   const el = document.getElementById('disp-saldo-display');
@@ -21,13 +21,13 @@ export function renderHeaderBadges() {
   if (!datosListos()) { hb.innerHTML = ''; return; }
   const proyBadges = state.proyectos.filter(p => p.activo).map(p =>
     `<span class="badge" style="border-left:3px solid ${p.color};display:flex;align-items:center;gap:8px;padding:6px 12px;">
-      <span style="font-size:12px;font-weight:500;">${p.nombre}</span>
+      <span style="font-size:12px;font-weight:500;">${escapeHtml(p.nombre)}</span>
       <span style="font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:${p.saldo ? 'var(--green)' : 'var(--muted)'};">${p.saldo ? fmt(p.saldo) : '—'}</span>
     </span>`
   ).join('');
   const extraBadges = state.cuentasPropias.filter(c => c.activo !== false).map(c =>
     `<span class="badge" style="border-left:3px solid var(--accent);display:flex;align-items:center;gap:8px;padding:6px 12px;">
-      <span style="font-size:12px;font-weight:500;">${c.nombre}</span>
+      <span style="font-size:12px;font-weight:500;">${escapeHtml(c.nombre)}</span>
       <span style="font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:${c.saldo ? 'var(--green)' : 'var(--muted)'};">${c.saldo ? fmt(c.saldo) : '—'}</span>
     </span>`
   ).join('');
@@ -39,7 +39,7 @@ export function renderCuentaDispSelect() {
   if (!sel) return;
   const cur = sel.value;
   sel.innerHTML = state.proyectos.filter(p => p.activo).map(p =>
-    `<option value="${p.id}">${p.nombre} – BBVA ···${p.cuenta.slice(-4)}</option>`
+    `<option value="${p.id}">${escapeHtml(p.nombre)} – BBVA ···${p.cuenta.slice(-4)}</option>`
   ).join('');
   if (cur && state.proyectos.find(p => p.id === cur)) sel.value = cur;
   actualizarDisplaySaldo();

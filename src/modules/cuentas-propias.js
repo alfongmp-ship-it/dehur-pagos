@@ -1,5 +1,5 @@
 import { state, datosListos, esAdmin } from '../state.js';
-import { fmt } from '../ui/format.js';
+import { fmt, escapeHtml } from '../ui/format.js';
 import { proyTag } from '../ui/badges.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
@@ -35,13 +35,13 @@ export function renderCuentasPropias() {
     .filter(p => p.activo !== false && p.cuenta)
     .map(p => `<tr style="opacity:.85;">
       <td>${tipoBadge(p.tipo_cuenta || 'Dispersión')}</td>
-      <td><div style="font-weight:500;font-size:12px;">${p.nombre} <span style="font-size:10px;color:var(--muted);font-weight:400;">· Principal</span></div></td>
+      <td><div style="font-weight:500;font-size:12px;">${escapeHtml(p.nombre)} <span style="font-size:10px;color:var(--muted);font-weight:400;">· Principal</span></div></td>
       <td style="font-size:11px;">BBVA</td>
-      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${p.clabe || '—'}</td>
-      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${p.cuenta || '—'}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${escapeHtml(p.clabe) || '—'}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${escapeHtml(p.cuenta) || '—'}</td>
       <td>${proyTag(p.nombre)}</td>
       <td style="font-family:'DM Mono',monospace;font-weight:500;text-align:right;color:${p.saldo ? 'var(--accent)' : 'var(--muted)'};">${p.saldo ? fmt(p.saldo) : '—'}</td>
-      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${p.ultima_act_saldo || '—'}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${escapeHtml(p.ultima_act_saldo) || '—'}</td>
       <td style="text-align:right;display:flex;gap:4px;justify-content:flex-end;">
         <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="actualizarSaldoCuenta('${p.id}')">Actualizar saldo</button>
         <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="editarCuentaProyecto('${p.id}')">Editar</button>
@@ -53,13 +53,13 @@ export function renderCuentasPropias() {
     .filter(c => c.activo !== false)
     .map(c => `<tr>
       <td>${tipoBadge(c.tipo || 'General')}</td>
-      <td><div style="font-weight:500;font-size:12px;">${c.nombre}</div></td>
-      <td style="font-size:11px;">${c.banco}</td>
-      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${c.clabe || '—'}</td>
-      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${c.numero_cuenta || '—'}</td>
+      <td><div style="font-weight:500;font-size:12px;">${escapeHtml(c.nombre)}</div></td>
+      <td style="font-size:11px;">${escapeHtml(c.banco)}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${escapeHtml(c.clabe) || '—'}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${escapeHtml(c.numero_cuenta) || '—'}</td>
       <td>${proyTag(c.proyecto)}</td>
       <td style="font-family:'DM Mono',monospace;font-weight:500;text-align:right;color:var(--accent);">${fmt(c.saldo)}</td>
-      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${c.ultima_actualizacion || '—'}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${escapeHtml(c.ultima_actualizacion) || '—'}</td>
       <td style="text-align:right;display:flex;gap:4px;justify-content:flex-end;">
         <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="actualizarSaldoExtra(${c.cuenta_id})">Actualizar saldo</button>
         <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="editarCuenta(${c.cuenta_id})">Editar</button>
@@ -84,7 +84,7 @@ function populateCuentaSelects() {
   const sel = document.getElementById('cp-proyecto');
   if (!sel) return;
   sel.innerHTML = '<option value="">— Sin proyecto —</option>' +
-    state.proyectos.filter(p => p.activo !== false).map(p => `<option>${p.nombre}</option>`).join('');
+    state.proyectos.filter(p => p.activo !== false).map(p => `<option>${escapeHtml(p.nombre)}</option>`).join('');
 }
 
 export function abrirNuevaCuenta() {

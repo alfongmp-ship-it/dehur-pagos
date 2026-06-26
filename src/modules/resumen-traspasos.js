@@ -1,5 +1,5 @@
 import { state, datosListos } from '../state.js';
-import { fmt, fmtFecha } from '../ui/format.js';
+import { fmt, fmtFecha, escapeHtml } from '../ui/format.js';
 import { proyectoMatch } from '../config/proyectos.js';
 
 function tipoBadge(tipo) {
@@ -9,7 +9,7 @@ function tipoBadge(tipo) {
     : tipo === 'Aportación'
       ? 'rgba(39,174,96,.15);color:#27ae60'
       : 'rgba(200,169,110,.15);color:var(--accent)';
-  return `<span style="display:inline-block;padding:2px 10px;border-radius:6px;font-size:11px;font-weight:600;background:${color};">${tipo}</span>`;
+  return `<span style="display:inline-block;padding:2px 10px;border-radius:6px;font-size:11px;font-weight:600;background:${color};">${escapeHtml(tipo)}</span>`;
 }
 
 function estatusBadge(estatus) {
@@ -19,7 +19,7 @@ function estatusBadge(estatus) {
     cancelado:  'rgba(150,150,150,.15);color:#aaa'
   };
   const style = map[estatus] || map.pendiente;
-  return `<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:600;background:${style};">${estatus}</span>`;
+  return `<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:600;background:${style};">${escapeHtml(estatus)}</span>`;
 }
 
 function getFilters() {
@@ -82,9 +82,9 @@ function renderSaldosNetos(filtrados) {
     return `
       <div style="display:inline-flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 16px;margin:0 8px 8px 0;">
         <div style="font-size:12px;">
-          <span style="font-weight:600;color:var(--red);">${deudor}</span>
+          <span style="font-weight:600;color:var(--red);">${escapeHtml(deudor)}</span>
           <span style="color:var(--muted);margin:0 6px;">le debe a</span>
-          <span style="font-weight:600;color:var(--green);">${acreedor}</span>
+          <span style="font-weight:600;color:var(--green);">${escapeHtml(acreedor)}</span>
         </div>
         <div style="font-family:'DM Mono',monospace;font-weight:700;color:${color};font-size:15px;">${fmt(monto)}</div>
       </div>
@@ -106,11 +106,11 @@ function renderTabla(filtrados) {
     <tr>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${fmtFecha(t.fecha) || '—'}</td>
       <td>${tipoBadge(t.tipo)}</td>
-      <td style="font-size:12px;font-weight:500;">${t.cuenta_origen_nombre || '—'}</td>
-      <td style="font-size:12px;color:var(--muted);">${t.cuenta_destino_nombre || '—'}</td>
+      <td style="font-size:12px;font-weight:500;">${escapeHtml(t.cuenta_origen_nombre || '—')}</td>
+      <td style="font-size:12px;color:var(--muted);">${escapeHtml(t.cuenta_destino_nombre || '—')}</td>
       <td style="font-family:'DM Mono',monospace;font-weight:600;text-align:right;color:var(--accent);">${fmt(t.monto)}</td>
-      <td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.concepto || '—'}</td>
-      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${t.referencia || '—'}</td>
+      <td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(t.concepto || '—')}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${escapeHtml(t.referencia || '—')}</td>
       <td>${estatusBadge(t.estatus)}</td>
       <td style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);">${fmtFecha(t.fecha_registro) || '—'}</td>
     </tr>
@@ -125,7 +125,7 @@ function populateProyectosSelect() {
     ...state.traspasos.map(t => t.proyecto_destino)
   ])].filter(Boolean).sort();
   sel.innerHTML = '<option value="">Todos los proyectos</option>' +
-    proyectos.map(p => `<option value="${p}">${p}</option>`).join('');
+    proyectos.map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
 }
 
 export function filtrarResumen() {

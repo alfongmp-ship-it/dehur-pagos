@@ -3,6 +3,7 @@
 
 import { state, rolLabel } from '../state.js';
 import { signIn, signOut, fetchCurrentTenantInfo, onAuthStateChange, getSupabaseClient } from './supabase.js';
+import { escapeHtml } from '../ui/format.js';
 
 const APP_SHELL_ID = 'app-shell';
 const AUTH_SCREEN_ID = 'auth-screen';
@@ -102,10 +103,6 @@ function closeUserMenu() {
     document.removeEventListener('click', _userMenuDocListener);
     _userMenuDocListener = null;
   }
-}
-
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
 function setLoginButton(text, disabled) {

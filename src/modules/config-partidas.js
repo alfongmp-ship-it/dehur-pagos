@@ -1,4 +1,5 @@
 import { state, esAdmin } from '../state.js';
+import { escapeHtml } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { gsSavePartidasCatalogo, gsSaveHistorial, esPorFila, sbGuardarFila, sbBorrarFila } from '../services/google-sync.js';
@@ -31,7 +32,7 @@ export function renderConfigPartidas() {
   div.innerHTML = cat.map(p => `
     <div style="display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--border);">
       <div style="flex:1;min-width:0;">
-        <div style="font-weight:600;font-size:13px;">${p.partida}${p.activa === false ? ' <span style="color:var(--muted);font-weight:400;">(inactiva)</span>' : ''}</div>
+        <div style="font-weight:600;font-size:13px;">${escapeHtml(p.partida)}${p.activa === false ? ' <span style="color:var(--muted);font-weight:400;">(inactiva)</span>' : ''}</div>
         <div style="font-size:11px;color:var(--muted);margin-top:2px;">
           ${(p.subpartidas || []).length} subpartida${(p.subpartidas || []).length === 1 ? '' : 's'}
         </div>
@@ -78,7 +79,7 @@ function renderEditSubpartidas() {
   }
   div.innerHTML = subs.map((s, i) => `
     <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);">
-      <span style="flex:1;font-size:12px;">${s}</span>
+      <span style="flex:1;font-size:12px;">${escapeHtml(s)}</span>
       <button class="btn btn-ghost btn-sm" onclick="moverSubpartida(${i},-1)" ${i === 0 ? 'disabled' : ''}>▲</button>
       <button class="btn btn-ghost btn-sm" onclick="moverSubpartida(${i},1)" ${i === subs.length - 1 ? 'disabled' : ''}>▼</button>
       <button class="btn btn-ghost btn-sm" onclick="eliminarSubpartidaTmp(${i})" title="Quitar">✕</button>
@@ -222,7 +223,7 @@ export function previewLimpiarCatalogo() {
         Se eliminarán ${falsas.length} entrada${falsas.length === 1 ? '' : 's'} del catálogo y se asegurarán como subpartida${falsas.length === 1 ? '' : 's'} de <b>CONSTRUCCION</b>:
       </div>
       <div style="max-height:320px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:6px 12px;">
-        ${falsas.map(p => `<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;">${p.partida}${p.activa === false ? ' <span style="color:var(--muted);">(inactiva)</span>' : ''}</div>`).join('')}
+        ${falsas.map(p => `<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;">${escapeHtml(p.partida)}${p.activa === false ? ' <span style="color:var(--muted);">(inactiva)</span>' : ''}</div>`).join('')}
       </div>
       <div style="font-size:11px;color:var(--muted);margin-top:10px;line-height:1.6;">
         Esto NO modifica el historial de pagos. Los pagos viejos que tengan estas como "partida" seguirán como están.
@@ -335,7 +336,7 @@ export function previewReclasificarHistorial() {
       <div style="max-height:280px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:6px 12px;margin-bottom:10px;">
         ${filas.map(g => `
           <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;">
-            <span style="flex:1;"><code>${g.partidaActual}</code> → CONSTRUCCION + <code>${g.canonico}</code></span>
+            <span style="flex:1;"><code>${escapeHtml(g.partidaActual)}</code> → CONSTRUCCION + <code>${escapeHtml(g.canonico)}</code></span>
             <span style="font-family:'DM Mono',monospace;color:var(--accent);">${g.count}</span>
           </div>
         `).join('')}

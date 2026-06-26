@@ -1,7 +1,7 @@
 import { state, datosListos } from '../state.js';
 import { getBanco, getTipo } from '../config/bancos.js';
 import { tipoBadge, catTag, proyTag } from '../ui/badges.js';
-import { fmt, dl } from '../ui/format.js';
+import { fmt, dl, escapeHtml } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { gsSaveProveedores, esPorFila, sbGuardarFila } from '../services/google-sync.js';
@@ -35,7 +35,7 @@ export function renderProveedores() {
     tb.innerHTML = `<tr><td colspan="9"><div class="empty-state" style="padding:30px;"><div style="font-size:28px;opacity:.4;margin-bottom:8px;">🔍</div><div>Sin resultados</div></div></td></tr>`;
     return;
   }
-  tb.innerHTML = fil.map(p => `<tr><td style="font-size:12px;color:var(--muted);text-align:center;">${p.id}</td><td><div class="name-cell">${p.nombre}</div>${p.rfc ? `<div class="name-sub">${p.rfc}</div>` : ''}</td><td>${tipoBadge(p.tipo_cuenta)}</td><td style="font-size:13px;">${p.banco}</td><td><span class="mono">${p.clabe || p.cuenta}</span></td><td>${catTag(p.categoria)}</td><td style="font-size:11px;color:var(--muted);">${p.categoria === 'Proveedor' && p.subcategoria ? p.subcategoria : '—'}</td><td>${p.proyectos.map(proyTag).join(' ')}</td><td><div style="display:flex;gap:6px;justify-content:flex-end;"><button class="btn btn-success btn-sm" onclick="abrirPagoRapido('prov',${p.id})">+ Pago</button><button class="btn btn-ghost btn-sm" onclick="editarProv(${p.id})">Editar</button></div></td></tr>`).join('');
+  tb.innerHTML = fil.map(p => `<tr><td style="font-size:12px;color:var(--muted);text-align:center;">${p.id}</td><td><div class="name-cell">${escapeHtml(p.nombre)}</div>${p.rfc ? `<div class="name-sub">${escapeHtml(p.rfc)}</div>` : ''}</td><td>${tipoBadge(p.tipo_cuenta)}</td><td style="font-size:13px;">${escapeHtml(p.banco)}</td><td><span class="mono">${escapeHtml(p.clabe || p.cuenta)}</span></td><td>${catTag(p.categoria)}</td><td style="font-size:11px;color:var(--muted);">${p.categoria === 'Proveedor' && p.subcategoria ? escapeHtml(p.subcategoria) : '—'}</td><td>${p.proyectos.map(proyTag).join(' ')}</td><td><div style="display:flex;gap:6px;justify-content:flex-end;"><button class="btn btn-success btn-sm" onclick="abrirPagoRapido('prov',${p.id})">+ Pago</button><button class="btn btn-ghost btn-sm" onclick="editarProv(${p.id})">Editar</button></div></td></tr>`).join('');
   document.getElementById('st-total').textContent = state.proveedores.length;
   document.getElementById('st-clabe').textContent = state.proveedores.filter(p => p.tipo_cuenta === 'CLABE').length;
   document.getElementById('st-bbva').textContent = state.proveedores.filter(p => p.tipo_cuenta === 'Cuenta').length;

@@ -1,6 +1,6 @@
 import { state, esConcentradora, datosListos } from '../state.js';
 import { tipoBadge } from '../ui/badges.js';
-import { fmt, hoyFecha } from '../ui/format.js';
+import { fmt, hoyFecha, escapeHtml } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { saveData, gsSavePendientes, gsSaveProyectos, gsSaveCuentasPropias, gsSaveCostoAsignaciones, ensureHistorialIds, esPorFila, sbGuardarFila } from '../services/google-sync.js';
@@ -17,7 +17,7 @@ export function refreshPagoPartidaSelect() {
   const actual = sel.value || '';
   const cat = getPartidasCatalogo();
   sel.innerHTML = '<option value="">— selecciona —</option>' +
-    cat.map(p => `<option value="${p.partida}">${p.partida}</option>`).join('');
+    cat.map(p => `<option value="${escapeHtml(p.partida)}">${escapeHtml(p.partida)}</option>`).join('');
   if (actual && cat.some(p => p.partida === actual)) sel.value = actual;
 }
 
@@ -31,7 +31,7 @@ export function togglePagoSubPartida() {
   const obligatoria = subPartidaObligatoria(partida);
   if (opciones.length) {
     sel.innerHTML = (obligatoria ? '' : '<option value="">— (opcional) —</option>') +
-      opciones.map(o => `<option value="${o}">${o}</option>`).join('');
+      opciones.map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('');
     if (lbl) lbl.innerHTML = obligatoria ? 'Sub-partida *' : 'Sub-partida';
     wrap.style.display = '';
   } else {
@@ -74,10 +74,10 @@ export function abrirModalPago() {
   const sel = document.getElementById('pago-cuenta-origen');
   if (sel) {
     const proyOpts = state.proyectos.filter(p => p.activo !== false && p.cuenta).map(p =>
-      `<option value="proy:${p.nombre}" data-tipo="bbva">${p.nombre} – BBVA ···${p.cuenta.slice(-4)}</option>`
+      `<option value="proy:${escapeHtml(p.nombre)}" data-tipo="bbva">${escapeHtml(p.nombre)} – BBVA ···${escapeHtml(p.cuenta.slice(-4))}</option>`
     ).join('');
     const extraOpts = state.cuentasPropias.filter(c => c.activo !== false).map(c =>
-      `<option value="extra:${c.nombre}" data-tipo="otro">${c.nombre} – ${c.banco}${c.numero_cuenta ? ' ···' + c.numero_cuenta.slice(-4) : ''}</option>`
+      `<option value="extra:${escapeHtml(c.nombre)}" data-tipo="otro">${escapeHtml(c.nombre)} – ${escapeHtml(c.banco)}${c.numero_cuenta ? ' ···' + escapeHtml(c.numero_cuenta.slice(-4)) : ''}</option>`
     ).join('');
     sel.innerHTML = proyOpts + extraOpts;
   }
@@ -123,7 +123,7 @@ export function buscarModal() {
   if (!f.length) { res.style.display = 'none'; return; }
   res.style.display = '';
   res.innerHTML = f.map(p =>
-    `<div onclick="selPago('${p._src}',${p.id})" style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''"><div style="font-weight:500;font-size:12px;">${p.nombre}</div><div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;">${p.cuenta} · ${p.banco} · ${p.tipo_cuenta}</div></div>`
+    `<div onclick="selPago('${p._src}',${p.id})" style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''"><div style="font-weight:500;font-size:12px;">${escapeHtml(p.nombre)}</div><div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;">${escapeHtml(p.cuenta)} · ${escapeHtml(p.banco)} · ${escapeHtml(p.tipo_cuenta)}</div></div>`
   ).join('');
 }
 
@@ -220,7 +220,7 @@ export function abrirModalNominaDisp() {
 function renderNomDisp(q = '') {
   const fil = state.empleados.filter(e => e.activo && (!q || e.nombre.toLowerCase().includes(q)));
   document.getElementById('nom-disp-lista').innerHTML = fil.map(e =>
-    `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);"><input type="checkbox" id="chk-${e.id}" value="${e.id}" style="width:16px;height:16px;cursor:pointer;"><div style="flex:1;"><div style="font-weight:500;font-size:12px;">${e.nombre}</div><div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;">${e.cuenta} · ${e.banco} · ${tipoBadge(e.tipo_cuenta)}</div></div><div style="position:relative;"><span style="position:absolute;left:8px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:11px;">$</span><input type="number" id="monto-${e.id}" placeholder="0.00" step="0.01" style="width:110px;padding:6px 8px 6px 18px;font-size:12px;" onclick="this.previousElementSibling.parentElement.previousElementSibling.previousElementSibling.checked=true"></div></div>`
+    `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);"><input type="checkbox" id="chk-${e.id}" value="${e.id}" style="width:16px;height:16px;cursor:pointer;"><div style="flex:1;"><div style="font-weight:500;font-size:12px;">${escapeHtml(e.nombre)}</div><div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;">${escapeHtml(e.cuenta)} · ${escapeHtml(e.banco)} · ${tipoBadge(e.tipo_cuenta)}</div></div><div style="position:relative;"><span style="position:absolute;left:8px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:11px;">$</span><input type="number" id="monto-${e.id}" placeholder="0.00" step="0.01" style="width:110px;padding:6px 8px 6px 18px;font-size:12px;" onclick="this.previousElementSibling.parentElement.previousElementSibling.previousElementSibling.checked=true"></div></div>`
   ).join('');
 }
 
@@ -266,7 +266,7 @@ export function renderCola() {
     return;
   }
   lista.innerHTML = state.cola.map(item =>
-    `<div class="queue-item"><div style="flex:1;"><div class="qi-name">${item.proveedor.nombre}</div><div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:2px;">${item.proveedor.cuenta} · ${item.proveedor.banco} ${tipoBadge(item.proveedor.tipo_cuenta)}</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">${item.concepto} · ${item.proyecto}${item.partida ? ' · <span style="color:var(--accent);">' + item.partida + '</span>' : ''}</div></div><div style="text-align:right;"><div class="qi-amount">${fmt(item.importe)}</div></div><button onclick="qDel(${item.id})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:4px;" title="Quitar">✕</button></div>`
+    `<div class="queue-item"><div style="flex:1;"><div class="qi-name">${escapeHtml(item.proveedor.nombre)}</div><div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:2px;">${escapeHtml(item.proveedor.cuenta)} · ${escapeHtml(item.proveedor.banco)} ${tipoBadge(item.proveedor.tipo_cuenta)}</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">${escapeHtml(item.concepto)} · ${escapeHtml(item.proyecto)}${item.partida ? ' · <span style="color:var(--accent);">' + escapeHtml(item.partida) + '</span>' : ''}</div></div><div style="text-align:right;"><div class="qi-amount">${fmt(item.importe)}</div></div><button onclick="qDel(${item.id})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:4px;" title="Quitar">✕</button></div>`
   ).join('');
   const total = state.cola.reduce((s, i) => s + i.importe, 0);
   document.getElementById('total-amount').textContent = fmt(total);
@@ -298,7 +298,7 @@ export function buscarRapido() {
   const all = [...state.proveedores.map(p => ({ ...p, _src: 'prov' })), ...state.empleados.map(e => ({ ...e, _src: 'emp' }))];
   const f = all.filter(p => p.activo && p.nombre.toLowerCase().includes(q)).slice(0, 7);
   res.innerHTML = f.map(p =>
-    `<div onclick="quickAdd('${p._src}',${p.id})" style="padding:8px 10px;cursor:pointer;border-radius:6px;margin-bottom:4px;background:var(--surface2);" onmouseover="this.style.background='var(--border)'" onmouseout="this.style.background='var(--surface2)'"><div style="font-size:12px;font-weight:500;">${p.nombre.substring(0, 40)}${p.nombre.length > 40 ? '...' : ''}</div><div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;">${p.banco} · ${p.tipo_cuenta}</div></div>`
+    `<div onclick="quickAdd('${p._src}',${p.id})" style="padding:8px 10px;cursor:pointer;border-radius:6px;margin-bottom:4px;background:var(--surface2);" onmouseover="this.style.background='var(--border)'" onmouseout="this.style.background='var(--surface2)'"><div style="font-size:12px;font-weight:500;">${escapeHtml(p.nombre.substring(0, 40))}${p.nombre.length > 40 ? '...' : ''}</div><div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;">${escapeHtml(p.banco)} · ${escapeHtml(p.tipo_cuenta)}</div></div>`
   ).join('') || '<div style="font-size:12px;color:var(--muted);padding:8px;">Sin resultados</div>';
 }
 

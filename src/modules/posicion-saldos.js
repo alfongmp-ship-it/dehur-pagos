@@ -1,5 +1,5 @@
 import { state } from '../state.js';
-import { fmt } from '../ui/format.js';
+import { fmt, escapeHtml } from '../ui/format.js';
 
 let chartSaldos = null;
 
@@ -46,9 +46,9 @@ export function renderPosicionSaldos() {
     </div>` +
     todas.map(c =>
       `<div class="stat-card" style="border-left:3px solid ${c.color};">
-        <div class="stat-label">${c.nombre}</div>
+        <div class="stat-label">${escapeHtml(c.nombre)}</div>
         <div class="stat-value" style="color:${c.color};font-size:20px;">${fmt(c.saldo)}</div>
-        <div class="stat-sub">${c.ult || 'Sin actualizar'}</div>
+        <div class="stat-sub">${escapeHtml(c.ult) || 'Sin actualizar'}</div>
       </div>`
     ).join('');
 

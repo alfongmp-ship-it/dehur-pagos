@@ -3,7 +3,7 @@
 // para conocer el costo real por casa. No toca el flujo de pagos existente.
 
 import { state, datosListos, puedeEditar } from '../state.js';
-import { fmt, fmtFecha } from '../ui/format.js';
+import { fmt, fmtFecha, escapeHtml } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { proyectoMatch } from '../config/proyectos.js';
@@ -241,8 +241,8 @@ function renderProyTabs(activos) {
   if (!cont) return;
   cont.innerHTML = activos.map(p => {
     const act = p.nombre === cfProyecto;
-    return `<button class="re-tab${act ? ' active' : ''}" data-proy="${p.nombre.replace(/"/g, '&quot;')}"
-      style="${act ? `border-color:${p.color || 'var(--accent)'};color:${p.color || 'var(--accent)'};` : ''}">${p.nombre}</button>`;
+    return `<button class="re-tab${act ? ' active' : ''}" data-proy="${escapeHtml(p.nombre)}"
+      style="${act ? `border-color:${p.color || 'var(--accent)'};color:${p.color || 'var(--accent)'};` : ''}">${escapeHtml(p.nombre)}</button>`;
   }).join('') || '<div style="color:var(--muted);font-size:12px;">Sin proyectos activos</div>';
   cont.querySelectorAll('.re-tab').forEach(b => {
     b.addEventListener('click', () => { cfProyecto = b.dataset.proy; cfUnidadDetalle = null; renderCostosFiscales(); });
@@ -323,14 +323,14 @@ function renderUnidadesTab(panel) {
         <tbody>${unidades.map(u => {
           const real = costoRealUnidad(u.unidad_id);
           return `<tr style="${u.activo === false ? 'opacity:.5;' : ''}">
-            <td style="font-weight:600;">${u.nombre}</td>
-            <td style="color:var(--muted);">${u.tipo || '—'}</td>
+            <td style="font-weight:600;">${escapeHtml(u.nombre)}</td>
+            <td style="color:var(--muted);">${escapeHtml(u.tipo) || '—'}</td>
             <td style="text-align:right;font-family:'DM Mono',monospace;">${(u.indiviso_pct || 0).toFixed(2)}%</td>
             <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--muted);">${u.superficie_m2 ? u.superficie_m2 + ' m²' : '—'}</td>
-            <td><span id="estatus-u-${u.unidad_id}" style="font-size:11px;color:var(--muted);">${u.estatus || '—'}</span></td>
+            <td><span id="estatus-u-${u.unidad_id}" style="font-size:11px;color:var(--muted);">${escapeHtml(u.estatus) || '—'}</span></td>
             <td>${puedeEditar()
-              ? `<input type="date" value="${u.fecha_termino || ''}" onchange="setFechaTermino(${u.unidad_id}, this.value)" title="Fecha en que la casa salió del indiviso (vacío = sigue en obra)" style="font-size:11px;padding:2px 4px;width:130px;">`
-              : `<span style="font-size:11px;color:var(--muted);">${u.fecha_termino || '—'}</span>`}</td>
+              ? `<input type="date" value="${escapeHtml(u.fecha_termino || '')}" onchange="setFechaTermino(${u.unidad_id}, this.value)" title="Fecha en que la casa salió del indiviso (vacío = sigue en obra)" style="font-size:11px;padding:2px 4px;width:130px;">`
+              : `<span style="font-size:11px;color:var(--muted);">${escapeHtml(u.fecha_termino) || '—'}</span>`}</td>
             <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--accent);">${fmt(real)}</td>
             <td style="text-align:right;white-space:nowrap;">
               <button class="btn btn-ghost btn-sm" onclick="editarUnidad(${u.unidad_id})">Editar</button>
@@ -339,7 +339,7 @@ function renderUnidadesTab(panel) {
           </tr>`;
         }).join('')}</tbody>
       </table>
-    </div>` : `<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🏠</div><div>Sin unidades en ${cfProyecto}. Crea las casas para empezar.</div></div>`}
+    </div>` : `<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🏠</div><div>Sin unidades en ${escapeHtml(cfProyecto)}. Crea las casas para empezar.</div></div>`}
   `;
 }
 
@@ -502,16 +502,16 @@ function renderAsignarTab(panel) {
       <table>
         <thead><tr><th>Fecha</th><th>Beneficiario</th><th>Concepto</th><th>Partida</th><th style="text-align:right">Importe</th><th style="text-align:right">Acción</th></tr></thead>
         <tbody id="cf-pend-tbody">${pendientes.map(h => `
-          <tr class="cf-pend-row" data-buscar="${`${h.nombre || ''} ${h.concepto || ''} ${h.partida || ''}`.toLowerCase().replace(/"/g, '')}">
+          <tr class="cf-pend-row" data-buscar="${escapeHtml(`${h.nombre || ''} ${h.concepto || ''} ${h.partida || ''}`.toLowerCase().replace(/"/g, ''))}">
             <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${fmtFecha(h.fecha)}</td>
-            <td style="font-weight:500;">${h.nombre || '—'}</td>
-            <td style="color:var(--muted);font-size:12px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${h.concepto || '—'}</td>
-            <td style="color:var(--muted);font-size:12px;">${h.partida || 'Sin partida'}</td>
+            <td style="font-weight:500;">${escapeHtml(h.nombre) || '—'}</td>
+            <td style="color:var(--muted);font-size:12px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(h.concepto) || '—'}</td>
+            <td style="color:var(--muted);font-size:12px;">${escapeHtml(h.partida) || 'Sin partida'}</td>
             <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--accent);">${fmt(h.importe || 0)}</td>
             <td style="text-align:right;"><button class="btn btn-primary btn-sm" onclick="abrirAsignarCosto('${h.id}')">Asignar</button></td>
           </tr>`).join('')}</tbody>
       </table>
-    </div>` : '<div class="empty-state" style="margin-bottom:24px;"><div style="font-size:28px;opacity:.4;margin-bottom:8px;">✅</div><div>Todos los pagos de ' + cfProyecto + ' están asignados</div></div>'}
+    </div>` : '<div class="empty-state" style="margin-bottom:24px;"><div style="font-size:28px;opacity:.4;margin-bottom:8px;">✅</div><div>Todos los pagos de ' + escapeHtml(cfProyecto) + ' están asignados</div></div>'}
   `;
   cfFiltrarPendientes();
 }
@@ -560,14 +560,14 @@ function renderAsignadosTab(panel) {
           const asigs = state.costoAsignaciones.filter(a => String(a.pago_id) === String(h.id));
           const detalle = asigs.map(a => {
             const u = unidadById(a.unidad_id);
-            return `${u ? u.nombre : '#' + a.unidad_id}: ${fmt(a.monto_asignado)}`;
+            return `${escapeHtml(u ? u.nombre : '#' + a.unidad_id)}: ${fmt(a.monto_asignado)}`;
           }).join(' · ');
           const metodo = asigs[0] ? METODO_LABEL[asigs[0].metodo] || asigs[0].metodo : '';
-          return `<tr class="cf-asig-row" data-buscar="${`${h.nombre || ''} ${h.concepto || ''}`.toLowerCase().replace(/"/g, '')}">
+          return `<tr class="cf-asig-row" data-buscar="${escapeHtml(`${h.nombre || ''} ${h.concepto || ''}`.toLowerCase().replace(/"/g, ''))}">
             <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${fmtFecha(h.fecha)}</td>
-            <td style="font-weight:500;">${h.nombre || '—'}</td>
+            <td style="font-weight:500;">${escapeHtml(h.nombre) || '—'}</td>
             <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--accent);">${fmt(h.importe || 0)}</td>
-            <td style="font-size:11px;color:var(--muted);"><div style="color:var(--text);font-weight:500;">${metodo}</div>${detalle}</td>
+            <td style="font-size:11px;color:var(--muted);"><div style="color:var(--text);font-weight:500;">${escapeHtml(metodo)}</div>${detalle}</td>
             <td style="text-align:right;white-space:nowrap;">
               <button class="btn btn-ghost btn-sm" onclick="reasignarCosto('${h.id}')">Reasignar</button>
               <button class="btn btn-ghost btn-sm" onclick="eliminarAsignacionCosto('${h.id}')" style="color:var(--red);">Quitar</button>
@@ -575,7 +575,7 @@ function renderAsignadosTab(panel) {
           </tr>`;
         }).join('')}</tbody>
       </table>
-    </div>` : '<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">📭</div><div>Aún no hay pagos asignados en ' + cfProyecto + '</div></div>'}
+    </div>` : '<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">📭</div><div>Aún no hay pagos asignados en ' + escapeHtml(cfProyecto) + '</div></div>'}
   `;
   cfFiltrarAsignados();
 }
@@ -626,8 +626,8 @@ export function abrirAsignarCosto(pagoId) {
 
   document.getElementById('asignar-info').innerHTML = `
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:14px;">
-      <div style="font-weight:600;">${pago.nombre || '—'}</div>
-      <div style="font-size:11px;color:var(--muted);margin-top:2px;">${fmtFecha(pago.fecha)} · ${pago.concepto || 'Sin concepto'} · ${pago.partida || 'Sin partida'}</div>
+      <div style="font-weight:600;">${escapeHtml(pago.nombre) || '—'}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px;">${fmtFecha(pago.fecha)} · ${escapeHtml(pago.concepto) || 'Sin concepto'} · ${escapeHtml(pago.partida) || 'Sin partida'}</div>
       <div style="font-family:'DM Mono',monospace;font-size:18px;color:var(--accent);font-weight:700;margin-top:6px;">${fmt(pago.importe || 0)}</div>
     </div>`;
 
@@ -660,8 +660,8 @@ export function abrirRepartirFactura(facturaId) {
   const previa = state.costoAsignaciones.find(a => String(a.factura_id) === String(facturaId));
   document.getElementById('asignar-info').innerHTML = `
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:14px;">
-      <div style="font-weight:600;">🧾 Factura ${f.numero_factura || ''} · ${prov}</div>
-      <div style="font-size:11px;color:var(--muted);margin-top:2px;">${f.proyecto} · devengado sobre el total de la factura</div>
+      <div style="font-weight:600;">🧾 Factura ${escapeHtml(f.numero_factura) || ''} · ${escapeHtml(prov)}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px;">${escapeHtml(f.proyecto)} · devengado sobre el total de la factura</div>
       <div style="font-family:'DM Mono',monospace;font-size:18px;color:var(--accent);font-weight:700;margin-top:6px;">${fmt(f.monto_total || 0)}</div>
     </div>
     ${_repartoFacturaPartidaHTML(previa ? previa.partida_override : '')}`;
@@ -680,7 +680,7 @@ export function abrirRepartirFactura(facturaId) {
 // Selector de partida (+ sub-partida en cascada) para el reparto de factura.
 function _repartoFacturaPartidaHTML(partidaSel) {
   const cats = (state.partidasCatalogo || []).filter(p => p.activa !== false);
-  const opts = cats.map(p => `<option value="${p.partida}" ${p.partida === partidaSel ? 'selected' : ''}>${p.partida}</option>`).join('');
+  const opts = cats.map(p => `<option value="${escapeHtml(p.partida)}" ${p.partida === partidaSel ? 'selected' : ''}>${escapeHtml(p.partida)}</option>`).join('');
   return `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
       <div><label style="font-size:12px;color:var(--muted);">Partida *</label>
@@ -701,7 +701,7 @@ export function cfFacturaPartidaChange() {
   const cat = (state.partidasCatalogo || []).find(p => p.partida === partSel.value);
   const subs = (cat && Array.isArray(cat.subpartidas)) ? cat.subpartidas : [];
   if (subs.length) {
-    subSel.innerHTML = '<option value="">— Selecciona —</option>' + subs.map(s => `<option>${s}</option>`).join('');
+    subSel.innerHTML = '<option value="">— Selecciona —</option>' + subs.map(s => `<option>${escapeHtml(s)}</option>`).join('');
     if (subWrap) subWrap.style.display = '';
   } else {
     subSel.innerHTML = '';
@@ -742,7 +742,7 @@ function renderMetodoBody() {
     body.innerHTML = `
       <label style="font-size:12px;color:var(--muted);">Casa que recibe el costo completo</label>
       <select id="asignar-unidad-directo" class="filter-select" style="width:100%;margin-top:4px;" onchange="cfPreviewReparto()">
-        ${unidades.map(u => `<option value="${u.unidad_id}">${u.nombre}</option>`).join('')}
+        ${unidades.map(u => `<option value="${u.unidad_id}">${escapeHtml(u.nombre)}</option>`).join('')}
       </select>`;
   } else if (metodo === 'equitativo') {
     body.innerHTML = `
@@ -753,9 +753,9 @@ function renderMetodoBody() {
       </div>
       <div class="cf-picker cols" id="cf-picker-lista">
         ${unidades.map(u => `
-          <div class="cf-pick-row" data-nombre="${(u.nombre || '').toLowerCase().replace(/"/g, '')}">
+          <div class="cf-pick-row" data-nombre="${escapeHtml((u.nombre || '').toLowerCase().replace(/"/g, ''))}">
             <input type="checkbox" class="cf-unidad-check" value="${u.unidad_id}" id="cfchk-${u.unidad_id}" onchange="cfPreviewReparto()">
-            <label for="cfchk-${u.unidad_id}">${u.nombre}</label>
+            <label for="cfchk-${u.unidad_id}">${escapeHtml(u.nombre)}</label>
           </div>`).join('')}
       </div>
       <div class="cf-picker-count" id="cf-picker-count"></div>`;
@@ -771,8 +771,8 @@ function renderMetodoBody() {
       </div>
       <div class="cf-picker" id="cf-picker-lista">
         ${unidades.map(u => `
-          <div class="cf-pick-row" data-nombre="${(u.nombre || '').toLowerCase().replace(/"/g, '')}">
-            <label>${u.nombre}</label>
+          <div class="cf-pick-row" data-nombre="${escapeHtml((u.nombre || '').toLowerCase().replace(/"/g, ''))}">
+            <label>${escapeHtml(u.nombre)}</label>
             <input type="number" step="0.01" class="cf-custom-monto" data-uid="${u.unidad_id}" placeholder="${esPct ? '0.00 %' : '0.00'}"
               oninput="cfPreviewReparto()" style="text-align:right;font-family:'DM Mono',monospace;">
           </div>`).join('')}
@@ -781,7 +781,7 @@ function renderMetodoBody() {
   } else if (metodo === 'indiviso') {
     body.innerHTML = `
       <div style="font-size:12px;color:var(--muted);background:rgba(155,127,232,.1);border:1px solid rgba(155,127,232,.3);border-radius:8px;padding:10px;">
-        El costo se repartirá entre las <strong>${unidades.length}</strong> casas activas de ${cfProyecto}
+        El costo se repartirá entre las <strong>${unidades.length}</strong> casas activas de ${escapeHtml(cfProyecto)}
         según su % de indiviso.
       </div>`;
   }
@@ -966,7 +966,7 @@ export function cfPreviewReparto() {
       ${reparto.map(x => {
         const u = unidadById(x.unidad_id);
         return `<div style="display:flex;justify-content:space-between;padding:5px 10px;border-bottom:1px solid var(--border);font-size:12px;">
-          <span>${u ? u.nombre : '#' + x.unidad_id} <span style="color:var(--muted);">(${(x.factor * 100).toFixed(2)}%)</span></span>
+          <span>${escapeHtml(u ? u.nombre : '#' + x.unidad_id)} <span style="color:var(--muted);">(${(x.factor * 100).toFixed(2)}%)</span></span>
           <span style="font-family:'DM Mono',monospace;">${fmt(x.monto)}</span>
         </div>`;
       }).join('')}
@@ -1055,7 +1055,7 @@ function renderPresupuestosTab(panel) {
 
   panel.innerHTML = `
     <div style="background:rgba(90,155,224,.07);border:1px solid rgba(90,155,224,.2);border-radius:10px;padding:12px 14px;margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-      <div style="font-size:12px;color:var(--muted);">Captura masiva (${cfProyecto}):</div>
+      <div style="font-size:12px;color:var(--muted);">Captura masiva (${escapeHtml(cfProyecto)}):</div>
       <button class="btn btn-ghost btn-sm" onclick="descargarPlantillaPresupuesto('${(cfProyecto || '').replace(/'/g, "\\'")}')">📥 Descargar plantilla</button>
       <label class="btn btn-ghost btn-sm" style="cursor:pointer;">
         📤 Subir plantilla
@@ -1066,7 +1066,7 @@ function renderPresupuestosTab(panel) {
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">
       <label style="font-size:12px;color:var(--muted);">Unidad:</label>
       <select id="cf-presup-unidad" class="filter-select">
-        ${unidades.map(u => `<option value="${u.unidad_id}"${u.unidad_id === cfUnidadDetalle ? ' selected' : ''}>${u.nombre}</option>`).join('')}
+        ${unidades.map(u => `<option value="${u.unidad_id}"${u.unidad_id === cfUnidadDetalle ? ' selected' : ''}>${escapeHtml(u.nombre)}</option>`).join('')}
       </select>
     </div>
     <div id="cf-presup-grid"></div>
@@ -1100,7 +1100,7 @@ function renderPresupuestoGrid() {
     </div>
     <div style="display:flex;gap:8px;margin-top:12px;align-items:center;flex-wrap:wrap;">
       <input list="cf-partidas-list" id="cf-nueva-partida" placeholder="Nombre de partida" style="flex:1;min-width:160px;">
-      <datalist id="cf-partidas-list">${conocidas.map(p => `<option value="${p}">`).join('')}</datalist>
+      <datalist id="cf-partidas-list">${conocidas.map(p => `<option value="${escapeHtml(p)}">`).join('')}</datalist>
       <button class="btn btn-ghost" onclick="cfAgregarPartidaPresup()">+ Agregar partida</button>
       <button class="btn btn-primary" onclick="guardarPresupuestoUnidad()">💾 Guardar presupuesto</button>
     </div>
@@ -1111,7 +1111,7 @@ function renderPresupuestoGrid() {
 }
 
 function presupuestoFilaHTML(partida, monto, costoIni, idx) {
-  const safe = (partida || '').replace(/"/g, '&quot;');
+  const safe = escapeHtml(partida || '');
   return `<tr data-fila="${idx}">
     <td><input type="text" class="cf-p-partida" value="${safe}" style="width:100%;"></td>
     <td><input type="number" step="0.01" class="cf-p-monto" value="${monto || ''}" placeholder="0.00" style="width:130px;text-align:right;font-family:'DM Mono',monospace;"></td>
@@ -1161,7 +1161,7 @@ export async function guardarPresupuestoUnidad() {
 function renderReportesTab(panel) {
   const unidades = unidadesDeProyecto();
   if (!unidades.length) {
-    panel.innerHTML = '<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">📊</div><div>Sin unidades en ' + cfProyecto + '.</div></div>';
+    panel.innerHTML = '<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">📊</div><div>Sin unidades en ' + escapeHtml(cfProyecto) + '.</div></div>';
     return;
   }
 
@@ -1200,7 +1200,7 @@ function renderReportesTab(panel) {
         </tr></thead>
         <tbody>${filas.map(f => `
           <tr>
-            <td style="font-weight:600;">${f.u.nombre}</td>
+            <td style="font-weight:600;">${escapeHtml(f.u.nombre)}</td>
             <td style="text-align:right;font-family:'DM Mono',monospace;">${fmt(f.presu)}</td>
             <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--accent);">${fmt(f.devengado)}</td>
             <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--green);">${fmt(f.pagado)}</td>
@@ -1256,7 +1256,7 @@ function renderDetalleUnidad(id) {
   cont.innerHTML = `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-        <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;">${u.nombre} · desglose por partida</div>
+        <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;">${escapeHtml(u.nombre)} · desglose por partida</div>
         <div style="font-size:11px;color:var(--muted);">Indiviso ${(u.indiviso_pct || 0).toFixed(2)}%</div>
       </div>
       <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:18px;">
@@ -1267,7 +1267,7 @@ function renderDetalleUnidad(id) {
               <thead><tr><th>Partida</th><th style="text-align:right">Presupuesto</th><th style="text-align:right">Real</th><th style="width:130px;">Avance</th></tr></thead>
               <tbody>${partidas.map(([p, v]) => `
                 <tr>
-                  <td style="font-size:12px;">${p}</td>
+                  <td style="font-size:12px;">${escapeHtml(p)}</td>
                   <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;">${fmt(v.presupuestado)}</td>
                   <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--accent);">${fmt(v.real)}${v.costoInicial > 0 ? `<div style="font-size:9px;color:var(--muted);">incl. ${fmt(v.costoInicial)} apertura</div>` : ''}</td>
                   <td>${barraAvance(avancePct(v.real, v.presupuestado))}</td>
@@ -1332,7 +1332,7 @@ function renderPlanoTab(panel) {
   if (!plano) {
     panel.innerHTML = `<div class="empty-state">
       <div style="font-size:32px;margin-bottom:10px;opacity:.4">🗺️</div>
-      <div>Aún no hay un plano cargado para <strong>${cfProyecto}</strong>.</div>
+      <div>Aún no hay un plano cargado para <strong>${escapeHtml(cfProyecto)}</strong>.</div>
       <div style="font-size:12px;color:var(--muted);margin-top:6px;">Envía la imagen del plano del desarrollo para activar esta vista.</div>
     </div>`;
     return;
@@ -1348,12 +1348,12 @@ function renderPlanoTab(panel) {
   let hint = '';
   if (editPines) {
     indicador = sinUbicar.length
-      ? `Faltan <strong>${sinUbicar.length}</strong> · Siguiente: <strong>${sinUbicar[0].nombre}</strong> — haz clic en el plano para ubicarla`
+      ? `Faltan <strong>${sinUbicar.length}</strong> · Siguiente: <strong>${escapeHtml(sinUbicar[0].nombre)}</strong> — haz clic en el plano para ubicarla`
       : 'Todas las casas tienen pin ✓';
     hint = 'Clic sobre el plano para colocar el siguiente pin · arrastra un pin para moverlo · ✕ lo quita · no olvides Guardar.';
   } else if (editZonas) {
     indicador = sinZona.length
-      ? `<strong>${sinZona.length}</strong> sin zona · Siguiente: <strong>${sinZona[0].nombre}</strong> — clic-arrastra sobre el plano para dibujarla`
+      ? `<strong>${sinZona.length}</strong> sin zona · Siguiente: <strong>${escapeHtml(sinZona[0].nombre)}</strong> — clic-arrastra sobre el plano para dibujarla`
       : 'Todas las casas tienen zona ✓';
     hint = 'Clic-arrastra sobre el plano para dibujar una zona · clic en un pin lo convierte en zona · arrastra una zona para moverla, sus esquinas para redimensionarla, ✕ para quitarla.';
   }
@@ -1383,7 +1383,7 @@ function renderPlanoTab(panel) {
     </div>
     ${!editor && sinUbicar.length ? `<div style="font-size:11px;color:var(--orange);margin-bottom:8px;">⚠ ${sinUbicar.length} casa(s) sin ubicar en el plano (usa "Editar").</div>` : ''}
     <div class="cf-plano-cont${editor ? ' editor' : ''}${editZonas ? ' zonas' : ''}" id="cf-plano-cont">
-      <img src="${plano.img}" class="cf-plano-img" alt="Plano ${cfProyecto}" draggable="false">
+      <img src="${plano.img}" class="cf-plano-img" alt="Plano ${escapeHtml(cfProyecto)}" draggable="false">
       <div id="cf-plano-pins"></div>
       <div id="cf-plano-fantasma" class="cf-zona-fantasma" style="display:none;"></div>
       <div id="cf-plano-tooltip" class="cf-plano-tooltip" style="display:none;"></div>
@@ -1408,7 +1408,7 @@ function renderPlanoFormas() {
     .filter(u => u.plano_x != null && u.plano_y != null)
     .map(u => {
       const color = colorDePin(u);
-      const nombre = (u.nombre || '').replace(/"/g, '');
+      const nombre = escapeHtml(u.nombre || '');
       // Zona (rectángulo)
       if (u.plano_w != null && u.plano_h != null && u.plano_w > 0 && u.plano_h > 0) {
         const left = u.plano_x - u.plano_w / 2;
@@ -1723,9 +1723,9 @@ function abrirPopupForma(uid, refEl) {
   cerrarPopupForma();
 
   const esZona = u.plano_w > 0 && u.plano_h > 0;
-  const nombre = (u.nombre || '—').replace(/</g, '&lt;');
-  const tipo = (u.tipo || '').replace(/</g, '&lt;');
-  const estatus = (u.estatus || '—').replace(/</g, '&lt;');
+  const nombre = escapeHtml(u.nombre || '—');
+  const tipo = escapeHtml(u.tipo || '');
+  const estatus = escapeHtml(u.estatus || '—');
 
   const popup = document.createElement('div');
   popup.id = 'cf-plano-popup';
@@ -1791,10 +1791,10 @@ function mostrarTooltipPin(uid, pin) {
   const real = costoRealUnidad(u.unidad_id);
   const presu = presupuestoTotalUnidad(u.unidad_id);
   const av = avancePct(real, presu);
-  tip.innerHTML = `<strong>${u.nombre}</strong><br>`
+  tip.innerHTML = `<strong>${escapeHtml(u.nombre)}</strong><br>`
     + `Costo real: ${fmt(real)}<br>`
     + (presu > 0 ? `Presupuesto: ${fmt(presu)}<br>Avance: ${av.toFixed(1)}%<br>` : 'Sin presupuesto<br>')
-    + `Estatus: ${u.estatus || '—'}`;
+    + `Estatus: ${escapeHtml(u.estatus) || '—'}`;
   const pinRect = pin.getBoundingClientRect();
   const contRect = cont.getBoundingClientRect();
   tip.style.left = (pinRect.left - contRect.left + pinRect.width / 2) + 'px';

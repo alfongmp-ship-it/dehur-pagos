@@ -1,5 +1,5 @@
 import { state, datosListos, puedeEditar } from '../state.js';
-import { fmt, fmtFecha } from '../ui/format.js';
+import { fmt, fmtFecha, escapeHtml } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { gsSaveTraspasos, saveData, gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveMovimientosInternos, ensureHistorialIds, esPorFila, sbGuardarFila, sbBorrarFila, gsSaveCostoAsignaciones } from '../services/google-sync.js';
@@ -153,11 +153,11 @@ export function renderTraspasos() {
     <tr>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${fmtFecha(t.fecha) || '—'}</td>
       <td>${tipoBadge(t.tipo)}</td>
-      <td style="font-size:12px;font-weight:500;">${t.cuenta_origen_nombre || '—'}</td>
-      <td style="font-size:12px;color:var(--muted);">${t.cuenta_destino_nombre || '—'}</td>
+      <td style="font-size:12px;font-weight:500;">${escapeHtml(t.cuenta_origen_nombre) || '—'}</td>
+      <td style="font-size:12px;color:var(--muted);">${escapeHtml(t.cuenta_destino_nombre) || '—'}</td>
       <td style="font-family:'DM Mono',monospace;font-weight:600;text-align:right;color:var(--accent);">${fmt(t.monto)}</td>
-      <td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.concepto || '—'}</td>
-      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${t.referencia || '—'}</td>
+      <td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(t.concepto) || '—'}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${escapeHtml(t.referencia) || '—'}</td>
       <td>${estatusBadge(t.estatus)}</td>
       <td style="text-align:right;display:flex;gap:4px;justify-content:flex-end;">
         <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="editarTraspaso(${t.traspaso_id})">Editar</button>
@@ -170,7 +170,7 @@ export function renderTraspasos() {
 function populateTraspasoSelects() {
   const cuentas = getAllCuentas();
   const opts = '<option value="">— Seleccionar cuenta —</option>' +
-    cuentas.map(c => `<option value="${c.id}">${c.nombre}</option>`).join('');
+    cuentas.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.nombre)}</option>`).join('');
   const origen = document.getElementById('tr-origen');
   const destino = document.getElementById('tr-destino');
   if (origen) origen.innerHTML = opts;
@@ -198,7 +198,7 @@ function refreshPartidaTraspasoSelect() {
   }
   const opts = getPartidasParaSelect(legacy);
   sel.innerHTML = '<option value="">— selecciona —</option>' +
-    opts.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
+    opts.map(o => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`).join('');
   if (actual && opts.some(o => o.value === actual)) sel.value = actual;
 }
 

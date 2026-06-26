@@ -3,6 +3,8 @@ export function tipoBadge(t) {
   return '<span class="tipo-badge-bbva">Cuenta</span>';
 }
 
+import { escapeHtml } from './format.js';
+
 export function catTag(c) {
   const m = {
     'General': 'tag-general',
@@ -13,7 +15,7 @@ export function catTag(c) {
     'Socio': 'tag-prestamo',
     'Contratista': 'tag-obra'
   };
-  return `<span class="tag ${m[c] || 'tag-general'}">${c}</span>`;
+  return `<span class="tag ${m[c] || 'tag-general'}">${escapeHtml(c)}</span>`;
 }
 
 export function proyTag(p) {
@@ -22,5 +24,5 @@ export function proyTag(p) {
   if (pl.includes('paraiso') || pl.includes('paraíso')) return `<span class="tag tag-paraiso" style="font-size:10px;padding:2px 6px;">Paraíso</span>`;
   if (pl.includes('entorno')) return `<span class="tag tag-entorno" style="font-size:10px;padding:2px 6px;">Entorno</span>`;
   if (pl.includes('concentradora') || pl === 'dt') return `<span class="tag tag-dt" style="font-size:10px;padding:2px 6px;">DT</span>`;
-  return `<span class="tag tag-dt" style="font-size:10px;padding:2px 6px;">${p}</span>`;
+  return `<span class="tag tag-dt" style="font-size:10px;padding:2px 6px;">${escapeHtml(p)}</span>`;
 }

@@ -2,6 +2,15 @@ export function fmt(n) {
   return '$' + n.toLocaleString('es-MX', { minimumFractionDigits: 2 });
 }
 
+// Escapa texto para insertarlo con seguridad en innerHTML (contenido) o en
+// atributos con comillas (title="…", value="…"). Evita XSS almacenado: un dato
+// con < > " ' & (p.ej. de un proveedor o un Excel pegado) se muestra LITERAL en
+// vez de ejecutarse. Úsalo en CADA interpolación de texto libre que vaya al DOM.
+export function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g,
+    c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
 // Formatea CUALQUIER fecha guardada (DD/MM/YYYY, D/M/YYYY o YYYY-MM-DD) para
 // MOSTRARLA siempre pareja como DD/MM/YYYY con ceros. No cambia cómo se guarda,
 // solo cómo se ve → resuelve la mezcla de formatos en pantalla.

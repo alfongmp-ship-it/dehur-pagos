@@ -1,5 +1,5 @@
 import { state, esConcentradora } from '../state.js';
-import { fmt, hoyFecha } from '../ui/format.js';
+import { fmt, hoyFecha, escapeHtml } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { proyTag } from '../ui/badges.js';
 import { saveData, gsSaveHistorial, gsSavePendientes, gsSaveProyectos, gsSaveCuentasPropias, gsSaveFacturas, gsSaveFacturaPagos, gsSaveCostoAsignaciones, ensureHistorialIds, esPorFila, sbGuardarFila } from '../services/google-sync.js';
@@ -99,8 +99,8 @@ export function renderConfirmarPagos() {
   el.innerHTML = state.pendientesConfirmacion.map((d, i) =>
     '<div style="display:grid;grid-template-columns:32px 1fr 1fr auto 100px 40px;gap:10px;align-items:center;padding:11px 16px;border-bottom:1px solid var(--border);">' +
     '<input type="checkbox" ' + (d.confirmado ? 'checked' : '') + ' onchange="toggleConfPago(' + i + ',this.checked)" style="width:16px;height:16px;cursor:pointer;">' +
-    '<div><div style="font-size:12px;font-weight:500;">' + d.nombre + '</div><div style="font-size:10px;color:var(--muted);">' + (d.banco || '') + ' · ' + (d.tipo || '') + '</div></div>' +
-    '<div style="font-size:11px;color:var(--muted);">' + d.concepto + '</div>' +
+    '<div><div style="font-size:12px;font-weight:500;">' + escapeHtml(d.nombre) + '</div><div style="font-size:10px;color:var(--muted);">' + escapeHtml(d.banco || '') + ' · ' + escapeHtml(d.tipo || '') + '</div></div>' +
+    '<div style="font-size:11px;color:var(--muted);">' + escapeHtml(d.concepto) + '</div>' +
     '<div>' + proyTag(d.proyecto) + '</div>' +
     '<div style="font-family:\'DM Mono\',monospace;font-size:12px;font-weight:600;text-align:right;">' + fmt(d.importe) + '</div>' +
     '<button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;color:var(--red);" onclick="eliminarPendiente(' + i + ')">✕</button>' +

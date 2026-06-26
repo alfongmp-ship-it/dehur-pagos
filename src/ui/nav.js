@@ -1,4 +1,5 @@
 import { state } from '../state.js';
+import { escapeHtml } from './format.js';
 
 export function refreshProyectosEnSelects() {
   ['pago-proy'].forEach(id => {
@@ -6,7 +7,7 @@ export function refreshProyectosEnSelects() {
     if (!el) return;
     const cur = el.value;
     el.innerHTML = state.proyectos.filter(p => p.activo).map(p =>
-      `<option value="${p.nombre}">${p.nombre}</option>`
+      `<option value="${escapeHtml(p.nombre)}">${escapeHtml(p.nombre)}</option>`
     ).join('');
     if (cur) el.value = cur;
   });
@@ -15,7 +16,7 @@ export function refreshProyectosEnSelects() {
     const cur = qnom.value;
     qnom.innerHTML = '<option value="">Selecciona proyecto…</option>' +
       state.proyectos.filter(p => p.activo).map(p =>
-        `<option value="${p.nombre}">${p.nombre}</option>`
+        `<option value="${escapeHtml(p.nombre)}">${escapeHtml(p.nombre)}</option>`
       ).join('');
     if (cur) qnom.value = cur;
   }
@@ -24,7 +25,7 @@ export function refreshProyectosEnSelects() {
     const cur = fp.value;
     fp.innerHTML = '<option value="">Todos los proyectos</option>' +
       state.proyectos.filter(p => p.activo).map(p =>
-        `<option value="${p.nombre}">${p.nombre}</option>`
+        `<option value="${escapeHtml(p.nombre)}">${escapeHtml(p.nombre)}</option>`
       ).join('');
     if (cur) fp.value = cur;
   }
@@ -32,6 +33,6 @@ export function refreshProyectosEnSelects() {
     document.getElementById('pills-placeholder')?.parentElement;
   if (pillContainer) {
     pillContainer.innerHTML = state.proyectos.filter(p => p.activo)
-      .map(p => `<span class="proyecto-pill" data-p="${p.nombre}" onclick="this.classList.toggle('selected')">${p.nombre}</span>`).join('');
+      .map(p => `<span class="proyecto-pill" data-p="${escapeHtml(p.nombre)}" onclick="this.classList.toggle('selected')">${escapeHtml(p.nombre)}</span>`).join('');
   }
 }

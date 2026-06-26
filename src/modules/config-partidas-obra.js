@@ -1,4 +1,5 @@
 import { state, esAdmin } from '../state.js';
+import { escapeHtml } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { gsSavePartidasObra, esPorFila, sbGuardarFila, sbBorrarFila } from '../services/google-sync.js';
@@ -48,21 +49,21 @@ export function renderConfigPartidasObra() {
   }
   div.innerHTML = items.map(p => {
     const badgeProy = p.proyecto
-      ? `<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:600;background:rgba(90,155,224,.15);color:var(--blue);">${p.proyecto}</span>`
+      ? `<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:600;background:rgba(90,155,224,.15);color:var(--blue);">${escapeHtml(p.proyecto)}</span>`
       : `<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:600;background:rgba(200,169,110,.15);color:var(--accent);">MAESTRO</span>`;
     let badgeAdmin;
     if (!p.partidaAdmin && !p.subPartidaAdmin) {
       badgeAdmin = `<span style="font-size:11px;color:var(--yellow);">⚠ sin mapeo</span>`;
     } else if (p.partidaAdmin && p.subPartidaAdmin) {
-      badgeAdmin = `<span style="font-size:11px;color:var(--muted);">→ ${p.partidaAdmin} / ${p.subPartidaAdmin}</span>`;
+      badgeAdmin = `<span style="font-size:11px;color:var(--muted);">→ ${escapeHtml(p.partidaAdmin)} / ${escapeHtml(p.subPartidaAdmin)}</span>`;
     } else {
       // partidaAdmin sin sub (caso normal cuando la partida no tiene subpartidas)
-      badgeAdmin = `<span style="font-size:11px;color:var(--muted);">→ ${p.partidaAdmin || p.subPartidaAdmin}</span>`;
+      badgeAdmin = `<span style="font-size:11px;color:var(--muted);">→ ${escapeHtml(p.partidaAdmin || p.subPartidaAdmin)}</span>`;
     }
     return `
       <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);">
         <div style="flex:1;min-width:0;">
-          <div style="font-weight:600;font-size:13px;">${p.nombre}${p.activa === false ? ' <span style="color:var(--muted);font-weight:400;">(inactiva)</span>' : ''}</div>
+          <div style="font-weight:600;font-size:13px;">${escapeHtml(p.nombre)}${p.activa === false ? ' <span style="color:var(--muted);font-weight:400;">(inactiva)</span>' : ''}</div>
           <div style="display:flex;gap:8px;align-items:center;margin-top:4px;">${badgeProy}${badgeAdmin}</div>
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0;">
@@ -80,7 +81,7 @@ function renderChips() {
     const style = active
       ? 'background:var(--accent);color:var(--bg);border:1px solid var(--accent);'
       : 'background:transparent;color:var(--muted);border:1px solid var(--border);';
-    return `<button onclick="filtrarPartidasObra('${val}')" style="${style}padding:4px 10px;border-radius:14px;font-size:11px;font-weight:600;cursor:pointer;">${label}</button>`;
+    return `<button onclick="filtrarPartidasObra('${val}')" style="${style}padding:4px 10px;border-radius:14px;font-size:11px;font-weight:600;cursor:pointer;">${escapeHtml(label)}</button>`;
   };
   const proyectos = state.proyectos.filter(p => p.activo !== false);
   return [
@@ -105,7 +106,7 @@ export function abrirModalPartidaObra(id) {
   const selProy = document.getElementById('cat-po-proyecto');
   const opts = ['<option value="">(maestro — todos los proyectos)</option>'];
   state.proyectos.filter(x => x.activo !== false).forEach(x => {
-    opts.push(`<option value="${x.nombre}">${x.nombre}</option>`);
+    opts.push(`<option value="${escapeHtml(x.nombre)}">${escapeHtml(x.nombre)}</option>`);
   });
   selProy.innerHTML = opts.join('');
   selProy.value = p?.proyecto || '';
@@ -114,7 +115,7 @@ export function abrirModalPartidaObra(id) {
   const selPartida = document.getElementById('cat-po-partida-admin');
   const partidas = partidasAdminActivas();
   selPartida.innerHTML = '<option value="">— sin mapeo —</option>' +
-    partidas.map(x => `<option value="${x.partida}">${x.partida}</option>`).join('');
+    partidas.map(x => `<option value="${escapeHtml(x.partida)}">${escapeHtml(x.partida)}</option>`).join('');
   selPartida.value = p?.partidaAdmin || '';
 
   // Repoblar el dropdown de subpartida según la partida elegida
@@ -145,7 +146,7 @@ export function actualizarSubpartidaAdminOptions(valorPreseleccionado) {
     return;
   }
   selSub.innerHTML = '<option value="">— (sin sub-partida) —</option>' +
-    subs.map(s => `<option value="${s}">${s}</option>`).join('');
+    subs.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
   selSub.value = valorPreseleccionado || '';
   wrap.style.display = '';
 }

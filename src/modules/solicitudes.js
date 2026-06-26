@@ -1,7 +1,7 @@
 import { state, datosListos } from '../state.js';
 import { getBanco, getTipo } from '../config/bancos.js';
 import { tipoBadge, proyTag } from '../ui/badges.js';
-import { fmt } from '../ui/format.js';
+import { fmt, escapeHtml } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { buscarProveedorSol, normalizar } from '../matching/fuzzy.js';
@@ -452,7 +452,7 @@ export function parsearSolicitud(wb, filename) {
   const partidas = [...new Set(state.solicitudesData.map(s => s.partida).filter(Boolean))].sort();
   const sel = document.getElementById('f-sol-partida');
   sel.innerHTML = '<option value="">Todas las partidas</option>' +
-    partidas.map(p => `<option value="${p}">${p}</option>`).join('');
+    partidas.map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
 
   renderSolicitudes();
   const sinCuenta = state.solicitudesData.filter(s => !s.match && !s.cuentaEmbebida).length;
@@ -476,13 +476,13 @@ function badgePartidaObra(s) {
   let badge = '';
   if (s.mapeoEstado === 'mapeada') {
     const adminTxt = s.subPartida ? `${s.partida} / ${s.subPartida}` : s.partida;
-    badge = `<div style="font-size:10px;color:var(--accent);margin-top:2px;">→ ${adminTxt}</div>`;
+    badge = `<div style="font-size:10px;color:var(--accent);margin-top:2px;">→ ${escapeHtml(adminTxt)}</div>`;
   } else if (s.mapeoEstado === 'sin-mapeo') {
     badge = `<div style="font-size:10px;color:var(--yellow);margin-top:2px;">⚠ sin mapeo Admin</div>`;
   } else if (s.mapeoEstado === 'no-catalogo') {
     badge = `<div style="font-size:10px;color:var(--red);margin-top:2px;">⚠ no está en catálogo Obra</div>`;
   }
-  return `<div style="font-weight:500;color:var(--text);">${original}</div>${badge}`;
+  return `<div style="font-weight:500;color:var(--text);">${escapeHtml(original)}</div>${badge}`;
 }
 
 // Devuelve el HTML del badge de asignación para una solicitud (o cadena vacía).
@@ -493,17 +493,17 @@ function badgeAsignacion(s) {
   let texto = '';
   if (s.repartoMetodo === 'directo') {
     const a = arr[0];
-    texto = `🏠 ${a?.casa || '?'}`;
+    texto = `🏠 ${escapeHtml(a?.casa || '?')}`;
   } else if (s.repartoMetodo === 'equitativo') {
     texto = `🏠 ${arr.length} casas equitativo`;
   } else if (s.repartoMetodo === 'indiviso') {
     texto = `🏠 indiviso (${arr.length} casas)`;
   } else if (s.repartoMetodo === 'custom') {
-    const partes = arr.map(a => `${a.casa}:${Math.round(a.pct)}%`).join(' / ');
+    const partes = arr.map(a => `${escapeHtml(a.casa)}:${Math.round(a.pct)}%`).join(' / ');
     texto = `🏠 custom ${partes}`;
   }
   const avisos = sinResolver.length
-    ? `<span style="color:var(--yellow);font-size:10px;margin-left:4px;">⚠ ${sinResolver.join(', ')} no existe</span>`
+    ? `<span style="color:var(--yellow);font-size:10px;margin-left:4px;">⚠ ${escapeHtml(sinResolver.join(', '))} no existe</span>`
     : '';
   return `<div style="font-size:10px;color:var(--accent);margin-top:3px;">${texto}${avisos}</div>`;
 }
@@ -567,7 +567,7 @@ export function renderSolicitudes() {
   document.getElementById('sol-alertas').innerHTML = sinCuenta.length
     ? `<div style="background:rgba(224,90,90,.1);border:1px solid rgba(224,90,90,.3);border-radius:8px;padding:10px 14px;font-size:12px;margin-bottom:4px;">
         ⚠ <b>${sinCuenta.length} proveedor${sinCuenta.length > 1 ? 'es' : ''} sin cuenta:</b>
-        ${sinCuenta.map(s => `<span style="font-weight:500">${s.proveedor}</span>`).join(', ')}
+        ${sinCuenta.map(s => `<span style="font-weight:500">${escapeHtml(s.proveedor)}</span>`).join(', ')}
       </div>` : '';
 
   const tb = document.getElementById('tbody-sol');
@@ -584,9 +584,9 @@ export function renderSolicitudes() {
     let cuentaHtml = '';
     if (cuenta) {
       const tColor = tipo === 'CLABE' ? 'var(--green)' : tipo === 'Cuenta BBVA' ? 'var(--blue)' : 'var(--yellow)';
-      cuentaHtml = `<span style="font-family:'DM Mono',monospace;font-size:11px;">${cuenta}</span>
+      cuentaHtml = `<span style="font-family:'DM Mono',monospace;font-size:11px;">${escapeHtml(cuenta)}</span>
         <div style="font-size:10px;color:var(--muted);margin-top:1px;">
-          ${banco || ''} <span style="color:${tColor};font-weight:600;">${tipo}</span>
+          ${escapeHtml(banco) || ''} <span style="color:${tColor};font-weight:600;">${escapeHtml(tipo)}</span>
           ${!s.match && s.cuentaEmbebida ? ' <span style="color:var(--yellow)">(del concepto)</span>' : ''}
         </div>`;
     } else {
@@ -614,20 +614,20 @@ export function renderSolicitudes() {
     return `<tr style="${rowStyle}">
       <td style="padding:8px 6px;"><input type="checkbox" ${s.seleccionado ? 'checked' : ''}
         onchange="toggleSol('${s.uid}',this.checked)" style="width:15px;height:15px;cursor:pointer;accent-color:var(--accent);"></td>
-      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);text-align:center;">${s.proveedor_id || '—'}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);text-align:center;">${escapeHtml(s.proveedor_id) || '—'}</td>
       <td>
-        <div style="font-size:12px;font-weight:600;line-height:1.3;">${s.match ? s.match.nombre : s.proveedor}</div>
-        <div style="font-size:10px;color:var(--muted);margin-top:2px;">${s.proyecto}</div>
+        <div style="font-size:12px;font-weight:600;line-height:1.3;">${escapeHtml(s.match ? s.match.nombre : s.proveedor)}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px;">${escapeHtml(s.proyecto)}</div>
       </td>
       <td style="font-size:11px;color:var(--muted);">${badgePartidaObra(s)}</td>
-      <td style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);">${s.clave}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);">${escapeHtml(s.clave)}</td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;">${s.factura_id
         ? s._facturaError
-          ? `<div style="color:#e74c3c;font-weight:600;">${s.factura_id}</div><div style="font-size:9px;color:#e74c3c;margin-top:2px;">⛔ ${s._facturaError}</div>`
-          : `<span style="color:var(--accent);">${s.factura_id}</span>`
+          ? `<div style="color:#e74c3c;font-weight:600;">${escapeHtml(s.factura_id)}</div><div style="font-size:9px;color:#e74c3c;margin-top:2px;">⛔ ${escapeHtml(s._facturaError)}</div>`
+          : `<span style="color:var(--accent);">${escapeHtml(s.factura_id)}</span>`
         : '<span style="color:var(--muted);">—</span>'}</td>
       <td style="font-size:11px;color:var(--muted);max-width:240px;">
-        <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px;" title="${s.concepto}">${s.concepto}</div>
+        <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px;" title="${escapeHtml(s.concepto)}">${escapeHtml(s.concepto)}</div>
         ${badgeAsignacion(s)}
       </td>
       <td>${cuentaHtml}</td>
@@ -707,12 +707,12 @@ export function renderVincBusqueda() {
       style="padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;transition:background .15s;"
       onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''">
       <div style="flex:1;min-width:0;">
-        <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.nombre}</div>
-        <div style="font-size:10px;color:var(--muted);margin-top:2px;font-family:'DM Mono',monospace;">${p.cuenta || ''}</div>
+        <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(p.nombre)}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px;font-family:'DM Mono',monospace;">${escapeHtml(p.cuenta) || ''}</div>
       </div>
       <div style="text-align:right;flex-shrink:0;">
         <span style="font-size:10px;color:${tipColor};font-weight:600;">${p.tipo_cuenta === 'CLABE' ? 'CLABE' : p.tipo_cuenta === 'Cuenta BBVA' ? 'BBVA' : 'Corta'}</span>
-        <div style="font-size:10px;color:var(--muted);">${p.banco || ''}</div>
+        <div style="font-size:10px;color:var(--muted);">${escapeHtml(p.banco) || ''}</div>
       </div>
     </div>`;
   }).join('');

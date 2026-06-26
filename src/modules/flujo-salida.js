@@ -1,5 +1,5 @@
 import { state, datosListos } from '../state.js';
-import { fmt, dl, fmtFecha } from '../ui/format.js';
+import { fmt, dl, fmtFecha, escapeHtml } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { proyTag } from '../ui/badges.js';
 import { proyectoMatch } from '../config/proyectos.js';
@@ -234,9 +234,6 @@ function renderPivot(data) {
   cont.innerHTML = html;
 }
 
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
 function escapeAttr(s) { return escapeHtml(s); }
 
 export function fsAbrirDetalle(cuentaEnc, proyectoEnc) {

@@ -1,5 +1,5 @@
 import { state, datosListos } from '../state.js';
-import { fmt, fmtFecha } from '../ui/format.js';
+import { fmt, fmtFecha, escapeHtml } from '../ui/format.js';
 import { proyTag } from '../ui/badges.js';
 import { proyectoMatch } from '../config/proyectos.js';
 import { parseFechaHist } from './historial.js';
@@ -74,7 +74,7 @@ function refreshSelects() {
   if (selProy) {
     const val = selProy.value;
     const opts = state.proyectos.filter(p => p.activo !== false).map(p => p.nombre);
-    selProy.innerHTML = '<option value="">Todos los proyectos</option>' + opts.map(n => `<option>${n}</option>`).join('');
+    selProy.innerHTML = '<option value="">Todos los proyectos</option>' + opts.map(n => `<option>${escapeHtml(n)}</option>`).join('');
     selProy.value = val;
   }
   const selPart = document.getElementById('rc-partida');
@@ -85,7 +85,7 @@ function refreshSelects() {
     const opts = getPartidasParaSelect(enHistorial);
     const haySinPartida = state.historial.some(h => !h.partida);
     let opciones = '<option value="">Todas las partidas</option>';
-    opciones += opts.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
+    opciones += opts.map(o => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`).join('');
     if (haySinPartida) opciones += '<option value="Sin partida">Sin partida</option>';
     selPart.innerHTML = opciones;
     selPart.value = val;
@@ -217,9 +217,9 @@ function renderTop5(data) {
     const color = CARD_COLORS[i % CARD_COLORS.length];
     const nombreTrunc = nombre.length > 24 ? nombre.slice(0, 22) + '…' : nombre;
     return `
-      <div title="${nombre}">
+      <div title="${escapeHtml(nombre)}">
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;gap:8px;">
-          <span style="font-size:12px;font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${nombreTrunc}</span>
+          <span style="font-size:12px;font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(nombreTrunc)}</span>
           <span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:600;color:${color};white-space:nowrap;">${fmt(monto)}</span>
         </div>
         <div style="height:6px;background:var(--surface2);border-radius:3px;overflow:hidden;">
@@ -376,7 +376,7 @@ function renderListaPartidas(data) {
     return `
       <div>
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;gap:8px;">
-          <span style="font-size:12px;font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${partida}</span>
+          <span style="font-size:12px;font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(partida)}</span>
           <span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:600;color:${color};white-space:nowrap;">${fmt(monto)}</span>
         </div>
         <div style="height:6px;background:var(--surface2);border-radius:3px;overflow:hidden;">
@@ -407,7 +407,7 @@ function renderListaSubPartidas(data) {
     return `
       <div>
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;gap:8px;">
-          <span style="font-size:12px;font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${sub}</span>
+          <span style="font-size:12px;font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(sub)}</span>
           <span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:600;color:${color};white-space:nowrap;">${fmt(monto)}</span>
         </div>
         <div style="height:6px;background:var(--surface2);border-radius:3px;overflow:hidden;">
@@ -486,10 +486,10 @@ function renderTabla(data) {
   el.innerHTML = sorted.map(h => `
     <div style="display:grid;grid-template-columns:95px 1fr 110px 110px 1fr 110px;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);font-size:12px;align-items:center;">
       <div style="font-family:'DM Mono',monospace;color:var(--muted);">${fmtFecha(h.fecha)}</div>
-      <div style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${h.nombre || '—'}</div>
+      <div style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(h.nombre || '—')}</div>
       <div>${proyTag(h.proyecto)}</div>
-      <div style="color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${h.partida || 'Sin partida'}</div>
-      <div style="color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${h.concepto || '—'}</div>
+      <div style="color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(h.partida || 'Sin partida')}</div>
+      <div style="color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(h.concepto || '—')}</div>
       <div style="font-family:'DM Mono',monospace;font-weight:500;color:var(--accent);text-align:right;">${fmt(parseFloat(h.importe) || 0)}</div>
     </div>
   `).join('');
@@ -531,7 +531,7 @@ export function abrirReporteJuanPablo() {
     const val = sp.value;
     const activos = state.proyectos.filter(p => p.activo !== false).map(p => p.nombre);
     sp.innerHTML = '<option value="">Todos (consolidado + cada proyecto por separado)</option>'
-      + activos.map(n => `<option>${n}</option>`).join('');
+      + activos.map(n => `<option>${escapeHtml(n)}</option>`).join('');
     sp.value = val;
   }
   document.getElementById('modal-reporte-jp')?.classList.add('open');

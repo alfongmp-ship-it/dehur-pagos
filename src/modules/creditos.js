@@ -1,5 +1,5 @@
 import { state, datosListos } from '../state.js';
-import { fmt, hoyFecha, fmtFecha } from '../ui/format.js';
+import { fmt, hoyFecha, fmtFecha, escapeHtml } from '../ui/format.js';
 import { proyTag } from '../ui/badges.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
@@ -32,7 +32,7 @@ export function renderCreditos() {
   // Render tabs
   tabs.innerHTML = activos.map(c => {
     const isActive = c.credito_id === state.creditoTabActivo;
-    return `<button onclick="seleccionarCredito(${c.credito_id})" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid ${isActive ? 'var(--accent)' : 'var(--border)'};background:${isActive ? 'rgba(200,169,110,.15)' : 'var(--surface2)'};color:${isActive ? 'var(--accent)' : 'var(--muted)'};">${c.nombre}</button>`;
+    return `<button onclick="seleccionarCredito(${c.credito_id})" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid ${isActive ? 'var(--accent)' : 'var(--border)'};background:${isActive ? 'rgba(200,169,110,.15)' : 'var(--surface2)'};color:${isActive ? 'var(--accent)' : 'var(--muted)'};">${escapeHtml(c.nombre)}</button>`;
   }).join('') + `<button onclick="abrirNuevoCredito()" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;border:1px dashed var(--border);background:transparent;color:var(--muted);">+ Nuevo</button>`;
 
   if (!activos.length) {
@@ -51,13 +51,13 @@ export function renderCreditos() {
     <div class="card" style="margin-bottom:16px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;">
         <div>
-          <div style="font-size:18px;font-weight:600;margin-bottom:8px;">${c.nombre} – ${c.banco}</div>
+          <div style="font-size:18px;font-weight:600;margin-bottom:8px;">${escapeHtml(c.nombre)} – ${escapeHtml(c.banco)}</div>
           <div style="display:flex;gap:24px;flex-wrap:wrap;font-size:12px;color:var(--muted);">
-            <div>Tipo: <strong style="color:var(--text-primary);">${c.tipo_credito}</strong></div>
+            <div>Tipo: <strong style="color:var(--text-primary);">${escapeHtml(c.tipo_credito)}</strong></div>
             <div>Monto autorizado: <strong style="color:var(--text-primary);">${fmt(c.monto_autorizado)}</strong></div>
             <div>Tasa base: <strong style="color:var(--text-primary);">${c.tasa_base}%</strong></div>
             <div>Proyecto: ${proyTag(c.proyecto)}</div>
-            <div>Cuenta pago: <strong style="color:var(--text-primary);">${c.cuenta_pago || '—'}</strong></div>
+            <div>Cuenta pago: <strong style="color:var(--text-primary);">${escapeHtml(c.cuenta_pago) || '—'}</strong></div>
           </div>
           <div style="display:flex;gap:24px;margin-top:8px;font-size:12px;">
             <div style="color:var(--accent);">Disponible: <strong>${fmt(disponible)}</strong></div>
@@ -98,7 +98,7 @@ function renderPagaresRows(pagares) {
 
     let rows = `<tr style="cursor:pointer;" onclick="togglePagare(${p.pagare_id})">
       <td style="text-align:center;font-size:10px;color:var(--muted);">${isOpen ? '▼' : '▶'}</td>
-      <td style="font-weight:600;font-family:'DM Mono',monospace;">${p.numero_pagare}</td>
+      <td style="font-weight:600;font-family:'DM Mono',monospace;">${escapeHtml(p.numero_pagare)}</td>
       <td style="font-family:'DM Mono',monospace;font-weight:500;text-align:right;">${fmt(p.monto)}</td>
       <td style="font-size:11px;color:var(--muted);">${fmtFecha(p.fecha_disposicion)}</td>
       <td style="font-size:11px;color:var(--muted);">${fmtFecha(p.fecha_vencimiento)}</td>
@@ -138,8 +138,8 @@ function renderFechasPago(pagos) {
       return `<tr style="border-top:1px solid rgba(42,42,42,.5);">
         <td style="padding:6px 8px;font-family:'DM Mono',monospace;">${fmtFecha(pp.fecha_pago)}</td>
         <td style="padding:6px 8px;font-family:'DM Mono',monospace;text-align:right;font-weight:500;">${pp.monto_intereses ? fmt(pp.monto_intereses) : '—'}</td>
-        <td style="padding:6px 8px;color:var(--muted);">${pp.concepto || '—'}</td>
-        <td style="padding:6px 8px;"><span style="color:${estColor};font-weight:600;">${estIcon} ${pp.estatus}</span></td>
+        <td style="padding:6px 8px;color:var(--muted);">${escapeHtml(pp.concepto) || '—'}</td>
+        <td style="padding:6px 8px;"><span style="color:${estColor};font-weight:600;">${estIcon} ${escapeHtml(pp.estatus)}</span></td>
         <td style="padding:6px 8px;text-align:right;white-space:nowrap;">
           <button class="btn btn-ghost" style="font-size:10px;padding:2px 6px;" onclick="event.stopPropagation();editarFechaPago(${pp.pago_id})">Editar</button>
           ${pp.estatus !== 'Pagado' ? `<button class="btn btn-ghost" style="font-size:10px;padding:2px 6px;" onclick="event.stopPropagation();marcarPagoPagado(${pp.pago_id})">Marcar pagado</button>` : ''}
@@ -161,11 +161,11 @@ function populateSelects() {
   const selCta = document.getElementById('cred-cuenta-pago');
   if (selProy) {
     selProy.innerHTML = '<option value="">—</option>' +
-      state.proyectos.filter(p => p.activo !== false).map(p => `<option value="${p.nombre}">${p.nombre}</option>`).join('');
+      state.proyectos.filter(p => p.activo !== false).map(p => `<option value="${escapeHtml(p.nombre)}">${escapeHtml(p.nombre)}</option>`).join('');
   }
   if (selCta) {
-    const proyOpts = state.proyectos.filter(p => p.activo !== false && p.cuenta).map(p => `<option value="${p.nombre}">${p.nombre} – BBVA ···${p.cuenta.slice(-4)}</option>`).join('');
-    const extraOpts = state.cuentasPropias.filter(c => c.activo !== false).map(c => `<option value="${c.nombre}">${c.nombre} – ${c.banco}${c.numero_cuenta ? ' ···' + c.numero_cuenta.slice(-4) : ''}</option>`).join('');
+    const proyOpts = state.proyectos.filter(p => p.activo !== false && p.cuenta).map(p => `<option value="${escapeHtml(p.nombre)}">${escapeHtml(p.nombre)} – BBVA ···${escapeHtml(p.cuenta.slice(-4))}</option>`).join('');
+    const extraOpts = state.cuentasPropias.filter(c => c.activo !== false).map(c => `<option value="${escapeHtml(c.nombre)}">${escapeHtml(c.nombre)} – ${escapeHtml(c.banco)}${c.numero_cuenta ? ' ···' + escapeHtml(c.numero_cuenta.slice(-4)) : ''}</option>`).join('');
     selCta.innerHTML = '<option value="">—</option>' + proyOpts + extraOpts;
   }
 }

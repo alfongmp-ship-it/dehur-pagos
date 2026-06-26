@@ -1,5 +1,5 @@
 import { state, datosListos, puedeBorrarFacturas } from '../state.js';
-import { fmt, fmtFecha, hoyFecha } from '../ui/format.js';
+import { fmt, fmtFecha, hoyFecha, escapeHtml } from '../ui/format.js';
 import { proyTag } from '../ui/badges.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
@@ -115,8 +115,8 @@ export function renderFacturas() {
     const btnRepartir = `<button class="btn btn-ghost req-facturas" style="padding:4px 8px;font-size:11px;${repartida ? '' : 'color:var(--orange);'}" onclick="abrirRepartirFactura(${f.factura_id})" title="${repartida ? 'Reparto del costo (devengado) asignado' : 'Falta repartir el costo a unidades'}">${repartida ? 'Reparto ✓' : '⚠ Repartir'}</button>`;
     return `<tr>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${f.factura_id}</td>
-      <td style="font-size:11px;">${f.numero_factura || '—'}</td>
-      <td><div style="font-weight:500;font-size:12px;">${provNombre}</div><div style="font-size:10px;color:var(--muted);">${f.razon_social && f.nombre_proveedor ? f.razon_social : ''}</div></td>
+      <td style="font-size:11px;">${escapeHtml(f.numero_factura) || '—'}</td>
+      <td><div style="font-weight:500;font-size:12px;">${escapeHtml(provNombre)}</div><div style="font-size:10px;color:var(--muted);">${f.razon_social && f.nombre_proveedor ? escapeHtml(f.razon_social) : ''}</div></td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${fmtFecha(f.fecha_factura)}</td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:${vColor};font-weight:${vColor !== 'var(--muted)' ? '600' : '400'};">${fmtFecha(f.fecha_vencimiento) || '—'} ${vBadge}</td>
       <td style="font-family:'DM Mono',monospace;font-weight:500;text-align:right;">${fmt(f.monto_total)}</td>
@@ -195,7 +195,7 @@ function refreshFactProyectos() {
   if (!sel) return;
   const val = sel.value;
   const opts = state.proyectos.filter(p => p.activo !== false).map(p => p.nombre);
-  sel.innerHTML = '<option value="">Todos los proyectos</option>' + opts.map(n => `<option>${n}</option>`).join('');
+  sel.innerHTML = '<option value="">Todos los proyectos</option>' + opts.map(n => `<option>${escapeHtml(n)}</option>`).join('');
   sel.value = val;
 }
 
@@ -243,10 +243,10 @@ function estadoSatBadge(estado) {
 function populateFacturaSelects() {
   const selProy = document.getElementById('f-proyecto');
   selProy.innerHTML = '<option value="">— Sin proyecto —</option>' +
-    state.proyectos.filter(p => p.activo !== false).map(p => `<option>${p.nombre}</option>`).join('');
+    state.proyectos.filter(p => p.activo !== false).map(p => `<option>${escapeHtml(p.nombre)}</option>`).join('');
   const selEmp = document.getElementById('f-empresa');
   if (selEmp) selEmp.innerHTML = '<option value="">— Sin especificar —</option>' +
-    EMPRESAS_FACTURA.map(e => `<option>${e}</option>`).join('');
+    EMPRESAS_FACTURA.map(e => `<option>${escapeHtml(e)}</option>`).join('');
 }
 
 export function filtrarProvFactura() {
@@ -268,7 +268,7 @@ export function filtrarProvFactura() {
   }
   dd.innerHTML = results.map(p =>
     `<div onclick="selProvFactura(${p.id})" style="padding:8px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--border);" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background='transparent'">
-      <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-right:6px;">${p.id}</span>${p.nombre}
+      <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-right:6px;">${p.id}</span>${escapeHtml(p.nombre)}
     </div>`
   ).join('');
   dd.style.display = 'block';
@@ -608,12 +608,12 @@ export function renderFacturaPagos() {
     return `<tr>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${fp.factura_pago_id}</td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;">${fp.factura_id}</td>
-      <td><div style="font-weight:500;font-size:12px;">${provNombre}</div></td>
+      <td><div style="font-weight:500;font-size:12px;">${escapeHtml(provNombre)}</div></td>
       <td style="font-family:'DM Mono',monospace;font-weight:500;text-align:right;color:var(--accent);">${fmt(fp.monto_aplicado)}</td>
       <td style="font-family:'DM Mono',monospace;text-align:right;color:${fact && fact.saldo_pendiente > 0 ? 'var(--accent)' : 'var(--muted)'};">${fact ? fmt(fact.saldo_pendiente) : '—'}</td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${fmtFecha(fp.fecha_pago)}</td>
       <td>${estBadge}</td>
-      <td style="font-size:11px;color:var(--muted);">${(fp.observaciones || '').substring(0, 40)}</td>
+      <td style="font-size:11px;color:var(--muted);">${escapeHtml((fp.observaciones || '').substring(0, 40))}</td>
       <td style="text-align:right;"><button class="btn btn-ghost req-facturas" style="padding:4px 6px;font-size:11px;color:#e74c3c;" onclick="eliminarPagoFactura(${fp.factura_pago_id})">✕</button></td>
     </tr>`;
   }).join('');
@@ -705,8 +705,8 @@ export function filtrarPagosParaFactura() {
   cont.innerHTML = cand.map(h => `
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);">
       <div style="min-width:0;">
-        <div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${h.concepto || h.nombre || '—'}</div>
-        <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;">${fmtFecha(h.fecha)} · ${fmt(h.importe)}${h.proyecto ? ' · ' + h.proyecto : ''}</div>
+        <div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(h.concepto || h.nombre || '—')}</div>
+        <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;">${fmtFecha(h.fecha)} · ${fmt(h.importe)}${h.proyecto ? ' · ' + escapeHtml(h.proyecto) : ''}</div>
       </div>
       <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;flex-shrink:0;" onclick="vincularPagoAFactura(${h.id})">Vincular</button>
     </div>`).join('');

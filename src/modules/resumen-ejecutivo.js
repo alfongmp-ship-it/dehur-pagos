@@ -1,5 +1,5 @@
 import { state, datosListos } from '../state.js';
-import { fmt } from '../ui/format.js';
+import { fmt, escapeHtml } from '../ui/format.js';
 import { parseFechaHist } from './historial.js';
 import { proyectoMatch } from '../config/proyectos.js';
 
@@ -46,7 +46,7 @@ function renderTabs() {
   const tabs = [{ id: '', nombre: 'Total', color: '#c8a96e' }, ...proyectos.map(p => ({ id: p.nombre, nombre: p.nombre, color: p.color || '#888' }))];
   cont.innerHTML = tabs.map(t => {
     const isActive = proyectoActivo === t.id;
-    return `<button class="re-tab${isActive ? ' active' : ''}" data-id="${t.id.replace(/"/g, '&quot;')}" style="${isActive ? `border-color:${t.color};color:${t.color};` : ''}">${t.nombre}</button>`;
+    return `<button class="re-tab${isActive ? ' active' : ''}" data-id="${escapeHtml(t.id)}" style="${isActive ? `border-color:${t.color};color:${t.color};` : ''}">${escapeHtml(t.nombre)}</button>`;
   }).join('');
   cont.querySelectorAll('.re-tab').forEach(b => {
     b.addEventListener('click', () => {
@@ -137,7 +137,7 @@ function formatearFechaLarga(iso) {
 function renderEncabezado(periodo) {
   const sub = document.getElementById('re-subtitulo');
   if (sub) {
-    const ambito = proyectoActivo ? `Proyecto: ${proyectoActivo}` : 'Consolidado (todos los proyectos)';
+    const ambito = proyectoActivo ? `Proyecto: ${escapeHtml(proyectoActivo)}` : 'Consolidado (todos los proyectos)';
     sub.innerHTML = `<div style="font-weight:600;">${ambito}</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">Periodo: ${formatearFechaLarga(periodo.desde)} — ${formatearFechaLarga(periodo.hasta)}</div>`;
   }
   const gen = document.getElementById('re-generado');
@@ -245,7 +245,7 @@ function renderKPIs(periodo) {
   } else {
     tercerKpi = `
       <div class="re-kpi-label">Mayor Egreso por Proyecto</div>
-      <div class="re-kpi-value" style="color:var(--accent);font-size:16px;">${topProy ? topProy[0] : '—'}</div>
+      <div class="re-kpi-value" style="color:var(--accent);font-size:16px;">${topProy ? escapeHtml(topProy[0]) : '—'}</div>
       <div class="re-kpi-sub">${topProy ? fmt(topProy[1]) + ' · ' + topProyPct.toFixed(1) + '%' : 'Sin pagos'}</div>
     `;
   }
@@ -473,9 +473,9 @@ function renderSaldosNetos() {
     return `
       <div class="re-prestamo-row">
         <div style="flex:1;font-size:12px;">
-          <span style="font-weight:600;color:#e05a5a;">${deudor}</span>
+          <span style="font-weight:600;color:#e05a5a;">${escapeHtml(deudor)}</span>
           <span style="color:var(--muted);margin:0 6px;font-size:11px;">debe a</span>
-          <span style="font-weight:600;color:#4caf7d;">${acreedor}</span>
+          <span style="font-weight:600;color:#4caf7d;">${escapeHtml(acreedor)}</span>
         </div>
         <div style="font-family:'DM Mono',monospace;font-weight:700;color:var(--accent);font-size:14px;">${fmt(monto)}</div>
       </div>
@@ -512,7 +512,7 @@ function renderSubPartidas(periodo) {
     return `
       <div style="margin-bottom:8px;">
         <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;">
-          <span style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:65%;">${sub}</span>
+          <span style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:65%;">${escapeHtml(sub)}</span>
           <span style="font-family:'DM Mono',monospace;font-weight:600;color:${color};">${fmt(monto)}</span>
         </div>
         <div style="height:4px;background:var(--surface2);border-radius:2px;overflow:hidden;">
@@ -550,7 +550,7 @@ function renderTopBeneficiarios(periodo) {
     return `
       <div style="margin-bottom:8px;">
         <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;">
-          <span style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:65%;">${nombre}</span>
+          <span style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:65%;">${escapeHtml(nombre)}</span>
           <span style="font-family:'DM Mono',monospace;font-weight:600;color:${color};">${fmt(monto)}</span>
         </div>
         <div style="height:4px;background:var(--surface2);border-radius:2px;overflow:hidden;">
@@ -573,11 +573,11 @@ function renderObservaciones(periodo) {
   const totalProy = Object.values(egresoPorProy).reduce((s, v) => s + v, 0);
   const saldosNetos = calcularSaldosNetosPrestamos();
 
-  const ambito = proyectoActivo ? ` para <strong>${proyectoActivo}</strong>` : '';
+  const ambito = proyectoActivo ? ` para <strong>${escapeHtml(proyectoActivo)}</strong>` : '';
   if (egresos.total > 0) obs.push(`Egresos del período${ambito} por <strong>${fmt(egresos.total)}</strong> en <strong>${egresos.pagos.length}</strong> operaciones de pago.`);
   if (!proyectoActivo && topProy && totalProy > 0) {
     const pct = (topProy[1] / totalProy) * 100;
-    obs.push(`El proyecto <strong>${topProy[0]}</strong> concentró <strong>${pct.toFixed(1)}%</strong> del egreso (${fmt(topProy[1])}).`);
+    obs.push(`El proyecto <strong>${escapeHtml(topProy[0])}</strong> concentró <strong>${pct.toFixed(1)}%</strong> del egreso (${fmt(topProy[1])}).`);
   }
   if (saldosNetos.length) {
     const total = saldosNetos.reduce((s, p) => s + Math.abs(p.neto), 0);
@@ -585,7 +585,7 @@ function renderObservaciones(periodo) {
     const mayor = [...saldosNetos].sort((a, b) => Math.abs(b.neto) - Math.abs(a.neto))[0];
     const deudor = mayor.neto > 0 ? mayor.b : mayor.a;
     const acreedor = mayor.neto > 0 ? mayor.a : mayor.b;
-    obs.push(`Mayor saldo: <strong>${deudor}</strong> debe a <strong>${acreedor}</strong> <strong>${fmt(Math.abs(mayor.neto))}</strong>.`);
+    obs.push(`Mayor saldo: <strong>${escapeHtml(deudor)}</strong> debe a <strong>${escapeHtml(acreedor)}</strong> <strong>${fmt(Math.abs(mayor.neto))}</strong>.`);
   }
 
   if (!obs.length) {
