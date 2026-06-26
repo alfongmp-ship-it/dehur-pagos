@@ -104,15 +104,21 @@ export function renderFacturas() {
     return;
   }
 
-  // Facturas que ya tienen reparto de costo (devengado).
-  const conReparto = new Set(state.costoAsignaciones.filter(a => a.factura_id).map(a => String(a.factura_id)));
+  // Suma del reparto (devengado) por factura, para mostrar completo / parcial / falta.
+  const repartoSum = new Map();
+  state.costoAsignaciones.forEach(a => { if (a.factura_id) repartoSum.set(String(a.factura_id), (repartoSum.get(String(a.factura_id)) || 0) + (a.monto_asignado || 0)); });
   tb.innerHTML = fil.map(f => {
     const provNombre = f.nombre_proveedor || f.razon_social || `ID ${f.proveedor_id}`;
     const estBadge = estatusBadge(f.estatus_factura);
     const vBadge = vencimientoBadge(f);
     const vColor = vencimientoColor(f);
-    const repartida = conReparto.has(String(f.factura_id));
-    const btnRepartir = `<button class="btn btn-ghost req-facturas" style="padding:4px 8px;font-size:11px;${repartida ? '' : 'color:var(--orange);'}" onclick="abrirRepartirFactura(${f.factura_id})" title="${repartida ? 'Reparto del costo (devengado) asignado' : 'Falta repartir el costo a unidades'}">${repartida ? 'Reparto ✓' : '⚠ Repartir'}</button>`;
+    const sumR = repartoSum.get(String(f.factura_id)) || 0;
+    const totalR = f.monto_total || 0;
+    let repTxt, repTit, repCss;
+    if (sumR <= 0.01) { repTxt = '⚠ Repartir'; repTit = 'Falta repartir el costo a unidades'; repCss = 'color:var(--orange);'; }
+    else if (sumR < totalR - 0.5) { repTxt = `Parcial ${Math.round(sumR / totalR * 100)}%`; repTit = `Repartido ${fmt(sumR)} de ${fmt(totalR)} — falta ${fmt(totalR - sumR)}`; repCss = 'color:var(--orange);'; }
+    else { repTxt = 'Reparto ✓'; repTit = 'Reparto del costo (devengado) completo'; repCss = ''; }
+    const btnRepartir = `<button class="btn btn-ghost req-facturas" style="padding:4px 8px;font-size:11px;${repCss}" onclick="abrirRepartirFactura(${f.factura_id})" title="${repTit}">${repTxt}</button>`;
     return `<tr>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${f.factura_id}</td>
       <td style="font-size:11px;">${escapeHtml(f.numero_factura) || '—'}</td>

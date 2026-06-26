@@ -19,6 +19,7 @@ let cfTab = 'unidades';     // sub-pestaña: unidades | asignar | presupuestos |
 let cfUnidadDetalle = null; // unidad_id seleccionada en presupuestos/reportes
 let cfPagoAsignar = null;   // pago_id en proceso de asignación
 let cfFacturaAsignar = null; // factura_id en proceso de reparto (devengado)
+let cfFacturaRestante = 0;   // monto que falta por repartir de la factura (reparto por partes/sub-partidas)
 let cfCustomModo = 'pct';   // método Personalizado: 'pct' (%) | 'monto' ($). Default %.
 let cfChartUnidad = null;
 let cfPlanoModo = 'vista';      // 'vista' | 'editor'
@@ -52,7 +53,14 @@ function facturaById(id) { return state.facturas.find(f => String(f.factura_id) 
 // devengado sobre su monto_total). Estos helpers aíslan la diferencia.
 function cfEsFactura() { return cfFacturaAsignar != null; }
 function cfImporteObjetivo() {
-  if (cfEsFactura()) { const f = facturaById(cfFacturaAsignar); return f ? (f.monto_total || 0) : 0; }
+  if (cfEsFactura()) {
+    const f = facturaById(cfFacturaAsignar); if (!f) return 0;
+    // Reparto POR PARTES: si existe el input "monto de esta parte", se reparte SOLO esa
+    // parte (para partir una factura entre sub-partidas). Si no, el total de la factura.
+    const parteEl = document.getElementById('rf-monto-parte');
+    if (parteEl) { const v = parseFloat(parteEl.value); return (isFinite(v) && v > 0) ? r2(v) : (cfFacturaRestante || 0); }
+    return f.monto_total || 0;
+  }
   const p = pagoById(cfPagoAsignar); return p ? (p.importe || 0) : 0;
 }
 // Fecha (ISO) del documento que se reparte (factura o pago). El indiviso solo usa las casas
@@ -657,23 +665,52 @@ export function abrirRepartirFactura(facturaId) {
   const tit = document.getElementById('asignar-titulo'); if (tit) tit.textContent = 'Repartir Factura (devengado)';
 
   const prov = f.nombre_proveedor || f.razon_social || ('ID ' + f.proveedor_id);
-  const previa = state.costoAsignaciones.find(a => String(a.factura_id) === String(facturaId));
+  // Reparto POR PARTES: lo ya repartido (puede venir de varias sub-partidas) y el restante.
+  const asigsF = state.costoAsignaciones.filter(a => String(a.factura_id) === String(facturaId));
+  const totalF = f.monto_total || 0;
+  const yaRep = r2(asigsF.reduce((s, a) => s + (a.monto_asignado || 0), 0));
+  const restante = r2(totalF - yaRep);
+  cfFacturaRestante = restante > 0 ? restante : 0;
+  const completa = restante <= 0.01;
+
+  // Partes ya repartidas, agrupadas por sub-partida (o partida) para mostrarlas.
+  const partesMap = new Map();
+  asigsF.forEach(a => {
+    const k = a.sub_partida_override || a.partida_override || '—';
+    partesMap.set(k, r2((partesMap.get(k) || 0) + (a.monto_asignado || 0)));
+  });
+  const partesHTML = partesMap.size
+    ? `<div style="margin-top:8px;font-size:11px;border-top:1px solid var(--border);padding-top:6px;">
+         <div style="color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">Partes ya repartidas</div>
+         ${[...partesMap].map(([k, m]) => `<div style="display:flex;justify-content:space-between;"><span>${escapeHtml(k)}</span><span style="font-family:'DM Mono',monospace;">${fmt(m)}</span></div>`).join('')}
+         <button type="button" class="btn btn-ghost btn-sm" style="margin-top:6px;color:var(--red);" onclick="cfLimpiarRepartoFactura()">🗑 Limpiar reparto y rehacer</button>
+       </div>`
+    : '';
+
   document.getElementById('asignar-info').innerHTML = `
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:14px;">
       <div style="font-weight:600;">🧾 Factura ${escapeHtml(f.numero_factura) || ''} · ${escapeHtml(prov)}</div>
       <div style="font-size:11px;color:var(--muted);margin-top:2px;">${escapeHtml(f.proyecto)} · devengado sobre el total de la factura</div>
-      <div style="font-family:'DM Mono',monospace;font-size:18px;color:var(--accent);font-weight:700;margin-top:6px;">${fmt(f.monto_total || 0)}</div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:6px;font-size:12px;">
+        <span>Total: <strong style="font-family:'DM Mono',monospace;">${fmt(totalF)}</strong></span>
+        <span>Repartido: <strong style="font-family:'DM Mono',monospace;">${fmt(yaRep)}</strong></span>
+        <span>Restante: <strong style="font-family:'DM Mono',monospace;color:${completa ? 'var(--green)' : 'var(--accent)'};">${fmt(restante)}</strong></span>
+      </div>
+      ${partesHTML}
     </div>
-    ${_repartoFacturaPartidaHTML(previa ? previa.partida_override : '')}`;
+    ${completa
+      ? '<div style="background:rgba(39,174,96,.1);border:1px solid rgba(39,174,96,.3);border-radius:8px;padding:10px;font-size:12px;">✅ Esta factura ya está 100% repartida. Para rehacerla usa "Limpiar reparto".</div>'
+      : `<div style="margin-bottom:12px;">
+           <label style="font-size:12px;color:var(--muted);">Monto a repartir en esta parte</label>
+           <input id="rf-monto-parte" type="number" step="0.01" value="${restante}" oninput="cfPreviewReparto()" class="filter-select" style="width:170px;margin-top:4px;font-family:'DM Mono',monospace;text-align:right;">
+           <div style="font-size:10px;color:var(--muted);margin-top:3px;">Si la factura es de UNA sola sub-partida, déjalo completo. Si se reparte entre varias, pon el monto de ESTA y repite con el resto.</div>
+         </div>
+         ${_repartoFacturaPartidaHTML('')}`}`;
 
-  const metPrevio = previa ? previa.metodo : 'directo';
-  const radio = document.querySelector(`input[name="cf-metodo"][value="${metPrevio}"]`) || document.querySelector('input[name="cf-metodo"][value="directo"]');
+  const radio = document.querySelector('input[name="cf-metodo"][value="directo"]');
   if (radio) radio.checked = true;
   renderMetodoBody();
-  cfFacturaPartidaChange();                // arma la cascada de sub-partida
-  if (previa && previa.sub_partida_override) {
-    const sub = document.getElementById('rf-subpartida'); if (sub) sub.value = previa.sub_partida_override;
-  }
+  cfFacturaPartidaChange();                // arma la cascada de sub-partida (si hay selector)
   document.getElementById('modal-asignar-costo').classList.add('open');
 }
 
@@ -715,6 +752,19 @@ export async function eliminarAsignacionCosto(pagoId) {
   await gsSaveCostoAsignaciones();
   notify('Asignación eliminada');
   renderPanel();
+}
+
+// Borra TODO el reparto (todas las partes/sub-partidas) de la factura abierta, para
+// rehacerlo desde cero. Refresca el modal (restante vuelve al total).
+export async function cfLimpiarRepartoFactura() {
+  if (!cfEsFactura()) return;
+  if (!confirm('¿Borrar TODO el reparto de costos de esta factura para rehacerlo?')) return;
+  const fid = cfFacturaAsignar;
+  state.costoAsignaciones = state.costoAsignaciones.filter(a => String(a.factura_id) !== String(fid));
+  await gsSaveCostoAsignaciones();
+  if (window.renderFacturas) window.renderFacturas();
+  abrirRepartirFactura(fid);   // reabre con restante = total
+  notify('Reparto borrado. Puedes rehacerlo.');
 }
 
 export function cfCambiarMetodo() {
@@ -1009,13 +1059,23 @@ export async function guardarAsignacionCosto() {
       subPartidaOv = (document.getElementById('rf-subpartida')?.value || '').trim();
       if (!subPartidaOv) { notify('Selecciona la sub-partida', 'error'); return; }
     }
+    // Reparto POR PARTES: la suma de partes NO puede pasar del total de la factura
+    // (evita doble conteo). Cada parte ACUMULA; para rehacer, usa "Limpiar reparto".
+    const fAct = facturaById(cfFacturaAsignar);
+    const totalF = fAct ? (fAct.monto_total || 0) : 0;
+    const yaRep = r2(state.costoAsignaciones.filter(a => String(a.factura_id) === String(cfFacturaAsignar)).reduce((s, a) => s + (a.monto_asignado || 0), 0));
+    const parte = r2(reparto.reduce((s, x) => s + x.monto, 0));
+    if (yaRep >= totalF - 0.01) { notify('Esta factura ya está 100% repartida. Usa "Limpiar reparto" para rehacerla.', 'error'); return; }
+    if (r2(yaRep + parte) > r2(totalF) + 0.01) {
+      notify(`Esta parte (${fmt(parte)}) excede el restante de la factura (${fmt(r2(totalF - yaRep))}).`, 'error');
+      return;
+    }
   }
 
   const hoy = new Date().toISOString().slice(0, 10);
   // Quitar reparto previo del MISMO objetivo (reasignación), sin tocar el otro tipo.
-  if (esFact) {
-    state.costoAsignaciones = state.costoAsignaciones.filter(a => String(a.factura_id) !== String(cfFacturaAsignar));
-  } else {
+  // FACTURA: NO se borra — acumula por partes/sub-partidas (el guard de arriba evita pasar del total).
+  if (!esFact) {
     state.costoAsignaciones = state.costoAsignaciones.filter(a => a.factura_id || String(a.pago_id) !== String(cfPagoAsignar));
   }
 
@@ -1035,10 +1095,25 @@ export async function guardarAsignacionCosto() {
     });
   });
 
-  cerrar('modal-asignar-costo');
   await gsSaveCostoAsignaciones();
-  notify((esFact ? 'Factura repartida a ' : 'Costo asignado a ') + reparto.length + ' unidad(es)');
   if (esFact && window.renderFacturas) window.renderFacturas();
+  if (esFact) {
+    // Reparto por partes: si aún falta, reabre el modal para continuar con la siguiente
+    // sub-partida; si ya quedó el total, cierra.
+    const fNow = facturaById(cfFacturaAsignar);
+    const yaNow = r2(state.costoAsignaciones.filter(a => String(a.factura_id) === String(cfFacturaAsignar)).reduce((s, a) => s + (a.monto_asignado || 0), 0));
+    const restaNow = r2((fNow ? (fNow.monto_total || 0) : 0) - yaNow);
+    if (restaNow > 0.01) {
+      abrirRepartirFactura(cfFacturaAsignar);
+      notify(`Parte repartida · falta repartir ${fmt(restaNow)}`);
+    } else {
+      cerrar('modal-asignar-costo');
+      notify('✅ Factura 100% repartida');
+    }
+  } else {
+    cerrar('modal-asignar-costo');
+    notify('Costo asignado a ' + reparto.length + ' unidad(es)');
+  }
   renderPanel();
 }
 
