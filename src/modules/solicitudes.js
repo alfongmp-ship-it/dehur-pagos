@@ -87,6 +87,12 @@ function normCodigo(s) {
   return String(s || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
+// Clave para detectar pagos REPETIDOS: proveedor + importe + concepto (normalizados).
+// Red de seguridad anti doble-pago: si dos filas coinciden, se marcan como posible duplicado.
+function _claveDup(proveedor, importe, concepto) {
+  return normCodigo(proveedor) + '|' + (Number(importe) || 0).toFixed(2) + '|' + normCodigo(concepto);
+}
+
 // Resuelve un c\u00f3digo de unidad ('101') al objeto de unidad usando state.unidades.
 // ESTRICTO: solo busca dentro del proyecto del pago. Si la unidad existe en otro
 // proyecto pero no en el del pago, devuelve null (evita asignar costos cruzados
@@ -440,6 +446,17 @@ export function parsearSolicitud(wb, filename) {
     return;
   }
 
+  // Red de seguridad anti doble-pago: marca posibles pagos REPETIDOS dentro del
+  // archivo (mismo proveedor + importe + concepto). NO los quita — solo avisa, para
+  // que un duplicado no se cuele al pago. También lo cazan enviarACola y generarArchivo.
+  const _vistosDup = new Set();
+  let _nDup = 0;
+  state.solicitudesData.forEach(s => {
+    const k = _claveDup(s.proveedor, s.importe, s.concepto);
+    if (_vistosDup.has(k)) { s._duplicado = true; _nDup++; }
+    else { s._duplicado = false; _vistosDup.add(k); }
+  });
+
   document.getElementById('sol-filename').textContent = filename;
   const total = state.solicitudesData.reduce((a, s) => a + s.importe, 0);
   document.getElementById('sol-fileinfo').textContent =
@@ -466,7 +483,8 @@ export function parsearSolicitud(wb, filename) {
   if (sinCatalogo) partes.push(`⚠ ${sinCatalogo} partida${sinCatalogo === 1 ? '' : 's'} fuera del catálogo Obra`);
   if (sinMapeo) partes.push(`⚠ ${sinMapeo} sin mapeo Admin`);
   if (sinReparto) partes.push(`⚠ ${sinReparto} sin reparto (se asignan por indiviso al confirmar, o a mano)`);
-  notify(partes.join(' · '));
+  if (_nDup) partes.push(`⛔ ${_nDup} POSIBLE${_nDup === 1 ? '' : 'S'} DUPLICADO${_nDup === 1 ? '' : 'S'} (mismo proveedor, importe y concepto)`);
+  notify(partes.join(' · '), _nDup ? 'error' : 'success');
 }
 
 // Devuelve el HTML para la columna Partida (original + estado de mapeo).
@@ -610,7 +628,7 @@ export function renderSolicitudes() {
               <div style="margin-top:3px;"><a href="#" onclick="abrirVincular('${s.uid}');return false;" style="font-size:10px;color:var(--accent);text-decoration:none;">🔗 Vincular / Agregar</a></div>
             </div>`;
 
-    const rowStyle = s.esNo ? 'opacity:.5' : s._facturaError ? 'background:rgba(231,76,60,.08);' : '';
+    const rowStyle = s.esNo ? 'opacity:.5' : (s._facturaError || s._duplicado) ? 'background:rgba(231,76,60,.08);' : '';
     return `<tr style="${rowStyle}">
       <td style="padding:8px 6px;"><input type="checkbox" ${s.seleccionado ? 'checked' : ''}
         onchange="toggleSol('${s.uid}',this.checked)" style="width:15px;height:15px;cursor:pointer;accent-color:var(--accent);"></td>
@@ -618,6 +636,7 @@ export function renderSolicitudes() {
       <td>
         <div style="font-size:12px;font-weight:600;line-height:1.3;">${escapeHtml(s.match ? s.match.nombre : s.proveedor)}</div>
         <div style="font-size:10px;color:var(--muted);margin-top:2px;">${escapeHtml(s.proyecto)}</div>
+        ${s._duplicado ? '<div style="font-size:10px;color:var(--red);font-weight:700;margin-top:2px;">⛔ posible duplicado</div>' : ''}
       </td>
       <td style="font-size:11px;color:var(--muted);">${badgePartidaObra(s)}</td>
       <td style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);">${escapeHtml(s.clave)}</td>
@@ -810,6 +829,13 @@ export function enviarACola() {
   // Filtrar solicitudes con error de factura (ya están deseleccionadas pero por si acaso)
   const validos = sel.filter(s => !s._facturaError);
   if (!validos.length) { notify('⛔ Todos los pagos seleccionados tienen problemas de factura. Revisa las advertencias.', 'error'); return; }
+
+  // Red de seguridad: confirma antes de mandar a la cola si hay posibles duplicados.
+  const dupSel = validos.filter(s => s._duplicado);
+  if (dupSel.length) {
+    const lista = dupSel.map(s => `• ${s.proveedor} — ${fmt(s.importe)}`).join('\n');
+    if (!confirm(`⚠ ${dupSel.length} pago(s) seleccionados parecen DUPLICADOS (mismo proveedor, importe y concepto):\n\n${lista}\n\n¿Enviar a la cola de todos modos?`)) return;
+  }
 
   validos.forEach(s => {
     const prov = s.match;

@@ -336,6 +336,20 @@ function resolverCuentaAbono(proveedor) {
 export function generarArchivo() {
   if (!window.XLSX) { notify('Cargando librería, intenta en 2 segundos', 'error'); return; }
   if (!state.cola.length) { notify('Cola vacía', 'error'); return; }
+
+  // Red de seguridad anti doble-pago: avisa de pagos REPETIDOS en la cola (mismo
+  // proveedor + importe + concepto) ANTES de generar el archivo BBVA. Último filtro.
+  const _norm = s => String(s || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const _vistosCola = new Set();
+  const _dupsCola = [];
+  state.cola.forEach(item => {
+    const k = _norm(item.proveedor && item.proveedor.nombre) + '|' + (Number(item.importe) || 0).toFixed(2) + '|' + _norm(item.concepto);
+    if (_vistosCola.has(k)) _dupsCola.push(item); else _vistosCola.add(k);
+  });
+  if (_dupsCola.length) {
+    const lista = _dupsCola.map(i => `• ${(i.proveedor && i.proveedor.nombre) || '?'} — ${fmt(i.importe)}`).join('\n');
+    if (!confirm(`⚠ ${_dupsCola.length} pago(s) en la cola parecen DUPLICADOS (mismo proveedor, importe y concepto):\n\n${lista}\n\n¿Generar el archivo BBVA de todos modos?`)) return;
+  }
   const fecha = document.getElementById('fecha-disp').value || new Date().toISOString().split('T')[0];
   const proyId = document.getElementById('cuenta-disp').value;
   const proySel = state.proyectos.find(p => p.id === proyId) || state.proyectos[0];
