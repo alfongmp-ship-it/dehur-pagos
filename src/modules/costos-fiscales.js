@@ -20,6 +20,7 @@ let cfUnidadDetalle = null; // unidad_id seleccionada en presupuestos/reportes
 let cfPagoAsignar = null;   // pago_id en proceso de asignación
 let cfFacturaAsignar = null; // factura_id en proceso de reparto (devengado)
 let cfFacturaRestante = 0;   // monto que falta por repartir de la factura (reparto por partes/sub-partidas)
+let cfMostrarEstimado = false; // toggle: ver estimado por indiviso de pagos sin asignar (SOLO display)
 let cfCustomModo = 'pct';   // método Personalizado: 'pct' (%) | 'monto' ($). Default %.
 let cfChartUnidad = null;
 let cfPlanoModo = 'vista';      // 'vista' | 'editor'
@@ -210,6 +211,45 @@ function pagosAsignados() {
   );
 }
 
+// Estimado de SOLO-VISUALIZACIÓN: reparte por indiviso (respetando la fecha del pago) los
+// pagos del proyecto SIN factura ligada y SIN reparto, para ver su impacto provisional por
+// casa mientras se asignan. NO crea asignaciones reales → no afecta el costo real ni duplica.
+// Devuelve { porUnidad: Map(unidad_id→monto), total, count }.
+function estimadoIndivisoPorUnidad() {
+  const porUnidad = new Map();
+  const asignados = new Set(state.costoAsignaciones.map(a => String(a.pago_id)));
+  const activas = unidadesDeProyecto();
+  const pend = state.historial.filter(h =>
+    esCostoAsignable(h) && h.id &&
+    proyectoMatch(h.proyecto, cfProyecto) &&
+    !asignados.has(String(h.id)) &&
+    !(h.factura_id && String(h.factura_id) !== '')
+  );
+  let total = 0;
+  pend.forEach(h => { total += h.importe || 0; });
+  if (activas.length) {
+    const poolCache = new Map(); // fecha ISO → { casas, sumInd } (pool de indiviso a esa fecha)
+    pend.forEach(h => {
+      const imp = h.importe || 0;
+      if (!imp) return;
+      const fIso = parseFechaHist(h.fecha) || '';
+      let pool = poolCache.get(fIso);
+      if (!pool) {
+        const inObra = activas.filter(u => unidadEnIndivisoAFecha(u, fIso));
+        const casas = inObra.length ? inObra : activas;
+        pool = { casas, sumInd: casas.reduce((s, u) => s + (u.indiviso_pct || 0), 0) };
+        poolCache.set(fIso, pool);
+      }
+      if (!pool.casas.length) return;
+      pool.casas.forEach(u => {
+        const factor = pool.sumInd > 0 ? (u.indiviso_pct || 0) / pool.sumInd : 1 / pool.casas.length;
+        porUnidad.set(u.unidad_id, (porUnidad.get(u.unidad_id) || 0) + imp * factor);
+      });
+    });
+  }
+  return { porUnidad, total, count: pend.length };
+}
+
 function asignacionesHuerfanas() {
   const ids = historialIdSet();
   const factIds = new Set((state.facturas || []).map(f => String(f.factura_id)).filter(Boolean));
@@ -307,6 +347,7 @@ function renderUnidadesTab(panel) {
   }
   const sumaInd = unidades.filter(u => u.activo !== false).reduce((s, u) => s + (u.indiviso_pct || 0), 0);
   const indOk = Math.abs(sumaInd - 100) < 0.05;
+  const estim = cfMostrarEstimado ? estimadoIndivisoPorUnidad() : null;
 
   panel.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
@@ -315,18 +356,22 @@ function renderUnidadesTab(panel) {
         Suma indiviso: <strong style="color:${indOk ? 'var(--green)' : 'var(--orange)'};">${sumaInd.toFixed(2)}%</strong>
         ${indOk ? '' : ' (debería ser 100%)'}
       </div>
-      <div style="display:flex;gap:8px;">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);cursor:pointer;" title="Reparte por indiviso (respetando fechas) los pagos sin factura ni reparto, SOLO para verlos. No crea asignaciones reales ni afecta el costo real.">
+          <input type="checkbox" ${cfMostrarEstimado ? 'checked' : ''} onchange="cfToggleEstimado(this.checked)" style="cursor:pointer;"> Estimado por asignar
+        </label>
         <button class="btn btn-ghost" onclick="abrirLoteUnidades()">+ Crear en lote</button>
         <button class="btn btn-primary" onclick="abrirNuevaUnidad()">+ Nueva Unidad</button>
       </div>
     </div>
+    ${estim ? `<div style="font-size:12px;color:var(--accent);background:rgba(200,169,110,.08);border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:12px;">📊 Pendiente por asignar: <strong>${fmt(estim.total)}</strong> en ${estim.count} pago(s) — repartido por indiviso (estimado; no afecta el costo real)</div>` : ''}
     ${unidades.length ? `
     <div class="table-wrap">
       <table>
         <thead><tr>
           <th>Unidad</th><th>Tipo</th><th style="text-align:right">% Indiviso</th>
           <th style="text-align:right">Superficie</th><th>Estatus</th><th>Terminación</th>
-          <th style="text-align:right">Costo real</th><th style="text-align:right">Acciones</th>
+          <th style="text-align:right">Costo real</th>${estim ? '<th style="text-align:right">Estimado (por asignar)</th>' : ''}<th style="text-align:right">Acciones</th>
         </tr></thead>
         <tbody>${unidades.map(u => {
           const real = costoRealUnidad(u.unidad_id);
@@ -340,6 +385,7 @@ function renderUnidadesTab(panel) {
               ? `<input type="date" value="${escapeHtml(u.fecha_termino || '')}" onchange="setFechaTermino(${u.unidad_id}, this.value)" title="Fecha en que la casa salió del indiviso (vacío = sigue en obra)" style="font-size:11px;padding:2px 4px;width:130px;">`
               : `<span style="font-size:11px;color:var(--muted);">${escapeHtml(u.fecha_termino) || '—'}</span>`}</td>
             <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--accent);">${fmt(real)}</td>
+            ${estim ? `<td style="text-align:right;font-family:'DM Mono',monospace;color:var(--muted);">${fmt(estim.porUnidad.get(u.unidad_id) || 0)}</td>` : ''}
             <td style="text-align:right;white-space:nowrap;">
               <button class="btn btn-ghost btn-sm" onclick="editarUnidad(${u.unidad_id})">Editar</button>
               <button class="btn btn-ghost btn-sm" onclick="toggleUnidad(${u.unidad_id})" style="color:${u.activo === false ? 'var(--green)' : 'var(--red)'};">${u.activo === false ? 'Activar' : 'Baja'}</button>
@@ -349,6 +395,12 @@ function renderUnidadesTab(panel) {
       </table>
     </div>` : `<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🏠</div><div>Sin unidades en ${escapeHtml(cfProyecto)}. Crea las casas para empezar.</div></div>`}
   `;
+}
+
+// Prende/apaga el estimado por indiviso de pagos sin asignar (solo display).
+export function cfToggleEstimado(on) {
+  cfMostrarEstimado = on === true || on === 'true' || on === '1';
+  renderCostosFiscales();
 }
 
 export function abrirNuevaUnidad() {
