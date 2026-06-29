@@ -119,13 +119,19 @@ export function renderFacturas() {
     else if (sumR < totalR - 0.5) { repTxt = `Parcial ${Math.round(sumR / totalR * 100)}%`; repTit = `Repartido ${fmt(sumR)} de ${fmt(totalR)} — falta ${fmt(totalR - sumR)}`; repCss = 'color:var(--orange);'; }
     else { repTxt = 'Reparto ✓'; repTit = 'Reparto del costo (devengado) completo'; repCss = ''; }
     const btnRepartir = `<button class="btn btn-ghost req-facturas" style="padding:4px 8px;font-size:11px;${repCss}" onclick="abrirRepartirFactura(${f.factura_id})" title="${repTit}">${repTxt}</button>`;
+    // Total: si hay nota de crédito, monto_total ya es el NETO (factura − NC). Mostramos el
+    // neto y, debajo, el total ORIGINAL (antes de NC) + el monto de la NC, solo informativo.
+    const ncTotal = (f.nc_subtotal || 0) + (f.nc_iva || 0);
+    const totalCell = ncTotal > 0.005
+      ? `${fmt(f.monto_total)}<div style="font-size:9px;color:var(--muted);font-weight:400;">orig. ${fmt((f.monto_total || 0) + ncTotal)} · NC −${fmt(ncTotal)}</div>`
+      : fmt(f.monto_total);
     return `<tr>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${f.factura_id}</td>
       <td style="font-size:11px;">${escapeHtml(f.numero_factura) || '—'}</td>
       <td><div style="font-weight:500;font-size:12px;">${escapeHtml(provNombre)}</div><div style="font-size:10px;color:var(--muted);">${f.razon_social && f.nombre_proveedor ? escapeHtml(f.razon_social) : ''}</div></td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${fmtFecha(f.fecha_factura)}</td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:${vColor};font-weight:${vColor !== 'var(--muted)' ? '600' : '400'};">${fmtFecha(f.fecha_vencimiento) || '—'} ${vBadge}</td>
-      <td style="font-family:'DM Mono',monospace;font-weight:500;text-align:right;">${fmt(f.monto_total)}</td>
+      <td style="font-family:'DM Mono',monospace;font-weight:500;text-align:right;">${totalCell}</td>
       <td style="font-family:'DM Mono',monospace;text-align:right;color:var(--green);">${fmt(f.monto_pagado)}</td>
       <td style="font-family:'DM Mono',monospace;font-weight:500;text-align:right;color:${f.saldo_pendiente > 0 ? 'var(--accent)' : 'var(--muted)'};">${fmt(f.saldo_pendiente)}</td>
       <td>${estBadge}</td>
