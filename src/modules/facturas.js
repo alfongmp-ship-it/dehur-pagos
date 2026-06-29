@@ -397,7 +397,11 @@ export function editarFactura(id) {
   document.getElementById('f-retiva').value = f.retencion_iva || 0;
   document.getElementById('f-retisr').value = f.retencion_isr || 0;
   document.getElementById('f-nc-subtotal').value = f.nc_subtotal || 0;
-  const ncIvaEdit = document.getElementById('f-nc-iva'); ncIvaEdit.value = f.nc_iva || 0; ncIvaEdit.dataset.touched = '1';
+  // Marcar "touched" SOLO si la factura ya traía IVA de NC (para preservarlo). Si no traía NC,
+  // dejarlo SIN touched para que al agregar una NC en edición el IVA se autollene (16%) y el total
+  // baje solo — igual que en "Nueva factura". (Sin esto, editar dejaba muerto el autocálculo de NC.)
+  const ncIvaEdit = document.getElementById('f-nc-iva'); ncIvaEdit.value = f.nc_iva || 0;
+  if (f.nc_iva > 0) ncIvaEdit.dataset.touched = '1'; else delete ncIvaEdit.dataset.touched;
   // En edición sí se puede vincular pagos del historial a esta factura.
   document.getElementById('fact-pagos-vinc').style.display = '';
   // El botón Eliminar aparece al editar; el CSS (.req-borrar-factura) decide si el rol lo ve.
