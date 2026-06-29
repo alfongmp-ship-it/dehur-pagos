@@ -152,16 +152,23 @@ function getFilteredFacturas() {
     if (fp && !proyectoMatch(f.proyecto, fp)) return false;
     return true;
   });
-  // Orden: por VENCIMIENTO ascendente (las vencidas / próximas a vencer arriba; las que no
-  // tienen vencimiento se van al fondo) y, como desempate, por FECHA DE FACTURA descendente
-  // (la más reciente arriba). Aplica a la lista y al export.
+  // Orden: primero las que AÚN requieren acción (pendiente/parcial) — por VENCIMIENTO ascendente
+  // (las más vencidas / próximas a vencer arriba; sin vencimiento al fondo de su grupo), desempate
+  // por FECHA DE FACTURA descendente. Las ya cerradas (pagada/cancelada) se van ABAJO, y entre
+  // ellas la más VIEJA hasta el fondo (fecha de factura descendente). Aplica a la lista y al export.
+  const _cerrada = f => f.estatus_factura === 'pagada' || f.estatus_factura === 'cancelada';
   fil.sort((a, b) => {
-    const va = parseFechaHist(a.fecha_vencimiento) || '9999-12-31';
-    const vb = parseFechaHist(b.fecha_vencimiento) || '9999-12-31';
-    if (va !== vb) return va < vb ? -1 : 1;
+    const ca = _cerrada(a), cb = _cerrada(b);
+    if (ca !== cb) return ca ? 1 : -1;                       // pagadas/canceladas al fondo
     const fa = parseFechaHist(a.fecha_factura) || '';
     const fb = parseFechaHist(b.fecha_factura) || '';
-    return fa < fb ? 1 : (fa > fb ? -1 : 0);
+    if (!ca) {                                               // activas: por vencimiento ascendente
+      const va = parseFechaHist(a.fecha_vencimiento) || '9999-12-31';
+      const vb = parseFechaHist(b.fecha_vencimiento) || '9999-12-31';
+      if (va !== vb) return va < vb ? -1 : 1;
+      return fa < fb ? 1 : (fa > fb ? -1 : 0);               // desempate: factura más reciente arriba
+    }
+    return fa < fb ? 1 : (fa > fb ? -1 : 0);                 // pagadas: más vieja abajo (fecha desc)
   });
   return fil;
 }
