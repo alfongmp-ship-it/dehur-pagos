@@ -881,10 +881,18 @@ function renderMetodoBody() {
       </div>
       <div class="cf-picker-count">${esPct ? 'Los porcentajes deben sumar <strong>100%</strong>' : 'Importe a repartir: <strong>' + fmt(cfImporteObjetivo()) + '</strong>'}</div>`;
   } else if (metodo === 'indiviso') {
+    // Mostrar el pool REAL (mismo criterio que calcularReparto): solo las casas que seguían
+    // en obra a la fecha del documento. El texto debe coincidir con lo que de verdad reparte.
+    const fechaDoc = cfFechaObjetivo();
+    const enObra = unidades.filter(u => unidadEnIndivisoAFecha(u, fechaDoc));
+    const pool = enObra.length ? enObra : unidades;
+    const fechaTxt = fechaDoc ? fmtFecha(fechaDoc) : 'hoy';
+    const nota = pool.length === unidades.length ? ''
+      : ` (de ${unidades.length} activas; las terminadas antes de esa fecha NO reciben costo)`;
     body.innerHTML = `
       <div style="font-size:12px;color:var(--muted);background:rgba(155,127,232,.1);border:1px solid rgba(155,127,232,.3);border-radius:8px;padding:10px;">
-        El costo se repartirá entre las <strong>${unidades.length}</strong> casas activas de ${escapeHtml(cfProyecto)}
-        según su % de indiviso.
+        El costo se repartirá por indiviso entre las <strong>${pool.length}</strong> casa(s) de ${escapeHtml(cfProyecto)}
+        que seguían en obra al <strong>${fechaTxt}</strong>${nota}, según su % de indiviso.
       </div>`;
   }
   cfPreviewReparto();
