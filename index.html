@@ -356,7 +356,7 @@
       <div id="fact-subtitulo" style="font-size:11px;color:var(--muted);margin-bottom:6px;"></div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th style="width:50px">ID</th><th>Núm. Factura</th><th>Proveedor</th><th>Fecha</th><th>Vencimiento</th><th style="text-align:right">Total</th><th style="text-align:right">Pagado</th><th style="text-align:right">Saldo</th><th>Estatus</th><th>Estado SAT</th><th>Proyecto</th><th style="text-align:right">Acciones</th></tr></thead>
+          <thead><tr><th style="width:50px">ID</th><th>UUID · Núm.</th><th>Proveedor</th><th>Fecha</th><th>Vencimiento</th><th style="text-align:right">Total</th><th style="text-align:right">Pagado</th><th style="text-align:right">Saldo</th><th>Estatus</th><th>Estado SAT</th><th>Proyecto</th><th style="text-align:right">Acciones</th></tr></thead>
           <tbody id="tbody-fact"></tbody>
         </table>
       </div>
@@ -1340,6 +1340,20 @@
     <div class="form-actions" style="justify-content:space-between;">
       <button id="fact-eliminar-btn" class="btn btn-ghost req-borrar-factura" style="display:none;color:#e74c3c;border-color:#e74c3c;" onclick="eliminarFactura()">🗑 Eliminar factura</button>
       <div style="display:flex;gap:8px;margin-left:auto;"><button class="btn btn-ghost" onclick="cerrar('modal-factura')">Cancelar</button><button class="btn btn-primary" onclick="guardarFactura()">Guardar</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL DETALLE FACTURA (solo lectura, se abre con doble click en la fila) -->
+<div class="modal-overlay" id="modal-detalle-factura">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-detalle-fact-title">Detalle de factura</div>
+      <button class="modal-close" onclick="cerrar('modal-detalle-factura')">✕</button>
+    </div>
+    <div id="detalle-factura-body"></div>
+    <div class="form-actions" style="justify-content:flex-end;">
+      <button class="btn btn-ghost" onclick="cerrar('modal-detalle-factura')">Cerrar</button>
     </div>
   </div>
 </div>

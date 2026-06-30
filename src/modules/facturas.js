@@ -125,9 +125,9 @@ export function renderFacturas() {
     const totalCell = ncTotal > 0.005
       ? `${fmt(f.monto_total)}<div style="font-size:9px;color:var(--muted);font-weight:400;">orig. ${fmt((f.monto_total || 0) + ncTotal)} · NC −${fmt(ncTotal)}</div>`
       : fmt(f.monto_total);
-    return `<tr>
+    return `<tr ondblclick="abrirDetalleFactura(${f.factura_id})" style="cursor:pointer;" title="Doble click para ver el detalle y los pagos">
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${f.factura_id}</td>
-      <td style="font-size:11px;">${escapeHtml(f.numero_factura) || '—'}</td>
+      <td style="font-size:11px;"><span style="font-family:'DM Mono',monospace;" title="${escapeHtml(f.uuid)}">${escapeHtml((f.uuid || '').split('-')[0]) || '—'}</span><div style="font-size:9px;color:var(--muted);">Núm: ${escapeHtml(f.numero_factura) || '—'}</div></td>
       <td><div style="font-weight:500;font-size:12px;">${escapeHtml(provNombre)}</div><div style="font-size:10px;color:var(--muted);">${f.razon_social && f.nombre_proveedor ? escapeHtml(f.razon_social) : ''}</div></td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${fmtFecha(f.fecha_factura)}</td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:${vColor};font-weight:${vColor !== 'var(--muted)' ? '600' : '400'};">${fmtFecha(f.fecha_vencimiento) || '—'} ${vBadge}</td>
@@ -408,6 +408,72 @@ export function editarFactura(id) {
   document.getElementById('fact-eliminar-btn').style.display = '';
   ocultarBuscadorPagosFactura();
   document.getElementById('modal-factura').classList.add('open');
+}
+
+// Detalle de factura SOLO LECTURA (doble click en la fila). Para roles de solo lectura
+// (p.ej. contabilidad/Ericka) que no ven el botón Editar: ver datos + pagos ligados.
+export function abrirDetalleFactura(id) {
+  const f = state.facturas.find(x => x.factura_id === id);
+  if (!f) return;
+  const prov = state.proveedores.find(p => p.id === f.proveedor_id);
+  const provNombre = f.nombre_proveedor || (prov && prov.nombre) || f.razon_social || ('ID ' + f.proveedor_id);
+  const ncTotal = (f.nc_subtotal || 0) + (f.nc_iva || 0);
+  const fila = (k, v) => `<div style="display:flex;justify-content:space-between;gap:16px;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px;"><span style="color:var(--muted);">${k}</span><span style="text-align:right;font-weight:500;">${v}</span></div>`;
+  const filaMonto = (k, v, color) => fila(k, `<span style="font-family:'DM Mono',monospace;${color ? 'color:' + color + ';' : ''}">${fmt(v)}</span>`);
+
+  const fps = state.facturaPagos.filter(fp => String(fp.factura_id) === String(id));
+  const pagosHTML = fps.length
+    ? `<table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:6px;">
+         <thead><tr style="color:var(--muted);text-align:left;border-bottom:1px solid var(--border);">
+           <th style="padding:4px 6px;">Fecha</th><th style="padding:4px 6px;text-align:right;">Monto aplicado</th><th style="padding:4px 6px;">Concepto</th></tr></thead>
+         <tbody>${fps.map(fp => {
+           const pago = state.historial.find(p => String(p.id) === String(fp.pago_id));
+           const concepto = fp.observaciones || (pago && pago.concepto) || '';
+           return `<tr style="border-bottom:1px solid var(--border);">
+             <td style="padding:4px 6px;font-family:'DM Mono',monospace;color:var(--muted);">${fmtFecha(fp.fecha_pago)}</td>
+             <td style="padding:4px 6px;text-align:right;font-family:'DM Mono',monospace;color:var(--accent);">${fmt(fp.monto_aplicado)}</td>
+             <td style="padding:4px 6px;color:var(--muted);">${escapeHtml(concepto)}</td>
+           </tr>`;
+         }).join('')}</tbody>
+       </table>
+       <div style="font-size:11px;color:var(--muted);margin-top:4px;">${fps.length} pago(s) · aplicado ${fmt(fps.reduce((s, fp) => s + (fp.monto_aplicado || 0), 0))}</div>`
+    : '<div style="font-size:12px;color:var(--muted);padding:6px 0;">Sin pagos ligados a esta factura.</div>';
+
+  document.getElementById('detalle-factura-body').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 20px;">
+      <div>
+        ${fila('Factura (ID)', '#' + f.factura_id)}
+        ${fila('Número', escapeHtml(f.numero_factura) || '—')}
+        ${fila('UUID (folio fiscal)', `<span style="font-family:'DM Mono',monospace;font-size:11px;">${escapeHtml(f.uuid) || '—'}</span>`)}
+        ${fila('RFC emisor', escapeHtml(f.rfc_emisor) || '—')}
+        ${fila('Proveedor', escapeHtml(provNombre))}
+        ${fila('Razón social', escapeHtml(f.razon_social) || '—')}
+        ${fila('Empresa facturada', escapeHtml(f.empresa) || '—')}
+        ${fila('Proyecto', escapeHtml(f.proyecto) || '—')}
+        ${fila('Tipo comprobante', escapeHtml(f.tipo_comprobante) || '—')}
+        ${fila('Estado SAT', escapeHtml(f.estado_sat) || 'Vigente')}
+        ${fila('Estatus de pago', escapeHtml(f.estatus_factura) || '—')}
+      </div>
+      <div>
+        ${fila('Fecha factura', fmtFecha(f.fecha_factura) || '—')}
+        ${fila('Vencimiento', fmtFecha(f.fecha_vencimiento) || '—')}
+        ${filaMonto('Subtotal', f.subtotal || 0)}
+        ${filaMonto('Descuento', f.descuento || 0)}
+        ${filaMonto('IVA', f.iva_trasladado || 0)}
+        ${filaMonto('Retención IVA', f.retencion_iva || 0)}
+        ${filaMonto('Retención ISR', f.retencion_isr || 0)}
+        ${ncTotal > 0.005 ? filaMonto('Nota de crédito', ncTotal, 'var(--red)') : ''}
+        ${filaMonto('Total neto', f.monto_total || 0)}
+        ${filaMonto('Pagado', f.monto_pagado || 0, 'var(--green)')}
+        ${filaMonto('Saldo', f.saldo_pendiente || 0, (f.saldo_pendiente || 0) > 0 ? 'var(--accent)' : 'var(--muted)')}
+      </div>
+    </div>
+    ${f.observaciones ? `<div style="margin-top:10px;font-size:12px;"><span style="color:var(--muted);">Observaciones:</span> ${escapeHtml(f.observaciones)}</div>` : ''}
+    <div style="margin-top:14px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;border-top:1px solid var(--border);padding-top:8px;">Pagos ligados a esta factura</div>
+    ${pagosHTML}`;
+  const tit = document.getElementById('modal-detalle-fact-title');
+  if (tit) tit.textContent = 'Detalle · Factura #' + f.factura_id;
+  document.getElementById('modal-detalle-factura').classList.add('open');
 }
 
 export function guardarFactura() {
