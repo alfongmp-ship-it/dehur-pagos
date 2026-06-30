@@ -773,32 +773,56 @@ export function abrirBuscadorPagosFactura() {
 export function filtrarPagosParaFactura() {
   const cont = document.getElementById('fact-pagos-result');
   if (!cont) return;
-  const fact = state.facturas.find(x => x.factura_id === state.editFactId);
-  if (!fact) { cont.innerHTML = ''; return; }
+  const f = state.facturas.find(x => x.factura_id === state.editFactId);
+  if (!f) { cont.innerHTML = ''; return; }
   const q = (document.getElementById('fact-pagos-buscar')?.value || '').toLowerCase().trim();
-  // Candidatos: pagos del historial SIN factura, del MISMO proveedor de la factura.
-  const cand = state.historial.filter(h => {
-    if (h.factura_id && String(h.factura_id) !== '') return false;
-    if (parseInt(h.proveedor_id) !== fact.proveedor_id) return false;
-    if (!q) return true;
-    return (h.concepto || '').toLowerCase().includes(q) ||
-           (h.nombre || '').toLowerCase().includes(q) ||
-           String(h.importe).includes(q) ||
-           (h.fecha || '').includes(q);
-  }).slice(0, 30);
 
-  if (!cand.length) {
-    cont.innerHTML = '<div style="padding:10px;font-size:11px;color:var(--muted);">Sin pagos sin factura de este proveedor</div>';
+  // Match inteligente: ordena por cercanía de MONTO (luego FECHA) y separa "mismo proveedor"
+  // de "otros con el mismo monto" (estos surgen aunque el pago tenga el proveedor mal puesto).
+  const _toDays = iso => { const t = new Date((iso || '') + 'T00:00:00').getTime(); return isNaN(t) ? null : t / 86400000; };
+  const fRefDays = _toDays(parseFechaHist(f.fecha_vencimiento) || parseFechaHist(f.fecha_factura) || '');
+  const tol = Math.max(1, (f.monto_total || 0) * 0.01);
+  const targets = [f.monto_total || 0];
+  if ((f.saldo_pendiente || 0) > 0.01) targets.push(f.saldo_pendiente);
+  const matchQ = h => !q ||
+    (h.concepto || '').toLowerCase().includes(q) || (h.nombre || '').toLowerCase().includes(q) ||
+    String(h.importe).includes(q) || (h.fecha || '').includes(q);
+
+  const base = state.historial
+    .filter(h => h.id && !(h.factura_id && String(h.factura_id) !== '') && (h.importe || 0) > 0 && matchQ(h))
+    .map(h => {
+      const montoDiff = Math.min(...targets.map(t => Math.abs((h.importe || 0) - t)));
+      const pDays = _toDays(parseFechaHist(h.fecha) || '');
+      const fechaDiff = (fRefDays != null && pDays != null) ? Math.abs(pDays - fRefDays) : 99999;
+      return { h, montoDiff, fechaDiff, mismoProv: parseInt(h.proveedor_id) === f.proveedor_id, exacto: montoDiff < 0.01, cercano: montoDiff <= tol };
+    });
+  const ordenar = arr => arr.sort((a, b) => (a.montoDiff - b.montoDiff) || (a.fechaDiff - b.fechaDiff));
+  const mismoProv = ordenar(base.filter(x => x.mismoProv)).slice(0, 25);
+  const otros = ordenar(base.filter(x => !x.mismoProv && x.cercano)).slice(0, 10);
+
+  if (!mismoProv.length && !otros.length) {
+    cont.innerHTML = '<div style="padding:10px;font-size:11px;color:var(--muted);">Sin pagos sin factura que coincidan</div>';
     return;
   }
-  cont.innerHTML = cand.map(h => `
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);">
+
+  const fila = x => {
+    const h = x.h;
+    const badge = x.exacto ? '<span style="font-size:9px;font-weight:700;color:var(--green);background:rgba(39,174,96,.12);padding:1px 6px;border-radius:4px;">✓ mismo monto</span>'
+      : x.cercano ? '<span style="font-size:9px;color:var(--accent);background:rgba(200,169,110,.14);padding:1px 6px;border-radius:4px;">monto similar</span>' : '';
+    const fechaB = x.fechaDiff <= 10 ? ' <span style="font-size:9px;color:var(--muted);">· fecha cercana</span>' : '';
+    return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);">
       <div style="min-width:0;">
-        <div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(h.concepto || h.nombre || '—')}</div>
+        <div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(h.concepto || h.nombre || '—')} ${badge}${fechaB}</div>
         <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;">${fmtFecha(h.fecha)} · ${fmt(h.importe)}${h.proyecto ? ' · ' + escapeHtml(h.proyecto) : ''}</div>
       </div>
       <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;flex-shrink:0;" onclick="vincularPagoAFactura(${h.id})">Vincular</button>
-    </div>`).join('');
+    </div>`;
+  };
+  const header = txt => `<div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:6px 10px;background:var(--surface2);border-bottom:1px solid var(--border);">${txt}</div>`;
+  let html = '';
+  if (mismoProv.length) html += header('Del mismo proveedor (más probables arriba)') + mismoProv.map(fila).join('');
+  if (otros.length) html += header('Otros con el mismo monto (otro proveedor)') + otros.map(fila).join('');
+  cont.innerHTML = html;
 }
 
 export function vincularPagoAFactura(pagoId) {
