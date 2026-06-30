@@ -847,6 +847,7 @@ function renderMetodoBody() {
     body.innerHTML = `
       <label style="font-size:12px;color:var(--muted);">Casa que recibe el costo completo</label>
       <select id="asignar-unidad-directo" class="filter-select" style="width:100%;margin-top:4px;" onchange="cfPreviewReparto()">
+        <option value="">— Selecciona la casa —</option>
         ${unidades.map(u => `<option value="${u.unidad_id}">${escapeHtml(u.nombre)}</option>`).join('')}
       </select>`;
   } else if (metodo === 'equitativo') {
