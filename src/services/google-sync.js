@@ -1457,6 +1457,9 @@ export async function migrarTodoASupabase() {
   await gsLoadAll();
   let ok = 0, fail = 0;
   for (const key of Object.keys(SB_ENTIDADES)) {
+    // El reparto (costoAsignaciones) vive SOLO en Supabase (se guarda por fila/diff); su hoja ya no
+    // se mantiene al día, así que NO debe sobrescribirse desde el Sheet (pisaría el reparto bueno).
+    if (key === 'costoAsignaciones') continue;
     const def = SB_ENTIDADES[key];
     try {
       const n = await sbReplaceTable(def.tabla, def.rows());
