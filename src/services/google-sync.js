@@ -592,23 +592,31 @@ async function finalizarCarga() {
   state.nextPresupuestoId = state.presupuestoUnidad.reduce((m, p) => Math.max(m, p.presupuesto_id || 0), 0) + 1;
   state.nextAsignacionId = state.costoAsignaciones.reduce((m, a) => Math.max(m, a.asignacion_id || 0), 0) + 1;
 
-  // Auto-limpiar asignaciones huérfanas (pago borrado directo en la fuente).
-  // Solo si AMBAS entidades cargaron OK — para no borrar nada si una falló.
+  // Foto de lo que se acaba de cargar de Supabase → base del guardado POR FILA (diff).
+  _resetCaSnapshot();
+
+  // Auto-limpiar asignaciones huérfanas (pago/factura borrado directo en la fuente).
+  // ENDURECIDO para no borrar repartos válidos en una carga INCOMPLETA:
+  //  - solo se considera huérfana si el padre cargó NO vacío (facturas/historial con datos);
+  //  - si la cantidad de "huérfanas" es grande (parece carga parcial), NO se borra nada, se avisa.
   if (state.cargado.historial === true && state.cargado.costoAsignaciones === true) {
     const idsHist = new Set(state.historial.map(h => String(h.id)).filter(Boolean));
-    // Devengado (Fase A): una asignación de FACTURA (factura_id lleno, pago_id vacío)
-    // NO es huérfana aunque no tenga pago. Conservarla si su factura existe; y si las
-    // facturas no cargaron OK, conservarla por seguridad (no borrar a ciegas).
-    const factOk = state.cargado.facturas === true;
     const idsFact = new Set(state.facturas.map(f => String(f.factura_id)).filter(Boolean));
-    const antesAsig = state.costoAsignaciones.length;
-    state.costoAsignaciones = state.costoAsignaciones.filter(a =>
-      a.factura_id ? (!factOk || idsFact.has(String(a.factura_id))) : idsHist.has(String(a.pago_id))
+    const factOk = state.cargado.facturas === true && state.facturas.length > 0;
+    const histOk = state.historial.length > 0;
+    const huerfanas = state.costoAsignaciones.filter(a =>
+      a.factura_id ? (factOk && !idsFact.has(String(a.factura_id)))
+                   : (histOk && !idsHist.has(String(a.pago_id)))
     );
-    const eliminadas = antesAsig - state.costoAsignaciones.length;
-    if (eliminadas > 0) {
+    const total = state.costoAsignaciones.length;
+    const sospechoso = huerfanas.length > 10 && huerfanas.length > total * 0.2;
+    if (huerfanas.length && !sospechoso) {
+      const drop = new Set(huerfanas.map(a => String(a.asignacion_id)));
+      state.costoAsignaciones = state.costoAsignaciones.filter(a => !drop.has(String(a.asignacion_id)));
       try { await gsSaveCostoAsignaciones(); } catch (e) { console.error('Auto-limpia huérfanas: error guardando', e); }
-      notify(`🧹 Limpieza automática: ${eliminadas} asignación(es) huérfana(s) eliminada(s)`, 'success');
+      notify(`🧹 Limpieza automática: ${huerfanas.length} asignación(es) huérfana(s) eliminada(s)`, 'success');
+    } else if (sospechoso) {
+      notify(`⚠ Se detectaron ${huerfanas.length} posibles asignaciones huérfanas, pero parece carga incompleta — NO se borró nada. Refresca o revisa.`, 'error');
     }
   }
 
@@ -1084,22 +1092,30 @@ export async function gsSavePresupuestoUnidad() {
   } catch (e) { console.error('gsSavePresupuestoUnidad', e); }
 }
 
+// Guarda costoAsignaciones POR FILA (diff) en Supabase: sube/borra SOLO las filas que ESTA
+// sesión agregó/cambió/quitó vs el último estado guardado (_caSnapshot). NUNCA borra la tabla
+// completa → imposible pisar el reparto de otra sesión (admin + facturas a la vez). NO escribe a
+// Sheets por-save (era lento y, sin realtime, dejaba la hoja incompleta; el respaldo a Sheets
+// queda por "Respaldar a Sheets"). Si Supabase falla, no actualiza el snapshot → reintenta luego.
 export async function gsSaveCostoAsignaciones() {
   if (!puedeEditar() && !puedeFacturas()) return;   // rol 'facturas' reparte facturas (devengado)
   if (!guardarPermitido('costoAsignaciones', state.costoAsignaciones)) return;
+  if (!sbReady()) return;
   try {
-    const rows = state.costoAsignaciones.map(a => [
-      a.asignacion_id, a.pago_id, a.unidad_id, a.proyecto || '', a.metodo || 'directo',
-      a.monto_asignado || 0, a.factor || 0, a.fecha_asignacion || '', a.partida_override || '',
-      a.factura_id || '', a.sub_partida_override || ''
-    ]);
-    await gsClearAndWrite('costo_asignaciones', rows, [
-      'asignacion_id', 'pago_id', 'unidad_id', 'proyecto', 'metodo',
-      'monto_asignado', 'factor', 'fecha_asignacion', 'partida_override',
-      'factura_id', 'sub_partida_override'
-    ]);
-    await sbEspejar('costoAsignaciones');
-  } catch (e) { console.error('gsSaveCostoAsignaciones', e); }
+    const curIds = new Set();
+    const cambios = [];   // filas nuevas o modificadas → upsert
+    for (const a of state.costoAsignaciones) {
+      const id = String(a.asignacion_id);
+      curIds.add(id);
+      const row = _rowCostoAsignacion(a);
+      if (_caSnapshot.get(id) !== JSON.stringify(row)) cambios.push(row);
+    }
+    const borrar = []; // ids que estaban guardados y ya NO están en local → delete (quita de ESTA sesión)
+    for (const id of _caSnapshot.keys()) { if (!curIds.has(id)) borrar.push(id); }
+    for (const row of cambios) await sbUpsertRow('costo_asignaciones', 'asignacion_id', row);
+    for (const id of borrar) await sbDeleteRow('costo_asignaciones', 'asignacion_id', id);
+    _resetCaSnapshot();   // solo si todo fue bien
+  } catch (e) { console.error('gsSaveCostoAsignaciones (por fila)', e); }
 }
 
 // ===== Espejo a Supabase (Etapa B — Fase 1: dual-write) =====
@@ -1302,13 +1318,23 @@ function _rowsPresupuestoUnidad() {
     notas: _sbStr(p.notas)
   })), 'presupuesto_id');
 }
-function _rowsCostoAsignaciones() {
-  return _dedupBy(state.costoAsignaciones.map(a => ({
+function _rowCostoAsignacion(a) {
+  return {
     asignacion_id: _sbStr(a.asignacion_id), pago_id: _sbStr(a.pago_id), unidad_id: _sbStr(a.unidad_id),
     proyecto: _sbStr(a.proyecto), metodo: _sbStr(a.metodo), monto_asignado: _sbNum(a.monto_asignado),
     factor: _sbNum(a.factor), fecha_asignacion: _sbStr(a.fecha_asignacion), partida_override: _sbStr(a.partida_override),
     factura_id: _sbStr(a.factura_id), sub_partida_override: _sbStr(a.sub_partida_override)
-  })), 'asignacion_id');
+  };
+}
+function _rowsCostoAsignaciones() {
+  return _dedupBy(state.costoAsignaciones.map(_rowCostoAsignacion), 'asignacion_id');
+}
+// Snapshot (asignacion_id → JSON de la fila) de lo último persistido en Supabase, para guardar
+// costoAsignaciones POR FILA (diff): así NUNCA se borra la tabla completa ni se pisa el reparto
+// de otra sesión. Se (re)arma al cargar y tras cada guardado exitoso.
+let _caSnapshot = new Map();
+function _resetCaSnapshot() {
+  _caSnapshot = new Map(state.costoAsignaciones.map(a => [String(a.asignacion_id), JSON.stringify(_rowCostoAsignacion(a))]));
 }
 function _rowPartidaCatalogo(p) {
   return {
@@ -1358,7 +1384,7 @@ const SB_ENTIDADES = {
   pagosPagare:        { tabla: 'pagos_pagare',        rows: _rowsPagosPagare, idCol: 'pago_id', rowOne: _rowPagoPagare },
   unidades:           { tabla: 'unidades',            rows: _rowsUnidades, idCol: 'unidad_id', rowOne: _rowUnidad },
   presupuestoUnidad:  { tabla: 'presupuesto_unidad',  rows: _rowsPresupuestoUnidad },
-  costoAsignaciones:  { tabla: 'costo_asignaciones',  rows: _rowsCostoAsignaciones },
+  costoAsignaciones:  { tabla: 'costo_asignaciones',  rows: _rowsCostoAsignaciones, idCol: 'asignacion_id', rowOne: _rowCostoAsignacion },
   partidasCatalogo:   { tabla: 'partidas_catalogo',   rows: _rowsPartidasCatalogo, idCol: 'partida_id', rowOne: _rowPartidaCatalogo },
   partidasObra:       { tabla: 'partidas_obra',       rows: _rowsPartidasObra, idCol: 'partida_obra_id', rowOne: _rowPartidaObra },
   pendientesConfirmacion: { tabla: 'pendientes_confirmacion', rows: _rowsPendientes }
