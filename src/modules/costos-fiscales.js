@@ -763,6 +763,9 @@ export function abrirRepartirFactura(facturaId) {
   if (radio) radio.checked = true;
   renderMetodoBody();
   cfFacturaPartidaChange();                // arma la cascada de sub-partida (si hay selector)
+  // Factura YA repartida en UNA sola parte: reconstruir el reparto original para verificarlo
+  // (en vez del default "Directo"). Multi-parte se verifica con "Partes ya repartidas".
+  if (completa && partesMap.size === 1) cfReconstruirRepartoFactura(asigsF);
   document.getElementById('modal-asignar-costo').classList.add('open');
 }
 
@@ -896,6 +899,42 @@ function renderMetodoBody() {
       </div>`;
   }
   cfPreviewReparto();
+}
+
+// Al ABRIR una factura YA repartida en UNA sola parte, reconstruye en el formulario el
+// reparto ORIGINAL (método + casas + montos) para poder verificarlo, en vez de dejar el
+// default "Directo + primera casa". Solo LEE las asignaciones y pinta el DOM: NO toca
+// costoAsignaciones ni el guardado (que además queda bloqueado al estar 100% repartida,
+// ver guard en guardarAsignacionCosto). El método se guarda por fila
+// ('directo'|'equitativo'|'custom'|'indiviso') y viaja a Supabase/Sheets, así que se
+// reconstruye EXACTO sin adivinar. Devuelve true si reconstruyó.
+function cfReconstruirRepartoFactura(asigsF) {
+  const grupo = (asigsF || []).filter(a => (a.monto_asignado || 0) > 0);
+  if (!grupo.length) return false;
+  let metodo = grupo[0].metodo || 'directo';
+  // Dato legacy sin método: 'directo' no puede repartirse a varias casas → mostrar como Personalizado.
+  if (metodo === 'directo' && grupo.length > 1) metodo = 'custom';
+  if (metodo === 'custom') cfCustomModo = 'monto';   // mostrar los montos exactos guardados
+
+  const radio = document.querySelector(`input[name="cf-metodo"][value="${metodo}"]`);
+  if (!radio) return false;
+  radio.checked = true;
+  renderMetodoBody();
+
+  if (metodo === 'directo') {
+    const sel = document.getElementById('asignar-unidad-directo');
+    if (sel) sel.value = String(grupo[0].unidad_id);
+  } else if (metodo === 'equitativo') {
+    grupo.forEach(a => { const c = document.getElementById('cfchk-' + a.unidad_id); if (c) c.checked = true; });
+  } else if (metodo === 'custom') {
+    grupo.forEach(a => {
+      const inp = document.querySelector(`.cf-custom-monto[data-uid="${a.unidad_id}"]`);
+      if (inp) inp.value = r2(a.monto_asignado || 0);
+    });
+  }
+  // 'indiviso': el cuerpo es informativo y el cálculo por indiviso se reproduce solo.
+  cfPreviewReparto();
+  return true;
 }
 
 // Cambia el modo de captura del método Personalizado entre % y $ (re-renderiza,
