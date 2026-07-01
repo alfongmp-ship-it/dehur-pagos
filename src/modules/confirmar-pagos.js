@@ -1,4 +1,4 @@
-import { state, esConcentradora } from '../state.js';
+import { state, esConcentradora, nuevoAsignacionId } from '../state.js';
 import { fmt, hoyFecha, escapeHtml } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { proyTag } from '../ui/badges.js';
@@ -51,7 +51,7 @@ export function aplicarAutoIndiviso(h, repartoMetodo, forzar = false) {
       : 100 / unidades.length;
     if (pct <= 0) return;
     state.costoAsignaciones.push({
-      asignacion_id: state.nextAsignacionId++,
+      asignacion_id: nuevoAsignacionId(),
       pago_id: h.id,
       unidad_id: u.unidad_id,
       proyecto: h.proyecto,
@@ -181,7 +181,7 @@ export async function confirmarPagos() {
       if (pct <= 0) return;
       const monto = (d.importe * pct) / 100;
       state.costoAsignaciones.push({
-        asignacion_id: state.nextAsignacionId++,
+        asignacion_id: nuevoAsignacionId(),
         pago_id: h.id,
         unidad_id: asg.unidad_id,
         proyecto: h.proyecto,

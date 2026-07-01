@@ -11,6 +11,7 @@ import { ESTATUS_UNIDAD, METODO_LABEL, unidadEnIndivisoAFecha } from '../config/
 import { planoDeProyecto } from '../config/planos.js';
 import { parseFechaHist } from './historial.js';
 import { gsSaveUnidades, gsSavePresupuestoUnidad, gsSaveCostoAsignaciones, esPorFila, sbGuardarFila } from '../services/google-sync.js';
+import { nuevoAsignacionId } from '../state.js';
 
 const PALETA = ['#c8a96e', '#5a9be0', '#4caf7d', '#e07a3a', '#9b7fe8', '#e05a5a', '#27ae60', '#3498db'];
 
@@ -117,9 +118,19 @@ function _pagosCubiertosPorFacturaSet() {
       && repartidas.has(String(h.factura_id)) && !canceladas.has(String(h.factura_id)))
     .map(h => String(h.id)));
 }
-// 'devengado' | 'pagado' | null (no cuenta: factura cancelada, o pago ya cubierto por su factura repartida)
-function _tipoAsignacion(a, pagosCubiertos, factCanceladas) {
-  if (a.factura_id) return factCanceladas.has(String(a.factura_id)) ? null : 'devengado';
+// Sets de factura_ids / pago_ids que EXISTEN (o null si esa tabla aún no cargó con datos, para
+// NO vaciar el reporte en una carga parcial). Sirven para no contar asignaciones huérfanas.
+function _factExistSet() { return (state.facturas && state.facturas.length) ? new Set(state.facturas.map(f => String(f.factura_id))) : null; }
+function _pagoExistSet() { return (state.historial && state.historial.length) ? new Set(state.historial.map(h => String(h.id))) : null; }
+// 'devengado' | 'pagado' | null. null = no cuenta: factura cancelada, pago ya cubierto por su
+// factura repartida, o HUÉRFANA (su factura/pago ya no existe). Las huérfanas NO se borran (para
+// no perder reparto válido en edición simultánea), solo se dejan de contar → no inflan el costo.
+function _tipoAsignacion(a, pagosCubiertos, factCanceladas, factExist, pagoExist) {
+  if (a.factura_id) {
+    if (factExist && !factExist.has(String(a.factura_id))) return null; // huérfana: su factura ya no existe
+    return factCanceladas.has(String(a.factura_id)) ? null : 'devengado';
+  }
+  if (pagoExist && !pagoExist.has(String(a.pago_id))) return null; // huérfana: su pago ya no existe
   return pagosCubiertos.has(String(a.pago_id)) ? null : 'pagado';
 }
 
@@ -127,9 +138,10 @@ function _tipoAsignacion(a, pagosCubiertos, factCanceladas) {
 function costoAsignadoDesglose(unidadId) {
   const pcf = _pagosCubiertosPorFacturaSet();
   const fc = _facturasCanceladasSet();
+  const fe = _factExistSet(); const pe = _pagoExistSet();
   let devengado = 0, pagadoSinFactura = 0;
   asignacionesDeUnidad(unidadId).forEach(a => {
-    const t = _tipoAsignacion(a, pcf, fc);
+    const t = _tipoAsignacion(a, pcf, fc, fe, pe);
     if (t === 'devengado') devengado += a.monto_asignado || 0;
     else if (t === 'pagado') pagadoSinFactura += a.monto_asignado || 0;
   });
@@ -172,9 +184,10 @@ function desglosePorPartida(unidadId) {
   });
   const pcf = _pagosCubiertosPorFacturaSet();
   const fc = _facturasCanceladasSet();
+  const fe = _factExistSet(); const pe = _pagoExistSet();
   asignacionesDeUnidad(unidadId).forEach(a => {
-    const t = _tipoAsignacion(a, pcf, fc);
-    if (!t) return; // no cuenta (doble conteo evitado o factura cancelada)
+    const t = _tipoAsignacion(a, pcf, fc, fe, pe);
+    if (!t) return; // no cuenta (doble conteo evitado, factura cancelada o huérfana)
     const row = get(partidaDeAsignacion(a));
     if (t === 'devengado') row.devengado += a.monto_asignado || 0;
     else row.pagadoSinFactura += a.monto_asignado || 0;
@@ -1181,7 +1194,7 @@ export async function guardarAsignacionCosto() {
 
   reparto.forEach(x => {
     state.costoAsignaciones.push({
-      asignacion_id: state.nextAsignacionId++,
+      asignacion_id: nuevoAsignacionId(),
       pago_id: esFact ? '' : String(cfPagoAsignar),
       factura_id: esFact ? String(cfFacturaAsignar) : '',
       unidad_id: x.unidad_id,

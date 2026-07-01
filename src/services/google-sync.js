@@ -469,7 +469,7 @@ export async function gsLoadAll() {
     const caRows = await leerHoja('costo_asignaciones', 'costoAsignaciones');
     if (caRows && caRows.length > 1) {
       state.costoAsignaciones = caRows.slice(1).filter(r => r[0]).map(r => ({
-        asignacion_id: parseInt(r[0]) || 0,
+        asignacion_id: String(r[0] || ''),
         pago_id: r[1] || '',
         unidad_id: parseInt(r[2]) || 0,
         proyecto: r[3] || '',
@@ -482,7 +482,6 @@ export async function gsLoadAll() {
         factura_id: r[9] || '',
         sub_partida_override: r[10] || ''
       }));
-      state.nextAsignacionId = state.costoAsignaciones.reduce((m, a) => Math.max(m, a.asignacion_id), 0) + 1;
     }
 
     // Load partidas_catalogo (catálogo editable de partidas y subpartidas)
@@ -590,15 +589,14 @@ async function finalizarCarga() {
   state.nextId = Math.max(maxProv, maxEmp, state.nextId || 0) + 1;
   state.nextUnidadId = state.unidades.reduce((m, u) => Math.max(m, u.unidad_id || 0), 0) + 1;
   state.nextPresupuestoId = state.presupuestoUnidad.reduce((m, p) => Math.max(m, p.presupuesto_id || 0), 0) + 1;
-  state.nextAsignacionId = state.costoAsignaciones.reduce((m, a) => Math.max(m, a.asignacion_id || 0), 0) + 1;
 
   // Foto de lo que se acaba de cargar de Supabase → base del guardado POR FILA (diff).
   _resetCaSnapshot();
 
-  // Auto-limpiar asignaciones huérfanas (pago/factura borrado directo en la fuente).
-  // ENDURECIDO para no borrar repartos válidos en una carga INCOMPLETA:
-  //  - solo se considera huérfana si el padre cargó NO vacío (facturas/historial con datos);
-  //  - si la cantidad de "huérfanas" es grande (parece carga parcial), NO se borra nada, se avisa.
+  // Detección de asignaciones huérfanas (su pago/factura ya no existe). SOLO AVISA,
+  // NUNCA borra automáticamente: en edición simultánea o carga parcial, borrar aquí
+  // podía eliminar reparto VÁLIDO de otra sesión. Para limpiar de verdad está el
+  // botón "Limpiar huérfanas" en Costos por Unidad (manual, con confirmación).
   if (state.cargado.historial === true && state.cargado.costoAsignaciones === true) {
     const idsHist = new Set(state.historial.map(h => String(h.id)).filter(Boolean));
     const idsFact = new Set(state.facturas.map(f => String(f.factura_id)).filter(Boolean));
@@ -608,15 +606,8 @@ async function finalizarCarga() {
       a.factura_id ? (factOk && !idsFact.has(String(a.factura_id)))
                    : (histOk && !idsHist.has(String(a.pago_id)))
     );
-    const total = state.costoAsignaciones.length;
-    const sospechoso = huerfanas.length > 10 && huerfanas.length > total * 0.2;
-    if (huerfanas.length && !sospechoso) {
-      const drop = new Set(huerfanas.map(a => String(a.asignacion_id)));
-      state.costoAsignaciones = state.costoAsignaciones.filter(a => !drop.has(String(a.asignacion_id)));
-      try { await gsSaveCostoAsignaciones(); } catch (e) { console.error('Auto-limpia huérfanas: error guardando', e); }
-      notify(`🧹 Limpieza automática: ${huerfanas.length} asignación(es) huérfana(s) eliminada(s)`, 'success');
-    } else if (sospechoso) {
-      notify(`⚠ Se detectaron ${huerfanas.length} posibles asignaciones huérfanas, pero parece carga incompleta — NO se borró nada. Refresca o revisa.`, 'error');
+    if (huerfanas.length) {
+      notify(`⚠ ${huerfanas.length} asignación(es) parecen huérfanas (su pago/factura no está). No se borró nada; revísalas con "Limpiar huérfanas" si aplica.`, 'error');
     }
   }
 
@@ -802,7 +793,7 @@ export async function sbLoadAll() {
 
   await cargar('costo_asignaciones', 'costoAsignaciones', rows => {
     state.costoAsignaciones = rows.map(r => ({
-      asignacion_id: toInt(r.asignacion_id), pago_id: r.pago_id || '', unidad_id: toInt(r.unidad_id),
+      asignacion_id: r.asignacion_id != null ? String(r.asignacion_id) : '', pago_id: r.pago_id || '', unidad_id: toInt(r.unidad_id),
       proyecto: r.proyecto || '', metodo: r.metodo || 'directo', monto_asignado: toNum(r.monto_asignado),
       factor: toNum(r.factor), fecha_asignacion: r.fecha_asignacion || '', partida_override: r.partida_override || '',
       factura_id: r.factura_id || '', sub_partida_override: r.sub_partida_override || ''

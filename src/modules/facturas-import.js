@@ -9,7 +9,7 @@
 //     folio+proveedor o monto+fecha+proveedor → solo AVISO (importable).
 //   - Proyecto OBLIGATORIO y debe existir en el catálogo activo.
 
-import { state } from '../state.js';
+import { state, nuevoAsignacionId } from '../state.js';
 import { fmt } from '../ui/format.js';
 import { createExcelImporter, normalizarFechaISO, normalizarFechaDDMMYYYY, parseImporte } from '../services/excel-import.js';
 import { gsSaveFacturas, esPorFila, sbGuardarFila, gsSaveCostoAsignaciones } from '../services/google-sync.js';
@@ -278,7 +278,7 @@ export const facturasImporter = createExcelImporter({
       if (plan && plan.asignaciones.length) {
         plan.asignaciones.forEach(a => {
           state.costoAsignaciones.push({
-            asignacion_id: state.nextAsignacionId++,
+            asignacion_id: nuevoAsignacionId(),
             pago_id: '',
             factura_id: String(r.factura_id),
             unidad_id: a.unidad_id,

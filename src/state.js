@@ -30,7 +30,6 @@ export const state = {
   partidasObra: [],
   nextUnidadId: 1,
   nextPresupuestoId: 1,
-  nextAsignacionId: 1,
   histSeq: 1,
   // Blindaje: marca qué entidades se cargaron OK desde Sheets esta sesión.
   // Una entidad no cargada NO se puede guardar (evita sobrescribir con vacío).
@@ -56,6 +55,19 @@ export const state = {
   // Aviso de mantenimiento (flag a nivel tenant, lo prende/apaga el admin).
   mantenimiento: { activo: false, msg: '' },
 };
+
+// ID único global para una asignación de costo (reparto). NO usa un contador local:
+// dos navegadores generaban el MISMO número (MAX+1) y el upsert de Supabase se pisaba,
+// perdiendo el reparto de una sesión. Un UUID no colisiona entre usuarios ni pestañas.
+let _asigSalt = '';
+let _asigSeq = 0;
+export function nuevoAsignacionId() {
+  try { if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID(); } catch (_) { /* fallback abajo */ }
+  // Fallback (crypto.randomUUID ausente): sal por sesión + secuencia monótona → único dentro de
+  // la sesión y distinto entre pestañas/usuarios aun creando varias asignaciones en el mismo ms.
+  if (!_asigSalt) _asigSalt = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+  return 'a-' + _asigSalt + '-' + (_asigSeq++).toString(36);
+}
 
 export function esConcentradora(nombreCuenta) {
   if (!nombreCuenta) return false;
