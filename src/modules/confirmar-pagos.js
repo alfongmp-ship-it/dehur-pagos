@@ -1,5 +1,5 @@
 import { state, esConcentradora, nuevoAsignacionId, nuevoFacturaPagoId } from '../state.js';
-import { fmt, hoyFecha, escapeHtml } from '../ui/format.js';
+import { fmt, hoyFecha, escapeHtml, fmtFecha } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { proyTag } from '../ui/badges.js';
 import { saveData, gsSaveHistorial, gsSavePendientes, gsSaveProyectos, gsSaveCuentasPropias, gsSaveFacturas, gsSaveFacturaPagos, gsSaveCostoAsignaciones, ensureHistorialIds, esPorFila, sbGuardarFila } from '../services/google-sync.js';
@@ -80,6 +80,13 @@ export function renderConfirmarPagos() {
   }
 
   state.pendientesConfirmacion.forEach(d => { if (d.confirmado === undefined) d.confirmado = true; });
+  // Fecha del pago (editable): default = la fecha que traen los pendientes (de dispersión) o hoy.
+  // Solo se pre-llena si está vacío, para no pisar lo que el usuario escriba.
+  const _fp = document.getElementById('conf-fecha-pago');
+  if (_fp && !_fp.value) {
+    const _any = state.pendientesConfirmacion.find(d => d.fechaGen)?.fechaGen;
+    _fp.value = _isoFecha(_any) || _isoFecha(hoyFecha());
+  }
   const total = state.pendientesConfirmacion.reduce((s, d) => s + d.importe, 0);
   const selTotal = state.pendientesConfirmacion.filter(d => d.confirmado).reduce((s, d) => s + d.importe, 0);
   const selCount = state.pendientesConfirmacion.filter(d => d.confirmado).length;
@@ -129,7 +136,11 @@ export function eliminarPendiente(idx) {
 export async function confirmarPagos() {
   const confirmados = state.pendientesConfirmacion.filter(d => d.confirmado);
   if (!confirmados.length) { notify('Selecciona al menos un pago confirmado', 'error'); return; }
-  const fecha = hoyFecha();
+  // Fecha REAL del pago para el historial: el campo "Fecha del pago" (editable), convertido
+  // al formato de guardado (DD/MM/YYYY). Si está vacío, hoy. El archivo del banco NO lleva
+  // fecha, así que registrar con una fecha anterior es seguro.
+  const _fpEl = document.getElementById('conf-fecha-pago');
+  const fecha = (_fpEl && _fpEl.value) ? fmtFecha(_fpEl.value) : hoyFecha();
   // Insertamos en historial y mantenemos referencia al objeto recién creado para
   // poder obtener su `id` estable y crear las asignaciones auto-vinculadas.
   const insertados = [];

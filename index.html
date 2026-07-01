@@ -264,6 +264,10 @@
       <div class="page-header">
         <div><div class="page-title">Confirmar Pagos</div><div class="page-subtitle">Verifica contra el banco qué pagos fueron procesados</div></div>
         <div style="display:flex;gap:8px;align-items:center;">
+          <label class="req-editor" style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;" title="Fecha REAL del pago que quedará en el historial. Por si registras hoy un pago hecho otro día (el archivo del banco no lleva fecha).">
+            📅 Fecha del pago
+            <input type="date" id="conf-fecha-pago" class="filter-select" style="padding:6px 10px;min-width:auto;">
+          </label>
           <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;cursor:pointer;">
             <input type="checkbox" id="chk-conf-all" onchange="toggleAllConf(this.checked)" checked style="width:14px;height:14px;cursor:pointer;"> Seleccionar todos
           </label>

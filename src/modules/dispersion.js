@@ -382,15 +382,16 @@ export function generarArchivo() {
   XLSX.writeFile(wb, fn);
   notify('✅ Excel generado: ' + fn);
 
-  // Mover a pendientes de confirmación y abrir modal
-  const fd = hoyFecha();
+  // Mover a pendientes de confirmación. La fecha del pago = la "Fecha aplicación" que
+  // elegiste arriba (no la de hoy); así el historial refleja el día REAL del pago. Es
+  // editable de nuevo al confirmar.
   state.pendientesConfirmacion = state.cola.map(item => ({
     id: item.id, proveedor_id: item.proveedor_id || item.proveedor.id || '', factura_id: item.factura_id || '',
     nombre: item.proveedor.nombre, cuenta: item.proveedor.cuenta,
     banco: item.proveedor.banco, tipo: item.proveedor.tipo_cuenta,
     concepto: item.concepto, importe: item.importe, proyecto: item.proyecto, partida: item.partida || '', sub_partida: item.sub_partida || '',
     cuenta_cargo: proySel.nombre,
-    fechaGen: fd, seleccionado: true, tieneInfo: true,
+    fechaGen: fecha, seleccionado: true, tieneInfo: true,
     // Propagación de asignaciones planificadas (desde solicitud)
     asignacionesPlanificadas: item.asignacionesPlanificadas || [],
     repartoMetodo: item.repartoMetodo || null,
