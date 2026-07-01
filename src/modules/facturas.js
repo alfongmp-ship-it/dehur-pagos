@@ -822,7 +822,7 @@ export function filtrarPagosParaFactura() {
     return;
   }
 
-  const saldoF = (f.saldo_pendiente || f.monto_total || 0);
+  const saldoF = Math.max(0, (f.monto_total || 0) - (f.monto_pagado || 0));
   const fila = x => {
     const h = x.h;
     const badge = x.exacto ? '<span style="font-size:9px;font-weight:700;color:var(--green);background:rgba(39,174,96,.12);padding:1px 6px;border-radius:4px;">✓ mismo monto</span>'
@@ -852,8 +852,15 @@ export function filtrarPagosParaFactura() {
 export function vincularPagoAFactura(pagoId, montoAplicado) {
   const fact = state.facturas.find(x => x.factura_id === state.editFactId);
   if (!fact) { notify('Abre una factura primero', 'error'); return; }
-  if (fact.estatus_factura === 'pagada' || fact.estatus_factura === 'cancelada') {
-    notify('La factura ya está ' + fact.estatus_factura, 'error'); return;
+  if (fact.estatus_factura === 'cancelada') {
+    notify('La factura está cancelada', 'error'); return;
+  }
+  // Se permite ligar aunque el estatus diga "pagada" (p.ej. facturas viejas capturadas como
+  // pagadas): lo que importa es que quede SALDO REAL por aplicar (total − pagado), no la etiqueta.
+  // Al ligar el pago, recalcularSaldoEstatus deja el estatus consistente.
+  const saldoReal = Math.round(((fact.monto_total || 0) - (fact.monto_pagado || 0)) * 100) / 100;
+  if (saldoReal <= 0.01) {
+    notify('La factura ya no tiene saldo por aplicar', 'error'); return;
   }
   ensureHistorialIds(); // asegura pago.id estable para guardar la fila
   const pago = state.historial.find(h => String(h.id) === String(pagoId));
@@ -871,7 +878,7 @@ export function vincularPagoAFactura(pagoId, montoAplicado) {
   }
   // Monto a aplicar EN ESTA factura: lo que pida el usuario, topado al saldo de la factura y
   // al restante del pago → imposible sobrepagar la factura ni pasar del importe del pago.
-  const tope = Math.round(Math.min(fact.saldo_pendiente || 0, restante) * 100) / 100;
+  const tope = Math.round(Math.min(saldoReal, restante) * 100) / 100;
   let monto = parseFloat(montoAplicado);
   if (!isFinite(monto) || monto <= 0) monto = tope;
   monto = Math.round(Math.min(monto, tope) * 100) / 100;
