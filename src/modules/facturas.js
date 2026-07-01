@@ -708,6 +708,16 @@ export function renderFacturaPagos() {
   }).join('');
 }
 
+// Restante de un pago = su importe menos lo YA aplicado a facturas (suma de sus facturaPagos).
+// Con esto un mismo pago se puede repartir POR PARTES entre varias facturas sin pasarse.
+function restantePago(pago) {
+  if (!pago) return 0;
+  const aplicado = state.facturaPagos
+    .filter(fp => String(fp.pago_id) === String(pago.id))
+    .reduce((s, fp) => s + (fp.monto_aplicado || 0), 0);
+  return Math.round(((pago.importe || 0) - aplicado) * 100) / 100;
+}
+
 export function eliminarPagoFactura(fpId) {
   const fp = state.facturaPagos.find(x => x.factura_pago_id === fpId);
   if (!fp) return;
@@ -719,18 +729,21 @@ export function eliminarPagoFactura(fpId) {
     recalcularSaldoEstatus(fact);
   }
 
-  // Desligar el pago del historial (simetría con eliminarFactura): el pago ya no está
-  // aplicado a esta factura, así que se libera su factura_id y su costo vuelve a poder
-  // registrarse como pago normal (deja de suprimirse en el reporte y vuelve a ser
-  // re-vinculable). Sin esto quedaba un enlace huérfano.
+  state.facturaPagos = state.facturaPagos.filter(x => x.factura_pago_id !== fpId);
+
+  // Desligar el pago del historial SOLO si ya no le queda NINGUNA otra factura aplicada
+  // (con multi-factura un pago puede seguir cubriendo otras). Si le quedan, deja el
+  // marcador (factura_id) apuntando a una de ellas para que su costo siga suprimiéndose.
   const porFilaH = esPorFila('historial');
   let pagoDesligado = null;
   if (fp.pago_id) {
     pagoDesligado = state.historial.find(p => String(p.id) === String(fp.pago_id));
-    if (pagoDesligado) { pagoDesligado.factura_id = ''; if (porFilaH) sbGuardarFila('historial', pagoDesligado); }
+    if (pagoDesligado) {
+      const otras = state.facturaPagos.filter(x => String(x.pago_id) === String(fp.pago_id));
+      pagoDesligado.factura_id = otras.length ? String(otras[0].factura_id) : '';
+      if (porFilaH) sbGuardarFila('historial', pagoDesligado);
+    }
   }
-
-  state.facturaPagos = state.facturaPagos.filter(x => x.factura_pago_id !== fpId);
   // Fase 3: la factura padre se re-guarda por fila (saldo recalculado) y el pago
   // borrado se quita por fila.
   const porFilaF = esPorFila('facturas');
@@ -788,34 +801,45 @@ export function filtrarPagosParaFactura() {
     (h.concepto || '').toLowerCase().includes(q) || (h.nombre || '').toLowerCase().includes(q) ||
     String(h.importe).includes(q) || (h.fecha || '').includes(q);
 
+  // Candidatos: pagos con RESTANTE por aplicar (importe − lo ya aplicado a facturas) y que NO
+  // estén ya aplicados a ESTA factura. Así un pago se reparte por partes entre varias facturas.
   const base = state.historial
-    .filter(h => h.id && !(h.factura_id && String(h.factura_id) !== '') && (h.importe || 0) > 0 && matchQ(h))
+    .filter(h => h.id && restantePago(h) > 0.01 && matchQ(h)
+      && !state.facturaPagos.some(fp => String(fp.pago_id) === String(h.id) && String(fp.factura_id) === String(f.factura_id)))
     .map(h => {
-      const montoDiff = Math.min(...targets.map(t => Math.abs((h.importe || 0) - t)));
+      const rest = restantePago(h);
+      const montoDiff = Math.min(...targets.map(t => Math.abs(rest - t)));
       const pDays = _toDays(parseFechaHist(h.fecha) || '');
       const fechaDiff = (fRefDays != null && pDays != null) ? Math.abs(pDays - fRefDays) : 99999;
-      return { h, montoDiff, fechaDiff, mismoProv: parseInt(h.proveedor_id) === f.proveedor_id, exacto: montoDiff < 0.01, cercano: montoDiff <= tol };
+      return { h, rest, montoDiff, fechaDiff, mismoProv: parseInt(h.proveedor_id) === f.proveedor_id, exacto: montoDiff < 0.01, cercano: montoDiff <= tol };
     });
   const ordenar = arr => arr.sort((a, b) => (a.montoDiff - b.montoDiff) || (a.fechaDiff - b.fechaDiff));
   const mismoProv = ordenar(base.filter(x => x.mismoProv)).slice(0, 25);
   const otros = ordenar(base.filter(x => !x.mismoProv && x.cercano)).slice(0, 10);
 
   if (!mismoProv.length && !otros.length) {
-    cont.innerHTML = '<div style="padding:10px;font-size:11px;color:var(--muted);">Sin pagos sin factura que coincidan</div>';
+    cont.innerHTML = '<div style="padding:10px;font-size:11px;color:var(--muted);">Sin pagos con saldo por aplicar que coincidan</div>';
     return;
   }
 
+  const saldoF = (f.saldo_pendiente || f.monto_total || 0);
   const fila = x => {
     const h = x.h;
     const badge = x.exacto ? '<span style="font-size:9px;font-weight:700;color:var(--green);background:rgba(39,174,96,.12);padding:1px 6px;border-radius:4px;">✓ mismo monto</span>'
       : x.cercano ? '<span style="font-size:9px;color:var(--accent);background:rgba(200,169,110,.14);padding:1px 6px;border-radius:4px;">monto similar</span>' : '';
     const fechaB = x.fechaDiff <= 10 ? ' <span style="font-size:9px;color:var(--muted);">· fecha cercana</span>' : '';
+    const defMonto = Math.round(Math.min(saldoF, x.rest) * 100) / 100;
+    const inpId = 'fp-aplicar-' + h.id;
     return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);">
       <div style="min-width:0;">
         <div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(h.concepto || h.nombre || '—')} ${badge}${fechaB}</div>
-        <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;">${fmtFecha(h.fecha)} · ${fmt(h.importe)}${h.proyecto ? ' · ' + escapeHtml(h.proyecto) : ''}</div>
+        <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;">${fmtFecha(h.fecha)} · ${fmt(h.importe)}${h.proyecto ? ' · ' + escapeHtml(h.proyecto) : ''} · restante ${fmt(x.rest)}</div>
       </div>
-      <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;flex-shrink:0;" onclick="vincularPagoAFactura(${h.id})">Vincular</button>
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+        <span style="font-size:10px;color:var(--muted);">Aplicar $</span>
+        <input type="number" step="0.01" min="0" max="${defMonto}" id="${inpId}" value="${defMonto}" style="width:88px;text-align:right;font-family:'DM Mono',monospace;font-size:11px;padding:3px 6px;">
+        <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;" onclick="vincularPagoAFactura(${h.id}, document.getElementById('${inpId}').value)">Vincular</button>
+      </div>
     </div>`;
   };
   const header = txt => `<div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:6px 10px;background:var(--surface2);border-bottom:1px solid var(--border);">${txt}</div>`;
@@ -825,7 +849,7 @@ export function filtrarPagosParaFactura() {
   cont.innerHTML = html;
 }
 
-export function vincularPagoAFactura(pagoId) {
+export function vincularPagoAFactura(pagoId, montoAplicado) {
   const fact = state.facturas.find(x => x.factura_id === state.editFactId);
   if (!fact) { notify('Abre una factura primero', 'error'); return; }
   if (fact.estatus_factura === 'pagada' || fact.estatus_factura === 'cancelada') {
@@ -834,13 +858,24 @@ export function vincularPagoAFactura(pagoId) {
   ensureHistorialIds(); // asegura pago.id estable para guardar la fila
   const pago = state.historial.find(h => h.id === pagoId);
   if (!pago) { notify('No se encontró el pago', 'error'); return; }
-  if (pago.factura_id && String(pago.factura_id) !== '' && parseInt(pago.factura_id) !== fact.factura_id) {
-    notify('Ese pago ya está vinculado a la factura ' + pago.factura_id, 'error'); return;
+  // Un pago se puede aplicar POR PARTES a VARIAS facturas. Solo se evita aplicar el MISMO
+  // pago a la MISMA factura dos veces (duplicaría el monto_pagado). Para corregir un monto,
+  // borra la línea en "Pagos a Facturas" y vuelve a aplicar.
+  if (state.facturaPagos.some(fp => String(fp.pago_id) === String(pago.id) && String(fp.factura_id) === String(fact.factura_id))) {
+    notify('Ese pago ya está aplicado a esta factura', 'error'); return;
   }
+  const restante = restantePago(pago);
+  if (restante <= 0.01) { notify('Ese pago ya está aplicado por completo a otras facturas', 'error'); return; }
   if (parseInt(pago.proveedor_id) !== fact.proveedor_id) {
     if (!confirm('El proveedor del pago no coincide con el de la factura. ¿Vincular de todos modos?')) return;
   }
-  const importe = pago.importe || 0;
+  // Monto a aplicar EN ESTA factura: lo que pida el usuario, topado al saldo de la factura y
+  // al restante del pago → imposible sobrepagar la factura ni pasar del importe del pago.
+  const tope = Math.round(Math.min(fact.saldo_pendiente || 0, restante) * 100) / 100;
+  let monto = parseFloat(montoAplicado);
+  if (!isFinite(monto) || monto <= 0) monto = tope;
+  monto = Math.round(Math.min(monto, tope) * 100) / 100;
+  if (monto <= 0) { notify('No hay saldo por aplicar en esta factura', 'error'); return; }
 
   const fpId = state.facturaPagos.reduce((max, fp) => Math.max(max, fp.factura_pago_id), 0) + 1;
   const nuevoFp = {
@@ -848,21 +883,21 @@ export function vincularPagoAFactura(pagoId) {
     factura_id: fact.factura_id,
     pago_id: pago.id || 0,
     proveedor_id: parseInt(pago.proveedor_id) || 0,
-    monto_aplicado: importe,
+    monto_aplicado: monto,
     fecha_pago: pago.fecha || hoyFecha(),
     estatus: 'aplicado',
     observaciones: pago.concepto || ''
   };
   state.facturaPagos.push(nuevoFp);
 
-  // Mismo recálculo que el auto-enlace de confirmar-pagos.js (fuente única).
-  fact.monto_pagado = (fact.monto_pagado || 0) + importe;
+  fact.monto_pagado = (fact.monto_pagado || 0) + monto;
   recalcularSaldoEstatus(fact);
 
-  // Deja la liga registrada en el pago del historial.
-  pago.factura_id = String(fact.factura_id);
+  // Marca en el pago que ya está aplicado a (al menos) una factura. Es la bandera para la
+  // supresión de costo; con varias facturas apunta a la primera (el detalle vive en facturaPagos).
+  if (!(pago.factura_id && String(pago.factura_id) !== '')) pago.factura_id = String(fact.factura_id);
 
-  // Guardado por fila (Fase 3). NO se toca costoAsignaciones (modelo Fase 1).
+  // Guardado por fila (Fase 3).
   const pfF = esPorFila('facturas');
   const pfFp = esPorFila('facturaPagos');
   const pfH = esPorFila('historial');
@@ -874,10 +909,13 @@ export function vincularPagoAFactura(pagoId) {
 
   renderFacturas();
   renderFacturaPagos();
-  filtrarPagosParaFactura();              // el pago ya no aparece como candidato
+  filtrarPagosParaFactura();              // desaparece de ESTA factura; sigue en otras si le queda restante
   const sel = document.getElementById('f-estatus');
   if (sel) sel.value = fact.estatus_factura; // refleja el estatus nuevo en el modal abierto
   document.getElementById('cnt-fp').textContent = state.facturaPagos.length;
   if (window.renderHistorial) window.renderHistorial();
-  notify(`Pago de ${fmt(importe)} vinculado a la factura`);
+  const rest2 = restantePago(pago);
+  notify(rest2 > 0.01
+    ? `Aplicado ${fmt(monto)} a la factura · restante del pago ${fmt(rest2)}`
+    : `Aplicado ${fmt(monto)} · pago aplicado por completo`);
 }

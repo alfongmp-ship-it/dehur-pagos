@@ -109,14 +109,21 @@ function _facturasRepartidasSet() {
 function _facturasCanceladasSet() {
   return new Set((state.facturas || []).filter(f => f.estado_sat === 'Cancelada').map(f => String(f.factura_id)));
 }
-// Pagos cuyo costo ya cubre el devengado de su factura (repartida y no cancelada) → no se recuentan.
+// Pagos cuyo costo ya cubre el devengado de su factura → no se recuentan (evita DOBLE conteo).
+// Cubre dos vías: el marcador directo del pago (h.factura_id) y las facturas a las que el pago se
+// aplicó POR PARTES (facturaPagos). Basta que ALGUNA factura ligada esté repartida y no cancelada.
+// Trade-off elegido a favor de NUNCA duplicar: si un pago se aplica a una factura repartida Y a
+// otra que aún NO se reparte, se suprime completo → la parte de la factura sin repartir aporta su
+// costo por su DEVENGADO (0 hasta que la repartas). O sea puede subcontar TEMPORALMENTE, nunca
+// sobrecontar; se corrige repartiendo cada factura ligada.
 function _pagosCubiertosPorFacturaSet() {
   const repartidas = _facturasRepartidasSet();
   const canceladas = _facturasCanceladasSet();
-  return new Set(state.historial
-    .filter(h => h.factura_id && String(h.factura_id) !== ''
-      && repartidas.has(String(h.factura_id)) && !canceladas.has(String(h.factura_id)))
-    .map(h => String(h.id)));
+  const cubierta = fid => fid != null && String(fid) !== '' && repartidas.has(String(fid)) && !canceladas.has(String(fid));
+  const set = new Set();
+  state.historial.forEach(h => { if (cubierta(h.factura_id)) set.add(String(h.id)); });
+  (state.facturaPagos || []).forEach(fp => { if (String(fp.pago_id || '') !== '' && cubierta(fp.factura_id)) set.add(String(fp.pago_id)); });
+  return set;
 }
 // Sets de factura_ids / pago_ids que EXISTEN (o null si esa tabla aún no cargó con datos, para
 // NO vaciar el reporte en una carga parcial). Sirven para no contar asignaciones huérfanas.
