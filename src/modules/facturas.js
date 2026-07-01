@@ -838,7 +838,7 @@ export function filtrarPagosParaFactura() {
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
         <span style="font-size:10px;color:var(--muted);">Aplicar $</span>
         <input type="number" step="0.01" min="0" max="${defMonto}" id="${inpId}" value="${defMonto}" style="width:88px;text-align:right;font-family:'DM Mono',monospace;font-size:11px;padding:3px 6px;">
-        <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;" onclick="vincularPagoAFactura(${h.id}, document.getElementById('${inpId}').value)">Vincular</button>
+        <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;" onclick="vincularPagoAFactura('${h.id}', document.getElementById('${inpId}').value)">Vincular</button>
       </div>
     </div>`;
   };
@@ -856,7 +856,7 @@ export function vincularPagoAFactura(pagoId, montoAplicado) {
     notify('La factura ya está ' + fact.estatus_factura, 'error'); return;
   }
   ensureHistorialIds(); // asegura pago.id estable para guardar la fila
-  const pago = state.historial.find(h => h.id === pagoId);
+  const pago = state.historial.find(h => String(h.id) === String(pagoId));
   if (!pago) { notify('No se encontró el pago', 'error'); return; }
   // Un pago se puede aplicar POR PARTES a VARIAS facturas. Solo se evita aplicar el MISMO
   // pago a la MISMA factura dos veces (duplicaría el monto_pagado). Para corregir un monto,
