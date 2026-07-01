@@ -1,4 +1,4 @@
-import { state, datosListos, puedeBorrarFacturas } from '../state.js';
+import { state, datosListos, puedeBorrarFacturas, nuevoFacturaPagoId } from '../state.js';
 import { fmt, fmtFecha, hoyFecha, escapeHtml } from '../ui/format.js';
 import { proyTag } from '../ui/badges.js';
 import { notify } from '../ui/notify.js';
@@ -695,7 +695,7 @@ export function renderFacturaPagos() {
     const estBadge = estatusBadge(fp.estatus);
     const fact = state.facturas.find(f => f.factura_id === fp.factura_id);
     return `<tr>
-      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${fp.factura_pago_id}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${String(fp.factura_pago_id).slice(0, 8)}</td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;">${fp.factura_id}</td>
       <td><div style="font-weight:500;font-size:12px;">${escapeHtml(provNombre)}</div></td>
       <td style="font-family:'DM Mono',monospace;font-weight:500;text-align:right;color:var(--accent);">${fmt(fp.monto_aplicado)}</td>
@@ -703,7 +703,7 @@ export function renderFacturaPagos() {
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${fmtFecha(fp.fecha_pago)}</td>
       <td>${estBadge}</td>
       <td style="font-size:11px;color:var(--muted);">${escapeHtml((fp.observaciones || '').substring(0, 40))}</td>
-      <td style="text-align:right;"><button class="btn btn-ghost req-facturas" style="padding:4px 6px;font-size:11px;color:#e74c3c;" onclick="eliminarPagoFactura(${fp.factura_pago_id})">✕</button></td>
+      <td style="text-align:right;"><button class="btn btn-ghost req-facturas" style="padding:4px 6px;font-size:11px;color:#e74c3c;" onclick="eliminarPagoFactura('${fp.factura_pago_id}')">✕</button></td>
     </tr>`;
   }).join('');
 }
@@ -719,7 +719,7 @@ function restantePago(pago) {
 }
 
 export function eliminarPagoFactura(fpId) {
-  const fp = state.facturaPagos.find(x => x.factura_pago_id === fpId);
+  const fp = state.facturaPagos.find(x => String(x.factura_pago_id) === String(fpId));
   if (!fp) return;
   if (!confirm(`¿Eliminar pago de ${fmt(fp.monto_aplicado)} a factura ${fp.factura_id}?`)) return;
 
@@ -729,7 +729,7 @@ export function eliminarPagoFactura(fpId) {
     recalcularSaldoEstatus(fact);
   }
 
-  state.facturaPagos = state.facturaPagos.filter(x => x.factura_pago_id !== fpId);
+  state.facturaPagos = state.facturaPagos.filter(x => String(x.factura_pago_id) !== String(fpId));
 
   // Desligar el pago del historial SOLO si ya no le queda NINGUNA otra factura aplicada
   // (con multi-factura un pago puede seguir cubriendo otras). Si le quedan, deja el
@@ -884,7 +884,7 @@ export function vincularPagoAFactura(pagoId, montoAplicado) {
   monto = Math.round(Math.min(monto, tope) * 100) / 100;
   if (monto <= 0) { notify('No hay saldo por aplicar en esta factura', 'error'); return; }
 
-  const fpId = state.facturaPagos.reduce((max, fp) => Math.max(max, fp.factura_pago_id), 0) + 1;
+  const fpId = nuevoFacturaPagoId();
   const nuevoFp = {
     factura_pago_id: fpId,
     factura_id: fact.factura_id,

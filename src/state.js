@@ -69,6 +69,15 @@ export function nuevoAsignacionId() {
   return 'a-' + _asigSalt + '-' + (_asigSeq++).toString(36);
 }
 
+// ID único global para un enlace pago↔factura (facturaPagos). Mismo motivo que arriba: el
+// contador local MAX+1 colisionaba entre sesiones (uno vinculando pagos + otro confirmando
+// solicitudes con factura_id) → el upsert pisaba un enlace con otro. Un UUID no colisiona.
+export function nuevoFacturaPagoId() {
+  try { if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID(); } catch (_) { /* fallback abajo */ }
+  if (!_asigSalt) _asigSalt = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+  return 'fp-' + _asigSalt + '-' + (_asigSeq++).toString(36);
+}
+
 export function esConcentradora(nombreCuenta) {
   if (!nombreCuenta) return false;
   const c = state.cuentasPropias.find(x => x.nombre === nombreCuenta);

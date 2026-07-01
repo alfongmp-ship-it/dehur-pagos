@@ -149,7 +149,7 @@ const RT = {
     stateKey: 'facturaPagos',
     idField: 'factura_pago_id',
     mapRow: r => ({
-      factura_pago_id: toInt(r.factura_pago_id), factura_id: toInt(r.factura_id), pago_id: toInt(r.pago_id),
+      factura_pago_id: r.factura_pago_id != null ? String(r.factura_pago_id) : '', factura_id: toInt(r.factura_id), pago_id: toInt(r.pago_id),
       proveedor_id: toInt(r.proveedor_id), monto_aplicado: toNum(r.monto_aplicado), fecha_pago: r.fecha_pago || '',
       estatus: r.estatus || '', observaciones: r.observaciones || ''
     }),

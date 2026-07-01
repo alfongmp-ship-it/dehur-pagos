@@ -417,7 +417,7 @@ export async function gsLoadAll() {
     const fpRows = await leerHoja('factura_pagos', 'facturaPagos');
     if (fpRows && fpRows.length > 1) {
       state.facturaPagos = fpRows.slice(1).filter(r => r[0]).map(r => ({
-        factura_pago_id: parseInt(r[0]) || 0,
+        factura_pago_id: String(r[0] || ''),
         factura_id: parseInt(r[1]) || 0,
         pago_id: parseInt(r[2]) || 0,
         proveedor_id: parseInt(r[3]) || 0,
@@ -723,7 +723,7 @@ export async function sbLoadAll() {
 
   await cargar('factura_pagos', 'facturaPagos', rows => {
     state.facturaPagos = rows.map(r => ({
-      factura_pago_id: toInt(r.factura_pago_id), factura_id: toInt(r.factura_id), pago_id: toInt(r.pago_id),
+      factura_pago_id: r.factura_pago_id != null ? String(r.factura_pago_id) : '', factura_id: toInt(r.factura_id), pago_id: toInt(r.pago_id),
       proveedor_id: toInt(r.proveedor_id), monto_aplicado: toNum(r.monto_aplicado),
       fecha_pago: r.fecha_pago || '', estatus: r.estatus || '', observaciones: r.observaciones || ''
     }));
@@ -913,8 +913,8 @@ export async function purgarFacturaPagosDePagos(pagoIds) {
     else { fact.estatus_factura = 'parcial'; fact.fecha_pago_total = ''; }
     tocadas.set(fact.factura_id, fact);
   });
-  const fpIds = new Set(fps.map(fp => fp.factura_pago_id));
-  state.facturaPagos = state.facturaPagos.filter(fp => !fpIds.has(fp.factura_pago_id));
+  const fpIds = new Set(fps.map(fp => String(fp.factura_pago_id)));
+  state.facturaPagos = state.facturaPagos.filter(fp => !fpIds.has(String(fp.factura_pago_id)));
   const porFilaF = esPorFila('facturas');
   const porFilaFp = esPorFila('facturaPagos');
   await gsSaveFacturas({ porFila: porFilaF });

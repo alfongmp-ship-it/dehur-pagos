@@ -1,4 +1,4 @@
-import { state, esConcentradora, nuevoAsignacionId } from '../state.js';
+import { state, esConcentradora, nuevoAsignacionId, nuevoFacturaPagoId } from '../state.js';
 import { fmt, hoyFecha, escapeHtml } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { proyTag } from '../ui/badges.js';
@@ -221,7 +221,7 @@ export async function confirmarPagos() {
     const fact = state.facturas.find(f => f.factura_id === factId);
     if (!fact) return;
 
-    const fpId = state.facturaPagos.reduce((max, fp) => Math.max(max, fp.factura_pago_id), 0) + 1;
+    const fpId = nuevoFacturaPagoId();
     state.facturaPagos.push({
       factura_pago_id: fpId,
       factura_id: factId,
