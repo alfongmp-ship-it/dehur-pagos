@@ -49,3 +49,7 @@
 .page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; }
 .page-title { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 700; }
 .page-subtitle { color: var(--muted); font-size: 13px; margin-top: 2px; }
+
+/* ===== Pase premium: barra dorada en el nav activo + título con aire ===== */
+.nav-item.active { box-shadow: inset 3px 0 0 var(--accent); }
+.page-title { letter-spacing: -.02em; }

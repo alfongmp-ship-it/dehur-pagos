@@ -18,6 +18,19 @@
   --shadow-color: rgba(0,0,0,.4);
   --modal-backdrop: rgba(0,0,0,.75);
   --on-accent: #0f0f0f;
+
+  /* === Pase premium (oscuro): elevación, foco, motion, radios === */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.35), 0 1px 3px rgba(0,0,0,.28);
+  --shadow-md: 0 6px 20px rgba(0,0,0,.45), 0 2px 6px rgba(0,0,0,.30);
+  --shadow-lg: 0 18px 48px rgba(0,0,0,.55), 0 6px 16px rgba(0,0,0,.38);
+  --lift-shadow: 0 4px 14px rgba(0,0,0,.40), 0 0 0 1px rgba(200,169,110,.10);
+  --ring-color: var(--accent);
+  --ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--ring-color);
+  --focus-glow: 0 0 0 3px rgba(200,169,110,.22);
+  --transition: 160ms cubic-bezier(.4, 0, .2, 1);
+  --transition-fast: 110ms cubic-bezier(.4, 0, .2, 1);
+  --ease-bounce: cubic-bezier(.34, 1.4, .64, 1);
+  --r-sm: 8px; --r-md: 10px; --r-lg: 12px; --r-xl: 16px;
 }
 
 [data-theme="light"] {
@@ -59,6 +72,7 @@
   --input-bg: #fffdf9;
   --shadow-sm: 0 1px 2px rgba(60,52,38,.06), 0 1px 3px rgba(60,52,38,.08);
   --shadow-md: 0 4px 16px rgba(60,52,38,.10), 0 1px 3px rgba(60,52,38,.07);
+  --focus-glow: 0 0 0 3px rgba(138,102,48,.18);
   --green-tint: rgba(27,119,74,.12);  --green-soft-border: rgba(27,119,74,.42);
   --red-tint: rgba(191,53,53,.12);    --red-soft-border: rgba(191,53,53,.40);
   --blue-tint: rgba(37,99,168,.10);   --blue-soft-border: rgba(37,99,168,.34);
@@ -157,11 +171,16 @@ body {
   font-family: 'DM Sans', sans-serif;
   font-size: 14px;
   min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; transition: background var(--transition); }
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+* { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
 
 /* ===== Permisos por rol (Etapa 2): ocultar acciones según el rol ===== */
 /* El bloqueo REAL está en los handlers + backstop de guardado; esto es solo UX. */
@@ -196,3 +215,32 @@ body[data-rol="obra"] .req-borrar-factura { display: none !important; }
 body[data-rol="obra"] .nav-item:not(.nav-obra),
 body[data-rol="obra"] .nav-label,
 body[data-rol="obra"] #header-badges { display: none !important; }
+
+/* ===================================================================== */
+/* ===== PASE PREMIUM — elevación tema oscuro + motion safety ========== */
+/* (solo estilos; el tema claro conserva su elevación por especificidad) */
+/* ===================================================================== */
+.stat-card,
+.table-wrap,
+.notif,
+.re-report,
+.re-kpi,
+.re-card,
+.total-bar { box-shadow: var(--shadow-sm); }
+.modal { box-shadow: var(--shadow-md); }
+
+@media print {
+  .stat-card, .table-wrap, .notif, .re-report,
+  .modal, .re-kpi, .re-card, .total-bar { box-shadow: none !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .btn:hover, .stat-card:hover, .proyecto-pill:hover { transform: none !important; }
+  .modal-overlay.open, .modal-overlay.open .modal { animation: none !important; }
+}

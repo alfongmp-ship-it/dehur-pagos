@@ -140,3 +140,92 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 [data-theme="light"] input[type="date"]::-webkit-calendar-picker-indicator {
   filter: invert(0.25) sepia(0.4) saturate(2) hue-rotate(5deg);
 }
+
+/* ===================================================================== */
+/* ===== PASE PREMIUM (solo estilos, sin cambios de funcionalidad) ===== */
+/* ===================================================================== */
+
+/* Transición estándar en elementos interactivos */
+.btn, .btn-ghost, .badge, .tab, .filter-select, .search-box input,
+input, select, textarea,
+.proyecto-pill, .re-tab, .cf-metodo-opt, .cf-plano-btn, .tag, a {
+  transition: background var(--transition), border-color var(--transition),
+              color var(--transition), box-shadow var(--transition),
+              transform var(--transition-fast);
+}
+
+/* Botones: lift sutil en hover, press en active */
+.btn:hover         { transform: translateY(-1px); }
+.btn:active        { transform: translateY(0) scale(.98); transition: transform 60ms ease; }
+.btn-primary:hover { box-shadow: var(--lift-shadow); }
+.btn-ghost:hover,
+.btn-success:hover,
+.btn-danger:hover  { box-shadow: var(--lift-shadow); }
+
+/* Tarjetas y pills: lift sin reflow (transform, no empuja) */
+.stat-card         { transition: box-shadow var(--transition), transform var(--transition-fast); }
+.stat-card:hover   { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.proyecto-pill:hover { transform: translateY(-1px); box-shadow: var(--lift-shadow); }
+
+/* Focus-visible: anillo dorado accesible (solo teclado; no rompe :focus por mouse) */
+.btn:focus-visible,
+.btn-ghost:focus-visible,
+.tab:focus-visible,
+.proyecto-pill:focus-visible,
+.re-tab:focus-visible,
+.cf-plano-btn:focus-visible,
+.modal-close:focus-visible,
+a:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+/* Glow de foco en inputs/selects (conserva el border-color:accent existente) */
+.search-box input:focus-visible,
+.filter-select:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  border-color: var(--accent);
+  box-shadow: var(--focus-glow);
+}
+
+/* Estado deshabilitado */
+input:disabled, select:disabled, textarea:disabled,
+.btn:disabled, .filter-select:disabled {
+  opacity: .5; cursor: not-allowed; transform: none; box-shadow: none;
+}
+
+/* Tab activa con leve elevación */
+.tab.active { box-shadow: var(--shadow-sm); }
+
+/* ===== Tablas premium (sin transform en filas → no rompe thead sticky) ===== */
+tr:hover td { background: rgba(200,169,110,.055); }
+thead th { border-bottom: 1px solid rgba(200,169,110,.18); }
+.mono, .num, td .mono, .re-kpi-value, input[type="number"] {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* ===== Modal: entrada fade+scale, backdrop con blur ligero ===== */
+@keyframes dehurModalIn {
+  from { opacity: 0; transform: translateY(8px) scale(.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes dehurBackdropIn { from { opacity: 0; } to { opacity: 1; } }
+.modal-overlay.open {
+  animation: dehurBackdropIn 180ms ease-out;
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+}
+.modal-overlay.open .modal {
+  animation: dehurModalIn 220ms var(--ease-bounce);
+  box-shadow: var(--shadow-lg);
+}
+
+/* ===== Tipografía: títulos Syne con aire negativo ===== */
+.stat-value  { letter-spacing: -.02em; }
+.modal-title { letter-spacing: -.015em; }
+@media (max-width: 480px) {
+  .stat-value, .modal-title, .page-title { letter-spacing: normal; }
+}
