@@ -156,6 +156,7 @@ export async function confirmarPagos() {
   // inválido (factura inexistente / cancelada / ya pagada / de otro proveedor) se avisa y se
   // limpia h.factura_id: el pago se registra como pago NORMAL (con su reparto), nunca como un
   // enlace fantasma. Mismo criterio que vincularPagoAFactura.
+  const _acumFact = {};   // acumula por factura dentro del lote (anti sobre-pago / duplicado)
   insertados.forEach(({ d, h }) => {
     if (!h.factura_id) return;
     const fact = state.facturas.find(f => f.factura_id === parseInt(h.factura_id));
@@ -165,6 +166,18 @@ export async function confirmarPagos() {
     else if (fact.estado_sat === 'Cancelada' || fact.estatus_factura === 'cancelada') motivo = `la factura ${h.factura_id} está cancelada`;
     else if (fact.estatus_factura === 'pagada') motivo = `la factura ${h.factura_id} ya está pagada`;
     else if (fact.proveedor_id && provPago && fact.proveedor_id !== provPago) motivo = `el proveedor no coincide con la factura ${h.factura_id}`;
+    else {
+      // Anti sobre-pago / DUPLICADO: la suma de pagos de ESTE lote a una misma factura NO puede
+      // pasar de su total. Cubre el caso del pago duplicado (dos pagos idénticos a la misma
+      // factura duplicaban el monto_pagado). Mismo candado que el vincular manual.
+      const yaLote = _acumFact[fact.factura_id] || 0;
+      const saldoDisp = Math.round(((fact.monto_total || 0) - (fact.monto_pagado || 0) - yaLote) * 100) / 100;
+      if ((d.importe || 0) > saldoDisp + 0.01) {
+        motivo = `excede el saldo de la factura ${h.factura_id} (disponible ${fmt(saldoDisp)}; posible pago DUPLICADO)`;
+      } else {
+        _acumFact[fact.factura_id] = yaLote + (d.importe || 0);
+      }
+    }
     if (motivo) {
       notify(`"${h.nombre || 'Pago'}": ${motivo}. Se registró SIN ligar a factura (su costo se reparte como pago normal).`, 'error');
       h.factura_id = '';
