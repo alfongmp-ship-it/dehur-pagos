@@ -135,8 +135,15 @@ const RT = {
       proveedor_id: toInt(r.proveedor_id), nombre_proveedor: r.nombre_proveedor || '', fecha_factura: r.fecha_factura || '',
       fecha_vencimiento: r.fecha_vencimiento || '', fecha_pago_total: r.fecha_pago_total || '',
       monto_total: toNum(r.monto_total), monto_pagado: toNum(r.monto_pagado), saldo_pendiente: toNum(r.saldo_pendiente),
-      estatus_factura: r.estatus_factura || 'pendiente', proyecto: r.proyecto || '', observaciones: r.observaciones || '',
-      activo: r.activo !== false, uuid: r.uuid || ''
+      estatus_factura: r.estatus_factura || 'pendiente', proyecto: r.proyecto || '', empresa: r.empresa || '', observaciones: r.observaciones || '',
+      activo: r.activo !== false, uuid: r.uuid || '',
+      // Fase 2: campos fiscales (CFDI). SIN esto, un evento realtime reconstruía la factura
+      // sin estos datos → quedaban en cero en memoria y se perdían al siguiente guardado.
+      // Debe calzar con la carga inicial (sbLoadAll) y _rowFactura.
+      subtotal: toNum(r.subtotal), descuento: toNum(r.descuento), iva_trasladado: toNum(r.iva_trasladado),
+      retencion_iva: toNum(r.retencion_iva), retencion_isr: toNum(r.retencion_isr),
+      nc_subtotal: toNum(r.nc_subtotal), nc_iva: toNum(r.nc_iva),
+      rfc_emisor: r.rfc_emisor || '', estado_sat: r.estado_sat || 'Vigente', tipo_comprobante: r.tipo_comprobante || 'Factura'
     }),
     rerender: () => {
       if (window.renderFacturas) window.renderFacturas();
