@@ -9,3 +9,6 @@ index_real.html
 .env.local
 .env.*.local
 *.pem
+
+# Documentación maestra: se conserva LOCAL, no se sube (el repo es público).
+docs/documentacion-completa.md
