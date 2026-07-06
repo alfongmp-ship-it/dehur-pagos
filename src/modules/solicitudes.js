@@ -830,14 +830,26 @@ export function enviarACola() {
   const validos = sel.filter(s => !s._facturaError);
   if (!validos.length) { notify('⛔ Todos los pagos seleccionados tienen problemas de factura. Revisa las advertencias.', 'error'); return; }
 
-  // Red de seguridad: confirma antes de mandar a la cola si hay posibles duplicados.
-  const dupSel = validos.filter(s => s._duplicado);
-  if (dupSel.length) {
-    const lista = dupSel.map(s => `• ${s.proveedor} — ${fmt(s.importe)}`).join('\n');
-    if (!confirm(`⚠ ${dupSel.length} pago(s) seleccionados parecen DUPLICADOS (mismo proveedor, importe y concepto):\n\n${lista}\n\n¿Enviar a la cola de todos modos?`)) return;
+  // Dedup DURO (evita el doble pago de RAÍZ): NO se envían a la cola pagos idénticos entre sí,
+  // ni que ya estén en la cola (mismo proveedor + importe + factura + concepto). Antes esto solo
+  // se AVISABA con un confirm y los duplicados se colaban igual → una factura quedaba pagada al
+  // doble (p.ej. la 107). Ahora el duplicado no entra a la cola.
+  const _clave = x => `${x.proveedor_id || ''}|${Number(x.importe || 0).toFixed(2)}|${x.factura_id || ''}|${(x.motivo || x.concepto || '').trim()}`;
+  const _enCola = new Set(state.cola.map(i => `${i.proveedor_id || ''}|${Number(i.importe || 0).toFixed(2)}|${i.factura_id || ''}|${(i.concepto || '').trim()}`));
+  const _visto = new Set();
+  const validosUnicos = [];
+  const saltados = [];
+  for (const s of validos) {
+    const k = _clave(s);
+    if (_visto.has(k) || _enCola.has(k)) { saltados.push(s); continue; }
+    _visto.add(k); validosUnicos.push(s);
   }
+  if (saltados.length) {
+    notify(`⚠ ${saltados.length} pago(s) DUPLICADO(s) NO se enviaron (mismo proveedor, monto y factura ya en la cola): ${saltados.map(s => `${s.proveedor} ${fmt(s.importe)}`).join(', ')}`, 'error');
+  }
+  if (!validosUnicos.length) { notify('Nada por enviar: los pagos seleccionados ya estaban en la cola.', 'error'); return; }
 
-  validos.forEach(s => {
+  validosUnicos.forEach(s => {
     const prov = s.match;
     state.cola.push({
       id: Date.now() + Math.random(),
@@ -859,8 +871,8 @@ export function enviarACola() {
     });
   });
 
-  const count = validos.length;
-  const total = validos.reduce((a, s) => a + s.importe, 0);
+  const count = validosUnicos.length;
+  const total = validosUnicos.reduce((a, s) => a + s.importe, 0);
 
   // Limpiar solicitudes
   state.solicitudesData = [];
