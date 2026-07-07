@@ -2,7 +2,7 @@ import { state, datosListos, puedeEditar, esAdmin } from '../state.js';
 import { fmt, dl, fmtFecha, escapeHtml } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { proyTag, catTag } from '../ui/badges.js';
-import { gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveTraspasos, gsSaveCostoAsignaciones, purgarAsignacionesDePago, purgarFacturaPagosDePagos, esPorFila, sbGuardarFila, sbBorrarFila } from '../services/google-sync.js';
+import { gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveTraspasos, gsSaveCostoAsignaciones, gsSaveFacturaPagos, purgarAsignacionesDePago, purgarFacturaPagosDePagos, esPorFila, sbGuardarFila, sbBorrarFila } from '../services/google-sync.js';
 import { saveProy, proyectoMatch } from '../config/proyectos.js';
 import { getPartidasParaSelect, getSubPartidas, subPartidaObligatoria } from '../config/sub-partidas.js';
 
@@ -295,6 +295,16 @@ export function editarPartidaPago(idx) {
   const t = document.getElementById('cp-titulo');
   if (t) t.textContent = `Editar pago — ${h.nombre || ''}`;
   _poblarModalPartida(h.partida || '', h.sub_partida || '');
+  // Editor de PROVEEDOR (solo single): buscador con el proveedor ACTUAL precargado. Al cambiarlo
+  // se arrastra beneficiario/banco/tipo (ver aplicarCambiarPartida).
+  const pvw = document.getElementById('cp-prov-wrap');
+  const pvb = document.getElementById('cp-prov-buscar');
+  const pvi = document.getElementById('cp-proveedor-id');
+  const pvd = document.getElementById('cp-prov-dd');
+  if (pvw) pvw.style.display = '';
+  if (pvb) pvb.value = h.nombre || '';
+  if (pvi) pvi.value = h.proveedor_id != null ? String(h.proveedor_id) : '';
+  if (pvd) pvd.style.display = 'none';
   // Editor de fecha (solo modo single): mostrar y pre-llenar con la fecha actual
   // en ISO (lo que pide el input type=date).
   const fw = document.getElementById('cp-fecha-wrap');
@@ -308,6 +318,7 @@ export function editarPartidaPago(idx) {
 export function abrirCambiarPartidaBulk() {
   if (!esAdmin()) { notify('Solo el admin puede cambiar partida en bloque', 'error'); return; }
   if (!histSel.size) { notify('No hay pagos seleccionados', 'error'); return; }
+  { const _pvw = document.getElementById('cp-prov-wrap'); if (_pvw) _pvw.style.display = 'none'; }  // bulk: sin editor de proveedor
   _cpTarget = { modo: 'bulk' };
   const t = document.getElementById('cp-titulo');
   if (t) t.textContent = `Cambiar partida — ${histSel.size} pago(s) seleccionado(s)`;
@@ -358,6 +369,38 @@ export function actualizarSubpartidaCambiar() {
   }
 }
 
+// Buscador de PROVEEDOR para el modal de editar pago (mismo patrón que facturas.js).
+// onmousedown en los items (no onclick) para que corra ANTES del blur del input.
+export function cpFiltrarProv() {
+  const input = document.getElementById('cp-prov-buscar');
+  const dd = document.getElementById('cp-prov-dd');
+  if (!input || !dd) return;
+  const q = input.value.trim().toLowerCase();
+  if (!q) { dd.style.display = 'none'; return; }
+  const results = state.proveedores.filter(p => p.activo !== false &&
+    (/^\d+$/.test(q) ? String(p.id).includes(q) : (p.nombre || '').toLowerCase().includes(q))
+  ).slice(0, 15);
+  if (!results.length) {
+    dd.innerHTML = '<div style="padding:10px;font-size:11px;color:var(--muted);">Sin resultados</div>';
+    dd.style.display = 'block'; return;
+  }
+  dd.innerHTML = results.map(p =>
+    `<div onmousedown="cpSelProv(${p.id})" style="padding:8px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--border);" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background='transparent'"><span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-right:6px;">${p.id}</span>${escapeHtml(p.nombre)}</div>`
+  ).join('');
+  dd.style.display = 'block';
+}
+
+export function cpSelProv(id) {
+  const p = state.proveedores.find(x => x.id === id);
+  if (!p) return;
+  const input = document.getElementById('cp-prov-buscar');
+  const hid = document.getElementById('cp-proveedor-id');
+  const dd = document.getElementById('cp-prov-dd');
+  if (input) input.value = p.nombre || '';
+  if (hid) hid.value = String(p.id);
+  if (dd) dd.style.display = 'none';
+}
+
 // Aplica la partida/sub elegida al pago (single) o a los seleccionados (bulk),
 // guarda en Sheets + Supabase, y refresca historial + costos.
 export function aplicarCambiarPartida() {
@@ -374,6 +417,33 @@ export function aplicarCambiarPartida() {
   const objetivos = _pagosObjetivo();
   if (!objetivos.length) { notify('No encontré los pagos a cambiar', 'error'); return; }
   objetivos.forEach(h => { h.partida = partida; h.sub_partida = sub; });
+
+  // Editor de PROVEEDOR (solo single): al cambiar el proveedor, arrastra beneficiario/banco/tipo del
+  // proveedor elegido y SINCRONIZA el proveedor_id de los facturaPagos ligados (para no dejar el
+  // enlace con el proveedor viejo). NO toca importe ni saldos.
+  if (_cpTarget.modo === 'single') {
+    const nuevoProvId = (document.getElementById('cp-proveedor-id')?.value || '').trim();
+    const h0 = objetivos[0];
+    if (h0 && nuevoProvId && String(nuevoProvId) !== String(h0.proveedor_id)) {
+      const prov = state.proveedores.find(p => String(p.id) === String(nuevoProvId));
+      if (prov) {
+        h0.proveedor_id = String(prov.id);
+        h0.nombre = prov.nombre || '';
+        h0.banco = prov.banco || '';
+        h0.tipo = prov.tipo_cuenta || '';
+        const _pfFp = esPorFila('facturaPagos');
+        let _fpTocados = 0;
+        state.facturaPagos.forEach(fp => {
+          if (String(fp.pago_id) === String(h0.id)) {
+            fp.proveedor_id = parseInt(prov.id) || 0;
+            if (_pfFp) sbGuardarFila('facturaPagos', fp);
+            _fpTocados++;
+          }
+        });
+        if (_fpTocados) gsSaveFacturaPagos({ porFila: _pfFp });
+      }
+    }
+  }
 
   // Editor de fecha (solo single): si el usuario puso una fecha distinta, la
   // aplicamos en DD/MM/YYYY (como el resto). NO toca saldos — solo corrige el dato

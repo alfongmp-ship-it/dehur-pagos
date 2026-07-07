@@ -993,6 +993,14 @@
         <label>Sub-partida * <span style="color:var(--muted);font-weight:400;font-size:11px;">(solo CONSTRUCCION)</span></label>
         <select id="cp-subpartida"></select>
       </div>
+      <div class="field span2" id="cp-prov-wrap" style="display:none;">
+        <label>Proveedor <span style="color:var(--muted);font-weight:400;font-size:11px;">(cambiarlo actualiza beneficiario, banco y tipo)</span></label>
+        <div style="position:relative;">
+          <input type="text" id="cp-prov-buscar" autocomplete="off" placeholder="Buscar proveedor por nombre o ID…" oninput="cpFiltrarProv()" onblur="var d=document.getElementById('cp-prov-dd');if(d)d.style.display='none';">
+          <input type="hidden" id="cp-proveedor-id">
+          <div id="cp-prov-dd" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:20;background:var(--surface2);border:1px solid var(--border);border-radius:8px;max-height:200px;overflow-y:auto;box-shadow:var(--shadow-md);margin-top:2px;"></div>
+        </div>
+      </div>
       <div class="field span2" id="cp-proyecto-wrap" style="display:none;">
         <label>Proyecto <span style="color:var(--muted);font-weight:400;font-size:11px;">(cambiarlo recoloca el reparto en las casas del nuevo proyecto)</span></label>
         <select id="cp-proyecto"></select>
