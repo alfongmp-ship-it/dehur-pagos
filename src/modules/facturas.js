@@ -239,7 +239,7 @@ function recalcularSaldoEstatus(fact) {
   if ((fact.monto_pagado || 0) <= 0) {
     fact.estatus_factura = 'pendiente';
     fact.fecha_pago_total = '';
-  } else if (fact.saldo_pendiente <= 0) {
+  } else if (fact.saldo_pendiente <= 1) {   // tolerancia de redondeo: ≤ $1 (el banco paga en pesos cerrados) → pagada
     fact.estatus_factura = 'pagada';
     if (!fact.fecha_pago_total) fact.fecha_pago_total = new Date().toISOString().split('T')[0];
   } else {

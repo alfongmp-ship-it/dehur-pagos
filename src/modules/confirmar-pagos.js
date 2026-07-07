@@ -259,7 +259,7 @@ export async function confirmarPagos() {
 
     fact.monto_pagado = (fact.monto_pagado || 0) + d.importe;
     fact.saldo_pendiente = Math.max(0, fact.monto_total - fact.monto_pagado);
-    if (fact.saldo_pendiente <= 0) {
+    if (fact.saldo_pendiente <= 1) {   // tolerancia de redondeo ($1) → pagada
       fact.estatus_factura = 'pagada';
       fact.fecha_pago_total = new Date().toISOString().split('T')[0];
     } else if (fact.monto_pagado > 0) {

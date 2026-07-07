@@ -611,6 +611,24 @@ async function finalizarCarga() {
     }
   }
 
+  // Sanar facturas "parcial" que solo traen una diferencia de CENTAVOS (el banco paga en pesos
+  // cerrados) → marcarlas pagada. Tolerancia $1, idempotente, guardado por fila. Mismo criterio
+  // que recalcularSaldoEstatus. Sana las que ya estaban atoradas desde antes del fix.
+  if ((puedeEditar() || puedeFacturas()) && state.cargado.facturas === true) {
+    const _pfFac = esPorFila('facturas');
+    let _sanadas = 0;
+    state.facturas.forEach(f => {
+      const saldo = Math.max(0, (f.monto_total || 0) - (f.monto_pagado || 0));
+      if (f.estatus_factura === 'parcial' && (f.monto_pagado || 0) > 0 && saldo > 0 && saldo <= 1) {
+        f.estatus_factura = 'pagada';
+        if (!f.fecha_pago_total) f.fecha_pago_total = new Date().toISOString().slice(0, 10);
+        if (_pfFac) sbGuardarFila('facturas', f);
+        _sanadas++;
+      }
+    });
+    if (_sanadas) { gsSaveFacturas({ porFila: _pfFac }); if (window.renderFacturas) window.renderFacturas(); }
+  }
+
   // Re-render everything
   if (window.renderCreditos) window.renderCreditos();
   if (window.renderTraspasos) window.renderTraspasos();
@@ -909,7 +927,7 @@ export async function purgarFacturaPagosDePagos(pagoIds) {
     fact.monto_pagado = Math.max(0, (fact.monto_pagado || 0) - (fp.monto_aplicado || 0));
     fact.saldo_pendiente = Math.max(0, (fact.monto_total || 0) - (fact.monto_pagado || 0));
     if ((fact.monto_pagado || 0) <= 0) { fact.estatus_factura = 'pendiente'; fact.fecha_pago_total = ''; }
-    else if (fact.saldo_pendiente <= 0) { fact.estatus_factura = 'pagada'; }
+    else if (fact.saldo_pendiente <= 1) { fact.estatus_factura = 'pagada'; }   // tolerancia de redondeo ($1)
     else { fact.estatus_factura = 'parcial'; fact.fecha_pago_total = ''; }
     tocadas.set(fact.factura_id, fact);
   });
