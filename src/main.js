@@ -36,6 +36,7 @@ import { renderFlujoSalida, fsAbrirDetalle, fsCerrarDetalle } from './modules/fl
 import { renderResumenEjecutivo } from './modules/resumen-ejecutivo.js';
 import { renderCostosFiscales, abrirNuevaUnidad, editarUnidad, guardarUnidad, toggleUnidad, setFechaTermino, abrirLoteUnidades, guardarLoteUnidades, cfLimpiarHuerfanas, abrirAsignarCosto, reasignarCosto, eliminarAsignacionCosto, cfCambiarMetodo, cfPreviewReparto, cfRepartirResto, cfRepartirRestoIndiviso, cfCustomSetModo, cfFiltrarUnidades, cfSelTodas, cfFiltrarPendientes, cfFiltrarAsignados, guardarAsignacionCosto, cfAgregarPartidaPresup, guardarPresupuestoUnidad, cfVerUnidad, abrirRepartirFactura, cfLimpiarRepartoFactura, cfFacturaPartidaChange, cfToggleEstimado } from './modules/costos-fiscales.js';
 import { renderCreditos, seleccionarCredito, abrirNuevoCredito, editarCredito, guardarCredito, abrirNuevaDisposicion, guardarDisposicion, editarPagare, togglePagare, abrirNuevaFechaPago, editarFechaPago, guardarFechaPago, marcarPagoPagado, eliminarPagoPagare } from './modules/creditos.js';
+import { initIngresosUI, setWorkspace, renderClientes, renderVentas, renderCobros, renderEstadoCuenta } from './modules/ingresos.js';
 import { gsLogin, gsLogout, renderAuthStatus, checkOAuthCallback } from './services/google-auth.js';
 import { iniciarChequeoVersion } from './services/version-check.js';
 import { gsLoadAll, gsSaveProveedores, gsSaveEmpleados, gsSaveProyectos, gsSaveAlias, gsSaveCuentasPropias, gsSaveTraspasos, gsSaveCreditos, gsSavePagares, gsSavePagosPagare, gsSaveMovimientosInternos, migrarTodoASupabase, respaldarTodoASheets, cargarDatos, REALTIME_ON } from './services/google-sync.js';
@@ -313,6 +314,13 @@ window.gsSaveCreditos = gsSaveCreditos;
 window.gsSavePagares = gsSavePagares;
 window.gsSavePagosPagare = gsSavePagosPagare;
 
+// Ingresos (Fase 1)
+window.setWorkspace = setWorkspace;
+window.renderClientes = renderClientes;
+window.renderVentas = renderVentas;
+window.renderCobros = renderCobros;
+window.renderEstadoCuenta = renderEstadoCuenta;
+
 // Config / Proyectos
 window.calcularClabeProy = calcularClabeProy;
 window.selColor = selColor;
@@ -395,6 +403,9 @@ async function bootstrapApp() {
   try { await cargarDatos(); } catch (e) { console.error('cargarDatos en bootstrap falló:', e); }
   // Etapa 2: aplica el rol a la UI (oculta acciones que el rol no permite).
   aplicarPermisosUI();
+  // INGRESOS (Fase 1): inyecta el switcher Pagos|Ingresos SOLO si el módulo está
+  // activo (INGRESOS_ON + vista previa ?ingresos=1). Si no, no toca nada.
+  try { initIngresosUI(); } catch (e) { console.error('initIngresosUI falló:', e); }
   // Fase 3: suscripciones en vivo (solo si REALTIME_ON). Tras cargar los datos,
   // para que las suscripciones se monten sobre el estado ya inicializado.
   if (REALTIME_ON) { try { await iniciarRealtime(); } catch (e) { console.error('iniciarRealtime falló:', e); } }

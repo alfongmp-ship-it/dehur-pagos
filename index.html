@@ -96,6 +96,8 @@
     <div class="logo-mark">DT</div>
     <div><div class="logo-text">Dehur Territorial</div><div class="logo-sub">Core de Pagos · v2.0</div></div>
   </div>
+  <!-- Switcher de espacios Pagos|Ingresos (lo inyecta ingresos.js solo si el módulo está activo). -->
+  <div id="ws-switch" style="display:none;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;justify-content:flex-end;row-gap:8px;">
     <div id="user-badge" style="display:flex;align-items:center;gap:8px;font-size:12px;"></div>
     <div id="gs-auth-status"></div>
@@ -109,7 +111,7 @@
 <div id="data-warning-banner" style="display:none;background:#e05a5a;color:#fff;padding:10px 20px;font-size:13px;font-weight:600;text-align:center;line-height:1.4;"></div>
 
 <div class="layout">
-  <nav class="sidebar">
+  <nav class="sidebar" id="sidebar-pagos">
     <div class="nav-label">Pagos</div>
     <div class="nav-item active" id="nav-proveedores" onclick="showPage('proveedores',this)">
       <span>🏢</span> Proveedores <span class="nav-count" id="cnt-prov">...</span>
@@ -166,7 +168,50 @@
     <div class="nav-item" id="nav-config" onclick="showPage('config',this)"><span>⚙</span> Configuración</div>
   </nav>
 
+  <!-- ===== SIDEBAR INGRESOS (Fase 1) — paralelo, oculto salvo en el espacio Ingresos ===== -->
+  <nav class="sidebar" id="sidebar-ingresos" style="display:none;">
+    <div class="nav-label">Ingresos</div>
+    <div class="nav-item" id="nav-clientes" onclick="showPage('clientes',this)">
+      <span>🧑‍💼</span> Clientes <span class="nav-count" id="cnt-clientes">0</span>
+    </div>
+    <div class="nav-item" id="nav-ventas" onclick="showPage('ventas',this)">
+      <span>🏘️</span> Ventas por Unidad <span class="nav-count" id="cnt-ventas">0</span>
+    </div>
+    <div class="nav-item" id="nav-cobros" onclick="showPage('cobros',this)">
+      <span>💵</span> Cobranza <span class="nav-count" id="cnt-cobros">0</span>
+    </div>
+    <div class="nav-item" id="nav-estado-cuenta" onclick="showPage('estado-cuenta',this)">
+      <span>📄</span> Estado de Cuenta
+    </div>
+  </nav>
+
   <main class="main">
+
+    <!-- ===== INGRESOS (Fase 1) — páginas del espacio Ingresos ===== -->
+    <div id="page-clientes" style="display:none">
+      <div class="page-header">
+        <div><div class="page-title">Clientes</div><div class="page-subtitle" id="sub-clientes">0 registros</div></div>
+      </div>
+      <div id="lista-clientes"></div>
+    </div>
+    <div id="page-ventas" style="display:none">
+      <div class="page-header">
+        <div><div class="page-title">Ventas por Unidad</div><div class="page-subtitle" id="sub-ventas">0 registros</div></div>
+      </div>
+      <div id="lista-ventas"></div>
+    </div>
+    <div id="page-cobros" style="display:none">
+      <div class="page-header">
+        <div><div class="page-title">Cobranza</div><div class="page-subtitle" id="sub-cobros">0 registros</div></div>
+      </div>
+      <div id="lista-cobros"></div>
+    </div>
+    <div id="page-estado-cuenta" style="display:none">
+      <div class="page-header">
+        <div><div class="page-title">Estado de Cuenta</div><div class="page-subtitle">Por cliente y venta</div></div>
+      </div>
+      <div id="lista-estado-cuenta"></div>
+    </div>
 
     <!-- ===== PROVEEDORES ===== -->
     <div id="page-proveedores">

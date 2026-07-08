@@ -42,6 +42,21 @@ export const REALTIME_ON = true;
 // Ingresos vive en tablas/módulos propios y NO toca saldos ni nada de Pagos.
 // ============================================================================
 export const INGRESOS_ON = true;
+
+// Candado de VISTA PREVIA (solo mientras se construye Ingresos): la carga y la UI
+// del módulo solo se activan con ?ingresos=1 en la URL (queda sticky en
+// localStorage) o dt-ingresos=1. Así los usuarios reales NO pagan carga ni ven
+// nada a medio construir. Al lanzar, se elimina este candado y manda solo
+// INGRESOS_ON. ?ingresos=0 lo apaga.
+export function ingresosPreview() {
+  try {
+    if (typeof location !== 'undefined' && /[?&]ingresos=1(\b|&|$)/.test(location.search || '')) return true;
+    if (typeof localStorage !== 'undefined' && localStorage.getItem('dt-ingresos') === '1') return true;
+  } catch (_) { /* sin location/localStorage: no activar */ }
+  return false;
+}
+// ¿Ingresos activo AHORA? (bandera maestra + candado de vista previa).
+export function ingresosActivo() { return INGRESOS_ON && ingresosPreview(); }
 // pendientesConfirmacion va aquí pero NO en ENTIDADES_POR_FILA: tabla chica, se
 // guarda whole-table; el realtime deja ver la cola compartida en vivo.
 export const ENTIDADES_REALTIME = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos', 'pendientesConfirmacion', 'proyectos', 'cuentasPropias', 'pagosPagare', 'historial']);
@@ -680,7 +695,9 @@ export async function sbLoadAll() {
     pagares: 'pagare_id', pagos_pagare: 'pago_id', unidades: 'unidad_id',
     presupuesto_unidad: 'presupuesto_id', costo_asignaciones: 'asignacion_id',
     partidas_catalogo: 'partida_id', partidas_obra: 'partida_obra_id',
-    pendientes_confirmacion: 'id'
+    pendientes_confirmacion: 'id',
+    // INGRESOS (Fase 1)
+    clientes: 'cliente_id', ventas: 'venta_id', cobros: 'cobro_id'
   };
 
   async function cargar(tabla, entidad, fn) {
@@ -859,6 +876,43 @@ export async function sbLoadAll() {
       };
     });
   });
+
+  // ===== INGRESOS (Fase 1 — cartera pura) =====
+  // Gated: solo carga si el módulo está activo (bandera maestra + vista previa),
+  // así los usuarios reales no pagan este costo mientras se construye. IDs = text
+  // (UUID) → String(). NO toca nada de Pagos.
+  if (ingresosActivo()) {
+    await cargar('clientes', 'clientes', rows => {
+      state.clientes = rows.map(r => ({
+        cliente_id: r.cliente_id != null ? String(r.cliente_id) : '',
+        nombre: r.nombre || '', rfc: r.rfc || '', telefono: r.telefono || '',
+        email: r.email || '', observaciones: r.observaciones || '', activo: r.activo !== false
+      }));
+    });
+    await cargar('ventas', 'ventas', rows => {
+      state.ventas = rows.map(r => ({
+        venta_id: r.venta_id != null ? String(r.venta_id) : '',
+        unidad_id: r.unidad_id != null ? String(r.unidad_id) : '', proyecto: r.proyecto || '',
+        cliente_id: r.cliente_id != null ? String(r.cliente_id) : '',
+        precio_venta: toNum(r.precio_venta), tipo_credito: r.tipo_credito || '',
+        estatus_comercial: r.estatus_comercial || 'apartada', fecha_apartado: r.fecha_apartado || '',
+        fecha_escritura_estimada: r.fecha_escritura_estimada || '', fecha_escritura_real: r.fecha_escritura_real || '',
+        valor_liberacion: toNum(r.valor_liberacion), credito_id: r.credito_id != null ? String(r.credito_id) : '',
+        monto_cobrado: toNum(r.monto_cobrado), saldo_cliente: toNum(r.saldo_cliente),
+        observaciones: r.observaciones || '', activo: r.activo !== false
+      }));
+    });
+    await cargar('cobros', 'cobros', rows => {
+      state.cobros = rows.map(r => ({
+        cobro_id: r.cobro_id != null ? String(r.cobro_id) : '',
+        venta_id: r.venta_id != null ? String(r.venta_id) : '', cliente_id: r.cliente_id != null ? String(r.cliente_id) : '',
+        proyecto: r.proyecto || '', fecha: r.fecha || '', monto: toNum(r.monto),
+        tipo_cobro: r.tipo_cobro || 'abono', metodo: r.metodo || 'transferencia',
+        cuenta_destino_tipo: r.cuenta_destino_tipo || '', cuenta_destino_id: r.cuenta_destino_id != null ? String(r.cuenta_destino_id) : '',
+        referencia: r.referencia || '', concepto: r.concepto || '', observaciones: r.observaciones || '', activo: r.activo !== false
+      }));
+    });
+  }
 
   await finalizarCarga();
 }

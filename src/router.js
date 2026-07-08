@@ -31,4 +31,9 @@ export function showPage(name, el) {
   if (name === 'traspasos' && window.renderTraspasos) window.renderTraspasos();
   if (name === 'resumen-traspasos' && window.renderResumenTraspasos) window.renderResumenTraspasos();
   if (name === 'creditos' && window.renderCreditos) window.renderCreditos();
+  // INGRESOS (Fase 1)
+  if (name === 'clientes' && window.renderClientes) window.renderClientes();
+  if (name === 'ventas' && window.renderVentas) window.renderVentas();
+  if (name === 'cobros' && window.renderCobros) window.renderCobros();
+  if (name === 'estado-cuenta' && window.renderEstadoCuenta) window.renderEstadoCuenta();
 }
