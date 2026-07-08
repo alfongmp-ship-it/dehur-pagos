@@ -20,6 +20,12 @@ export const state = {
   unidades: [],
   presupuestoUnidad: [],
   costoAsignaciones: [],
+  // ===== MÓDULO INGRESOS (Fase 1 — cartera pura, detrás de INGRESOS_ON) =====
+  // Espejo del ciclo de cobro: clientes → ventas por unidad → cobros. Tablas y
+  // módulos propios; NO tocan saldos ni nada de Pagos. IDs = UUID (ver abajo).
+  clientes: [],
+  ventas: [],
+  cobros: [],
   // Catálogo editable de partidas y subpartidas
   // Cada item: { id, partida, subpartidas: [string], orden, activa }
   partidasCatalogo: [],
@@ -77,6 +83,18 @@ export function nuevoFacturaPagoId() {
   if (!_asigSalt) _asigSalt = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
   return 'fp-' + _asigSalt + '-' + (_asigSeq++).toString(36);
 }
+
+// IDs únicos para el módulo INGRESOS (clientes/ventas/cobros). Mismo motivo que
+// arriba: un contador local MAX+1 colisiona entre pestañas/usuarios y el upsert
+// de Supabase se pisa. UUID no colisiona. Prefijo por entidad solo en el fallback.
+function _uuidCon(prefijo) {
+  try { if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID(); } catch (_) { /* fallback abajo */ }
+  if (!_asigSalt) _asigSalt = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+  return prefijo + _asigSalt + '-' + (_asigSeq++).toString(36);
+}
+export function nuevoClienteId() { return _uuidCon('cli-'); }
+export function nuevoVentaId()   { return _uuidCon('vta-'); }
+export function nuevoCobroId()   { return _uuidCon('cob-'); }
 
 export function esConcentradora(nombreCuenta) {
   if (!nombreCuenta) return false;

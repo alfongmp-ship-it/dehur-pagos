@@ -31,6 +31,17 @@ export const FUENTE_LECTURA = 'supabase';
 export const MODO_GUARDADO = 'fila';
 export const ENTIDADES_POR_FILA = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos', 'proyectos', 'cuentasPropias', 'pagosPagare', 'historial']);
 export const REALTIME_ON = true;
+
+// ============================================================================
+// MÓDULO INGRESOS (Fase 1 — cartera pura). Bandera maestra REVERSIBLE.
+//   false → la app queda IDÉNTICA a hoy: no carga clientes/ventas/cobros, no
+//           inyecta el switcher ni el sidebar de Ingresos, no abre realtime.
+//   true  → habilita el módulo. Durante la construcción, la UI se mantiene
+//           OCULTA a los usuarios reales tras el candado de vista previa
+//           (?ingresos=1 en la URL); al terminar se retira ese candado.
+// Ingresos vive en tablas/módulos propios y NO toca saldos ni nada de Pagos.
+// ============================================================================
+export const INGRESOS_ON = true;
 // pendientesConfirmacion va aquí pero NO en ENTIDADES_POR_FILA: tabla chica, se
 // guarda whole-table; el realtime deja ver la cola compartida en vivo.
 export const ENTIDADES_REALTIME = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos', 'pendientesConfirmacion', 'proyectos', 'cuentasPropias', 'pagosPagare', 'historial']);
