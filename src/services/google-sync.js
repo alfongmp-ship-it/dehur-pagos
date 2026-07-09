@@ -29,7 +29,7 @@ export const FUENTE_LECTURA = 'supabase';
 // supabase_realtime). El resto de entidades sigue en 'tabla' aunque MODO sea 'fila'.
 // ============================================================================
 export const MODO_GUARDADO = 'fila';
-export const ENTIDADES_POR_FILA = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos', 'proyectos', 'cuentasPropias', 'pagosPagare', 'historial', 'clientes']);
+export const ENTIDADES_POR_FILA = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos', 'proyectos', 'cuentasPropias', 'pagosPagare', 'historial', 'clientes', 'ventas']);
 export const REALTIME_ON = true;
 
 // ============================================================================
@@ -1224,6 +1224,21 @@ function _rowCliente(c) {
 function _rowsClientes() {
   return _dedupBy(state.clientes.map(_rowCliente), 'cliente_id');
 }
+// INGRESOS (Fase 1) — venta → fila Supabase. monto_cobrado/saldo_cliente son DERIVADOS.
+function _rowVenta(v) {
+  return {
+    venta_id: _sbStr(v.venta_id), unidad_id: _sbStr(v.unidad_id), proyecto: _sbStr(v.proyecto),
+    cliente_id: _sbStr(v.cliente_id), precio_venta: _sbNum(v.precio_venta), tipo_credito: _sbStr(v.tipo_credito),
+    estatus_comercial: _sbStr(v.estatus_comercial || 'apartada'), fecha_apartado: _sbStr(v.fecha_apartado),
+    fecha_escritura_estimada: _sbStr(v.fecha_escritura_estimada), fecha_escritura_real: _sbStr(v.fecha_escritura_real),
+    valor_liberacion: _sbNum(v.valor_liberacion), credito_id: _sbStr(v.credito_id),
+    monto_cobrado: _sbNum(v.monto_cobrado), saldo_cliente: _sbNum(v.saldo_cliente),
+    observaciones: _sbStr(v.observaciones), activo: v.activo !== false
+  };
+}
+function _rowsVentas() {
+  return _dedupBy(state.ventas.map(_rowVenta), 'venta_id');
+}
 function _rowProyecto(p) {
   return {
     id: _sbStr(p.id), nombre: _sbStr(p.nombre), empresa: _sbStr(p.empresa),
@@ -1457,6 +1472,7 @@ function _rowsPendientes() {
 const SB_ENTIDADES = {
   proveedores:        { tabla: 'proveedores',         rows: _rowsProveedores, idCol: 'id', rowOne: _rowProveedor },
   clientes:           { tabla: 'clientes',            rows: _rowsClientes, idCol: 'cliente_id', rowOne: _rowCliente },
+  ventas:             { tabla: 'ventas',              rows: _rowsVentas, idCol: 'venta_id', rowOne: _rowVenta },
   proyectos:          { tabla: 'proyectos',           rows: _rowsProyectos, idCol: 'id', rowOne: _rowProyecto },
   cuentasPropias:     { tabla: 'cuentas_propias',     rows: _rowsCuentasPropias, idCol: 'cuenta_id', rowOne: _rowCuentaPropia },
   empleados:          { tabla: 'empleados',           rows: _rowsEmpleados, idCol: 'id', rowOne: _rowEmpleado },
@@ -1614,6 +1630,18 @@ export async function gsSaveClientes(opts = {}) {
     await gsClearAndWrite('clientes', rows, ['cliente_id', 'nombre', 'rfc', 'telefono', 'email', 'observaciones', 'activo']);
     if (!opts.porFila) await sbEspejar('clientes');
   } catch (e) { console.error('gsSaveClientes', e); }
+}
+
+// INGRESOS (Fase 1) — guarda la tabla ventas a Sheets (no-op sin Google). Misma
+// degradación suave que gsSaveClientes; pestaña de Sheets en Etapa 6.
+export async function gsSaveVentas(opts = {}) {
+  if (!puedeEditar()) return;
+  if (!guardarPermitido('ventas', state.ventas)) return;
+  try {
+    const rows = state.ventas.map(v => [v.venta_id, v.unidad_id, v.proyecto, v.cliente_id, v.precio_venta || 0, v.tipo_credito || '', v.estatus_comercial || 'apartada', v.fecha_apartado || '', v.fecha_escritura_estimada || '', v.fecha_escritura_real || '', v.valor_liberacion || 0, v.credito_id || '', v.monto_cobrado || 0, v.saldo_cliente || 0, v.observaciones || '', v.activo !== false]);
+    await gsClearAndWrite('ventas', rows, ['venta_id', 'unidad_id', 'proyecto', 'cliente_id', 'precio_venta', 'tipo_credito', 'estatus_comercial', 'fecha_apartado', 'fecha_escritura_estimada', 'fecha_escritura_real', 'valor_liberacion', 'credito_id', 'monto_cobrado', 'saldo_cliente', 'observaciones', 'activo']);
+    if (!opts.porFila) await sbEspejar('ventas');
+  } catch (e) { console.error('gsSaveVentas', e); }
 }
 
 export async function gsSaveAlias(nombreOriginal, provId) {

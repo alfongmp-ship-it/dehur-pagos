@@ -10,11 +10,11 @@
 // candado de vista previa (?ingresos=1), así los usuarios reales no ven nada.
 // ============================================================================
 
-import { state, nuevoClienteId } from '../state.js';
-import { ingresosActivo, esPorFila, sbGuardarFila, sbBorrarFila, gsSaveClientes } from '../services/google-sync.js';
+import { state, nuevoClienteId, nuevoVentaId } from '../state.js';
+import { ingresosActivo, esPorFila, sbGuardarFila, sbBorrarFila, gsSaveClientes, gsSaveVentas } from '../services/google-sync.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
-import { escapeHtml } from '../ui/format.js';
+import { fmt, escapeHtml } from '../ui/format.js';
 
 // Páginas que pertenecen al espacio de Ingresos (el resto es Pagos).
 const PAGINAS_INGRESOS = new Set(['clientes', 'ventas', 'cobros', 'estado-cuenta']);
@@ -193,11 +193,189 @@ export function eliminarCliente(id) {
   gsSaveClientes({ porFila });
   if (porFila) sbBorrarFila('clientes', id);
 }
+// ---- Ventas por Unidad (Etapa 4) --------------------------------------------
+const _ESTATUS_COLOR = {
+  apartada: 'rgba(200,169,110,.15);color:var(--accent)',
+  vendida: 'rgba(52,152,219,.15);color:#3498db',
+  escriturada: 'rgba(39,174,96,.15);color:#27ae60',
+  cancelada: 'rgba(231,76,60,.15);color:#e74c3c'
+};
+
+function _unidadLabel(unidadId) {
+  const u = state.unidades.find(x => String(x.unidad_id) === String(unidadId));
+  return u ? (u.nombre || `Unidad ${u.unidad_id}`) : '—';
+}
+function _clienteLabel(clienteId) {
+  const c = state.clientes.find(x => String(x.cliente_id) === String(clienteId));
+  return c ? c.nombre : '—';
+}
+
 export function renderVentas() {
-  const s = document.getElementById('sub-ventas'); if (s) s.textContent = `${state.ventas.length} registros`;
   actualizarContadoresIngresos();
+  const s = document.getElementById('sub-ventas'); if (s) s.textContent = `${state.ventas.length} registros`;
   const el = document.getElementById('lista-ventas');
-  if (el && !state.ventas.length) el.innerHTML = _emptyState('🏘️', 'Sin ventas aún', 'El alta de ventas por unidad llega pronto.');
+  if (!el) return;
+  if (!state.ventas.length) {
+    el.innerHTML = _emptyState('🏘️', 'Sin ventas aún', 'Usa "+ Nueva venta" para registrar la primera.');
+    return;
+  }
+  const filas = state.ventas.map(v => {
+    const id = String(v.venta_id).replace(/'/g, "\\'");
+    const est = v.estatus_comercial || 'apartada';
+    const badge = `<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:600;background:${_ESTATUS_COLOR[est] || _ESTATUS_COLOR.apartada};">${escapeHtml(est)}</span>`;
+    const inact = v.activo === false ? ' <span style="font-size:10px;color:var(--muted);">(inactiva)</span>' : '';
+    return `<tr><td><div class="name-cell">${escapeHtml(_unidadLabel(v.unidad_id))}${inact}</div><div class="name-sub">${escapeHtml(v.proyecto || '—')}</div></td>` +
+      `<td style="font-size:12px;">${escapeHtml(_clienteLabel(v.cliente_id))}</td>` +
+      `<td style="font-family:'DM Mono',monospace;font-size:12px;text-align:right;">${fmt(v.precio_venta || 0)}</td>` +
+      `<td style="font-family:'DM Mono',monospace;font-size:12px;text-align:right;color:#27ae60;">${fmt(v.monto_cobrado || 0)}</td>` +
+      `<td style="font-family:'DM Mono',monospace;font-size:12px;text-align:right;font-weight:600;">${fmt(v.saldo_cliente != null ? v.saldo_cliente : (v.precio_venta || 0))}</td>` +
+      `<td>${badge}</td>` +
+      `<td><div style="display:flex;gap:6px;justify-content:flex-end;"><button class="btn btn-ghost btn-sm" onclick="editarVenta('${id}')">Editar</button><button class="btn btn-ghost btn-sm req-editor" style="color:#e74c3c;" onclick="eliminarVenta('${id}')">✕</button></div></td></tr>`;
+  }).join('');
+  el.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Unidad</th><th>Cliente</th><th style="text-align:right">Precio</th><th style="text-align:right">Cobrado</th><th style="text-align:right">Saldo</th><th>Estatus</th><th style="text-align:right">Acciones</th></tr></thead><tbody>${filas}</tbody></table></div>`;
+}
+
+// Puebla los selects de proyecto y cliente del modal (activos).
+function _poblarSelectsVenta() {
+  const py = document.getElementById('v-proyecto');
+  if (py) py.innerHTML = state.proyectos.filter(p => p.activo).map(p => `<option value="${escapeHtml(p.nombre)}">${escapeHtml(p.nombre)}</option>`).join('');
+  const cl = document.getElementById('v-cliente');
+  if (cl) {
+    const activos = state.clientes.filter(c => c.activo !== false);
+    cl.innerHTML = '<option value="">— Selecciona cliente —</option>' +
+      activos.map(c => `<option value="${escapeHtml(String(c.cliente_id))}">${escapeHtml(c.nombre)}</option>`).join('');
+  }
+  const cr = document.getElementById('v-credito');
+  if (cr) cr.innerHTML = '<option value="">— Ninguno —</option>' +
+    state.creditos.filter(c => c.activo !== false).map(c => `<option value="${escapeHtml(String(c.credito_id))}">${escapeHtml(c.nombre || ('Crédito ' + c.credito_id))}</option>`).join('');
+}
+
+// Puebla el select de unidades según el proyecto elegido (solo activas).
+export function vPoblarUnidades() {
+  const proy = document.getElementById('v-proyecto')?.value || '';
+  const un = document.getElementById('v-unidad');
+  if (!un) return;
+  const unidades = state.unidades.filter(u => u.proyecto === proy && u.activo !== false)
+    .sort((a, b) => (a.orden || 0) - (b.orden || 0));
+  if (!unidades.length) {
+    un.innerHTML = '<option value="">(sin unidades activas en este proyecto)</option>';
+    return;
+  }
+  un.innerHTML = '<option value="">— Selecciona unidad —</option>' +
+    unidades.map(u => `<option value="${escapeHtml(String(u.unidad_id))}">${escapeHtml(u.nombre || ('Unidad ' + u.unidad_id))}</option>`).join('');
+}
+
+export function abrirNuevaVenta() {
+  state.editVentaId = null;
+  _poblarSelectsVenta();
+  limpiarFormVenta();
+  const t = document.getElementById('modal-venta-title'); if (t) t.textContent = 'Nueva Venta';
+  document.getElementById('modal-venta').classList.add('open');
+}
+
+export function editarVenta(id) {
+  const v = state.ventas.find(x => String(x.venta_id) === String(id));
+  if (!v) return;
+  state.editVentaId = v.venta_id;
+  _poblarSelectsVenta();
+  const t = document.getElementById('modal-venta-title'); if (t) t.textContent = 'Editar Venta';
+  const set = (elId, val) => { const el = document.getElementById(elId); if (el) el.value = val; };
+  set('v-proyecto', v.proyecto || '');
+  vPoblarUnidades();
+  set('v-unidad', String(v.unidad_id || ''));
+  set('v-cliente', String(v.cliente_id || ''));
+  set('v-precio', v.precio_venta != null ? v.precio_venta : '');
+  set('v-tipo-credito', v.tipo_credito || '');
+  set('v-estatus', v.estatus_comercial || 'apartada');
+  set('v-fecha-apartado', v.fecha_apartado || '');
+  set('v-fecha-escritura-estimada', v.fecha_escritura_estimada || '');
+  set('v-fecha-escritura-real', v.fecha_escritura_real || '');
+  set('v-valor-liberacion', v.valor_liberacion != null ? v.valor_liberacion : '');
+  set('v-credito', String(v.credito_id || ''));
+  set('v-obs', v.observaciones || '');
+  document.getElementById('modal-venta').classList.add('open');
+}
+
+function limpiarFormVenta() {
+  const set = (elId, val) => { const el = document.getElementById(elId); if (el) el.value = val; };
+  // v-proyecto ya quedó con el primer proyecto activo tras _poblarSelectsVenta.
+  vPoblarUnidades();
+  set('v-cliente', '');
+  set('v-precio', '');
+  set('v-tipo-credito', '');
+  set('v-estatus', 'apartada');
+  set('v-fecha-apartado', '');
+  set('v-fecha-escritura-estimada', '');
+  set('v-fecha-escritura-real', '');
+  set('v-valor-liberacion', '');
+  set('v-credito', '');
+  set('v-obs', '');
+}
+
+export function guardarVenta() {
+  const unidad_id = (document.getElementById('v-unidad').value || '').trim();
+  const cliente_id = (document.getElementById('v-cliente').value || '').trim();
+  const proyecto = (document.getElementById('v-proyecto').value || '').trim();
+  const precio_venta = parseFloat(document.getElementById('v-precio').value) || 0;
+  const estatus_comercial = document.getElementById('v-estatus').value || 'apartada';
+  if (!proyecto) { notify('Elige el proyecto', 'error'); return; }
+  if (!unidad_id) { notify('Elige la unidad', 'error'); return; }
+  if (!cliente_id) { notify('Elige el cliente', 'error'); return; }
+  if (precio_venta <= 0) { notify('El precio de venta debe ser mayor a 0', 'error'); return; }
+  // Una unidad no puede tener dos ventas activas no canceladas (excluye la propia en edición).
+  const dup = state.ventas.some(v =>
+    String(v.venta_id) !== String(state.editVentaId) &&
+    String(v.unidad_id) === String(unidad_id) &&
+    v.estatus_comercial !== 'cancelada' && v.activo !== false
+  );
+  if (dup && estatus_comercial !== 'cancelada') {
+    notify('Esa unidad ya tiene una venta activa. Cancélala primero o elige otra unidad.', 'error');
+    return;
+  }
+  const existing = state.editVentaId ? state.ventas.find(v => String(v.venta_id) === String(state.editVentaId)) : null;
+  const monto_cobrado = existing ? (existing.monto_cobrado || 0) : 0;   // los cobros lo mueven en Etapa 5
+  const obj = {
+    venta_id: existing ? existing.venta_id : nuevoVentaId(),
+    unidad_id, proyecto, cliente_id, precio_venta,
+    tipo_credito: document.getElementById('v-tipo-credito').value || '',
+    estatus_comercial,
+    fecha_apartado: document.getElementById('v-fecha-apartado').value || '',
+    fecha_escritura_estimada: document.getElementById('v-fecha-escritura-estimada').value || '',
+    fecha_escritura_real: document.getElementById('v-fecha-escritura-real').value || '',
+    valor_liberacion: parseFloat(document.getElementById('v-valor-liberacion').value) || 0,
+    credito_id: document.getElementById('v-credito').value || '',
+    monto_cobrado,
+    saldo_cliente: Math.max(0, precio_venta - monto_cobrado),
+    observaciones: document.getElementById('v-obs').value.trim(),
+    activo: existing ? existing.activo !== false : true
+  };
+  if (existing) {
+    const i = state.ventas.findIndex(v => String(v.venta_id) === String(state.editVentaId));
+    state.ventas[i] = obj;
+  } else {
+    state.ventas.push(obj);
+  }
+  cerrar('modal-venta');
+  renderVentas();
+  notify(existing ? 'Venta actualizada' : 'Venta registrada');
+  const porFila = esPorFila('ventas');
+  gsSaveVentas({ porFila });
+  if (porFila) sbGuardarFila('ventas', obj);
+}
+
+export function eliminarVenta(id) {
+  const v = state.ventas.find(x => String(x.venta_id) === String(id));
+  if (!v) return;
+  // Candado: no borrar una venta que ya tenga cobros (protege desde Etapa 5).
+  const conCobros = state.cobros.some(c => String(c.venta_id) === String(id) && c.activo !== false);
+  if (conCobros) { notify('No se puede eliminar: la venta tiene cobros registrados.', 'error'); return; }
+  if (!confirm(`¿Eliminar la venta de "${_unidadLabel(v.unidad_id)}"?`)) return;
+  state.ventas = state.ventas.filter(x => String(x.venta_id) !== String(id));
+  renderVentas();
+  notify('Venta eliminada');
+  const porFila = esPorFila('ventas');
+  gsSaveVentas({ porFila });
+  if (porFila) sbBorrarFila('ventas', id);
 }
 export function renderCobros() {
   const s = document.getElementById('sub-cobros'); if (s) s.textContent = `${state.cobros.length} registros`;

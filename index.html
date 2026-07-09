@@ -200,6 +200,9 @@
     <div id="page-ventas" style="display:none">
       <div class="page-header">
         <div><div class="page-title">Ventas por Unidad</div><div class="page-subtitle" id="sub-ventas">0 registros</div></div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary req-editor" onclick="abrirNuevaVenta()">+ Nueva venta</button>
+        </div>
       </div>
       <div id="lista-ventas"></div>
     </div>
@@ -1357,6 +1360,28 @@
       <div class="field"><label>Estado</label><select id="c-activo"><option value="true">Activo</option><option value="false">Inactivo</option></select></div>
     </div>
     <div class="form-actions"><button class="btn btn-ghost" onclick="cerrar('modal-cliente')">Cancelar</button><button class="btn btn-primary" onclick="guardarCliente()">Guardar</button></div>
+  </div>
+</div>
+
+<!-- MODAL VENTA (Ingresos, Fase 1) -->
+<div class="modal-overlay" id="modal-venta">
+  <div class="modal">
+    <div class="modal-header"><div class="modal-title" id="modal-venta-title">Nueva Venta</div><button class="modal-close" onclick="cerrar('modal-venta')">✕</button></div>
+    <div class="form-grid">
+      <div class="field"><label>Proyecto *</label><select id="v-proyecto" onchange="vPoblarUnidades()"></select></div>
+      <div class="field"><label>Unidad *</label><select id="v-unidad"></select></div>
+      <div class="field span2"><label>Cliente *</label><select id="v-cliente"></select></div>
+      <div class="field"><label>Precio de venta *</label><input type="number" id="v-precio" step="0.01" placeholder="0.00" style="font-family:'DM Mono',monospace;"></div>
+      <div class="field"><label>Tipo de crédito</label><select id="v-tipo-credito"><option value="">—</option><option value="contado">Contado</option><option value="bancario">Bancario</option><option value="infonavit">Infonavit</option><option value="fovissste">Fovissste</option><option value="cofinanciado">Cofinanciado</option><option value="otro">Otro</option></select></div>
+      <div class="field"><label>Estatus comercial</label><select id="v-estatus"><option value="apartada">Apartada</option><option value="vendida">Vendida</option><option value="escriturada">Escriturada</option><option value="cancelada">Cancelada</option></select></div>
+      <div class="field"><label>Valor de liberación <span style="color:var(--muted);font-weight:400;font-size:11px;">(amortiza al puente)</span></label><input type="number" id="v-valor-liberacion" step="0.01" placeholder="0.00" style="font-family:'DM Mono',monospace;"></div>
+      <div class="field"><label>Fecha de apartado</label><input type="date" id="v-fecha-apartado"></div>
+      <div class="field"><label>Escritura estimada</label><input type="date" id="v-fecha-escritura-estimada"></div>
+      <div class="field"><label>Escritura real</label><input type="date" id="v-fecha-escritura-real"></div>
+      <div class="field"><label>Crédito puente <span style="color:var(--muted);font-weight:400;font-size:11px;">(opcional)</span></label><select id="v-credito"></select></div>
+      <div class="field span2"><label>Observaciones</label><textarea id="v-obs" rows="2" placeholder="Opcional" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-size:12px;resize:vertical;"></textarea></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-ghost" onclick="cerrar('modal-venta')">Cancelar</button><button class="btn btn-primary" onclick="guardarVenta()">Guardar</button></div>
   </div>
 </div>
 
