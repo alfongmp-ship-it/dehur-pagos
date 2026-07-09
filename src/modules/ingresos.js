@@ -10,11 +10,11 @@
 // candado de vista previa (?ingresos=1), así los usuarios reales no ven nada.
 // ============================================================================
 
-import { state, nuevoClienteId, nuevoVentaId } from '../state.js';
-import { ingresosActivo, esPorFila, sbGuardarFila, sbBorrarFila, gsSaveClientes, gsSaveVentas } from '../services/google-sync.js';
+import { state, nuevoClienteId, nuevoVentaId, nuevoCobroId } from '../state.js';
+import { ingresosActivo, esPorFila, sbGuardarFila, sbBorrarFila, gsSaveClientes, gsSaveVentas, gsSaveCobros } from '../services/google-sync.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
-import { fmt, escapeHtml } from '../ui/format.js';
+import { fmt, fmtFecha, dl, escapeHtml } from '../ui/format.js';
 
 // Páginas que pertenecen al espacio de Ingresos (el resto es Pagos).
 const PAGINAS_INGRESOS = new Set(['clientes', 'ventas', 'cobros', 'estado-cuenta']);
@@ -333,7 +333,6 @@ export function guardarVenta() {
     return;
   }
   const existing = state.editVentaId ? state.ventas.find(v => String(v.venta_id) === String(state.editVentaId)) : null;
-  const monto_cobrado = existing ? (existing.monto_cobrado || 0) : 0;   // los cobros lo mueven en Etapa 5
   const obj = {
     venta_id: existing ? existing.venta_id : nuevoVentaId(),
     unidad_id, proyecto, cliente_id, precio_venta,
@@ -344,11 +343,12 @@ export function guardarVenta() {
     fecha_escritura_real: document.getElementById('v-fecha-escritura-real').value || '',
     valor_liberacion: parseFloat(document.getElementById('v-valor-liberacion').value) || 0,
     credito_id: document.getElementById('v-credito').value || '',
-    monto_cobrado,
-    saldo_cliente: Math.max(0, precio_venta - monto_cobrado),
+    monto_cobrado: 0,
+    saldo_cliente: 0,
     observaciones: document.getElementById('v-obs').value.trim(),
     activo: existing ? existing.activo !== false : true
   };
+  recalcularVenta(obj);   // re-suma los cobros existentes de esta venta (0 si es nueva)
   if (existing) {
     const i = state.ventas.findIndex(v => String(v.venta_id) === String(state.editVentaId));
     state.ventas[i] = obj;
@@ -377,15 +377,244 @@ export function eliminarVenta(id) {
   gsSaveVentas({ porFila });
   if (porFila) sbBorrarFila('ventas', id);
 }
-export function renderCobros() {
-  const s = document.getElementById('sub-cobros'); if (s) s.textContent = `${state.cobros.length} registros`;
-  actualizarContadoresIngresos();
-  const el = document.getElementById('lista-cobros');
-  if (el && !state.cobros.length) el.innerHTML = _emptyState('💵', 'Sin cobros aún', 'El registro de cobranza llega pronto.');
+// ---- Cobranza (Etapa 5) -----------------------------------------------------
+const _TIPO_COBRO_LABEL = { enganche: 'Enganche', mensualidad: 'Mensualidad', liquidacion: 'Liquidación', adeudo: 'Adeudo', abono: 'Abono', otro: 'Otro' };
+
+// DERIVADO: re-suma los cobros activos de una venta → monto_cobrado + saldo_cliente.
+// Única fuente de verdad de esos campos (se llama en cada alta/edición/baja de cobro
+// y al guardar la venta). Sin acumulador incremental → sin drift.
+function recalcularVenta(venta) {
+  if (!venta) return;
+  const cobrado = state.cobros
+    .filter(c => String(c.venta_id) === String(venta.venta_id) && c.activo !== false)
+    .reduce((s, c) => s + (parseFloat(c.monto) || 0), 0);
+  venta.monto_cobrado = cobrado;
+  venta.saldo_cliente = Math.max(0, (venta.precio_venta || 0) - cobrado);
 }
+
+// Persiste una venta por fila (tras recalcular sus derivados por un cobro).
+function _persistVenta(venta) {
+  if (!venta) return;
+  const porFila = esPorFila('ventas');
+  gsSaveVentas({ porFila });
+  if (porFila) sbGuardarFila('ventas', venta);
+}
+
+function _ventaLabel(ventaId) {
+  const v = state.ventas.find(x => String(x.venta_id) === String(ventaId));
+  if (!v) return '—';
+  return `${_unidadLabel(v.unidad_id)} · ${_clienteLabel(v.cliente_id)}`;
+}
+
+export function renderCobros() {
+  actualizarContadoresIngresos();
+  const s = document.getElementById('sub-cobros'); if (s) s.textContent = `${state.cobros.length} registros`;
+  const el = document.getElementById('lista-cobros');
+  if (!el) return;
+  if (!state.cobros.length) {
+    el.innerHTML = _emptyState('💵', 'Sin cobros aún', 'Usa "+ Nuevo cobro" para registrar el primero.');
+    return;
+  }
+  const orden = [...state.cobros].sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)));
+  const filas = orden.map(c => {
+    const id = String(c.cobro_id).replace(/'/g, "\\'");
+    return `<tr><td style="font-size:12px;">${escapeHtml(fmtFecha(c.fecha))}</td>` +
+      `<td style="font-size:12px;"><div class="name-cell" style="font-size:12px;">${escapeHtml(_ventaLabel(c.venta_id))}</div></td>` +
+      `<td style="font-size:11px;color:var(--muted);">${escapeHtml(_TIPO_COBRO_LABEL[c.tipo_cobro] || c.tipo_cobro || '—')}</td>` +
+      `<td style="font-size:11px;color:var(--muted);">${escapeHtml(c.metodo || '—')}</td>` +
+      `<td style="font-family:'DM Mono',monospace;font-size:12px;text-align:right;color:#27ae60;font-weight:600;">${fmt(c.monto || 0)}</td>` +
+      `<td><div style="display:flex;gap:6px;justify-content:flex-end;"><button class="btn btn-ghost btn-sm" onclick="editarCobro('${id}')">Editar</button><button class="btn btn-ghost btn-sm req-editor" style="color:#e74c3c;" onclick="eliminarCobro('${id}')">✕</button></div></td></tr>`;
+  }).join('');
+  el.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Venta (unidad · cliente)</th><th>Tipo</th><th>Método</th><th style="text-align:right">Monto</th><th style="text-align:right">Acciones</th></tr></thead><tbody>${filas}</tbody></table></div>`;
+}
+
+// Puebla el select de ventas del modal de cobro (activas, no canceladas), con saldo.
+function _poblarSelectVentasCobro() {
+  const sel = document.getElementById('co-venta');
+  if (!sel) return;
+  const activas = state.ventas.filter(v => v.activo !== false && v.estatus_comercial !== 'cancelada');
+  sel.innerHTML = '<option value="">— Selecciona venta —</option>' +
+    activas.map(v => `<option value="${escapeHtml(String(v.venta_id))}">${escapeHtml(_unidadLabel(v.unidad_id))} · ${escapeHtml(_clienteLabel(v.cliente_id))} · saldo ${fmt(v.saldo_cliente != null ? v.saldo_cliente : (v.precio_venta || 0))}</option>`).join('');
+}
+
+export function abrirNuevoCobro(ventaId) {
+  state.editCobroId = null;
+  _poblarSelectVentasCobro();
+  limpiarFormCobro();
+  if (ventaId) { const s = document.getElementById('co-venta'); if (s) s.value = String(ventaId); }
+  const t = document.getElementById('modal-cobro-title'); if (t) t.textContent = 'Nuevo Cobro';
+  document.getElementById('modal-cobro').classList.add('open');
+}
+
+export function editarCobro(id) {
+  const c = state.cobros.find(x => String(x.cobro_id) === String(id));
+  if (!c) return;
+  state.editCobroId = c.cobro_id;
+  _poblarSelectVentasCobro();
+  const t = document.getElementById('modal-cobro-title'); if (t) t.textContent = 'Editar Cobro';
+  const set = (elId, val) => { const el = document.getElementById(elId); if (el) el.value = val; };
+  set('co-venta', String(c.venta_id || ''));
+  set('co-fecha', _isoDeFecha(c.fecha));
+  set('co-monto', c.monto != null ? c.monto : '');
+  set('co-tipo', c.tipo_cobro || 'abono');
+  set('co-metodo', c.metodo || 'transferencia');
+  set('co-referencia', c.referencia || '');
+  set('co-concepto', c.concepto || '');
+  set('co-obs', c.observaciones || '');
+  document.getElementById('modal-cobro').classList.add('open');
+}
+
+function limpiarFormCobro() {
+  const set = (elId, val) => { const el = document.getElementById(elId); if (el) el.value = val; };
+  set('co-venta', '');
+  set('co-fecha', new Date().toISOString().slice(0, 10));   // hoy por defecto
+  set('co-monto', '');
+  set('co-tipo', 'abono');
+  set('co-metodo', 'transferencia');
+  set('co-referencia', '');
+  set('co-concepto', '');
+  set('co-obs', '');
+}
+
+export function guardarCobro() {
+  const venta_id = (document.getElementById('co-venta').value || '').trim();
+  const monto = parseFloat(document.getElementById('co-monto').value) || 0;
+  const fecha = (document.getElementById('co-fecha').value || '').trim();
+  if (!venta_id) { notify('Elige la venta a la que aplica el cobro', 'error'); return; }
+  if (monto <= 0) { notify('El monto del cobro debe ser mayor a 0', 'error'); return; }
+  if (!fecha) { notify('Pon la fecha del cobro', 'error'); return; }
+  const venta = state.ventas.find(v => String(v.venta_id) === String(venta_id));
+  if (!venta) { notify('No se encontró la venta', 'error'); return; }
+  // Tope suave: avisar si el cobro excede el saldo (puede ser válido: intereses, ajustes).
+  const saldoActual = venta.saldo_cliente != null ? venta.saldo_cliente : (venta.precio_venta || 0);
+  const existingMonto = state.editCobroId ? (state.cobros.find(c => String(c.cobro_id) === String(state.editCobroId))?.monto || 0) : 0;
+  if (monto - existingMonto > saldoActual + 0.005) {
+    if (!confirm(`Este cobro (${fmt(monto)}) excede el saldo del cliente (${fmt(saldoActual)}). ¿Registrarlo de todos modos?`)) return;
+  }
+  const existing = state.editCobroId ? state.cobros.find(c => String(c.cobro_id) === String(state.editCobroId)) : null;
+  const ventaAnteriorId = existing ? existing.venta_id : null;
+  const obj = {
+    cobro_id: existing ? existing.cobro_id : nuevoCobroId(),
+    venta_id, cliente_id: venta.cliente_id || '', proyecto: venta.proyecto || '',
+    fecha, monto,
+    tipo_cobro: document.getElementById('co-tipo').value || 'abono',
+    metodo: document.getElementById('co-metodo').value || 'transferencia',
+    cuenta_destino_tipo: '', cuenta_destino_id: '',   // Fase 1: sin efecto en saldo (diferido)
+    referencia: document.getElementById('co-referencia').value.trim(),
+    concepto: document.getElementById('co-concepto').value.trim(),
+    observaciones: document.getElementById('co-obs').value.trim(),
+    activo: existing ? existing.activo !== false : true
+  };
+  if (existing) {
+    const i = state.cobros.findIndex(c => String(c.cobro_id) === String(state.editCobroId));
+    state.cobros[i] = obj;
+  } else {
+    state.cobros.push(obj);
+  }
+  // Recalcular derivados de la(s) venta(s) afectada(s) y persistirlas.
+  recalcularVenta(venta); _persistVenta(venta);
+  if (ventaAnteriorId && String(ventaAnteriorId) !== String(venta_id)) {
+    const va = state.ventas.find(v => String(v.venta_id) === String(ventaAnteriorId));
+    if (va) { recalcularVenta(va); _persistVenta(va); }
+  }
+  cerrar('modal-cobro');
+  renderCobros(); renderVentas(); renderEstadoCuenta();
+  notify(existing ? 'Cobro actualizado' : 'Cobro registrado');
+  const porFila = esPorFila('cobros');
+  gsSaveCobros({ porFila });
+  if (porFila) sbGuardarFila('cobros', obj);
+}
+
+export function eliminarCobro(id) {
+  const c = state.cobros.find(x => String(x.cobro_id) === String(id));
+  if (!c) return;
+  if (!confirm(`¿Eliminar este cobro de ${fmt(c.monto || 0)}?`)) return;
+  const venta = state.ventas.find(v => String(v.venta_id) === String(c.venta_id));
+  state.cobros = state.cobros.filter(x => String(x.cobro_id) !== String(id));
+  if (venta) { recalcularVenta(venta); _persistVenta(venta); }
+  renderCobros(); renderVentas(); renderEstadoCuenta();
+  notify('Cobro eliminado');
+  const porFila = esPorFila('cobros');
+  gsSaveCobros({ porFila });
+  if (porFila) sbBorrarFila('cobros', id);
+}
+
+// ---- Estado de Cuenta + KPIs (Etapa 5) --------------------------------------
+// Normaliza una fecha (ISO o DD/MM/YYYY) a YYYY-MM-DD para inputs; y a YYYY-MM para KPIs.
+function _isoDeFecha(f) {
+  if (!f) return '';
+  if (f.includes('-')) return f.slice(0, 10);
+  const p = f.split('/'); if (p.length === 3) return `${p[2]}-${String(p[1]).padStart(2, '0')}-${String(p[0]).padStart(2, '0')}`;
+  return '';
+}
+function _ymDeFecha(f) { const iso = _isoDeFecha(f); return iso ? iso.slice(0, 7) : ''; }
+
+function _renderKpisIngresos() {
+  const ventasVivas = state.ventas.filter(v => v.activo !== false && v.estatus_comercial !== 'cancelada');
+  const cartera = ventasVivas.reduce((s, v) => s + (v.saldo_cliente != null ? v.saldo_cliente : (v.precio_venta || 0)), 0);
+  const ym = new Date().toISOString().slice(0, 7);
+  const cobradoMes = state.cobros.filter(c => c.activo !== false && _ymDeFecha(c.fecha) === ym).reduce((s, c) => s + (c.monto || 0), 0);
+  const adeudoEscri = ventasVivas.filter(v => v.estatus_comercial === 'escriturada' && (v.saldo_cliente || 0) > 0).reduce((s, v) => s + (v.saldo_cliente || 0), 0);
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  set('st-ing-cartera', fmt(cartera));
+  set('st-ing-mes', fmt(cobradoMes));
+  set('st-ing-ventas', String(ventasVivas.length));
+  set('st-ing-adeudo', fmt(adeudoEscri));
+}
+
 export function renderEstadoCuenta() {
+  _renderKpisIngresos();
   const el = document.getElementById('lista-estado-cuenta');
-  if (el) el.innerHTML = _emptyState('📄', 'Estado de cuenta', 'Se llena cuando existan ventas y cobros.');
+  if (!el) return;
+  const ventasVivas = state.ventas.filter(v => v.activo !== false);
+  if (!ventasVivas.length) {
+    el.innerHTML = _emptyState('📄', 'Sin movimientos aún', 'Registra ventas y cobros para ver el estado de cuenta.');
+    return;
+  }
+  // Agrupar por cliente.
+  const porCliente = new Map();
+  for (const v of ventasVivas) {
+    const k = String(v.cliente_id || '');
+    if (!porCliente.has(k)) porCliente.set(k, []);
+    porCliente.get(k).push(v);
+  }
+  const bloques = [...porCliente.entries()].map(([clienteId, ventas]) => {
+    const nombre = _clienteLabel(clienteId);
+    const tPrecio = ventas.reduce((s, v) => s + (v.precio_venta || 0), 0);
+    const tCobrado = ventas.reduce((s, v) => s + (v.monto_cobrado || 0), 0);
+    const tSaldo = ventas.reduce((s, v) => s + (v.saldo_cliente != null ? v.saldo_cliente : (v.precio_venta || 0)), 0);
+    const filas = ventas.map(v => {
+      const est = v.estatus_comercial || 'apartada';
+      const badge = `<span style="display:inline-block;padding:1px 7px;border-radius:6px;font-size:10px;font-weight:600;background:${_ESTATUS_COLOR[est] || _ESTATUS_COLOR.apartada};">${escapeHtml(est)}</span>`;
+      const adeudo = (est === 'escriturada' && (v.saldo_cliente || 0) > 0)
+        ? ' <span style="display:inline-block;padding:1px 7px;border-radius:6px;font-size:10px;font-weight:600;background:rgba(231,76,60,.15);color:#e74c3c;">adeudo post-escritura</span>' : '';
+      const cobros = state.cobros.filter(c => String(c.venta_id) === String(v.venta_id) && c.activo !== false)
+        .sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)));
+      const detalle = cobros.length
+        ? `<div style="font-size:11px;color:var(--muted);margin-top:3px;padding-left:2px;">${cobros.map(c => `${escapeHtml(fmtFecha(c.fecha))} · ${escapeHtml(_TIPO_COBRO_LABEL[c.tipo_cobro] || c.tipo_cobro || '')} · ${fmt(c.monto || 0)}`).join(' &nbsp;·&nbsp; ')}</div>`
+        : '';
+      return `<tr><td style="font-size:12px;"><div class="name-cell" style="font-size:12px;">${escapeHtml(_unidadLabel(v.unidad_id))} ${badge}${adeudo}</div><div class="name-sub">${escapeHtml(v.proyecto || '')}</div>${detalle}</td>` +
+        `<td style="font-family:'DM Mono',monospace;font-size:12px;text-align:right;">${fmt(v.precio_venta || 0)}</td>` +
+        `<td style="font-family:'DM Mono',monospace;font-size:12px;text-align:right;color:#27ae60;">${fmt(v.monto_cobrado || 0)}</td>` +
+        `<td style="font-family:'DM Mono',monospace;font-size:12px;text-align:right;font-weight:600;">${fmt(v.saldo_cliente != null ? v.saldo_cliente : (v.precio_venta || 0))}</td></tr>`;
+    }).join('');
+    return `<div style="margin-bottom:18px;border:1px solid var(--border);border-radius:12px;overflow:hidden;">` +
+      `<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 16px;background:var(--surface);">` +
+      `<div style="font-weight:700;font-family:'Syne',sans-serif;">${escapeHtml(nombre)}</div>` +
+      `<div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;">Precio ${fmt(tPrecio)} · Cobrado <span style="color:#27ae60;">${fmt(tCobrado)}</span> · Saldo <span style="font-weight:700;color:var(--text);">${fmt(tSaldo)}</span></div></div>` +
+      `<div class="table-wrap"><table><thead><tr><th>Unidad</th><th style="text-align:right">Precio</th><th style="text-align:right">Cobrado</th><th style="text-align:right">Saldo</th></tr></thead><tbody>${filas}</tbody></table></div></div>`;
+  }).join('');
+  el.innerHTML = bloques;
+}
+
+export function exportarEstadoCuentaCSV() {
+  let csv = 'Cliente,Unidad,Proyecto,Precio,Cobrado,Saldo,Estatus\n';
+  csv += state.ventas.filter(v => v.activo !== false).map(v => {
+    const saldo = v.saldo_cliente != null ? v.saldo_cliente : (v.precio_venta || 0);
+    return `"${_clienteLabel(v.cliente_id)}","${_unidadLabel(v.unidad_id)}","${v.proyecto || ''}",${v.precio_venta || 0},${v.monto_cobrado || 0},${saldo},"${v.estatus_comercial || ''}"`;
+  }).join('\n');
+  dl(csv, 'estado_de_cuenta.csv');
+  notify('Estado de cuenta exportado');
 }
 
 // Estilos del switcher, inyectados una sola vez (sin tocar el CSS de Pagos).

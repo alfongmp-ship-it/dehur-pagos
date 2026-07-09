@@ -29,7 +29,7 @@ export const FUENTE_LECTURA = 'supabase';
 // supabase_realtime). El resto de entidades sigue en 'tabla' aunque MODO sea 'fila'.
 // ============================================================================
 export const MODO_GUARDADO = 'fila';
-export const ENTIDADES_POR_FILA = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos', 'proyectos', 'cuentasPropias', 'pagosPagare', 'historial', 'clientes', 'ventas']);
+export const ENTIDADES_POR_FILA = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos', 'proyectos', 'cuentasPropias', 'pagosPagare', 'historial', 'clientes', 'ventas', 'cobros']);
 export const REALTIME_ON = true;
 
 // ============================================================================
@@ -912,6 +912,20 @@ export async function sbLoadAll() {
         referencia: r.referencia || '', concepto: r.concepto || '', observaciones: r.observaciones || '', activo: r.activo !== false
       }));
     });
+    // Sana los derivados de ventas por RE-SUMA de cobros (Map una vez). Corrige en
+    // memoria cualquier drift entre monto_cobrado/saldo_cliente guardados y los cobros
+    // reales. No persiste (se corrige al próximo guardado de cobro). Cero costo notable.
+    const _cobradoPorVenta = new Map();
+    for (const c of state.cobros) {
+      if (c.activo === false) continue;
+      const k = String(c.venta_id);
+      _cobradoPorVenta.set(k, (_cobradoPorVenta.get(k) || 0) + (toNum(c.monto)));
+    }
+    for (const v of state.ventas) {
+      const cobrado = _cobradoPorVenta.get(String(v.venta_id)) || 0;
+      v.monto_cobrado = cobrado;
+      v.saldo_cliente = Math.max(0, (v.precio_venta || 0) - cobrado);
+    }
   }
 
   await finalizarCarga();
@@ -1239,6 +1253,20 @@ function _rowVenta(v) {
 function _rowsVentas() {
   return _dedupBy(state.ventas.map(_rowVenta), 'venta_id');
 }
+// INGRESOS (Fase 1) — cobro → fila Supabase. En Fase 1 NO afecta saldos (cuenta_destino_* se guardan pero no aplican).
+function _rowCobro(c) {
+  return {
+    cobro_id: _sbStr(c.cobro_id), venta_id: _sbStr(c.venta_id), cliente_id: _sbStr(c.cliente_id),
+    proyecto: _sbStr(c.proyecto), fecha: _sbStr(c.fecha), monto: _sbNum(c.monto),
+    tipo_cobro: _sbStr(c.tipo_cobro || 'abono'), metodo: _sbStr(c.metodo || 'transferencia'),
+    cuenta_destino_tipo: _sbStr(c.cuenta_destino_tipo), cuenta_destino_id: _sbStr(c.cuenta_destino_id),
+    referencia: _sbStr(c.referencia), concepto: _sbStr(c.concepto),
+    observaciones: _sbStr(c.observaciones), activo: c.activo !== false
+  };
+}
+function _rowsCobros() {
+  return _dedupBy(state.cobros.map(_rowCobro), 'cobro_id');
+}
 function _rowProyecto(p) {
   return {
     id: _sbStr(p.id), nombre: _sbStr(p.nombre), empresa: _sbStr(p.empresa),
@@ -1473,6 +1501,7 @@ const SB_ENTIDADES = {
   proveedores:        { tabla: 'proveedores',         rows: _rowsProveedores, idCol: 'id', rowOne: _rowProveedor },
   clientes:           { tabla: 'clientes',            rows: _rowsClientes, idCol: 'cliente_id', rowOne: _rowCliente },
   ventas:             { tabla: 'ventas',              rows: _rowsVentas, idCol: 'venta_id', rowOne: _rowVenta },
+  cobros:             { tabla: 'cobros',              rows: _rowsCobros, idCol: 'cobro_id', rowOne: _rowCobro },
   proyectos:          { tabla: 'proyectos',           rows: _rowsProyectos, idCol: 'id', rowOne: _rowProyecto },
   cuentasPropias:     { tabla: 'cuentas_propias',     rows: _rowsCuentasPropias, idCol: 'cuenta_id', rowOne: _rowCuentaPropia },
   empleados:          { tabla: 'empleados',           rows: _rowsEmpleados, idCol: 'id', rowOne: _rowEmpleado },
@@ -1642,6 +1671,18 @@ export async function gsSaveVentas(opts = {}) {
     await gsClearAndWrite('ventas', rows, ['venta_id', 'unidad_id', 'proyecto', 'cliente_id', 'precio_venta', 'tipo_credito', 'estatus_comercial', 'fecha_apartado', 'fecha_escritura_estimada', 'fecha_escritura_real', 'valor_liberacion', 'credito_id', 'monto_cobrado', 'saldo_cliente', 'observaciones', 'activo']);
     if (!opts.porFila) await sbEspejar('ventas');
   } catch (e) { console.error('gsSaveVentas', e); }
+}
+
+// INGRESOS (Fase 1) — guarda la tabla cobros a Sheets (no-op sin Google). Pestaña
+// de Sheets en Etapa 6. En Fase 1 el cobro NO toca saldos (efecto diferido).
+export async function gsSaveCobros(opts = {}) {
+  if (!puedeEditar()) return;
+  if (!guardarPermitido('cobros', state.cobros)) return;
+  try {
+    const rows = state.cobros.map(c => [c.cobro_id, c.venta_id, c.cliente_id, c.proyecto, c.fecha, c.monto || 0, c.tipo_cobro || 'abono', c.metodo || 'transferencia', c.cuenta_destino_tipo || '', c.cuenta_destino_id || '', c.referencia || '', c.concepto || '', c.observaciones || '', c.activo !== false]);
+    await gsClearAndWrite('cobros', rows, ['cobro_id', 'venta_id', 'cliente_id', 'proyecto', 'fecha', 'monto', 'tipo_cobro', 'metodo', 'cuenta_destino_tipo', 'cuenta_destino_id', 'referencia', 'concepto', 'observaciones', 'activo']);
+    if (!opts.porFila) await sbEspejar('cobros');
+  } catch (e) { console.error('gsSaveCobros', e); }
 }
 
 export async function gsSaveAlias(nombreOriginal, provId) {

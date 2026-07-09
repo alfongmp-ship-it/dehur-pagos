@@ -209,12 +209,24 @@
     <div id="page-cobros" style="display:none">
       <div class="page-header">
         <div><div class="page-title">Cobranza</div><div class="page-subtitle" id="sub-cobros">0 registros</div></div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary req-editor" onclick="abrirNuevoCobro()">+ Nuevo cobro</button>
+        </div>
       </div>
       <div id="lista-cobros"></div>
     </div>
     <div id="page-estado-cuenta" style="display:none">
       <div class="page-header">
         <div><div class="page-title">Estado de Cuenta</div><div class="page-subtitle">Por cliente y venta</div></div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost" onclick="exportarEstadoCuentaCSV()">⬇ Exportar CSV</button>
+        </div>
+      </div>
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-label">Cartera activa</div><div class="stat-value stat-accent" id="st-ing-cartera">$0</div><div class="stat-sub">Saldo por cobrar (ventas vivas)</div></div>
+        <div class="stat-card"><div class="stat-label">Cobrado en el mes</div><div class="stat-value stat-green" id="st-ing-mes">$0</div><div class="stat-sub">Cobros del mes en curso</div></div>
+        <div class="stat-card"><div class="stat-label">Ventas activas</div><div class="stat-value stat-blue" id="st-ing-ventas">0</div><div class="stat-sub">No canceladas</div></div>
+        <div class="stat-card"><div class="stat-label">Adeudo escrituradas</div><div class="stat-value stat-orange" id="st-ing-adeudo">$0</div><div class="stat-sub">Escrituradas con saldo</div></div>
       </div>
       <div id="lista-estado-cuenta"></div>
     </div>
@@ -1382,6 +1394,24 @@
       <div class="field span2"><label>Observaciones</label><textarea id="v-obs" rows="2" placeholder="Opcional" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-size:12px;resize:vertical;"></textarea></div>
     </div>
     <div class="form-actions"><button class="btn btn-ghost" onclick="cerrar('modal-venta')">Cancelar</button><button class="btn btn-primary" onclick="guardarVenta()">Guardar</button></div>
+  </div>
+</div>
+
+<!-- MODAL COBRO (Ingresos, Fase 1) -->
+<div class="modal-overlay" id="modal-cobro">
+  <div class="modal">
+    <div class="modal-header"><div class="modal-title" id="modal-cobro-title">Nuevo Cobro</div><button class="modal-close" onclick="cerrar('modal-cobro')">✕</button></div>
+    <div class="form-grid">
+      <div class="field span2"><label>Venta (unidad · cliente) *</label><select id="co-venta"></select></div>
+      <div class="field"><label>Fecha del cobro *</label><input type="date" id="co-fecha"></div>
+      <div class="field"><label>Monto *</label><input type="number" id="co-monto" step="0.01" placeholder="0.00" style="font-family:'DM Mono',monospace;"></div>
+      <div class="field"><label>Tipo de cobro</label><select id="co-tipo"><option value="abono">Abono</option><option value="enganche">Enganche</option><option value="mensualidad">Mensualidad</option><option value="liquidacion">Liquidación</option><option value="adeudo">Adeudo</option><option value="otro">Otro</option></select></div>
+      <div class="field"><label>Método</label><select id="co-metodo"><option value="transferencia">Transferencia</option><option value="deposito">Depósito</option><option value="efectivo">Efectivo</option><option value="cheque">Cheque</option></select></div>
+      <div class="field"><label>Referencia</label><input id="co-referencia" placeholder="Opcional"></div>
+      <div class="field span2"><label>Concepto</label><input id="co-concepto" placeholder="Opcional"></div>
+      <div class="field span2"><label>Observaciones</label><textarea id="co-obs" rows="2" placeholder="Opcional" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-size:12px;resize:vertical;"></textarea></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-ghost" onclick="cerrar('modal-cobro')">Cancelar</button><button class="btn btn-primary" onclick="guardarCobro()">Guardar</button></div>
   </div>
 </div>
 

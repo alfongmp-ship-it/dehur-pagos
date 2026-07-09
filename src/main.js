@@ -36,7 +36,7 @@ import { renderFlujoSalida, fsAbrirDetalle, fsCerrarDetalle } from './modules/fl
 import { renderResumenEjecutivo } from './modules/resumen-ejecutivo.js';
 import { renderCostosFiscales, abrirNuevaUnidad, editarUnidad, guardarUnidad, toggleUnidad, setFechaTermino, abrirLoteUnidades, guardarLoteUnidades, cfLimpiarHuerfanas, abrirAsignarCosto, reasignarCosto, eliminarAsignacionCosto, cfCambiarMetodo, cfPreviewReparto, cfRepartirResto, cfRepartirRestoIndiviso, cfCustomSetModo, cfFiltrarUnidades, cfSelTodas, cfFiltrarPendientes, cfFiltrarAsignados, guardarAsignacionCosto, cfAgregarPartidaPresup, guardarPresupuestoUnidad, cfVerUnidad, abrirRepartirFactura, cfLimpiarRepartoFactura, cfFacturaPartidaChange, cfToggleEstimado } from './modules/costos-fiscales.js';
 import { renderCreditos, seleccionarCredito, abrirNuevoCredito, editarCredito, guardarCredito, abrirNuevaDisposicion, guardarDisposicion, editarPagare, togglePagare, abrirNuevaFechaPago, editarFechaPago, guardarFechaPago, marcarPagoPagado, eliminarPagoPagare } from './modules/creditos.js';
-import { initIngresosUI, setWorkspace, renderClientes, renderVentas, renderCobros, renderEstadoCuenta, abrirNuevoCliente, editarCliente, guardarCliente, eliminarCliente, abrirNuevaVenta, editarVenta, guardarVenta, eliminarVenta, vPoblarUnidades } from './modules/ingresos.js';
+import { initIngresosUI, setWorkspace, renderClientes, renderVentas, renderCobros, renderEstadoCuenta, abrirNuevoCliente, editarCliente, guardarCliente, eliminarCliente, abrirNuevaVenta, editarVenta, guardarVenta, eliminarVenta, vPoblarUnidades, abrirNuevoCobro, editarCobro, guardarCobro, eliminarCobro, exportarEstadoCuentaCSV } from './modules/ingresos.js';
 import { gsLogin, gsLogout, renderAuthStatus, checkOAuthCallback } from './services/google-auth.js';
 import { iniciarChequeoVersion } from './services/version-check.js';
 import { gsLoadAll, gsSaveProveedores, gsSaveEmpleados, gsSaveProyectos, gsSaveAlias, gsSaveCuentasPropias, gsSaveTraspasos, gsSaveCreditos, gsSavePagares, gsSavePagosPagare, gsSaveMovimientosInternos, migrarTodoASupabase, respaldarTodoASheets, cargarDatos, REALTIME_ON } from './services/google-sync.js';
@@ -329,6 +329,11 @@ window.editarVenta = editarVenta;
 window.guardarVenta = guardarVenta;
 window.eliminarVenta = eliminarVenta;
 window.vPoblarUnidades = vPoblarUnidades;
+window.abrirNuevoCobro = abrirNuevoCobro;
+window.editarCobro = editarCobro;
+window.guardarCobro = guardarCobro;
+window.eliminarCobro = eliminarCobro;
+window.exportarEstadoCuentaCSV = exportarEstadoCuentaCSV;
 
 // Config / Proyectos
 window.calcularClabeProy = calcularClabeProy;
