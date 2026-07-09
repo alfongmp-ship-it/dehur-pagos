@@ -191,6 +191,9 @@
     <div id="page-clientes" style="display:none">
       <div class="page-header">
         <div><div class="page-title">Clientes</div><div class="page-subtitle" id="sub-clientes">0 registros</div></div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary req-editor" onclick="abrirNuevoCliente()">+ Nuevo</button>
+        </div>
       </div>
       <div id="lista-clientes"></div>
     </div>
@@ -1338,6 +1341,22 @@
       <div class="field span2"><label>Proyectos</label><div><span id="pills-placeholder" style="font-size:11px;color:var(--muted);">Cargando proyectos...</span></div></div>
     </div>
     <div class="form-actions"><button class="btn btn-ghost" onclick="cerrar('modal-prov')">Cancelar</button><button class="btn btn-primary" onclick="guardarProveedor()">Guardar</button></div>
+  </div>
+</div>
+
+<!-- MODAL CLIENTE (Ingresos, Fase 1) -->
+<div class="modal-overlay" id="modal-cliente">
+  <div class="modal">
+    <div class="modal-header"><div class="modal-title" id="modal-cliente-title">Nuevo Cliente</div><button class="modal-close" onclick="cerrar('modal-cliente')">✕</button></div>
+    <div class="form-grid">
+      <div class="field span2"><label>Nombre / Razón Social *</label><input id="c-nombre" placeholder="Nombre del cliente"></div>
+      <div class="field"><label>RFC</label><input id="c-rfc" placeholder="Opcional" style="text-transform:uppercase;"></div>
+      <div class="field"><label>Teléfono</label><input id="c-telefono" placeholder="Opcional"></div>
+      <div class="field span2"><label>Email</label><input id="c-email" type="email" placeholder="Opcional"></div>
+      <div class="field span2"><label>Observaciones</label><textarea id="c-observaciones" rows="2" placeholder="Opcional" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-size:12px;resize:vertical;"></textarea></div>
+      <div class="field"><label>Estado</label><select id="c-activo"><option value="true">Activo</option><option value="false">Inactivo</option></select></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-ghost" onclick="cerrar('modal-cliente')">Cancelar</button><button class="btn btn-primary" onclick="guardarCliente()">Guardar</button></div>
   </div>
 </div>
 

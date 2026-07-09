@@ -50,6 +50,7 @@ export const state = {
   editEmpId: null,
   editProyId: null,
   editFactId: null,
+  editClienteId: null,
   pagoP: null,
   vincUid: null,
   nextId: 600,

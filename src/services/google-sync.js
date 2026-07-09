@@ -29,7 +29,7 @@ export const FUENTE_LECTURA = 'supabase';
 // supabase_realtime). El resto de entidades sigue en 'tabla' aunque MODO sea 'fila'.
 // ============================================================================
 export const MODO_GUARDADO = 'fila';
-export const ENTIDADES_POR_FILA = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos', 'proyectos', 'cuentasPropias', 'pagosPagare', 'historial']);
+export const ENTIDADES_POR_FILA = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos', 'proyectos', 'cuentasPropias', 'pagosPagare', 'historial', 'clientes']);
 export const REALTIME_ON = true;
 
 // ============================================================================
@@ -1213,6 +1213,17 @@ function _rowProveedor(p) {
 function _rowsProveedores() {
   return state.proveedores.map(_rowProveedor);
 }
+// INGRESOS (Fase 1) — cliente → fila Supabase. IDs = text (UUID).
+function _rowCliente(c) {
+  return {
+    cliente_id: _sbStr(c.cliente_id), nombre: _sbStr(c.nombre), rfc: _sbStr(c.rfc),
+    telefono: _sbStr(c.telefono), email: _sbStr(c.email), observaciones: _sbStr(c.observaciones),
+    activo: c.activo !== false
+  };
+}
+function _rowsClientes() {
+  return _dedupBy(state.clientes.map(_rowCliente), 'cliente_id');
+}
 function _rowProyecto(p) {
   return {
     id: _sbStr(p.id), nombre: _sbStr(p.nombre), empresa: _sbStr(p.empresa),
@@ -1445,6 +1456,7 @@ function _rowsPendientes() {
 // Conforme se agregan entidades aquí, "Migrar TODO" y el dual-write las cubren.
 const SB_ENTIDADES = {
   proveedores:        { tabla: 'proveedores',         rows: _rowsProveedores, idCol: 'id', rowOne: _rowProveedor },
+  clientes:           { tabla: 'clientes',            rows: _rowsClientes, idCol: 'cliente_id', rowOne: _rowCliente },
   proyectos:          { tabla: 'proyectos',           rows: _rowsProyectos, idCol: 'id', rowOne: _rowProyecto },
   cuentasPropias:     { tabla: 'cuentas_propias',     rows: _rowsCuentasPropias, idCol: 'cuenta_id', rowOne: _rowCuentaPropia },
   empleados:          { tabla: 'empleados',           rows: _rowsEmpleados, idCol: 'id', rowOne: _rowEmpleado },
@@ -1533,7 +1545,9 @@ export async function migrarTodoASupabase() {
   for (const key of Object.keys(SB_ENTIDADES)) {
     // El reparto (costoAsignaciones) vive SOLO en Supabase (se guarda por fila/diff); su hoja ya no
     // se mantiene al día, así que NO debe sobrescribirse desde el Sheet (pisaría el reparto bueno).
-    if (key === 'costoAsignaciones') continue;
+    // INGRESOS (clientes/ventas/cobros) tampoco tienen hoja aún (Etapa 6) y solo se cargan con el
+    // módulo activo → sobrescribirlos aquí desde un state vacío BORRARÍA la tabla. Se excluyen.
+    if (key === 'costoAsignaciones' || key === 'clientes' || key === 'ventas' || key === 'cobros') continue;
     const def = SB_ENTIDADES[key];
     try {
       const n = await sbReplaceTable(def.tabla, def.rows());
@@ -1586,6 +1600,20 @@ export async function gsSaveProveedores(opts = {}) {
     // cascada de eventos de realtime). En modo 'tabla' se espeja como siempre.
     if (!opts.porFila) await sbEspejar('proveedores');
   } catch (e) { notify('Error guardando proveedores: ' + e.message, 'error'); }
+}
+
+// INGRESOS (Fase 1) — guarda la tabla clientes a Sheets (no-op sin Google) y, en
+// modo 'tabla', espeja a Supabase. En modo 'fila' el caller ya subió la fila con
+// sbGuardarFila. La pestaña de Sheets se crea en Etapa 6; hasta entonces esto
+// degrada suave (sin Google no escribe nada; con Google y sin pestaña, fail-soft).
+export async function gsSaveClientes(opts = {}) {
+  if (!puedeEditar()) return;
+  if (!guardarPermitido('clientes', state.clientes)) return;
+  try {
+    const rows = state.clientes.map(c => [c.cliente_id, c.nombre, c.rfc || '', c.telefono || '', c.email || '', c.observaciones || '', c.activo !== false]);
+    await gsClearAndWrite('clientes', rows, ['cliente_id', 'nombre', 'rfc', 'telefono', 'email', 'observaciones', 'activo']);
+    if (!opts.porFila) await sbEspejar('clientes');
+  } catch (e) { console.error('gsSaveClientes', e); }
 }
 
 export async function gsSaveAlias(nombreOriginal, provId) {
