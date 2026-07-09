@@ -119,6 +119,11 @@ const ETIQUETA = {
   partidasCatalogo: 'Catálogo de partidas',
   partidasObra: 'Catálogo de partidas de obra'
 };
+// INGRESOS (Fase 1): dar de alta en el blindaje/banner solo si el módulo está activo.
+if (ingresosActivo()) {
+  ENTIDADES_GUARDABLES.push('clientes', 'ventas', 'cobros');
+  ETIQUETA.clientes = 'Clientes'; ETIQUETA.ventas = 'Ventas'; ETIQUETA.cobros = 'Cobranza';
+}
 
 // Lee una hoja y marca si la entidad cargó con éxito. `gsReadSheet` devuelve
 // null SOLO ante error de lectura (una hoja vacía devuelve []), así que null
@@ -601,6 +606,46 @@ export async function gsLoadAll() {
     // Pasos post-carga compartidos (recalibrar contadores, limpiar huérfanas,
     // re-render). Mismos pasos para Sheets y Supabase.
     await finalizarCarga();
+
+    // INGRESOS (Fase 1): lectura de RESPALDO desde Sheets (ruta de fallback). Gated
+    // + try/catch propio → jamás afecta la carga de Pagos. Columnas POSICIONALES que
+    // calcan gsSaveClientes/Ventas/Cobros y gsInitSheets (3er mapRow). Supabase sigue
+    // siendo la fuente; esto solo aplica si se cae a Sheets.
+    if (ingresosActivo()) {
+      try {
+        const clRows = await leerHoja('clientes', 'clientes');
+        if (clRows && clRows.length > 1) {
+          state.clientes = clRows.slice(1).filter(r => r[0]).map(r => ({
+            cliente_id: String(r[0] || ''), nombre: r[1] || '', rfc: r[2] || '', telefono: r[3] || '',
+            email: r[4] || '', observaciones: r[5] || '', activo: r[6] !== 'FALSE' && r[6] !== 'false'
+          }));
+        }
+        const veRows = await leerHoja('ventas', 'ventas');
+        if (veRows && veRows.length > 1) {
+          state.ventas = veRows.slice(1).filter(r => r[0]).map(r => ({
+            venta_id: String(r[0] || ''), unidad_id: String(r[1] || ''), proyecto: r[2] || '', cliente_id: String(r[3] || ''),
+            precio_venta: parseFloat(r[4]) || 0, tipo_credito: r[5] || '', estatus_comercial: r[6] || 'apartada',
+            fecha_apartado: r[7] || '', fecha_escritura_estimada: r[8] || '', fecha_escritura_real: r[9] || '',
+            valor_liberacion: parseFloat(r[10]) || 0, credito_id: String(r[11] || ''),
+            monto_cobrado: parseFloat(r[12]) || 0, saldo_cliente: parseFloat(r[13]) || 0,
+            observaciones: r[14] || '', activo: r[15] !== 'FALSE' && r[15] !== 'false'
+          }));
+        }
+        const coRows = await leerHoja('cobros', 'cobros');
+        if (coRows && coRows.length > 1) {
+          state.cobros = coRows.slice(1).filter(r => r[0]).map(r => ({
+            cobro_id: String(r[0] || ''), venta_id: String(r[1] || ''), cliente_id: String(r[2] || ''), proyecto: r[3] || '',
+            fecha: r[4] || '', monto: parseFloat(r[5]) || 0, tipo_cobro: r[6] || 'abono', metodo: r[7] || 'transferencia',
+            cuenta_destino_tipo: r[8] || '', cuenta_destino_id: String(r[9] || ''), referencia: r[10] || '',
+            concepto: r[11] || '', observaciones: r[12] || '', activo: r[13] !== 'FALSE' && r[13] !== 'false'
+          }));
+        }
+        // Re-suma cobros → derivados de ventas (igual que en sbLoadAll).
+        const _cpv = new Map();
+        for (const c of state.cobros) { if (c.activo === false) continue; const k = String(c.venta_id); _cpv.set(k, (_cpv.get(k) || 0) + (parseFloat(c.monto) || 0)); }
+        for (const v of state.ventas) { const cb = _cpv.get(String(v.venta_id)) || 0; v.monto_cobrado = cb; v.saldo_cliente = Math.max(0, (v.precio_venta || 0) - cb); }
+      } catch (e) { console.error('gsLoadAll ingresos (Sheets)', e); }
+    }
   } catch (e) {
     console.error('gsLoadAll error', e);
     notify('Error cargando datos: ' + e.message, 'error');
@@ -1633,6 +1678,9 @@ export async function respaldarTodoASheets() {
     gsSaveUnidades, gsSavePresupuestoUnidad, gsSaveCostoAsignaciones,
     gsSavePartidasCatalogo, gsSavePartidasObra, gsSavePendientes
   ];
+  // INGRESOS (Fase 1): incluir en el respaldo solo si el módulo está activo. Cada
+  // saver además se autoprotege con guardarPermitido (no escribe si no cargó).
+  if (ingresosActivo()) savers.push(gsSaveClientes, gsSaveVentas, gsSaveCobros);
   let ok = 0, fail = 0;
   for (const fn of savers) {
     try { await fn({ porFila: true }); ok++; }

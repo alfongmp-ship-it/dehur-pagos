@@ -52,7 +52,7 @@ export async function gsClearAndWrite(sheet, rows, headers) {
 }
 
 export async function gsInitSheets() {
-  const sheetsNeeded = ['proveedores', 'empleados', 'historial_pagos', 'proyectos', 'facturas', 'factura_pagos', 'aliases', 'cuentas_propias', 'traspasos', 'creditos', 'pagares', 'pagos_pagare', 'movimientos_internos', 'pendientes_confirmacion', 'historial_saldos', 'unidades', 'presupuesto_unidad', 'costo_asignaciones', 'partidas_catalogo', 'partidas_obra'];
+  const sheetsNeeded = ['proveedores', 'empleados', 'historial_pagos', 'proyectos', 'facturas', 'factura_pagos', 'aliases', 'cuentas_propias', 'traspasos', 'creditos', 'pagares', 'pagos_pagare', 'movimientos_internos', 'pendientes_confirmacion', 'historial_saldos', 'unidades', 'presupuesto_unidad', 'costo_asignaciones', 'partidas_catalogo', 'partidas_obra', 'clientes', 'ventas', 'cobros'];
   try {
     const r = await gsFetch(`https://sheets.googleapis.com/v4/spreadsheets/${GS_SPREADSHEET_ID}`);
     const existing = r.sheets.map(s => s.properties.title);
@@ -81,7 +81,11 @@ export async function gsInitSheets() {
         presupuesto_unidad: [['presupuesto_id', 'unidad_id', 'partida', 'sub_partida', 'monto_presupuestado', 'costo_inicial', 'notas']],
         costo_asignaciones: [['asignacion_id', 'pago_id', 'unidad_id', 'proyecto', 'metodo', 'monto_asignado', 'factor', 'fecha_asignacion', 'partida_override']],
         partidas_catalogo: [['partida_id', 'partida', 'subpartidas', 'orden', 'activa']],
-        partidas_obra: [['partida_obra_id', 'nombre', 'proyecto', 'partida_admin', 'sub_partida_admin', 'orden', 'activa']]
+        partidas_obra: [['partida_obra_id', 'nombre', 'proyecto', 'partida_admin', 'sub_partida_admin', 'orden', 'activa']],
+        // INGRESOS (Fase 1) — mismos encabezados que gsSaveClientes/Ventas/Cobros.
+        clientes: [['cliente_id', 'nombre', 'rfc', 'telefono', 'email', 'observaciones', 'activo']],
+        ventas: [['venta_id', 'unidad_id', 'proyecto', 'cliente_id', 'precio_venta', 'tipo_credito', 'estatus_comercial', 'fecha_apartado', 'fecha_escritura_estimada', 'fecha_escritura_real', 'valor_liberacion', 'credito_id', 'monto_cobrado', 'saldo_cliente', 'observaciones', 'activo']],
+        cobros: [['cobro_id', 'venta_id', 'cliente_id', 'proyecto', 'fecha', 'monto', 'tipo_cobro', 'metodo', 'cuenta_destino_tipo', 'cuenta_destino_id', 'referencia', 'concepto', 'observaciones', 'activo']]
       };
       for (const sheet of toCreate) {
         await gsWriteRange(sheet + '!A1', headers[sheet]);
