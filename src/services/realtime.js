@@ -290,6 +290,60 @@ const RT = {
       const c = document.getElementById('cnt-hist');
       if (c) c.textContent = state.historial.length;
     }
+  },
+  // ===== INGRESOS (Fase 1) — mapRow CALCA sbLoadAll (ids con String, ventas con derivados) =====
+  clientes: {
+    tabla: 'clientes',
+    stateKey: 'clientes',
+    idField: 'cliente_id',
+    mapRow: r => ({
+      cliente_id: r.cliente_id != null ? String(r.cliente_id) : '',
+      nombre: r.nombre || '', rfc: r.rfc || '', telefono: r.telefono || '',
+      email: r.email || '', observaciones: r.observaciones || '', activo: r.activo !== false
+    }),
+    rerender: () => { if (window.renderClientes) window.renderClientes(); }
+  },
+  ventas: {
+    tabla: 'ventas',
+    stateKey: 'ventas',
+    idField: 'venta_id',
+    mapRow: r => ({
+      venta_id: r.venta_id != null ? String(r.venta_id) : '',
+      unidad_id: r.unidad_id != null ? String(r.unidad_id) : '', proyecto: r.proyecto || '',
+      cliente_id: r.cliente_id != null ? String(r.cliente_id) : '',
+      precio_venta: toNum(r.precio_venta), tipo_credito: r.tipo_credito || '',
+      estatus_comercial: r.estatus_comercial || 'apartada', fecha_apartado: r.fecha_apartado || '',
+      fecha_escritura_estimada: r.fecha_escritura_estimada || '', fecha_escritura_real: r.fecha_escritura_real || '',
+      valor_liberacion: toNum(r.valor_liberacion), credito_id: r.credito_id != null ? String(r.credito_id) : '',
+      // DERIVADOS: sin estos, un evento realtime dejaría la venta con cobrado/saldo en cero.
+      monto_cobrado: toNum(r.monto_cobrado), saldo_cliente: toNum(r.saldo_cliente),
+      observaciones: r.observaciones || '', activo: r.activo !== false
+    }),
+    rerender: () => {
+      if (window.renderVentas) window.renderVentas();
+      if (window.renderEstadoCuenta) window.renderEstadoCuenta();
+    }
+  },
+  cobros: {
+    tabla: 'cobros',
+    stateKey: 'cobros',
+    idField: 'cobro_id',
+    mapRow: r => ({
+      cobro_id: r.cobro_id != null ? String(r.cobro_id) : '',
+      venta_id: r.venta_id != null ? String(r.venta_id) : '', cliente_id: r.cliente_id != null ? String(r.cliente_id) : '',
+      proyecto: r.proyecto || '', fecha: r.fecha || '', monto: toNum(r.monto),
+      tipo_cobro: r.tipo_cobro || 'abono', metodo: r.metodo || 'transferencia',
+      cuenta_destino_tipo: r.cuenta_destino_tipo || '', cuenta_destino_id: r.cuenta_destino_id != null ? String(r.cuenta_destino_id) : '',
+      referencia: r.referencia || '', concepto: r.concepto || '', observaciones: r.observaciones || '', activo: r.activo !== false
+    }),
+    rerender: () => {
+      // Un cobro entrante mueve el saldo de su venta: recomputar local (contra el
+      // race de orden de eventos) y re-pintar cobranza + ventas + estado de cuenta.
+      if (window.recalcularVentasDesdeCobros) window.recalcularVentasDesdeCobros();
+      if (window.renderCobros) window.renderCobros();
+      if (window.renderVentas) window.renderVentas();
+      if (window.renderEstadoCuenta) window.renderEstadoCuenta();
+    }
   }
 };
 

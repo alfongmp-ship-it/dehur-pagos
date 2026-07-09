@@ -392,6 +392,23 @@ function recalcularVenta(venta) {
   venta.saldo_cliente = Math.max(0, (venta.precio_venta || 0) - cobrado);
 }
 
+// Recalcula TODAS las ventas desde los cobros (Map una vez). La usa el realtime al
+// recibir un cobro de otro usuario (evita depender del orden en que llegan los
+// eventos cobro/venta). NO persiste: solo corrige el estado local para mostrar.
+export function recalcularVentasDesdeCobros() {
+  const m = new Map();
+  for (const c of state.cobros) {
+    if (c.activo === false) continue;
+    const k = String(c.venta_id);
+    m.set(k, (m.get(k) || 0) + (parseFloat(c.monto) || 0));
+  }
+  for (const v of state.ventas) {
+    const cobrado = m.get(String(v.venta_id)) || 0;
+    v.monto_cobrado = cobrado;
+    v.saldo_cliente = Math.max(0, (v.precio_venta || 0) - cobrado);
+  }
+}
+
 // Persiste una venta por fila (tras recalcular sus derivados por un cobro).
 function _persistVenta(venta) {
   if (!venta) return;

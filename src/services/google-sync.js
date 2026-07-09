@@ -61,6 +61,15 @@ export function ingresosActivo() { return INGRESOS_ON && ingresosPreview(); }
 // guarda whole-table; el realtime deja ver la cola compartida en vivo.
 export const ENTIDADES_REALTIME = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos', 'pendientesConfirmacion', 'proyectos', 'cuentasPropias', 'pagosPagare', 'historial']);
 
+// INGRESOS (Fase 1): suscribir realtime de clientes/ventas/cobros SOLO si el módulo
+// está activo (bandera maestra + vista previa). Con preview off no se agrega ninguna
+// clave → 0 canales nuevos → la app queda idéntica para el resto del equipo.
+if (ingresosActivo()) {
+  ENTIDADES_REALTIME.add('clientes');
+  ENTIDADES_REALTIME.add('ventas');
+  ENTIDADES_REALTIME.add('cobros');
+}
+
 // ¿Esta entidad guarda por fila ahora mismo? (modo 'fila' y está en el Set)
 export function esPorFila(key) {
   return MODO_GUARDADO === 'fila' && ENTIDADES_POR_FILA.has(key);
