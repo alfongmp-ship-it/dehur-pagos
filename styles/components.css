@@ -10,6 +10,11 @@
 .btn-success { background: rgba(76,175,125,.15); color: var(--green); border: 1px solid rgba(76,175,125,.3); }
 .btn-success:hover { background: rgba(76,175,125,.25); }
 .btn-danger { background: rgba(224,90,90,.15); color: var(--red); border: 1px solid rgba(224,90,90,.3); }
+.btn-danger:hover { background: rgba(224,90,90,.25); }
+/* Ghost destructivo: para las ✕ de borrar en filas. Rojo del TEMA (se adapta a
+   claro/oscuro) en vez del #e74c3c inline, y con hover propio. */
+.btn-ghost.danger { color: var(--red); }
+.btn-ghost.danger:hover { color: var(--red); border-color: var(--red); background: rgba(224,90,90,.10); }
 
 /* Badges */
 .badge { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 500; border: 1px solid var(--border); background: var(--surface2); color: var(--muted); }
@@ -33,7 +38,7 @@
 .search-box { flex: 1; position: relative; }
 .search-box input { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 9px 14px 9px 36px; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 13px; outline: none; transition: border-color .15s; }
 .search-box input:focus { border-color: var(--accent); }
-.search-box input::placeholder { color: var(--muted); }
+.search-box input::placeholder { color: var(--placeholder); }
 .search-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 14px; }
 /* width:auto: en una toolbar flex los filtros van en fila y envuelven solo cuando no
    caben (sin esto heredan width:100% del select base y se apilan uno por línea). */
@@ -79,21 +84,53 @@ tr:hover td { background: var(--row-hover); }
 .modal-overlay { display: none; position: fixed; inset: 0; background: var(--modal-backdrop); z-index: 1100; align-items: center; justify-content: center; padding: 24px; }
 .modal-overlay.open { display: flex; }
 .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 28px; width: 560px; max-width: 95vw; max-height: calc(100vh - 48px); overflow-y: auto; }
-.modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 22px; }
+/* Header fijo arriba en formularios largos (sticky + margen negativo para cancelar
+   el padding del modal y quedar de ancho completo). El cuerpo scrollea; el título
+   nunca se va. */
+.modal-header {
+  display: flex; justify-content: space-between; align-items: center;
+  position: sticky; top: -28px; z-index: 3;
+  margin: -28px -28px 22px; padding: 28px 28px 16px;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+}
 .modal-title { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; }
-.modal-close { background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; }
+.modal-close {
+  background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer;
+  width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 8px; line-height: 1; flex-shrink: 0;
+}
+.modal-close:hover { background: var(--surface2); color: var(--text); }
 
 /* Forms */
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field.span2 { grid-column: span 2; }
 label { font-size: 12px; font-weight: 500; color: var(--muted); }
-input, select { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 13px; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 13px; outline: none; transition: border-color .15s; width: 100%; }
-input:focus, select:focus { border-color: var(--accent); }
-input::placeholder { color: var(--muted); }
+input, select, textarea { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 13px; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 13px; outline: none; transition: border-color .15s; width: 100%; }
+input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+input::placeholder, textarea::placeholder { color: var(--placeholder); }
+/* Textarea al sistema (antes iba con estilos inline sueltos que no calzaban). */
+textarea { resize: vertical; min-height: 76px; line-height: 1.45; }
+/* Select: flecha dorada propia (la nativa desentona y su lista salía clara en oscuro). */
+select, .filter-select {
+  appearance: none; -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2.5 4.5L6 8l3.5-3.5' fill='none' stroke='%23c8a96e' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat; background-position: right 12px center;
+  padding-right: 34px;
+}
+[data-theme="light"] select,
+[data-theme="light"] .filter-select {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2.5 4.5L6 8l3.5-3.5' fill='none' stroke='%238a6630' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+}
 /* Los radios y checkboxes no deben estirarse al 100% como los inputs de texto. */
 input[type="checkbox"], input[type="radio"] { width: auto; accent-color: var(--accent); cursor: pointer; }
-.form-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 22px; }
+/* Footer fijo abajo: Guardar/Cancelar siempre visibles en formularios largos. */
+.form-actions {
+  display: flex; gap: 10px; justify-content: flex-end;
+  position: sticky; bottom: -28px; z-index: 3;
+  margin: 22px -28px -28px; padding: 16px 28px 28px;
+  background: var(--surface); border-top: 1px solid var(--border);
+}
 
 /* Notifications */
 /* z-index 1200: el aviso queda SOBRE el modal (1100) para que los errores que salen
@@ -111,7 +148,7 @@ input[type="checkbox"], input[type="radio"] { width: auto; accent-color: var(--a
 
 /* Tabs */
 .tab-bar { display: flex; gap: 4px; margin-bottom: 20px; background: var(--surface2); border-radius: 10px; padding: 4px; width: fit-content; }
-.tab { padding: 7px 18px; border-radius: 7px; cursor: pointer; font-size: 13px; color: var(--muted); transition: all .15s; }
+.tab { padding: 7px 18px; border-radius: 8px; cursor: pointer; font-size: 13px; color: var(--muted); }
 .tab.active { background: var(--surface); color: var(--text); font-weight: 500; }
 
 /* Date inputs: hacer visible el icono de calendario del picker nativo */
@@ -147,7 +184,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 
 /* Transición estándar en elementos interactivos */
 .btn, .btn-ghost, .badge, .tab, .filter-select, .search-box input,
-input, select, textarea,
+input, select, textarea, .nav-item,
 .proyecto-pill, .re-tab, .cf-metodo-opt, .cf-plano-btn, .tag, a {
   transition: background var(--transition), border-color var(--transition),
               color var(--transition), box-shadow var(--transition),
@@ -200,8 +237,9 @@ input:disabled, select:disabled, textarea:disabled,
 .tab.active { box-shadow: var(--shadow-sm); }
 
 /* ===== Tablas premium (sin transform en filas → no rompe thead sticky) ===== */
-tr:hover td { background: rgba(200,169,110,.055); }
-thead th { border-bottom: 1px solid rgba(200,169,110,.18); }
+/* Tokens temáticos (antes hardcodeados a dorado OSCURO → mataban el hover claro). */
+tr:hover td { background: var(--row-hover); }
+thead th { border-bottom: 1px solid var(--thead-underline); }
 .mono, .num, td .mono, .re-kpi-value, input[type="number"] {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1;

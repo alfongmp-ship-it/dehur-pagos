@@ -1,5 +1,6 @@
 /* === Dehur Territorial - CSS Variables & Base === */
 :root {
+  color-scheme: dark;   /* controles nativos (listas de select, scrollbars, checkboxes) en oscuro */
   --bg: #0f0f0f;
   --surface: #181818;
   --surface2: #222222;
@@ -13,8 +14,10 @@
   --blue: #5a9be0;
   --purple: #9b7fe8;
   --orange: #e07a3a;
-  --row-hover: rgba(255,255,255,.02);
+  --row-hover: rgba(200,169,110,.05);
   --row-border-soft: rgba(42,42,42,.5);
+  --thead-underline: rgba(200,169,110,.18);
+  --placeholder: #5f5b56;
   --shadow-color: rgba(0,0,0,.4);
   --modal-backdrop: rgba(0,0,0,.75);
   --on-accent: #0f0f0f;
@@ -34,6 +37,7 @@
 }
 
 [data-theme="light"] {
+  color-scheme: light;   /* controles nativos en claro */
   /* === Papel cálido premium — jerarquía en 3 capas cálidas === */
   --bg: #f4f1ea;            /* crema cálida sutil (fondo general) */
   --surface: #fffdf9;       /* papel blanco cálido (tarjetas/tablas/header/sidebar) */
@@ -72,6 +76,12 @@
   --input-bg: #fffdf9;
   --shadow-sm: 0 1px 2px rgba(60,52,38,.06), 0 1px 3px rgba(60,52,38,.08);
   --shadow-md: 0 4px 16px rgba(60,52,38,.10), 0 1px 3px rgba(60,52,38,.07);
+  /* Faltaban en claro → el modal y el hover de botones tiraban la sombra NEGRA del
+     tema oscuro sobre el papel crema. Versiones cálidas: */
+  --shadow-lg: 0 18px 40px rgba(60,52,38,.16), 0 6px 16px rgba(60,52,38,.10);
+  --lift-shadow: 0 4px 12px rgba(60,52,38,.14), 0 0 0 1px rgba(138,102,48,.14);
+  --thead-underline: var(--accent-soft-border);
+  --placeholder: #8a8377;
   --focus-glow: 0 0 0 3px rgba(138,102,48,.18);
   --green-tint: rgba(27,119,74,.12);  --green-soft-border: rgba(27,119,74,.42);
   --red-tint: rgba(191,53,53,.12);    --red-soft-border: rgba(191,53,53,.40);

@@ -383,7 +383,7 @@
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
         <div id="hist-subtitulo" style="font-size:11px;color:var(--muted);"></div>
         <button id="hist-bulk-partida" class="btn btn-ghost btn-sm req-admin" onclick="abrirCambiarPartidaBulk()" style="display:none;color:var(--accent);border-color:var(--accent);font-size:11px;padding:3px 10px;">🏷 Cambiar partida (0)</button>
-        <button id="hist-bulk-del" class="btn btn-ghost btn-sm req-admin" onclick="eliminarHistorialBulk()" style="display:none;color:var(--red);border-color:var(--red);font-size:11px;padding:3px 10px;">🗑 Eliminar seleccionados (0)</button>
+        <button id="hist-bulk-del" class="btn btn-ghost btn-sm req-admin danger" onclick="eliminarHistorialBulk()" style="display:none;font-size:11px;padding:3px 10px;">🗑 Eliminar seleccionados (0)</button>
       </div>
       <div class="table-wrap">
         <div style="display:grid;grid-template-columns:34px 60px 60px 90px 110px minmax(180px, 1fr) 80px 70px 65px 80px 85px 90px 95px 80px 64px;gap:10px;padding:11px 16px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;">
@@ -1368,7 +1368,7 @@
       <div class="field"><label>RFC</label><input id="c-rfc" placeholder="Opcional" style="text-transform:uppercase;"></div>
       <div class="field"><label>Teléfono</label><input id="c-telefono" placeholder="Opcional"></div>
       <div class="field span2"><label>Email</label><input id="c-email" type="email" placeholder="Opcional"></div>
-      <div class="field span2"><label>Observaciones</label><textarea id="c-observaciones" rows="2" placeholder="Opcional" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-size:12px;resize:vertical;"></textarea></div>
+      <div class="field span2"><label>Observaciones</label><textarea id="c-observaciones" rows="3" placeholder="Opcional"></textarea></div>
       <div class="field"><label>Estado</label><select id="c-activo"><option value="true">Activo</option><option value="false">Inactivo</option></select></div>
     </div>
     <div class="form-actions"><button class="btn btn-ghost" onclick="cerrar('modal-cliente')">Cancelar</button><button class="btn btn-primary" onclick="guardarCliente()">Guardar</button></div>
@@ -1391,7 +1391,7 @@
       <div class="field"><label>Escritura estimada</label><input type="date" id="v-fecha-escritura-estimada"></div>
       <div class="field"><label>Escritura real</label><input type="date" id="v-fecha-escritura-real"></div>
       <div class="field"><label>Crédito puente <span style="color:var(--muted);font-weight:400;font-size:11px;">(opcional)</span></label><select id="v-credito"></select></div>
-      <div class="field span2"><label>Observaciones</label><textarea id="v-obs" rows="2" placeholder="Opcional" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-size:12px;resize:vertical;"></textarea></div>
+      <div class="field span2"><label>Observaciones</label><textarea id="v-obs" rows="3" placeholder="Opcional"></textarea></div>
     </div>
     <div class="form-actions"><button class="btn btn-ghost" onclick="cerrar('modal-venta')">Cancelar</button><button class="btn btn-primary" onclick="guardarVenta()">Guardar</button></div>
   </div>
@@ -1409,7 +1409,7 @@
       <div class="field"><label>Método</label><select id="co-metodo"><option value="transferencia">Transferencia</option><option value="deposito">Depósito</option><option value="efectivo">Efectivo</option><option value="cheque">Cheque</option></select></div>
       <div class="field"><label>Referencia</label><input id="co-referencia" placeholder="Opcional"></div>
       <div class="field span2"><label>Concepto</label><input id="co-concepto" placeholder="Opcional"></div>
-      <div class="field span2"><label>Observaciones</label><textarea id="co-obs" rows="2" placeholder="Opcional" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-size:12px;resize:vertical;"></textarea></div>
+      <div class="field span2"><label>Observaciones</label><textarea id="co-obs" rows="3" placeholder="Opcional"></textarea></div>
     </div>
     <div class="form-actions"><button class="btn btn-ghost" onclick="cerrar('modal-cobro')">Cancelar</button><button class="btn btn-primary" onclick="guardarCobro()">Guardar</button></div>
   </div>
@@ -1457,7 +1457,7 @@
       <div class="field"><label>Estatus de pago</label><select id="f-estatus"><option>pendiente</option><option>parcial</option><option>pagada</option><option>cancelada</option></select></div>
       <div class="field"><label>Proyecto</label><select id="f-proyecto"></select></div>
       <div class="field"><label>Empresa facturada <span style="color:var(--muted);font-weight:400;font-size:11px;">(a nombre de quién)</span></label><select id="f-empresa"></select></div>
-      <div class="field span2"><label>Observaciones</label><textarea id="f-obs" rows="2" placeholder="Opcional" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-size:12px;resize:vertical;"></textarea></div>
+      <div class="field span2"><label>Observaciones</label><textarea id="f-obs" rows="3" placeholder="Opcional"></textarea></div>
     </div>
     <!-- Vincular pagos ya existentes del historial a esta factura (solo en edición). -->
     <div id="fact-pagos-vinc" class="req-facturas" style="display:none;margin-top:8px;border-top:1px solid var(--border);padding-top:10px;">
@@ -1469,7 +1469,7 @@
       </div>
     </div>
     <div class="form-actions" style="justify-content:space-between;">
-      <button id="fact-eliminar-btn" class="btn btn-ghost req-borrar-factura" style="display:none;color:#e74c3c;border-color:#e74c3c;" onclick="eliminarFactura()">🗑 Eliminar factura</button>
+      <button id="fact-eliminar-btn" class="btn btn-ghost req-borrar-factura danger" style="display:none;" onclick="eliminarFactura()">🗑 Eliminar factura</button>
       <div style="display:flex;gap:8px;margin-left:auto;"><button class="btn btn-ghost" onclick="cerrar('modal-factura')">Cancelar</button><button class="btn btn-primary" onclick="guardarFactura()">Guardar</button></div>
     </div>
   </div>

@@ -119,7 +119,7 @@ export function renderClientes() {
       `<td style="font-size:12px;">${escapeHtml(c.rfc || '—')}</td>` +
       `<td style="font-size:12px;">${escapeHtml(c.telefono || '—')}</td>` +
       `<td style="font-size:12px;color:var(--muted);${'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:280px;'}" title="${escapeHtml(c.observaciones || '')}">${escapeHtml(c.observaciones || '—')}</td>` +
-      `<td><div style="display:flex;gap:6px;justify-content:flex-end;"><button class="btn btn-ghost btn-sm" onclick="editarCliente('${id}')">Editar</button><button class="btn btn-ghost btn-sm req-editor" style="color:#e74c3c;" onclick="eliminarCliente('${id}')">✕</button></div></td></tr>`;
+      `<td><div style="display:flex;gap:6px;justify-content:flex-end;"><button class="btn btn-ghost btn-sm" onclick="editarCliente('${id}')">Editar</button><button class="btn btn-ghost btn-sm req-editor danger" onclick="eliminarCliente('${id}')">✕</button></div></td></tr>`;
   }).join('');
   el.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Cliente</th><th>RFC</th><th>Teléfono</th><th>Observaciones</th><th style="text-align:right">Acciones</th></tr></thead><tbody>${filas}</tbody></table></div>`;
 }
@@ -230,7 +230,7 @@ export function renderVentas() {
       `<td style="font-family:'DM Mono',monospace;font-size:12px;text-align:right;color:#27ae60;">${fmt(v.monto_cobrado || 0)}</td>` +
       `<td style="font-family:'DM Mono',monospace;font-size:12px;text-align:right;font-weight:600;">${fmt(v.saldo_cliente != null ? v.saldo_cliente : (v.precio_venta || 0))}</td>` +
       `<td>${badge}</td>` +
-      `<td><div style="display:flex;gap:6px;justify-content:flex-end;"><button class="btn btn-ghost btn-sm" onclick="editarVenta('${id}')">Editar</button><button class="btn btn-ghost btn-sm req-editor" style="color:#e74c3c;" onclick="eliminarVenta('${id}')">✕</button></div></td></tr>`;
+      `<td><div style="display:flex;gap:6px;justify-content:flex-end;"><button class="btn btn-ghost btn-sm" onclick="editarVenta('${id}')">Editar</button><button class="btn btn-ghost btn-sm req-editor danger" onclick="eliminarVenta('${id}')">✕</button></div></td></tr>`;
   }).join('');
   el.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Unidad</th><th>Cliente</th><th style="text-align:right">Precio</th><th style="text-align:right">Cobrado</th><th style="text-align:right">Saldo</th><th>Estatus</th><th style="text-align:right">Acciones</th></tr></thead><tbody>${filas}</tbody></table></div>`;
 }
@@ -440,7 +440,7 @@ export function renderCobros() {
       `<td style="font-size:11px;color:var(--muted);">${escapeHtml(_TIPO_COBRO_LABEL[c.tipo_cobro] || c.tipo_cobro || '—')}</td>` +
       `<td style="font-size:11px;color:var(--muted);">${escapeHtml(c.metodo || '—')}</td>` +
       `<td style="font-family:'DM Mono',monospace;font-size:12px;text-align:right;color:#27ae60;font-weight:600;">${fmt(c.monto || 0)}</td>` +
-      `<td><div style="display:flex;gap:6px;justify-content:flex-end;"><button class="btn btn-ghost btn-sm" onclick="editarCobro('${id}')">Editar</button><button class="btn btn-ghost btn-sm req-editor" style="color:#e74c3c;" onclick="eliminarCobro('${id}')">✕</button></div></td></tr>`;
+      `<td><div style="display:flex;gap:6px;justify-content:flex-end;"><button class="btn btn-ghost btn-sm" onclick="editarCobro('${id}')">Editar</button><button class="btn btn-ghost btn-sm req-editor danger" onclick="eliminarCobro('${id}')">✕</button></div></td></tr>`;
   }).join('');
   el.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Venta (unidad · cliente)</th><th>Tipo</th><th>Método</th><th style="text-align:right">Monto</th><th style="text-align:right">Acciones</th></tr></thead><tbody>${filas}</tbody></table></div>`;
 }
