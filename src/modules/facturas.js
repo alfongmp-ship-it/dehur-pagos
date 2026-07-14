@@ -142,16 +142,40 @@ export function renderFacturas() {
   }).join('');
 }
 
+// Cambia el campo de búsqueda (Todo/ID/N°/UUID) y ajusta el placeholder de ayuda.
+export function cambiarBuscarPorFactura() {
+  const modo = document.getElementById('ff-buscar-por')?.value || 'todo';
+  const inp = document.getElementById('buscar-fact');
+  if (inp) {
+    inp.placeholder = modo === 'id' ? 'Escribe el ID interno…'
+      : modo === 'numero' ? 'Escribe el Número de Factura…'
+      : modo === 'uuid' ? 'Escribe el UUID (folio fiscal)…'
+      : 'Buscar por ID, folio o proveedor…';
+  }
+  renderFacturas();
+}
+
 function getFilteredFacturas() {
-  const q = (document.getElementById('buscar-fact')?.value || '').toLowerCase();
+  const q = (document.getElementById('buscar-fact')?.value || '').trim().toLowerCase();
+  const modo = document.getElementById('ff-buscar-por')?.value || 'todo';
   const fe = document.getElementById('ff-estatus')?.value || '';
   const fes = document.getElementById('ff-estado-sat')?.value || '';
   const fp = document.getElementById('ff-proy')?.value || '';
   const fil = state.facturas.filter(f => {
     if (q) {
-      const prov = state.proveedores.find(p => p.id === f.proveedor_id);
-      const provNombre = prov ? prov.nombre.toLowerCase() : '';
-      if (!(/^\d+$/.test(q) ? String(f.factura_id) === q || String(f.proveedor_id) === q : provNombre.includes(q) || (f.numero_factura || '').toLowerCase().includes(q) || (f.nombre_proveedor || '').toLowerCase().includes(q) || (f.rfc_emisor || '').toLowerCase().includes(q) || (f.uuid || '').toLowerCase().includes(q))) return false;
+      // Búsqueda por CAMPO elegido → así un número no se confunde entre ID, N° de
+      // factura y UUID. 'todo' conserva el buscador amplio de siempre.
+      if (modo === 'id') {
+        if (!String(f.factura_id).toLowerCase().includes(q)) return false;
+      } else if (modo === 'numero') {
+        if (!(f.numero_factura || '').toLowerCase().includes(q)) return false;
+      } else if (modo === 'uuid') {
+        if (!(f.uuid || '').toLowerCase().includes(q)) return false;
+      } else {
+        const prov = state.proveedores.find(p => p.id === f.proveedor_id);
+        const provNombre = prov ? prov.nombre.toLowerCase() : '';
+        if (!(/^\d+$/.test(q) ? String(f.factura_id) === q || String(f.proveedor_id) === q : provNombre.includes(q) || (f.numero_factura || '').toLowerCase().includes(q) || (f.nombre_proveedor || '').toLowerCase().includes(q) || (f.rfc_emisor || '').toLowerCase().includes(q) || (f.uuid || '').toLowerCase().includes(q))) return false;
+      }
     }
     if (fe && f.estatus_factura !== fe) return false;
     if (fes && (f.estado_sat || 'Vigente') !== fes) return false;

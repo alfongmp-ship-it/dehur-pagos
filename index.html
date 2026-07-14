@@ -404,7 +404,13 @@
         </div>
       </div>
       <div id="fact-stats" class="stats-row-4" style="display:none"></div>
-      <div style="margin-bottom:10px;">
+      <div style="margin-bottom:10px;display:flex;gap:10px;align-items:center;">
+        <select class="filter-select" id="ff-buscar-por" onchange="cambiarBuscarPorFactura()" title="Elige en qué campo buscar (evita confundir números de ID, factura y UUID)">
+          <option value="todo">Buscar en: Todo</option>
+          <option value="id">ID interno</option>
+          <option value="numero">N° de Factura</option>
+          <option value="uuid">UUID (folio fiscal)</option>
+        </select>
         <div class="search-box"><span class="search-icon">🔍</span><input type="text" id="buscar-fact" placeholder="Buscar por ID, folio o proveedor..." oninput="renderFacturas()"></div>
       </div>
       <div class="toolbar">
