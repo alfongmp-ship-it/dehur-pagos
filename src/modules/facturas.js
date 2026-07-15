@@ -835,13 +835,23 @@ export function filtrarPagosParaFactura() {
       const montoDiff = Math.min(...targets.map(t => Math.abs(rest - t)));
       const pDays = _toDays(parseFechaHist(h.fecha) || '');
       const fechaDiff = (fRefDays != null && pDays != null) ? Math.abs(pDays - fRefDays) : 99999;
-      return { h, rest, montoDiff, fechaDiff, mismoProv: parseInt(h.proveedor_id) === f.proveedor_id, exacto: montoDiff < 0.01, cercano: montoDiff <= tol };
+      return { h, rest, montoDiff, fechaDiff,
+        mismoProv: parseInt(h.proveedor_id) === f.proveedor_id,
+        mismoProy: !f.proyecto || !h.proyecto || proyectoMatch(h.proyecto, f.proyecto),
+        exacto: montoDiff < 0.01, cercano: montoDiff <= tol };
     });
   const ordenar = arr => arr.sort((a, b) => (a.montoDiff - b.montoDiff) || (a.fechaDiff - b.fechaDiff));
-  const mismoProv = ordenar(base.filter(x => x.mismoProv)).slice(0, 25);
-  const otros = ordenar(base.filter(x => !x.mismoProv && x.cercano)).slice(0, 10);
+  // Del mismo proyecto (o sin proyecto definido): el flujo normal, separando mismo/otro proveedor.
+  const mismoProv = ordenar(base.filter(x => x.mismoProy && x.mismoProv)).slice(0, 25);
+  const otros = ordenar(base.filter(x => x.mismoProy && !x.mismoProv && x.cercano)).slice(0, 10);
+  // De OTRO proyecto: NO se esconden — van hasta ABAJO con aviso (para no errar al vincular y
+  // para cachar pagos mal clasificados a otro proyecto). Prioriza los del mismo proveedor (señal
+  // más fuerte de que ese pago debería ser de la factura pero quedó con el proyecto mal puesto).
+  const otroProy = base.filter(x => !x.mismoProy && (x.mismoProv || x.cercano))
+    .sort((a, b) => (b.mismoProv - a.mismoProv) || (a.montoDiff - b.montoDiff) || (a.fechaDiff - b.fechaDiff))
+    .slice(0, 12);
 
-  if (!mismoProv.length && !otros.length) {
+  if (!mismoProv.length && !otros.length && !otroProy.length) {
     cont.innerHTML = '<div style="padding:10px;font-size:11px;color:var(--muted);">Sin pagos con saldo por aplicar que coincidan</div>';
     return;
   }
@@ -852,12 +862,14 @@ export function filtrarPagosParaFactura() {
     const badge = x.exacto ? '<span style="font-size:9px;font-weight:700;color:var(--green);background:rgba(39,174,96,.12);padding:1px 6px;border-radius:4px;">✓ mismo monto</span>'
       : x.cercano ? '<span style="font-size:9px;color:var(--accent);background:rgba(200,169,110,.14);padding:1px 6px;border-radius:4px;">monto similar</span>' : '';
     const fechaB = x.fechaDiff <= 10 ? ' <span style="font-size:9px;color:var(--muted);">· fecha cercana</span>' : '';
+    const proyBadge = !x.mismoProy ? ' <span style="font-size:9px;font-weight:700;color:var(--orange);background:rgba(224,122,58,.15);padding:1px 6px;border-radius:4px;">⚠ otro proyecto</span>' : '';
+    const proyTxt = h.proyecto ? ` · <span style="${!x.mismoProy ? 'color:var(--orange);font-weight:600;' : ''}">${escapeHtml(h.proyecto)}</span>` : '';
     const defMonto = Math.round(Math.min(saldoF, x.rest) * 100) / 100;
     const inpId = 'fp-aplicar-' + h.id;
-    return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);">
+    return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);${!x.mismoProy ? 'border-left:3px solid var(--orange);' : ''}">
       <div style="min-width:0;">
-        <div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(h.concepto || h.nombre || '—')} ${badge}${fechaB}</div>
-        <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;">${fmtFecha(h.fecha)} · ${fmt(h.importe)}${h.proyecto ? ' · ' + escapeHtml(h.proyecto) : ''} · restante ${fmt(x.rest)}</div>
+        <div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(h.concepto || h.nombre || '—')} ${badge}${proyBadge}${fechaB}</div>
+        <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;">${fmtFecha(h.fecha)} · ${fmt(h.importe)}${proyTxt} · restante ${fmt(x.rest)}</div>
       </div>
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
         <span style="font-size:10px;color:var(--muted);">Aplicar $</span>
@@ -867,9 +879,11 @@ export function filtrarPagosParaFactura() {
     </div>`;
   };
   const header = txt => `<div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:6px 10px;background:var(--surface2);border-bottom:1px solid var(--border);">${txt}</div>`;
+  const headerWarn = txt => `<div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--orange);font-weight:700;padding:6px 10px;background:rgba(224,122,58,.10);border-top:1px solid rgba(224,122,58,.35);border-bottom:1px solid var(--border);">${txt}</div>`;
   let html = '';
   if (mismoProv.length) html += header('Del mismo proveedor (más probables arriba)') + mismoProv.map(fila).join('');
   if (otros.length) html += header('Otros con el mismo monto (otro proveedor)') + otros.map(fila).join('');
+  if (otroProy.length) html += headerWarn('⚠ De OTRO proyecto — revisa si algún pago quedó mal clasificado') + otroProy.map(fila).join('');
   cont.innerHTML = html;
 }
 
