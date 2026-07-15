@@ -17,13 +17,17 @@
 .hist-row { display: grid; grid-template-columns: 34px 52px 52px 82px 100px minmax(160px, 1.1fr) 74px 78px 70px minmax(95px, .8fr) minmax(95px, .8fr) minmax(130px, 1.2fr) 95px 78px 64px; gap: 10px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--row-border-soft); }
 .hist-row:hover { background: var(--row-hover); }
 .empty-state { text-align: center; padding: 60px 20px; color: var(--muted); }
-/* Encabezado del historial FIJO al scrollear. El scroll vertical vive en .main;
-   la .table-wrap del historial se abre (overflow visible) para que el sticky
-   pegue contra .main — el desborde horizontal lo absorbe .main (overflow:auto). */
-#page-historial .table-wrap { overflow: visible; }
+/* Encabezado del historial FIJO: la tabla tiene su PROPIO scroll vertical
+   (max-height) y el encabezado se pega arriba de ese scroll (top:0, sin
+   ambigüedad de anclaje). Bonus: los filtros quedan siempre visibles. El
+   scroll horizontal sigue viviendo aquí mismo (overflow:auto en ambos ejes). */
+#page-historial .table-wrap {
+  overflow: auto;
+  max-height: calc(100vh - 300px);
+}
 #page-historial .table-wrap > div:first-child {
   position: sticky; top: 0; z-index: 5;
-  border-radius: 12px 12px 0 0;
+  box-shadow: var(--shadow-sm);
 }
 
 /* Proyecto pills */
