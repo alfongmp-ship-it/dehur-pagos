@@ -29,6 +29,12 @@
   position: sticky; top: 0; z-index: 5;
   box-shadow: var(--shadow-sm);
 }
+/* Al scrollear a la DERECHA, el fondo del encabezado y de las filas debe cubrir
+   todo el ancho scrolleable (una caja al ancho visible deja el fondo "cortado").
+   1440px = suma de las columnas mínimas del grid + gaps + padding; en pantallas
+   anchas el ancho auto (100%) manda y las columnas flexibles se expanden igual. */
+#page-historial .table-wrap > div:first-child,
+.hist-row { min-width: 1440px; }
 
 /* Proyecto pills */
 .proyecto-pill { padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border); cursor: pointer; font-size: 12px; transition: all .15s; color: var(--muted); background: var(--surface2); display: inline-block; margin: 3px; }
