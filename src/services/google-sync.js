@@ -57,6 +57,27 @@ export function ingresosPreview() {
 }
 // ¿Ingresos activo AHORA? (bandera maestra + candado de vista previa).
 export function ingresosActivo() { return INGRESOS_ON && ingresosPreview(); }
+
+// ============================================================================
+// MÓDULO ESTRATEGIA (Fase 2 — tablero de score, SOLO LECTURA). Bandera maestra
+// REVERSIBLE + candado de vista previa ?estrategia=1 (sticky en dt-estrategia;
+// ?estrategia=0 lo apaga). Mismo patrón que Ingresos. Estrategia escribe SOLO en
+// estrategia_config / estrategia_flags_unidad; todo lo demás lo LEE del state.
+// ============================================================================
+export const ESTRATEGIA_ON = true;
+export function estrategiaPreview() {
+  try {
+    if (typeof location !== 'undefined' && /[?&]estrategia=1(\b|&|$)/.test(location.search || '')) return true;
+    if (typeof localStorage !== 'undefined' && localStorage.getItem('dt-estrategia') === '1') return true;
+  } catch (_) { /* sin location/localStorage: no activar */ }
+  return false;
+}
+export function estrategiaActivo() { return ESTRATEGIA_ON && estrategiaPreview(); }
+
+// Los datos de INGRESOS (clientes/ventas/cobros) deben cargar también cuando solo
+// Estrategia está activa: el score lee ventas/cobros. Sin esto, Estrategia vería
+// arrays vacíos (estaban atrapados tras el candado de Ingresos).
+export function ingresosDataActiva() { return ingresosActivo() || estrategiaActivo(); }
 // pendientesConfirmacion va aquí pero NO en ENTIDADES_POR_FILA: tabla chica, se
 // guarda whole-table; el realtime deja ver la cola compartida en vivo.
 export const ENTIDADES_REALTIME = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos', 'pendientesConfirmacion', 'proyectos', 'cuentasPropias', 'pagosPagare', 'historial']);
@@ -64,7 +85,7 @@ export const ENTIDADES_REALTIME = new Set(['proveedores', 'empleados', 'partidas
 // INGRESOS (Fase 1): suscribir realtime de clientes/ventas/cobros SOLO si el módulo
 // está activo (bandera maestra + vista previa). Con preview off no se agrega ninguna
 // clave → 0 canales nuevos → la app queda idéntica para el resto del equipo.
-if (ingresosActivo()) {
+if (ingresosDataActiva()) {
   ENTIDADES_REALTIME.add('clientes');
   ENTIDADES_REALTIME.add('ventas');
   ENTIDADES_REALTIME.add('cobros');
@@ -120,7 +141,7 @@ const ETIQUETA = {
   partidasObra: 'Catálogo de partidas de obra'
 };
 // INGRESOS (Fase 1): dar de alta en el blindaje/banner solo si el módulo está activo.
-if (ingresosActivo()) {
+if (ingresosDataActiva()) {
   ENTIDADES_GUARDABLES.push('clientes', 'ventas', 'cobros');
   ETIQUETA.clientes = 'Clientes'; ETIQUETA.ventas = 'Ventas'; ETIQUETA.cobros = 'Cobranza';
 }
@@ -611,7 +632,7 @@ export async function gsLoadAll() {
     // + try/catch propio → jamás afecta la carga de Pagos. Columnas POSICIONALES que
     // calcan gsSaveClientes/Ventas/Cobros y gsInitSheets (3er mapRow). Supabase sigue
     // siendo la fuente; esto solo aplica si se cae a Sheets.
-    if (ingresosActivo()) {
+    if (ingresosDataActiva()) {
       try {
         const clRows = await leerHoja('clientes', 'clientes');
         if (clRows && clRows.length > 1) {
@@ -935,7 +956,7 @@ export async function sbLoadAll() {
   // Gated: solo carga si el módulo está activo (bandera maestra + vista previa),
   // así los usuarios reales no pagan este costo mientras se construye. IDs = text
   // (UUID) → String(). NO toca nada de Pagos.
-  if (ingresosActivo()) {
+  if (ingresosDataActiva()) {
     await cargar('clientes', 'clientes', rows => {
       state.clientes = rows.map(r => ({
         cliente_id: r.cliente_id != null ? String(r.cliente_id) : '',
@@ -1680,7 +1701,7 @@ export async function respaldarTodoASheets() {
   ];
   // INGRESOS (Fase 1): incluir en el respaldo solo si el módulo está activo. Cada
   // saver además se autoprotege con guardarPermitido (no escribe si no cargó).
-  if (ingresosActivo()) savers.push(gsSaveClientes, gsSaveVentas, gsSaveCobros);
+  if (ingresosDataActiva()) savers.push(gsSaveClientes, gsSaveVentas, gsSaveCobros);
   let ok = 0, fail = 0;
   for (const fn of savers) {
     try { await fn({ porFila: true }); ok++; }

@@ -26,6 +26,11 @@ export const state = {
   clientes: [],
   ventas: [],
   cobros: [],
+  // ===== MÓDULO ESTRATEGIA (Fase 2 — solo lectura, detrás de ESTRATEGIA_ON) =====
+  // Config del motor de score (clave→valor jsonb, todo supuesto es un parámetro)
+  // y flags por unidad (bloqueo/compromiso/estratégica). NO tocan nada de Pagos.
+  estrategiaConfig: [],
+  estrategiaFlags: [],
   // Catálogo editable de partidas y subpartidas
   // Cada item: { id, partida, subpartidas: [string], orden, activa }
   partidasCatalogo: [],
@@ -98,6 +103,8 @@ function _uuidCon(prefijo) {
 export function nuevoClienteId() { return _uuidCon('cli-'); }
 export function nuevoVentaId()   { return _uuidCon('vta-'); }
 export function nuevoCobroId()   { return _uuidCon('cob-'); }
+// ESTRATEGIA (Fase 2): flags por unidad (bloqueo/compromiso/estratégica).
+export function nuevoFlagId()    { return _uuidCon('flg-'); }
 
 export function esConcentradora(nombreCuenta) {
   if (!nombreCuenta) return false;

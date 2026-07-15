@@ -64,10 +64,13 @@ export function setWorkspace(ws) {
 // previa). Si no, no toca nada → header/sidebar idénticos a hoy.
 export function initIngresosUI() {
   // Sticky del candado de vista previa: ?ingresos=1 lo prende, ?ingresos=0 lo apaga.
+  // Mismo candado para Estrategia (?estrategia=1/0 → dt-estrategia).
   try {
     const s = location.search || '';
     if (/[?&]ingresos=1(\b|&|$)/.test(s)) localStorage.setItem('dt-ingresos', '1');
     else if (/[?&]ingresos=0(\b|&|$)/.test(s)) localStorage.removeItem('dt-ingresos');
+    if (/[?&]estrategia=1(\b|&|$)/.test(s)) localStorage.setItem('dt-estrategia', '1');
+    else if (/[?&]estrategia=0(\b|&|$)/.test(s)) localStorage.removeItem('dt-estrategia');
   } catch (_) { /* ignore */ }
 
   if (!ingresosActivo()) return;   // usuarios normales / flag off → nada
