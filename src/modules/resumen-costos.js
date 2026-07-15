@@ -6,6 +6,7 @@ import { parseFechaHist } from './historial.js';
 import { getPartidasParaSelect } from '../config/sub-partidas.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
+import { chartTheme } from '../ui/chart-theme.js';
 
 let chartProyecto = null;
 let chartTendencia = null;
@@ -282,6 +283,7 @@ function renderTendencia(data) {
   });
   const values = rango.map(iso => porDia[iso] || 0);
 
+  const th = chartTheme();   // colores del tema ACTUAL (canvas no resuelve var(--...))
   const valueLabelsPlugin = {
     id: 'valueLabels',
     afterDatasetsDraw(chart) {
@@ -289,7 +291,7 @@ function renderTendencia(data) {
       const meta = chart.getDatasetMeta(0);
       ctx.save();
       ctx.font = '600 10px "DM Mono", monospace';
-      ctx.fillStyle = '#e8e8e8';
+      ctx.fillStyle = th.valueLabel;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'bottom';
       meta.data.forEach((point, i) => {
@@ -308,8 +310,8 @@ function renderTendencia(data) {
       datasets: [{
         label: 'Gasto diario',
         data: values,
-        borderColor: '#c8a96e',
-        backgroundColor: 'rgba(200,169,110,0.15)',
+        borderColor: th.gold,
+        backgroundColor: th.goldFill,
         fill: true,
         tension: 0.25,
         pointRadius: 3,
@@ -332,12 +334,12 @@ function renderTendencia(data) {
       },
       scales: {
         x: {
-          ticks: { color: '#aaa', font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 12 },
-          grid: { color: 'rgba(255,255,255,0.04)' }
+          ticks: { color: th.ticks, font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 12 },
+          grid: { color: th.grid }
         },
         y: {
-          ticks: { color: '#aaa', font: { size: 10 }, callback: v => fmt(v) },
-          grid: { color: 'rgba(255,255,255,0.04)' }
+          ticks: { color: th.ticks, font: { size: 10 }, callback: v => fmt(v) },
+          grid: { color: th.grid }
         }
       }
     }
@@ -452,17 +454,18 @@ function renderDoughnut(canvasId, grupos, colorFn, refKey, isEmpty) {
   const values = entries.map(e => e[1]);
   const colors = labels.map((l, i) => colorFn(l, i));
 
+  const th = chartTheme();
   const instance = new Chart(canvas, {
     type: 'doughnut',
     data: {
       labels,
-      datasets: [{ data: values, backgroundColor: colors, borderColor: '#0f0f0f', borderWidth: 2 }]
+      datasets: [{ data: values, backgroundColor: colors, borderColor: th.donutBorder, borderWidth: 2 }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { position: 'bottom', labels: { color: '#aaa', font: { size: 11 }, boxWidth: 12, padding: 10 } },
+        legend: { position: 'bottom', labels: { color: th.ticks, font: { size: 11 }, boxWidth: 12, padding: 10 } },
         tooltip: {
           callbacks: {
             label: ctx => `${ctx.label}: $${ctx.parsed.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`

@@ -29,6 +29,21 @@
     if (next === 'light') document.documentElement.setAttribute('data-theme', 'light');
     else document.documentElement.removeAttribute('data-theme');
     try { localStorage.setItem('dt-theme', next); } catch(e) {}
+    // Re-pintar la página visible si tiene gráficas: el canvas de Chart.js resuelve
+    // sus colores al CREARSE (no sigue al tema como el CSS). Las páginas ocultas se
+    // re-crean solas al navegar (lazy render del router).
+    try {
+      var re = {
+        'page-resumen-costos': 'renderResumenCostos',
+        'page-resumen-ejecutivo': 'renderResumenEjecutivo',
+        'page-posicion-saldos': 'renderPosicionSaldos',
+        'page-costos-fiscales': 'renderCostosFiscales'
+      };
+      for (var pid in re) {
+        var pel = document.getElementById(pid);
+        if (pel && pel.style.display !== 'none' && typeof window[re[pid]] === 'function') window[re[pid]]();
+      }
+    } catch(e) {}
   }
   // Abrir el date picker con click en cualquier parte del input.
   document.addEventListener('click', function(e){
@@ -386,7 +401,7 @@
         <button id="hist-bulk-del" class="btn btn-ghost btn-sm req-admin danger" onclick="eliminarHistorialBulk()" style="display:none;font-size:11px;padding:3px 10px;">🗑 Eliminar seleccionados (0)</button>
       </div>
       <div class="table-wrap">
-        <div style="display:grid;grid-template-columns:34px 60px 60px 90px 110px minmax(180px, 1fr) 80px 70px 65px 80px 85px 90px 95px 80px 64px;gap:10px;padding:11px 16px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;">
+        <div style="display:grid;grid-template-columns:34px 52px 52px 82px 100px minmax(160px, 1.1fr) 74px 78px 70px minmax(95px, .8fr) minmax(95px, .8fr) minmax(130px, 1.2fr) 95px 78px 64px;gap:10px;padding:11px 16px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;">
           <div style="text-align:center;"><input type="checkbox" class="req-admin" onclick="toggleHistSelAll(this.checked)" title="Seleccionar todos los visibles" style="cursor:pointer;"></div><div>ID Prov</div><div>ID Fact</div><div>Fecha</div><div>Origen</div><div>Beneficiario</div><div>Tipo</div><div>Categoría</div><div>Subcat.</div><div>Partida</div><div>Sub-partida</div><div>Concepto</div><div style="text-align:right">Importe</div><div>Proyecto</div><div></div>
         </div>
         <div id="historial-lista"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">📋</div><div>Sin registros aún</div></div></div>

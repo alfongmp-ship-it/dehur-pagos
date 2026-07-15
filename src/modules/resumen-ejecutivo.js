@@ -2,6 +2,7 @@ import { state, datosListos } from '../state.js';
 import { fmt, escapeHtml } from '../ui/format.js';
 import { parseFechaHist } from './historial.js';
 import { proyectoMatch } from '../config/proyectos.js';
+import { chartTheme } from '../ui/chart-theme.js';
 
 let chartGastoMensual = null;
 let chartProyectoPie = null;
@@ -323,6 +324,7 @@ function renderTendencia(periodo) {
     return total;
   });
 
+  const th = chartTheme();   // colores del tema ACTUAL (canvas no resuelve var(--...))
   chartGastoMensual = new Chart(canvas, {
     type: 'bar',
     data: {
@@ -330,8 +332,8 @@ function renderTendencia(periodo) {
       datasets: [{
         label: 'Egresos',
         data: valores,
-        backgroundColor: meses.map((_, i) => i === meses.length - 1 ? '#c8a96e' : 'rgba(200,169,110,0.35)'),
-        borderColor: '#c8a96e',
+        backgroundColor: meses.map((_, i) => i === meses.length - 1 ? th.gold : th.goldSoft),
+        borderColor: th.gold,
         borderWidth: 1,
         borderRadius: 4
       }]
@@ -344,8 +346,8 @@ function renderTendencia(periodo) {
         tooltip: { callbacks: { label: ctx => fmt(ctx.parsed.y) } }
       },
       scales: {
-        x: { ticks: { color: '#888', font: { size: 11 } }, grid: { display: false } },
-        y: { ticks: { color: '#888', font: { size: 10 }, callback: v => '$' + (v / 1000).toFixed(0) + 'k' }, grid: { color: 'rgba(128,128,128,0.08)' } }
+        x: { ticks: { color: th.ticksSoft, font: { size: 11 } }, grid: { display: false } },
+        y: { ticks: { color: th.ticksSoft, font: { size: 10 }, callback: v => '$' + (v / 1000).toFixed(0) + 'k' }, grid: { color: th.grid } }
       }
     }
   });
@@ -403,14 +405,15 @@ function renderProyectoChart(grupos) {
   const values = entries.map(e => e[1]);
   const colors = labels.map((l, i) => state.proyectos.find(p => p.nombre === l)?.color || PALETA[i % PALETA.length]);
 
+  const th = chartTheme();   // var(--bg) NO funciona en canvas → color resuelto del tema
   chartProyectoPie = new Chart(canvas, {
     type: 'doughnut',
-    data: { labels, datasets: [{ data: values, backgroundColor: colors, borderColor: 'var(--bg)', borderWidth: 2 }] },
+    data: { labels, datasets: [{ data: values, backgroundColor: colors, borderColor: th.donutBorder, borderWidth: 2 }] },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { position: 'right', labels: { color: '#888', font: { size: 11 }, boxWidth: 12, padding: 8 } },
+        legend: { position: 'right', labels: { color: th.ticksSoft, font: { size: 11 }, boxWidth: 12, padding: 8 } },
         tooltip: { callbacks: { label: ctx => `${ctx.label}: ${fmt(ctx.parsed)}` } }
       }
     }
@@ -429,6 +432,7 @@ function renderPartidaChart(grupos) {
   const labels = entries.map(e => e[0]);
   const values = entries.map(e => e[1]);
 
+  const th = chartTheme();
   chartPartidaBar = new Chart(canvas, {
     type: 'bar',
     data: { labels, datasets: [{ data: values, backgroundColor: labels.map((_, i) => PALETA[i % PALETA.length]), borderRadius: 4 }] },
@@ -441,8 +445,8 @@ function renderPartidaChart(grupos) {
         tooltip: { callbacks: { label: ctx => fmt(ctx.parsed.x) } }
       },
       scales: {
-        x: { ticks: { color: '#888', font: { size: 10 }, callback: v => '$' + (v / 1000).toFixed(0) + 'k' }, grid: { color: 'rgba(128,128,128,0.08)' } },
-        y: { ticks: { color: '#aaa', font: { size: 11 } }, grid: { display: false } }
+        x: { ticks: { color: th.ticksSoft, font: { size: 10 }, callback: v => '$' + (v / 1000).toFixed(0) + 'k' }, grid: { color: th.grid } },
+        y: { ticks: { color: th.ticks, font: { size: 11 } }, grid: { display: false } }
       }
     }
   });

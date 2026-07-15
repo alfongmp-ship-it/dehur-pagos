@@ -19,16 +19,19 @@ export function renderHeaderBadges() {
   const hb = document.getElementById('header-badges');
   if (!hb) return;
   if (!datosListos()) { hb.innerHTML = ''; return; }
+  // Color semántico del saldo: negativo en ROJO, positivo en verde (antes todo
+  // salía verde y un saldo negativo se leía como "bien" de reojo).
+  const saldoColor = s => !s ? 'var(--muted)' : (s < 0 ? 'var(--red)' : 'var(--green)');
   const proyBadges = state.proyectos.filter(p => p.activo).map(p =>
     `<span class="badge" style="border-left:3px solid ${p.color};display:flex;align-items:center;gap:8px;padding:6px 12px;">
       <span style="font-size:12px;font-weight:500;">${escapeHtml(p.nombre)}</span>
-      <span style="font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:${p.saldo ? 'var(--green)' : 'var(--muted)'};">${p.saldo ? fmt(p.saldo) : '—'}</span>
+      <span style="font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:${saldoColor(p.saldo)};">${p.saldo ? fmt(p.saldo) : '—'}</span>
     </span>`
   ).join('');
   const extraBadges = state.cuentasPropias.filter(c => c.activo !== false).map(c =>
     `<span class="badge" style="border-left:3px solid var(--accent);display:flex;align-items:center;gap:8px;padding:6px 12px;">
       <span style="font-size:12px;font-weight:500;">${escapeHtml(c.nombre)}</span>
-      <span style="font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:${c.saldo ? 'var(--green)' : 'var(--muted)'};">${c.saldo ? fmt(c.saldo) : '—'}</span>
+      <span style="font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:${saldoColor(c.saldo)};">${c.saldo ? fmt(c.saldo) : '—'}</span>
     </span>`
   ).join('');
   hb.innerHTML = proyBadges + extraBadges;

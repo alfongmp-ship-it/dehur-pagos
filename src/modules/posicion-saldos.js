@@ -1,5 +1,6 @@
 import { state } from '../state.js';
 import { fmt, escapeHtml } from '../ui/format.js';
+import { chartTheme } from '../ui/chart-theme.js';
 
 let chartSaldos = null;
 
@@ -88,7 +89,8 @@ function renderChartSaldos(cuentasActuales) {
     if (!registros.length) return null;
     return registros[registros.length - 1].saldo_total;
   });
-  datasets.unshift({ label: 'Total', data: totalData, borderColor: '#c8a96e', backgroundColor: 'rgba(200,169,110,.1)', tension: 0.3, pointRadius: 4, borderWidth: 3, borderDash: [6, 3], spanGaps: true });
+  const th = chartTheme();   // colores del tema ACTUAL (canvas no resuelve var(--...))
+  datasets.unshift({ label: 'Total', data: totalData, borderColor: th.gold, backgroundColor: th.goldFill, tension: 0.3, pointRadius: 4, borderWidth: 3, borderDash: [6, 3], spanGaps: true });
 
   if (chartSaldos) chartSaldos.destroy();
 
@@ -99,7 +101,7 @@ function renderChartSaldos(cuentasActuales) {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { position: 'bottom', labels: { color: '#aaa', font: { size: 11 }, boxWidth: 12, padding: 15 } },
+        legend: { position: 'bottom', labels: { color: th.ticks, font: { size: 11 }, boxWidth: 12, padding: 15 } },
         tooltip: {
           callbacks: {
             label: ctx => ctx.dataset.label + ': $' + (ctx.parsed.y || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })
@@ -107,10 +109,10 @@ function renderChartSaldos(cuentasActuales) {
         }
       },
       scales: {
-        x: { grid: { color: 'rgba(255,255,255,.05)' }, ticks: { color: '#888', font: { size: 10 } } },
+        x: { grid: { color: th.grid }, ticks: { color: th.ticksSoft, font: { size: 10 } } },
         y: {
-          grid: { color: 'rgba(255,255,255,.05)' },
-          ticks: { color: '#888', font: { size: 10 }, callback: v => '$' + (v / 1000).toFixed(0) + 'k' }
+          grid: { color: th.grid },
+          ticks: { color: th.ticksSoft, font: { size: 10 }, callback: v => '$' + (v / 1000).toFixed(0) + 'k' }
         }
       }
     }

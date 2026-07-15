@@ -8,6 +8,7 @@ import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { proyectoMatch } from '../config/proyectos.js';
 import { ESTATUS_UNIDAD, METODO_LABEL, unidadEnIndivisoAFecha } from '../config/costos-fiscales.js';
+import { chartTheme } from '../ui/chart-theme.js';
 import { planoDeProyecto } from '../config/planos.js';
 import { parseFechaHist } from './historial.js';
 import { gsSaveUnidades, gsSavePresupuestoUnidad, gsSaveCostoAsignaciones, esPorFila, sbGuardarFila } from '../services/google-sync.js';
@@ -1488,6 +1489,7 @@ function renderChartUnidad(partidas) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     return;
   }
+  const th = chartTheme();   // var(--bg) NO funciona en canvas → color resuelto del tema
   cfChartUnidad = new Chart(canvas, {
     type: 'doughnut',
     data: {
@@ -1495,13 +1497,13 @@ function renderChartUnidad(partidas) {
       datasets: [{
         data: conCosto.map(e => e[1].real),
         backgroundColor: conCosto.map((_, i) => PALETA[i % PALETA.length]),
-        borderColor: 'var(--bg)', borderWidth: 2
+        borderColor: th.donutBorder, borderWidth: 2
       }]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: {
-        legend: { position: 'bottom', labels: { color: '#888', font: { size: 10 }, boxWidth: 10, padding: 6 } },
+        legend: { position: 'bottom', labels: { color: th.ticksSoft, font: { size: 10 }, boxWidth: 10, padding: 6 } },
         tooltip: { callbacks: { label: ctx => `${ctx.label}: ${fmt(ctx.parsed)}` } }
       }
     }
