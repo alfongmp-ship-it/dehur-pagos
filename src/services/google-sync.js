@@ -29,7 +29,7 @@ export const FUENTE_LECTURA = 'supabase';
 // supabase_realtime). El resto de entidades sigue en 'tabla' aunque MODO sea 'fila'.
 // ============================================================================
 export const MODO_GUARDADO = 'fila';
-export const ENTIDADES_POR_FILA = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos', 'proyectos', 'cuentasPropias', 'pagosPagare', 'historial', 'clientes', 'ventas', 'cobros']);
+export const ENTIDADES_POR_FILA = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos', 'proyectos', 'cuentasPropias', 'pagosPagare', 'historial', 'clientes', 'ventas', 'cobros', 'estrategiaConfig', 'estrategiaFlags']);
 export const REALTIME_ON = true;
 
 // ============================================================================
@@ -144,6 +144,11 @@ const ETIQUETA = {
 if (ingresosDataActiva()) {
   ENTIDADES_GUARDABLES.push('clientes', 'ventas', 'cobros');
   ETIQUETA.clientes = 'Clientes'; ETIQUETA.ventas = 'Ventas'; ETIQUETA.cobros = 'Cobranza';
+}
+// ESTRATEGIA (Fase 2): ídem.
+if (estrategiaActivo()) {
+  ENTIDADES_GUARDABLES.push('estrategiaConfig', 'estrategiaFlags');
+  ETIQUETA.estrategiaConfig = 'Configuración de estrategia'; ETIQUETA.estrategiaFlags = 'Marcas de unidades';
 }
 
 // Lee una hoja y marca si la entidad cargó con éxito. `gsReadSheet` devuelve
@@ -772,7 +777,9 @@ export async function sbLoadAll() {
     partidas_catalogo: 'partida_id', partidas_obra: 'partida_obra_id',
     pendientes_confirmacion: 'id',
     // INGRESOS (Fase 1)
-    clientes: 'cliente_id', ventas: 'venta_id', cobros: 'cobro_id'
+    clientes: 'cliente_id', ventas: 'venta_id', cobros: 'cobro_id',
+    // ESTRATEGIA (Fase 2)
+    estrategia_config: 'clave', estrategia_flags_unidad: 'flag_id'
   };
 
   async function cargar(tabla, entidad, fn) {
@@ -1001,6 +1008,26 @@ export async function sbLoadAll() {
       v.monto_cobrado = cobrado;
       v.saldo_cliente = Math.max(0, (v.precio_venta || 0) - cobrado);
     }
+  }
+
+  // ===== ESTRATEGIA (Fase 2) =====
+  // Gated: solo con el módulo activo. valor es jsonb (llega ya como JS nativo).
+  if (estrategiaActivo()) {
+    await cargar('estrategia_config', 'estrategiaConfig', rows => {
+      state.estrategiaConfig = rows.map(r => ({
+        clave: r.clave != null ? String(r.clave) : '',
+        valor: r.valor,                       // número/booleano/string/lista según la clave
+        descripcion: r.descripcion || '', grupo: r.grupo || 'general'
+      }));
+    });
+    await cargar('estrategia_flags_unidad', 'estrategiaFlags', rows => {
+      state.estrategiaFlags = rows.map(r => ({
+        flag_id: r.flag_id != null ? String(r.flag_id) : '',
+        unidad_id: r.unidad_id != null ? String(r.unidad_id) : '', proyecto: r.proyecto || '',
+        tipo: r.tipo || 'bloqueo', categoria: r.categoria || '',
+        fecha_compromiso: r.fecha_compromiso || '', nota: r.nota || '', activo: r.activo !== false
+      }));
+    });
   }
 
   await finalizarCarga();
@@ -1342,6 +1369,26 @@ function _rowCobro(c) {
 function _rowsCobros() {
   return _dedupBy(state.cobros.map(_rowCobro), 'cobro_id');
 }
+// ESTRATEGIA (Fase 2) — config del motor (valor jsonb nativo) y flags por unidad.
+function _rowEstrategiaConfig(c) {
+  return {
+    clave: _sbStr(c.clave), valor: c.valor === undefined ? null : c.valor,
+    descripcion: _sbStr(c.descripcion), grupo: _sbStr(c.grupo || 'general')
+  };
+}
+function _rowsEstrategiaConfig() {
+  return _dedupBy(state.estrategiaConfig.map(_rowEstrategiaConfig), 'clave');
+}
+function _rowEstrategiaFlag(f) {
+  return {
+    flag_id: _sbStr(f.flag_id), unidad_id: _sbStr(f.unidad_id), proyecto: _sbStr(f.proyecto),
+    tipo: _sbStr(f.tipo || 'bloqueo'), categoria: _sbStr(f.categoria),
+    fecha_compromiso: _sbStr(f.fecha_compromiso), nota: _sbStr(f.nota), activo: f.activo !== false
+  };
+}
+function _rowsEstrategiaFlags() {
+  return _dedupBy(state.estrategiaFlags.map(_rowEstrategiaFlag), 'flag_id');
+}
 function _rowProyecto(p) {
   return {
     id: _sbStr(p.id), nombre: _sbStr(p.nombre), empresa: _sbStr(p.empresa),
@@ -1577,6 +1624,8 @@ const SB_ENTIDADES = {
   clientes:           { tabla: 'clientes',            rows: _rowsClientes, idCol: 'cliente_id', rowOne: _rowCliente },
   ventas:             { tabla: 'ventas',              rows: _rowsVentas, idCol: 'venta_id', rowOne: _rowVenta },
   cobros:             { tabla: 'cobros',              rows: _rowsCobros, idCol: 'cobro_id', rowOne: _rowCobro },
+  estrategiaConfig:   { tabla: 'estrategia_config',   rows: _rowsEstrategiaConfig, idCol: 'clave', rowOne: _rowEstrategiaConfig },
+  estrategiaFlags:    { tabla: 'estrategia_flags_unidad', rows: _rowsEstrategiaFlags, idCol: 'flag_id', rowOne: _rowEstrategiaFlag },
   proyectos:          { tabla: 'proyectos',           rows: _rowsProyectos, idCol: 'id', rowOne: _rowProyecto },
   cuentasPropias:     { tabla: 'cuentas_propias',     rows: _rowsCuentasPropias, idCol: 'cuenta_id', rowOne: _rowCuentaPropia },
   empleados:          { tabla: 'empleados',           rows: _rowsEmpleados, idCol: 'id', rowOne: _rowEmpleado },
@@ -1665,9 +1714,10 @@ export async function migrarTodoASupabase() {
   for (const key of Object.keys(SB_ENTIDADES)) {
     // El reparto (costoAsignaciones) vive SOLO en Supabase (se guarda por fila/diff); su hoja ya no
     // se mantiene al día, así que NO debe sobrescribirse desde el Sheet (pisaría el reparto bueno).
-    // INGRESOS (clientes/ventas/cobros) tampoco tienen hoja aún (Etapa 6) y solo se cargan con el
-    // módulo activo → sobrescribirlos aquí desde un state vacío BORRARÍA la tabla. Se excluyen.
-    if (key === 'costoAsignaciones' || key === 'clientes' || key === 'ventas' || key === 'cobros') continue;
+    // INGRESOS (clientes/ventas/cobros) y ESTRATEGIA (config/flags) tampoco tienen hoja aún y solo
+    // se cargan con su módulo activo → sobrescribirlos aquí desde un state vacío BORRARÍA la tabla.
+    if (key === 'costoAsignaciones' || key === 'clientes' || key === 'ventas' || key === 'cobros'
+      || key === 'estrategiaConfig' || key === 'estrategiaFlags') continue;
     const def = SB_ENTIDADES[key];
     try {
       const n = await sbReplaceTable(def.tabla, def.rows());
@@ -1761,6 +1811,26 @@ export async function gsSaveCobros(opts = {}) {
     await gsClearAndWrite('cobros', rows, ['cobro_id', 'venta_id', 'cliente_id', 'proyecto', 'fecha', 'monto', 'tipo_cobro', 'metodo', 'cuenta_destino_tipo', 'cuenta_destino_id', 'referencia', 'concepto', 'observaciones', 'activo']);
     if (!opts.porFila) await sbEspejar('cobros');
   } catch (e) { console.error('gsSaveCobros', e); }
+}
+
+// ESTRATEGIA (Fase 2) — savers (Sheets no-op sin Google; pestañas en Etapa 7).
+export async function gsSaveEstrategiaConfig(opts = {}) {
+  if (!puedeEditar()) return;
+  if (!guardarPermitido('estrategiaConfig', state.estrategiaConfig)) return;
+  try {
+    const rows = state.estrategiaConfig.map(c => [c.clave, JSON.stringify(c.valor), c.descripcion || '', c.grupo || 'general']);
+    await gsClearAndWrite('estrategia_config', rows, ['clave', 'valor', 'descripcion', 'grupo']);
+    if (!opts.porFila) await sbEspejar('estrategiaConfig');
+  } catch (e) { console.error('gsSaveEstrategiaConfig', e); }
+}
+export async function gsSaveEstrategiaFlags(opts = {}) {
+  if (!puedeEditar()) return;
+  if (!guardarPermitido('estrategiaFlags', state.estrategiaFlags, true)) return;
+  try {
+    const rows = state.estrategiaFlags.map(f => [f.flag_id, f.unidad_id, f.proyecto || '', f.tipo || 'bloqueo', f.categoria || '', f.fecha_compromiso || '', f.nota || '', f.activo !== false]);
+    await gsClearAndWrite('estrategia_flags_unidad', rows, ['flag_id', 'unidad_id', 'proyecto', 'tipo', 'categoria', 'fecha_compromiso', 'nota', 'activo']);
+    if (!opts.porFila) await sbEspejar('estrategiaFlags');
+  } catch (e) { console.error('gsSaveEstrategiaFlags', e); }
 }
 
 export async function gsSaveAlias(nombreOriginal, provId) {

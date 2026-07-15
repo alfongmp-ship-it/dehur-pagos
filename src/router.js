@@ -36,4 +36,8 @@ export function showPage(name, el) {
   if (name === 'ventas' && window.renderVentas) window.renderVentas();
   if (name === 'cobros' && window.renderCobros) window.renderCobros();
   if (name === 'estado-cuenta' && window.renderEstadoCuenta) window.renderEstadoCuenta();
+  // ESTRATEGIA (Fase 2)
+  if (name === 'estrategia-tablero' && window.renderEstrategiaTablero) window.renderEstrategiaTablero();
+  if (name === 'estrategia-flags' && window.renderEstrategiaFlags) window.renderEstrategiaFlags();
+  if (name === 'estrategia-config' && window.renderEstrategiaConfig) window.renderEstrategiaConfig();
 }

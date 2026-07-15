@@ -11,19 +11,31 @@
 // ============================================================================
 
 import { state, nuevoClienteId, nuevoVentaId, nuevoCobroId } from '../state.js';
-import { ingresosActivo, esPorFila, sbGuardarFila, sbBorrarFila, gsSaveClientes, gsSaveVentas, gsSaveCobros } from '../services/google-sync.js';
+import { ingresosActivo, estrategiaActivo, esPorFila, sbGuardarFila, sbBorrarFila, gsSaveClientes, gsSaveVentas, gsSaveCobros } from '../services/google-sync.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { fmt, fmtFecha, dl, escapeHtml } from '../ui/format.js';
 
-// Páginas que pertenecen al espacio de Ingresos (el resto es Pagos).
+// Páginas por espacio de trabajo (el resto es Pagos).
 const PAGINAS_INGRESOS = new Set(['clientes', 'ventas', 'cobros', 'estado-cuenta']);
-const PAGINA_DEFAULT = { pagos: 'proveedores', ingresos: 'clientes' };
+const PAGINAS_ESTRATEGIA = new Set(['estrategia-tablero', 'estrategia-flags', 'estrategia-config']);
+const PAGINA_DEFAULT = { pagos: 'proveedores', ingresos: 'clientes', estrategia: 'estrategia-tablero' };
+const WS_LABEL = { pagos: 'Pagos', ingresos: 'Ingresos', estrategia: 'Estrategia' };
 
 let _workspace = 'pagos';
-// Recuerda la última página abierta en cada espacio, para no perder el lugar al
-// alternar Pagos↔Ingresos.
-const _ultimaPagina = { pagos: PAGINA_DEFAULT.pagos, ingresos: PAGINA_DEFAULT.ingresos };
+// Recuerda la última página abierta en cada espacio, para no perder el lugar al alternar.
+const _ultimaPagina = { pagos: PAGINA_DEFAULT.pagos, ingresos: PAGINA_DEFAULT.ingresos, estrategia: PAGINA_DEFAULT.estrategia };
+
+// Espacios ACTIVOS ahora (Pagos siempre; los demás según su bandera+candado).
+function _wsActivos() {
+  const a = ['pagos'];
+  if (ingresosActivo()) a.push('ingresos');
+  if (estrategiaActivo()) a.push('estrategia');
+  return a;
+}
+function _wsDePagina(p) {
+  return PAGINAS_INGRESOS.has(p) ? 'ingresos' : PAGINAS_ESTRATEGIA.has(p) ? 'estrategia' : 'pagos';
+}
 
 function _paginaVisible() {
   const pages = document.querySelectorAll('[id^="page-"]');
@@ -35,22 +47,21 @@ function _paginaVisible() {
 // página (o la default) de ese espacio. El mecanismo de navegación es el mismo
 // showPage de siempre; el workspace solo decide qué sidebar y qué página default.
 export function setWorkspace(ws) {
-  if (ws !== 'ingresos') ws = 'pagos';
+  // Solo espacios ACTIVOS (si el guardado en localStorage ya no lo está, cae a Pagos).
+  if (!_wsActivos().includes(ws)) ws = 'pagos';
 
   // Recordar la página del espacio que estamos dejando.
   const actual = _paginaVisible();
-  if (actual) {
-    const wsActual = PAGINAS_INGRESOS.has(actual) ? 'ingresos' : 'pagos';
-    _ultimaPagina[wsActual] = actual;
-  }
+  if (actual) _ultimaPagina[_wsDePagina(actual)] = actual;
 
   _workspace = ws;
   try { localStorage.setItem('dt-workspace', ws); } catch (_) { /* ignore */ }
 
-  const sp = document.getElementById('sidebar-pagos');
-  const si = document.getElementById('sidebar-ingresos');
-  if (sp) sp.style.display = (ws === 'pagos') ? '' : 'none';
-  if (si) si.style.display = (ws === 'ingresos') ? '' : 'none';
+  const sidebars = { pagos: 'sidebar-pagos', ingresos: 'sidebar-ingresos', estrategia: 'sidebar-estrategia' };
+  for (const [w, id] of Object.entries(sidebars)) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = (ws === w) ? '' : 'none';
+  }
 
   document.querySelectorAll('#ws-switch .ws-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.ws === ws);
@@ -73,15 +84,18 @@ export function initIngresosUI() {
     else if (/[?&]estrategia=0(\b|&|$)/.test(s)) localStorage.removeItem('dt-estrategia');
   } catch (_) { /* ignore */ }
 
-  if (!ingresosActivo()) return;   // usuarios normales / flag off → nada
+  // Sin espacios extra activos → nada (usuarios normales / flags off).
+  const activos = _wsActivos();
+  if (activos.length < 2) return;
 
   _inyectarEstilos();
   const mount = document.getElementById('ws-switch');
   if (mount) {
     mount.style.display = '';
-    mount.innerHTML =
-      '<button type="button" class="ws-btn active" data-ws="pagos" onclick="setWorkspace(\'pagos\')">Pagos</button>' +
-      '<button type="button" class="ws-btn" data-ws="ingresos" onclick="setWorkspace(\'ingresos\')">Ingresos</button>';
+    // Un botón por espacio ACTIVO (ej. solo-Estrategia ve "Pagos | Estrategia").
+    mount.innerHTML = activos.map((w, i) =>
+      `<button type="button" class="ws-btn${i === 0 ? ' active' : ''}" data-ws="${w}" onclick="setWorkspace('${w}')">${WS_LABEL[w]}</button>`
+    ).join('');
   }
 
   actualizarContadoresIngresos();

@@ -200,6 +200,20 @@
     </div>
   </nav>
 
+  <!-- ===== SIDEBAR ESTRATEGIA (Fase 2) — paralelo, oculto salvo en su espacio ===== -->
+  <nav class="sidebar" id="sidebar-estrategia" style="display:none;">
+    <div class="nav-label">Estrategia</div>
+    <div class="nav-item" id="nav-estrategia-tablero" onclick="showPage('estrategia-tablero',this)">
+      <span>📊</span> Tablero
+    </div>
+    <div class="nav-item" id="nav-estrategia-flags" onclick="showPage('estrategia-flags',this)">
+      <span>🚩</span> Bloqueos y Marcas <span class="nav-count" id="cnt-estrategia-flags">0</span>
+    </div>
+    <div class="nav-item" id="nav-estrategia-config" onclick="showPage('estrategia-config',this)">
+      <span>⚙</span> Configuración
+    </div>
+  </nav>
+
   <main class="main">
 
     <!-- ===== INGRESOS (Fase 1) — páginas del espacio Ingresos ===== -->
@@ -230,6 +244,27 @@
       </div>
       <div id="lista-cobros"></div>
     </div>
+    <!-- ===== ESTRATEGIA (Fase 2) — páginas del espacio Estrategia ===== -->
+    <div id="page-estrategia-tablero" style="display:none">
+      <div class="page-header">
+        <div><div class="page-title">Tablero de Estrategia</div><div class="page-subtitle">Score por unidad · dónde rinde más cada peso esta semana</div></div>
+      </div>
+      <div id="lista-estrategia-tablero"></div>
+    </div>
+    <div id="page-estrategia-flags" style="display:none">
+      <div class="page-header">
+        <div><div class="page-title">Bloqueos y Marcas</div><div class="page-subtitle" id="sub-estrategia-flags">Bloqueo · Compromiso de entrega · Estratégica comercial</div></div>
+        <div style="display:flex;gap:8px;" id="acciones-estrategia-flags"></div>
+      </div>
+      <div id="lista-estrategia-flags"></div>
+    </div>
+    <div id="page-estrategia-config" style="display:none">
+      <div class="page-header">
+        <div><div class="page-title">Configuración del modelo</div><div class="page-subtitle">Todo supuesto es un parámetro — edítalo aquí, jamás en código (solo admin)</div></div>
+      </div>
+      <div id="lista-estrategia-config"></div>
+    </div>
+
     <div id="page-estado-cuenta" style="display:none">
       <div class="page-header">
         <div><div class="page-title">Estado de Cuenta</div><div class="page-subtitle">Por cliente y venta</div></div>
