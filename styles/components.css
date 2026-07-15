@@ -2,7 +2,8 @@
 
 /* Buttons */
 .btn { padding: 9px 18px; border-radius: 8px; border: none; cursor: pointer; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; transition: all .15s; }
-.btn-primary { background: var(--accent); color: var(--on-accent); }
+/* Luz superior sutil = "oro pulido" (funciona sobre ambos dorados, claro y oscuro). */
+.btn-primary { background: var(--accent); color: var(--on-accent); box-shadow: inset 0 1px 0 rgba(255,255,255,.18); }
 .btn-primary:hover { background: var(--accent2); }
 .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
 .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
@@ -32,6 +33,15 @@
 .stat-blue { color: var(--blue); }
 .stat-orange { color: var(--orange); }
 .stat-purple { color: var(--purple); }
+/* Filo superior con el color semántico de la tarjeta (degradado que se desvanece).
+   Usa :has() → en navegadores viejos simplemente no aparece (inofensivo). */
+.stat-card { position: relative; overflow: hidden; }
+.stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: transparent; pointer-events: none; }
+.stat-card:has(.stat-accent)::before { background: linear-gradient(90deg, var(--accent), transparent 75%); opacity: .55; }
+.stat-card:has(.stat-green)::before  { background: linear-gradient(90deg, var(--green), transparent 75%); opacity: .5; }
+.stat-card:has(.stat-blue)::before   { background: linear-gradient(90deg, var(--blue), transparent 75%); opacity: .5; }
+.stat-card:has(.stat-orange)::before { background: linear-gradient(90deg, var(--orange), transparent 75%); opacity: .5; }
+.stat-card:has(.stat-purple)::before { background: linear-gradient(90deg, var(--purple), transparent 75%); opacity: .5; }
 
 /* Toolbar & Search */
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 18px; }
@@ -135,6 +145,15 @@ input[type="checkbox"], input[type="radio"] { width: auto; accent-color: var(--a
   margin: 22px -28px -28px; padding: 16px 28px 28px;
   background: var(--surface); border-top: 1px solid var(--border);
 }
+/* Vidrio esmerilado: al scrollear un formulario largo, el contenido se percibe
+   difuminado bajo el título y los botones fijos (fallback = fondo sólido de arriba). */
+@supports ((backdrop-filter: blur(8px)) or (-webkit-backdrop-filter: blur(8px))) {
+  .modal-header, .form-actions {
+    background: var(--surface-glass);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+  }
+}
 
 /* Notifications */
 /* z-index 1200: el aviso queda SOBRE el modal (1100) para que los errores que salen
@@ -198,7 +217,7 @@ input, select, textarea, .nav-item,
 /* Botones: lift sutil en hover, press en active */
 .btn:hover         { transform: translateY(-1px); }
 .btn:active        { transform: translateY(0) scale(.98); transition: transform 60ms ease; }
-.btn-primary:hover { box-shadow: var(--lift-shadow); }
+.btn-primary:hover { box-shadow: var(--lift-shadow), inset 0 1px 0 rgba(255,255,255,.18); }
 .btn-ghost:hover,
 .btn-success:hover,
 .btn-danger:hover  { box-shadow: var(--lift-shadow); }
@@ -257,8 +276,8 @@ thead th { border-bottom: 1px solid var(--thead-underline); }
 @keyframes dehurBackdropIn { from { opacity: 0; } to { opacity: 1; } }
 .modal-overlay.open {
   animation: dehurBackdropIn 180ms ease-out;
-  -webkit-backdrop-filter: blur(2px);
-  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
 }
 .modal-overlay.open .modal {
   animation: dehurModalIn 220ms var(--ease-bounce);
