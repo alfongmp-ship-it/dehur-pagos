@@ -40,4 +40,5 @@ export function showPage(name, el) {
   if (name === 'estrategia-tablero' && window.renderEstrategiaTablero) window.renderEstrategiaTablero();
   if (name === 'estrategia-flags' && window.renderEstrategiaFlags) window.renderEstrategiaFlags();
   if (name === 'estrategia-config' && window.renderEstrategiaConfig) window.renderEstrategiaConfig();
+  if (name === 'estrategia-simulador-caja' && window.renderSimuladorCaja) window.renderSimuladorCaja();
 }

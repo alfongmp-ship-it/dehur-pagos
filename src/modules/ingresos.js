@@ -18,7 +18,7 @@ import { fmt, fmtFecha, dl, escapeHtml } from '../ui/format.js';
 
 // Páginas por espacio de trabajo (el resto es Pagos).
 const PAGINAS_INGRESOS = new Set(['clientes', 'ventas', 'cobros', 'estado-cuenta']);
-const PAGINAS_ESTRATEGIA = new Set(['estrategia-tablero', 'estrategia-flags', 'estrategia-config']);
+const PAGINAS_ESTRATEGIA = new Set(['estrategia-tablero', 'estrategia-flags', 'estrategia-config', 'estrategia-simulador-caja']);
 const PAGINA_DEFAULT = { pagos: 'proveedores', ingresos: 'clientes', estrategia: 'estrategia-tablero' };
 const WS_LABEL = { pagos: 'Pagos', ingresos: 'Ingresos', estrategia: 'Estrategia' };
 

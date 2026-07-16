@@ -24,6 +24,7 @@ import { proyectoMatch } from '../config/proyectos.js';
 import { parseFechaHist } from './historial.js';
 import { costosPresupuestosBatch } from './costos-fiscales.js';
 import { rankearUnidades } from './estrategia-score.js';
+import { proyectarCaja } from './simulador-caja.js';
 
 // ---- Defaults de código (espejo 1:1 de los seeds del SQL 30) -----------------
 export const CFG_DEFAULTS = {
@@ -66,6 +67,7 @@ export const CFG_DEFAULTS = {
   'direccion.modo_objetivo':       { valor: 'liquidez_primero', grupo: 'direccion', descripcion: 'Función objetivo del portafolio (Fase 3 ordena escenarios con esto)' },
   'score.castigo_incertidumbre':   { valor: 1,  grupo: 'direccion', descripcion: 'Factor multiplicativo extra de castigo a estatus inciertos (1 = sin castigo extra)' },
   'score.horizonte_meses':         { valor: 6,  grupo: 'direccion', descripcion: 'Horizonte (meses) del componente de ahorro de intereses del score' },
+  'simulador.horizonte_meses':     { valor: 6,  grupo: 'direccion', descripcion: 'Meses que proyecta el presupuesto de caja (Fase 3)' },
   'score.bono_estrategica':        { valor: 10, grupo: 'direccion', descripcion: 'Puntos de bono al score para unidades marcadas como estratégicas' }
 };
 
@@ -262,64 +264,70 @@ export function estToggleDesglose(uid) {
   renderEstrategiaTablero();
 }
 
+// Arma los insumos por unidad para el motor de score (índices UNA vez; joins con
+// String()). filtroProy vacío = todas las unidades activas. Reusado por el Tablero
+// (renderEstrategiaTablero) y el Presupuesto de caja (renderSimuladorCaja).
+function _construirInsumos(filtroProy) {
+  const costos = costosPresupuestosBatch();
+  const ventaPorUnidad = new Map();
+  state.ventas.forEach(v => {
+    if (v.activo === false || v.estatus_comercial === 'cancelada') return;
+    ventaPorUnidad.set(String(v.unidad_id), v);
+  });
+  const flagsPorUnidad = new Map();
+  state.estrategiaFlags.forEach(f => {
+    if (f.activo === false) return;
+    const k = String(f.unidad_id);
+    const acc = flagsPorUnidad.get(k) || {};
+    if (f.tipo === 'bloqueo') { acc.bloqueo = true; acc.categoria = f.categoria || 'otro'; acc.notaBloqueo = f.nota || ''; }
+    if (f.tipo === 'compromiso') { acc.compromiso = true; acc.fechaCompromiso = f.fecha_compromiso || ''; }
+    if (f.tipo === 'estrategica') { acc.estrategica = true; acc.notaEstrategica = f.nota || ''; }
+    flagsPorUnidad.set(k, acc);
+  });
+  // Precio estimado para unidades SIN venta: promedio del proyecto (o global).
+  const precios = new Map(); let sumaGlobal = 0, nGlobal = 0;
+  state.ventas.forEach(v => {
+    if (v.activo === false || v.estatus_comercial === 'cancelada' || !(v.precio_venta > 0)) return;
+    const k = v.proyecto || '';
+    const acc = precios.get(k) || { s: 0, n: 0 };
+    acc.s += v.precio_venta; acc.n++;
+    precios.set(k, acc); sumaGlobal += v.precio_venta; nGlobal++;
+  });
+  const precioEstimadoDe = proy => {
+    const p = precios.get(proy || '');
+    if (p && p.n) return p.s / p.n;
+    return nGlobal ? sumaGlobal / nGlobal : 0;
+  };
+  const tasaCache = new Map();
+  const tasaDe = proy => {
+    if (!tasaCache.has(proy)) tasaCache.set(proy, _tasaDeProyecto(proy));
+    return tasaCache.get(proy);
+  };
+
+  return state.unidades
+    .filter(u => u.activo !== false && (!filtroProy || u.proyecto === filtroProy))
+    .map(u => {
+      const k = String(u.unidad_id);
+      const c = costos.get(k) || { real: 0, presupuesto: 0, avance: null };
+      const terminada = ['Terminada', 'Entregada', 'Vendida'].includes(u.estatus) || !!u.fecha_termino;
+      return {
+        unidad_id: k, nombre: u.nombre || ('Unidad ' + u.unidad_id), proyecto: u.proyecto || '',
+        costoReal: c.real, presupuesto: c.presupuesto, avance: c.avance, terminada,
+        venta: ventaPorUnidad.get(k) || null,
+        precioEstimado: precioEstimadoDe(u.proyecto),
+        tasaAnual: tasaDe(u.proyecto),
+        flags: flagsPorUnidad.get(k) || {}
+      };
+    });
+}
+
 export function renderEstrategiaTablero() {
   const el = document.getElementById('lista-estrategia-tablero');
   if (!el) return;
   try {
     const filtroProy = document.getElementById('est-tab-proy')?.value || '';
 
-    // ---- Insumos por unidad (índices UNA vez; joins con String()) ----
-    const costos = costosPresupuestosBatch();
-    const ventaPorUnidad = new Map();
-    state.ventas.forEach(v => {
-      if (v.activo === false || v.estatus_comercial === 'cancelada') return;
-      ventaPorUnidad.set(String(v.unidad_id), v);
-    });
-    const flagsPorUnidad = new Map();
-    state.estrategiaFlags.forEach(f => {
-      if (f.activo === false) return;
-      const k = String(f.unidad_id);
-      const acc = flagsPorUnidad.get(k) || {};
-      if (f.tipo === 'bloqueo') { acc.bloqueo = true; acc.categoria = f.categoria || 'otro'; acc.notaBloqueo = f.nota || ''; }
-      if (f.tipo === 'compromiso') { acc.compromiso = true; acc.fechaCompromiso = f.fecha_compromiso || ''; }
-      if (f.tipo === 'estrategica') { acc.estrategica = true; acc.notaEstrategica = f.nota || ''; }
-      flagsPorUnidad.set(k, acc);
-    });
-    // Precio estimado para unidades SIN venta: promedio del proyecto (o global).
-    const precios = new Map(); let sumaGlobal = 0, nGlobal = 0;
-    state.ventas.forEach(v => {
-      if (v.activo === false || v.estatus_comercial === 'cancelada' || !(v.precio_venta > 0)) return;
-      const k = v.proyecto || '';
-      const acc = precios.get(k) || { s: 0, n: 0 };
-      acc.s += v.precio_venta; acc.n++;
-      precios.set(k, acc); sumaGlobal += v.precio_venta; nGlobal++;
-    });
-    const precioEstimadoDe = proy => {
-      const p = precios.get(proy || '');
-      if (p && p.n) return p.s / p.n;
-      return nGlobal ? sumaGlobal / nGlobal : 0;
-    };
-    const tasaCache = new Map();
-    const tasaDe = proy => {
-      if (!tasaCache.has(proy)) tasaCache.set(proy, _tasaDeProyecto(proy));
-      return tasaCache.get(proy);
-    };
-
-    const insumos = state.unidades
-      .filter(u => u.activo !== false && (!filtroProy || u.proyecto === filtroProy))
-      .map(u => {
-        const k = String(u.unidad_id);
-        const c = costos.get(k) || { real: 0, presupuesto: 0, avance: null };
-        const terminada = ['Terminada', 'Entregada', 'Vendida'].includes(u.estatus) || !!u.fecha_termino;
-        return {
-          unidad_id: k, nombre: u.nombre || ('Unidad ' + u.unidad_id), proyecto: u.proyecto || '',
-          costoReal: c.real, presupuesto: c.presupuesto, avance: c.avance, terminada,
-          venta: ventaPorUnidad.get(k) || null,
-          precioEstimado: precioEstimadoDe(u.proyecto),
-          tasaAnual: tasaDe(u.proyecto),
-          flags: flagsPorUnidad.get(k) || {}
-        };
-      });
+    const insumos = _construirInsumos(filtroProy);
 
     const rank = rankearUnidades(insumos, cfg);
 
@@ -414,6 +422,121 @@ export function renderEstrategiaTablero() {
   } catch (e) {
     console.error('renderEstrategiaTablero', e);
     el.innerHTML = '<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">📊</div><div>El tablero no pudo calcularse; la operación no está afectada.</div></div>';
+  }
+}
+
+// ---- Presupuesto de caja por periodo (Fase 3, SOLO LECTURA) ------------------
+// Proyecta la caja mes a mes por proyecto y consolidada reusando el ranking del
+// motor de score + el motor puro proyectarCaja(). NO mueve dinero: solo calcula y
+// marca dónde/cuándo un proyecto cae bajo su colchón.
+let _simProyAbierto = new Set();   // proyectos con desglose expandido (persiste entre renders)
+let _simProyNombres = [];          // nombres del último render (toggle por índice, robusto a acentos/comillas)
+
+export function simToggleProyecto(idx) {
+  const n = _simProyNombres[idx];
+  if (n == null) return;
+  if (_simProyAbierto.has(n)) _simProyAbierto.delete(n); else _simProyAbierto.add(n);
+  renderSimuladorCaja();
+}
+
+export function renderSimuladorCaja() {
+  const el = document.getElementById('lista-estrategia-simulador-caja');
+  if (!el) return;
+  try {
+    // Proyectos canónicos + canonizador (burn/créditos/cuentas se mapean a estos nombres).
+    const proysCanon = state.proyectos.filter(p => p.activo).map(p => p.nombre);
+    const canon = s => { if (!s) return '(Sin proyecto)'; return proysCanon.find(n => proyectoMatch(n, s)) || '(Sin proyecto)'; };
+
+    // Saldo inicial por proyecto (Σ debe cuadrar con "Caja disponible" del Tablero).
+    const saldoIni = new Map(proysCanon.map(n => [n, 0]));
+    saldoIni.set('(Sin proyecto)', 0);
+    state.proyectos.filter(p => p.activo).forEach(p => saldoIni.set(p.nombre, (saldoIni.get(p.nombre) || 0) + (p.saldo || 0)));
+    state.cuentasPropias.filter(c => c.activo !== false).forEach(c => { const n = canon(c.proyecto); saldoIni.set(n, (saldoIni.get(n) || 0) + (c.saldo || 0)); });
+
+    // Ranking (mismo motor que el Tablero) → unidades para el motor de caja.
+    const rank = rankearUnidades(_construirInsumos(''), cfg);
+    const unidades = rank.activas.map(s => ({
+      unidad_id: s.insumo.unidad_id, nombre: s.insumo.nombre, proyecto: canon(s.insumo.proyecto),
+      score: s.score, costoTerminar: s.calc.costoTerminar, semanasObra: s.calc.semanasObra,
+      mesesCobro: s.calc.mesesCobro, lagMeses: s.calc.lagMeses, flujoEsp: s.calc.flujoEsp,
+      liberacion: s.calc.liberacion, prob: s.calc.prob, terminada: s.insumo.terminada
+    }));
+
+    // Burn (canonizado) y créditos por proyecto.
+    const burnRaw = _burnPorProyecto();
+    let burnPorProyecto = null;
+    if (burnRaw) { burnPorProyecto = {}; for (const [p, v] of burnRaw) { const n = canon(p); burnPorProyecto[n] = (burnPorProyecto[n] || 0) + v; } }
+    const creditos = _creditosActivos().map(c => ({ proyecto: canon(c.proyecto), dispuesto: _saldoDispuesto(c), tasaMes: (c.tasa_base || 0) / 100 / 12 }));
+
+    // Proyectos a mostrar: activos + '(Sin proyecto)' solo si tiene saldo o unidades.
+    const conUnidades = new Set(unidades.map(u => u.proyecto));
+    const proyectos = [...saldoIni.entries()]
+      .filter(([n, s]) => n !== '(Sin proyecto)' || s !== 0 || conUnidades.has(n))
+      .map(([nombre, saldoInicial]) => ({ nombre, saldoInicial }));
+
+    const hoy = new Date();
+    const mesInicio = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
+    const proy = proyectarCaja({ mesInicio, proyectos, unidades, burnPorProyecto, creditos }, cfg);
+    _simProyNombres = proy.proyectos.map(p => p.nombre);
+
+    if (!proy.proyectos.length) {
+      el.innerHTML = _emptyEst('💧', 'Sin proyectos para proyectar', 'Da de alta proyectos con saldo y unidades para ver el presupuesto de caja.');
+      return;
+    }
+
+    const H = proy.horizonte;
+    const cons = proy.consolidado;
+    const primerRojo = proy.faltantes.length ? proy.faltantes.reduce((a, b) => (a.i <= b.i ? a : b)) : null;
+    const faltMax = proy.faltantes.length ? proy.faltantes.reduce((a, b) => (a.deficit >= b.deficit ? a : b)) : null;
+    const cajaFin = cons.timeline[H - 1].saldoFinal;
+
+    // ---- KPIs ----
+    const kpi = (label, valor, sub, color) =>
+      `<div class="stat-card"><div class="stat-label">${label}</div><div class="stat-value ${color || 'stat-accent'}" style="font-size:20px;">${valor}</div><div class="stat-sub">${sub}</div></div>`;
+    const kpis = `<div class="stats-row">` +
+      kpi('Caja consolidada hoy', fmt(cons.saldoInicial), 'Saldos de proyectos + cuentas propias', 'stat-blue') +
+      kpi(`Caja al mes ${H}`, fmt(cajaFin), `Proyección a ${H} meses`, cajaFin < 0 ? 'stat-orange' : 'stat-green') +
+      kpi('Primer mes en rojo', primerRojo ? primerRojo.mes : '—', primerRojo ? `${escapeHtml(primerRojo.proyecto)} · faltan ${fmt(primerRojo.deficit)}` : 'Ningún proyecto cae bajo su colchón', primerRojo ? 'stat-orange' : 'stat-green') +
+      kpi('Faltante máximo', faltMax ? fmt(faltMax.deficit) : '—', faltMax ? `${escapeHtml(faltMax.proyecto)} · ${faltMax.mes}` : 'Sin faltantes', faltMax ? 'stat-orange' : 'stat-green') +
+      kpi('Meses-proyecto en rojo', String(proy.faltantes.length), 'Celdas bajo el colchón', proy.faltantes.length ? 'stat-orange' : 'stat-green') +
+      `</div>`;
+
+    // ---- Matriz proyectos × meses (saldo corrido; rojo = faltante) ----
+    const stickyTd = 'position:sticky;left:0;background:var(--surface);';
+    const celda = t => {
+      const rojo = t.faltante ? 'background:rgba(224,90,90,.16);color:var(--red);font-weight:700;' : '';
+      const ti = t.faltante ? ` title="Déficit ${fmt(t.deficit)} · colchón ${fmt(t.colchon)}"` : '';
+      return `<td style="font-family:'DM Mono',monospace;font-size:12px;text-align:right;${rojo}"${ti}>${fmt(t.saldoFinal)}</td>`;
+    };
+    const th = `<th style="${stickyTd}text-align:left;">Proyecto</th>` + proy.meses.map(m => `<th style="text-align:right;">${m}</th>`).join('');
+    const filas = proy.proyectos.map((p, idx) => {
+      const abierto = _simProyAbierto.has(p.nombre);
+      const primera = `<td style="${stickyTd}cursor:pointer;white-space:nowrap;" onclick="simToggleProyecto(${idx})"><span style="color:var(--muted);">${abierto ? '▾' : '▸'}</span> ${escapeHtml(p.nombre)}</td>`;
+      const fila = `<tr>${primera}${p.timeline.map(celda).join('')}</tr>`;
+      if (!abierto) return fila;
+      const desg = `<tr><td colspan="${H + 1}" style="background:var(--surface2);padding:10px 14px;">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:6px;">Desglose mensual — ${escapeHtml(p.nombre)}</div>
+        <div class="table-wrap"><table><thead><tr><th>Mes</th><th style="text-align:right">Entradas</th><th style="text-align:right">Burn</th><th style="text-align:right">Interés</th><th style="text-align:right">Obra</th><th style="text-align:right">Saldo fin</th><th style="text-align:right">Colchón</th></tr></thead><tbody>
+        ${p.timeline.map(t => `<tr${t.faltante ? ' style="color:var(--red);"' : ''}><td>${t.mes}</td><td style="text-align:right;font-family:'DM Mono',monospace;">${fmt(t.entradas)}</td><td style="text-align:right;font-family:'DM Mono',monospace;">${fmt(t.burn)}</td><td style="text-align:right;font-family:'DM Mono',monospace;">${fmt(t.interes)}</td><td style="text-align:right;font-family:'DM Mono',monospace;">${fmt(t.obra)}</td><td style="text-align:right;font-family:'DM Mono',monospace;font-weight:700;">${fmt(t.saldoFinal)}</td><td style="text-align:right;font-family:'DM Mono',monospace;color:var(--muted);">${fmt(t.colchon)}</td></tr>`).join('')}
+        </tbody></table></div></td></tr>`;
+      return fila + desg;
+    }).join('');
+    const filaCons = `<tr style="font-weight:700;border-top:2px solid var(--border);"><td style="${stickyTd}">Consolidado</td>${cons.timeline.map(celda).join('')}</tr>`;
+    const tabla = `<div class="table-wrap"><table><thead><tr>${th}</tr></thead><tbody>${filas}${filaCons}</tbody></table></div>`;
+
+    // ---- Supuestos ----
+    const supuestos = `<details style="margin-top:16px;"><summary style="cursor:pointer;font-size:11px;color:var(--muted);">Ver supuestos del modelo</summary>
+      <div style="padding:10px 14px;border:1px solid var(--border);border-radius:10px;margin-top:8px;max-width:680px;font-size:11px;color:var(--muted);">
+      ${proy.supuestos.map(s => `<div style="padding:2px 0;">• ${escapeHtml(s)}</div>`).join('')}
+      ${burnRaw ? '' : '<div style="padding:6px 0 0;color:var(--orange);">⚠ Configura direccion.partidas_fijas en Configuración para activar el burn fijo y el colchón.</div>'}
+      </div></details>`;
+
+    const intro = `<div style="font-size:11px;color:var(--muted);margin-bottom:14px;max-width:780px;">Proyección de caja a ${H} meses. Cada celda es el saldo al cierre del mes; en <span style="color:var(--red);font-weight:700;">rojo</span> cuando el proyecto cae bajo su colchón. La obra se secuencia por prioridad (score) y NO se frena por falta de caja: así el faltante se ve. Es una estimación de planeación — no mueve dinero. Toca un proyecto para ver su desglose mensual.</div>`;
+
+    el.innerHTML = kpis + intro + tabla + supuestos;
+  } catch (e) {
+    console.error('renderSimuladorCaja', e);
+    el.innerHTML = '<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">💧</div><div>El presupuesto de caja no pudo calcularse; la operación no está afectada.</div></div>';
   }
 }
 

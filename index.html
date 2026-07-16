@@ -206,6 +206,9 @@
     <div class="nav-item" id="nav-estrategia-tablero" onclick="showPage('estrategia-tablero',this)">
       <span>📊</span> Tablero
     </div>
+    <div class="nav-item" id="nav-estrategia-simulador-caja" onclick="showPage('estrategia-simulador-caja',this)">
+      <span>💧</span> Presupuesto de caja
+    </div>
     <div class="nav-item" id="nav-estrategia-flags" onclick="showPage('estrategia-flags',this)">
       <span>🚩</span> Bloqueos y Marcas <span class="nav-count" id="cnt-estrategia-flags">0</span>
     </div>
@@ -263,6 +266,12 @@
         <div><div class="page-title">Configuración del modelo</div><div class="page-subtitle">Todo supuesto es un parámetro — edítalo aquí, jamás en código (solo admin)</div></div>
       </div>
       <div id="lista-estrategia-config"></div>
+    </div>
+    <div id="page-estrategia-simulador-caja" style="display:none">
+      <div class="page-header">
+        <div><div class="page-title">Presupuesto de caja</div><div class="page-subtitle">Proyección mensual de entradas y salidas por proyecto · dónde y cuándo falta dinero</div></div>
+      </div>
+      <div id="lista-estrategia-simulador-caja"></div>
     </div>
 
     <div id="page-estado-cuenta" style="display:none">
