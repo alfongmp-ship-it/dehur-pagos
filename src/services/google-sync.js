@@ -55,8 +55,10 @@ export function ingresosPreview() {
   } catch (_) { /* sin location/localStorage: no activar */ }
   return false;
 }
-// ¿Ingresos activo AHORA? (bandera maestra + candado de vista previa).
-export function ingresosActivo() { return INGRESOS_ON && ingresosPreview(); }
+// LANZADO (2026-07-16): se retiró el candado de vista previa; ahora manda SOLO la
+// bandera maestra, así TODO el equipo ve Ingresos (los roles siguen mandando sobre
+// qué puede EDITAR cada quien). Para revertir/ocultar a todos: INGRESOS_ON = false.
+export function ingresosActivo() { return INGRESOS_ON; }
 
 // ============================================================================
 // MÓDULO ESTRATEGIA (Fase 2 — tablero de score, SOLO LECTURA). Bandera maestra
@@ -72,7 +74,9 @@ export function estrategiaPreview() {
   } catch (_) { /* sin location/localStorage: no activar */ }
   return false;
 }
-export function estrategiaActivo() { return ESTRATEGIA_ON && estrategiaPreview(); }
+// LANZADO (2026-07-16): sin candado de vista previa; manda SOLO la bandera maestra.
+// Para revertir/ocultar a todos: ESTRATEGIA_ON = false.
+export function estrategiaActivo() { return ESTRATEGIA_ON; }
 
 // Los datos de INGRESOS (clientes/ventas/cobros) deben cargar también cuando solo
 // Estrategia está activa: el score lee ventas/cobros. Sin esto, Estrategia vería
