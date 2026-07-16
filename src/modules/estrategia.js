@@ -14,9 +14,10 @@
 // Etapa 2: Configuración funcional + placeholders de Tablero y Bloqueos.
 // ============================================================================
 
-import { state, esAdmin } from '../state.js';
-import { esPorFila, sbGuardarFila, gsSaveEstrategiaConfig } from '../services/google-sync.js';
+import { state, esAdmin, puedeEditar, nuevoFlagId } from '../state.js';
+import { esPorFila, sbGuardarFila, sbBorrarFila, gsSaveEstrategiaConfig, gsSaveEstrategiaFlags } from '../services/google-sync.js';
 import { notify } from '../ui/notify.js';
+import { cerrar } from '../ui/modal.js';
 import { escapeHtml } from '../ui/format.js';
 import { getPartidasParaSelect } from '../config/sub-partidas.js';
 
@@ -209,13 +210,154 @@ export function renderEstrategiaTablero() {
   }
 }
 
+// ---- Pestaña BLOQUEOS Y MARCAS (Etapa 4) --------------------------------------
+const FLAG_TIPO = {
+  bloqueo:     { label: '🚫 Bloqueo',     color: 'rgba(224,90,90,.15);color:var(--red)',        efecto: 'sale del ranking' },
+  compromiso:  { label: '📌 Compromiso',  color: 'rgba(200,169,110,.15);color:var(--accent)',   efecto: 'anclada arriba' },
+  estrategica: { label: '⭐ Estratégica', color: 'rgba(90,155,224,.15);color:var(--blue)',      efecto: 'bono al score' }
+};
+
+function _unidadNombre(unidadId) {
+  const u = state.unidades.find(x => String(x.unidad_id) === String(unidadId));
+  return u ? (u.nombre || `Unidad ${u.unidad_id}`) : `Unidad ${unidadId}`;
+}
+
 export function renderEstrategiaFlags() {
   const el = document.getElementById('lista-estrategia-flags');
   if (!el) return;
   try {
-    el.innerHTML = _emptyEst('🚩', 'Bloqueos y Marcas llega pronto', 'Bloqueo (sale del ranking) · Compromiso (ancla arriba) · Estratégica (bono).');
+    const acciones = document.getElementById('acciones-estrategia-flags');
+    if (acciones && !acciones.innerHTML) {
+      acciones.innerHTML = '<button class="btn btn-primary req-editor" onclick="abrirNuevoFlag()">+ Nueva marca</button>';
+    }
+    const cnt = document.getElementById('cnt-estrategia-flags');
+    const vivos = state.estrategiaFlags.filter(f => f.activo !== false);
+    if (cnt) cnt.textContent = vivos.length;
+    if (!vivos.length) {
+      el.innerHTML = _emptyEst('🚩', 'Sin marcas aún', 'Bloqueo (sale del ranking) · Compromiso (ancla arriba con fecha) · Estratégica (bono al score).');
+      return;
+    }
+    const filas = vivos.map(f => {
+      const t = FLAG_TIPO[f.tipo] || FLAG_TIPO.bloqueo;
+      const id = String(f.flag_id).replace(/'/g, "\\'");
+      const detalle = f.tipo === 'bloqueo' ? (f.categoria || '—')
+        : f.tipo === 'compromiso' ? (f.fecha_compromiso || 'sin fecha')
+        : t.efecto;
+      return `<tr><td><div class="name-cell">${escapeHtml(_unidadNombre(f.unidad_id))}</div><div class="name-sub">${escapeHtml(f.proyecto || '—')}</div></td>` +
+        `<td><span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:600;background:${t.color};">${t.label}</span></td>` +
+        `<td style="font-size:12px;">${escapeHtml(detalle)}</td>` +
+        `<td style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:280px;" title="${escapeHtml(f.nota || '')}">${escapeHtml(f.nota || '—')}</td>` +
+        `<td><div style="display:flex;gap:6px;justify-content:flex-end;"><button class="btn btn-ghost btn-sm req-editor" onclick="editarFlag('${id}')">Editar</button><button class="btn btn-ghost btn-sm req-editor danger" onclick="eliminarFlag('${id}')">✕</button></div></td></tr>`;
+    }).join('');
+    el.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Unidad</th><th>Tipo</th><th>Categoría / Fecha</th><th>Nota</th><th style="text-align:right">Acciones</th></tr></thead><tbody>${filas}</tbody></table></div>`;
   } catch (e) {
     console.error('renderEstrategiaFlags', e);
     el.innerHTML = '<div class="empty-state">Esta vista no pudo mostrarse; la operación no está afectada.</div>';
   }
+}
+
+// Cascada proyecto → unidad (mismo patrón que el modal de ventas).
+export function efPoblarUnidades() {
+  const proy = document.getElementById('ef-proyecto')?.value || '';
+  const un = document.getElementById('ef-unidad');
+  if (!un) return;
+  const unidades = state.unidades.filter(u => u.proyecto === proy && u.activo !== false)
+    .sort((a, b) => (a.orden || 0) - (b.orden || 0));
+  un.innerHTML = unidades.length
+    ? '<option value="">— Selecciona unidad —</option>' + unidades.map(u => `<option value="${escapeHtml(String(u.unidad_id))}">${escapeHtml(u.nombre || ('Unidad ' + u.unidad_id))}</option>`).join('')
+    : '<option value="">(sin unidades activas en este proyecto)</option>';
+}
+
+// Muestra el campo condicional según el tipo (categoría para bloqueo, fecha para compromiso).
+export function efTipoChange() {
+  const tipo = document.getElementById('ef-tipo')?.value || 'bloqueo';
+  const cw = document.getElementById('ef-categoria-wrap');
+  const fw = document.getElementById('ef-fecha-wrap');
+  if (cw) cw.style.display = tipo === 'bloqueo' ? '' : 'none';
+  if (fw) fw.style.display = tipo === 'compromiso' ? '' : 'none';
+}
+
+function _poblarSelectsFlag() {
+  const py = document.getElementById('ef-proyecto');
+  if (py) py.innerHTML = state.proyectos.filter(p => p.activo).map(p => `<option value="${escapeHtml(p.nombre)}">${escapeHtml(p.nombre)}</option>`).join('');
+  efPoblarUnidades();
+}
+
+export function abrirNuevoFlag() {
+  state.editFlagId = null;
+  _poblarSelectsFlag();
+  const set = (id, v) => { const e = document.getElementById(id); if (e) e.value = v; };
+  set('ef-tipo', 'bloqueo'); set('ef-categoria', 'tecnico'); set('ef-fecha', ''); set('ef-nota', '');
+  efTipoChange();
+  const t = document.getElementById('modal-estrategia-flag-title'); if (t) t.textContent = 'Nueva marca de unidad';
+  document.getElementById('modal-estrategia-flag').classList.add('open');
+}
+
+export function editarFlag(id) {
+  const f = state.estrategiaFlags.find(x => String(x.flag_id) === String(id));
+  if (!f) return;
+  state.editFlagId = f.flag_id;
+  _poblarSelectsFlag();
+  const set = (elId, v) => { const e = document.getElementById(elId); if (e) e.value = v; };
+  set('ef-proyecto', f.proyecto || '');
+  efPoblarUnidades();
+  set('ef-unidad', String(f.unidad_id || ''));
+  set('ef-tipo', f.tipo || 'bloqueo');
+  set('ef-categoria', f.categoria || 'tecnico');
+  set('ef-fecha', f.fecha_compromiso || '');
+  set('ef-nota', f.nota || '');
+  efTipoChange();
+  const t = document.getElementById('modal-estrategia-flag-title'); if (t) t.textContent = 'Editar marca';
+  document.getElementById('modal-estrategia-flag').classList.add('open');
+}
+
+export function guardarFlag() {
+  if (!puedeEditar()) { notify('No tienes permiso para editar', 'error'); return; }
+  const unidad_id = (document.getElementById('ef-unidad')?.value || '').trim();
+  const proyecto = (document.getElementById('ef-proyecto')?.value || '').trim();
+  const tipo = document.getElementById('ef-tipo')?.value || 'bloqueo';
+  if (!unidad_id) { notify('Elige la unidad', 'error'); return; }
+  const fecha = document.getElementById('ef-fecha')?.value || '';
+  if (tipo === 'compromiso' && !fecha) { notify('Un compromiso necesita su fecha pactada de entrega', 'error'); return; }
+  // Una unidad no lleva dos marcas activas del MISMO tipo.
+  const dup = state.estrategiaFlags.some(f =>
+    String(f.flag_id) !== String(state.editFlagId) &&
+    String(f.unidad_id) === String(unidad_id) && f.tipo === tipo && f.activo !== false);
+  if (dup) { notify(`Esa unidad ya tiene una marca de tipo "${tipo}" activa.`, 'error'); return; }
+  const existing = state.editFlagId ? state.estrategiaFlags.find(f => String(f.flag_id) === String(state.editFlagId)) : null;
+  const obj = {
+    flag_id: existing ? existing.flag_id : nuevoFlagId(),
+    unidad_id, proyecto, tipo,
+    categoria: tipo === 'bloqueo' ? (document.getElementById('ef-categoria')?.value || 'otro') : '',
+    fecha_compromiso: tipo === 'compromiso' ? fecha : '',
+    nota: (document.getElementById('ef-nota')?.value || '').trim(),
+    activo: existing ? existing.activo !== false : true
+  };
+  if (existing) {
+    const i = state.estrategiaFlags.findIndex(f => String(f.flag_id) === String(state.editFlagId));
+    state.estrategiaFlags[i] = obj;
+  } else {
+    state.estrategiaFlags.push(obj);
+  }
+  cerrar('modal-estrategia-flag');
+  renderEstrategiaFlags();
+  if (window.renderEstrategiaTablero) window.renderEstrategiaTablero();   // el ranking reacciona
+  notify(existing ? 'Marca actualizada' : 'Marca registrada');
+  const porFila = esPorFila('estrategiaFlags');
+  gsSaveEstrategiaFlags({ porFila });
+  if (porFila) sbGuardarFila('estrategiaFlags', obj);
+}
+
+export function eliminarFlag(id) {
+  if (!puedeEditar()) { notify('No tienes permiso para editar', 'error'); return; }
+  const f = state.estrategiaFlags.find(x => String(x.flag_id) === String(id));
+  if (!f) return;
+  if (!confirm(`¿Quitar la marca "${(FLAG_TIPO[f.tipo] || {}).label || f.tipo}" de ${_unidadNombre(f.unidad_id)}?`)) return;
+  state.estrategiaFlags = state.estrategiaFlags.filter(x => String(x.flag_id) !== String(id));
+  renderEstrategiaFlags();
+  if (window.renderEstrategiaTablero) window.renderEstrategiaTablero();
+  notify('Marca eliminada');
+  const porFila = esPorFila('estrategiaFlags');
+  gsSaveEstrategiaFlags({ porFila });
+  if (porFila) sbBorrarFila('estrategiaFlags', id);
 }

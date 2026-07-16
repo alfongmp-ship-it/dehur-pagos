@@ -1471,6 +1471,28 @@
   </div>
 </div>
 
+<!-- MODAL MARCA DE UNIDAD (Estrategia, Fase 2) -->
+<div class="modal-overlay" id="modal-estrategia-flag">
+  <div class="modal">
+    <div class="modal-header"><div class="modal-title" id="modal-estrategia-flag-title">Nueva marca de unidad</div><button class="modal-close" onclick="cerrar('modal-estrategia-flag')">✕</button></div>
+    <div class="form-grid">
+      <div class="field"><label>Proyecto *</label><select id="ef-proyecto" onchange="efPoblarUnidades()"></select></div>
+      <div class="field"><label>Unidad *</label><select id="ef-unidad"></select></div>
+      <div class="field span2"><label>Tipo de marca</label><select id="ef-tipo" onchange="efTipoChange()">
+        <option value="bloqueo">🚫 Bloqueo — sale del ranking (no se le puede meter dinero)</option>
+        <option value="compromiso">📌 Compromiso de entrega — anclada arriba del ranking</option>
+        <option value="estrategica">⭐ Estratégica comercial — bono al score</option>
+      </select></div>
+      <div class="field span2" id="ef-categoria-wrap"><label>Categoría del bloqueo</label><select id="ef-categoria">
+        <option value="tecnico">Técnico</option><option value="cliente">Cliente</option><option value="permiso">Permiso</option><option value="proveedor">Proveedor</option><option value="otro">Otro</option>
+      </select></div>
+      <div class="field span2" id="ef-fecha-wrap" style="display:none;"><label>Fecha pactada de entrega *</label><input type="date" id="ef-fecha"></div>
+      <div class="field span2"><label>Nota <span style="color:var(--muted);font-weight:400;font-size:11px;">(el porqué, visible en el tablero)</span></label><textarea id="ef-nota" rows="2" placeholder="Ej. casa muestra, falta permiso municipal…"></textarea></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-ghost" onclick="cerrar('modal-estrategia-flag')">Cancelar</button><button class="btn btn-primary" onclick="guardarFlag()">Guardar</button></div>
+  </div>
+</div>
+
 <!-- MODAL EMPLEADO -->
 <div class="modal-overlay" id="modal-emp">
   <div class="modal">
