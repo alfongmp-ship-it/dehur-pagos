@@ -181,6 +181,42 @@ function avancePct(real, presupuesto) {
   return (real / presupuesto) * 100;
 }
 
+// ===== ESTRATEGIA (Fase 2) — lectura BATCH para el tablero =====
+// Costo real / presupuesto / avance de TODAS las unidades en UNA pasada. Los
+// helpers de arriba reconstruyen los Sets por llamada (cuadrático si se llaman
+// en bucle); aquí se construyen UNA vez y se reusa la MISMA regla
+// _tipoAsignacion (devengado vs pagado, supresión por factura repartida,
+// huérfanas) → el tablero cuadra con lo que muestra Costos por Unidad.
+// SOLO LECTURA: no muta nada. Devuelve Map<String(unidad_id), {real, presupuesto, avance}>.
+export function costosPresupuestosBatch() {
+  const pcf = _pagosCubiertosPorFacturaSet();
+  const fc = _facturasCanceladasSet();
+  const fe = _factExistSet(); const pe = _pagoExistSet();
+  const asignado = new Map();
+  state.costoAsignaciones.forEach(a => {
+    const t = _tipoAsignacion(a, pcf, fc, fe, pe);
+    if (!t) return;
+    const k = String(a.unidad_id);
+    asignado.set(k, (asignado.get(k) || 0) + (a.monto_asignado || 0));
+  });
+  const presu = new Map();
+  state.presupuestoUnidad.forEach(p => {
+    const k = String(p.unidad_id);
+    const acc = presu.get(k) || { presupuesto: 0, costoInicial: 0 };
+    acc.presupuesto += p.monto_presupuestado || 0;
+    acc.costoInicial += p.costo_inicial || 0;
+    presu.set(k, acc);
+  });
+  const out = new Map();
+  state.unidades.forEach(u => {
+    const k = String(u.unidad_id);
+    const pr = presu.get(k) || { presupuesto: 0, costoInicial: 0 };
+    const real = pr.costoInicial + (asignado.get(k) || 0);
+    out.set(k, { real, presupuesto: pr.presupuesto, avance: avancePct(real, pr.presupuesto) });
+  });
+  return out;
+}
+
 // Devuelve { partida: {presupuestado, costoInicial, devengado, pagadoSinFactura, asignado, real} }
 function desglosePorPartida(unidadId) {
   const out = {};
