@@ -344,6 +344,37 @@ const RT = {
       if (window.renderVentas) window.renderVentas();
       if (window.renderEstadoCuenta) window.renderEstadoCuenta();
     }
+  },
+  // ===== ESTRATEGIA (Fase 2) — mapRow CALCA sbLoadAll. Un cambio de config o de
+  // marca re-pinta también el TABLERO (el ranking depende de ambos). =====
+  estrategiaConfig: {
+    tabla: 'estrategia_config',
+    stateKey: 'estrategiaConfig',
+    idField: 'clave',
+    mapRow: r => ({
+      clave: r.clave != null ? String(r.clave) : '',
+      valor: r.valor,                       // jsonb → JS nativo (igual que la carga)
+      descripcion: r.descripcion || '', grupo: r.grupo || 'general'
+    }),
+    rerender: () => {
+      if (window.renderEstrategiaConfig) window.renderEstrategiaConfig();
+      if (window.renderEstrategiaTablero) window.renderEstrategiaTablero();
+    }
+  },
+  estrategiaFlags: {
+    tabla: 'estrategia_flags_unidad',
+    stateKey: 'estrategiaFlags',
+    idField: 'flag_id',
+    mapRow: r => ({
+      flag_id: r.flag_id != null ? String(r.flag_id) : '',
+      unidad_id: r.unidad_id != null ? String(r.unidad_id) : '', proyecto: r.proyecto || '',
+      tipo: r.tipo || 'bloqueo', categoria: r.categoria || '',
+      fecha_compromiso: r.fecha_compromiso || '', nota: r.nota || '', activo: r.activo !== false
+    }),
+    rerender: () => {
+      if (window.renderEstrategiaFlags) window.renderEstrategiaFlags();
+      if (window.renderEstrategiaTablero) window.renderEstrategiaTablero();
+    }
   }
 };
 

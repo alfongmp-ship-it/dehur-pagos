@@ -90,6 +90,11 @@ if (ingresosDataActiva()) {
   ENTIDADES_REALTIME.add('ventas');
   ENTIDADES_REALTIME.add('cobros');
 }
+// ESTRATEGIA (Fase 2): realtime de config/marcas solo si el módulo está activo.
+if (estrategiaActivo()) {
+  ENTIDADES_REALTIME.add('estrategiaConfig');
+  ENTIDADES_REALTIME.add('estrategiaFlags');
+}
 
 // ¿Esta entidad guarda por fila ahora mismo? (modo 'fila' y está en el Set)
 export function esPorFila(key) {
@@ -671,6 +676,29 @@ export async function gsLoadAll() {
         for (const c of state.cobros) { if (c.activo === false) continue; const k = String(c.venta_id); _cpv.set(k, (_cpv.get(k) || 0) + (parseFloat(c.monto) || 0)); }
         for (const v of state.ventas) { const cb = _cpv.get(String(v.venta_id)) || 0; v.monto_cobrado = cb; v.saldo_cliente = Math.max(0, (v.precio_venta || 0) - cb); }
       } catch (e) { console.error('gsLoadAll ingresos (Sheets)', e); }
+    }
+
+    // ESTRATEGIA (Fase 2): lectura de RESPALDO desde Sheets (ruta de fallback).
+    // Gated + try/catch propio. Columnas POSICIONALES que calcan gsSaveEstrategia*
+    // y gsInitSheets. 'valor' viene serializado con JSON.stringify → se re-parsea.
+    if (estrategiaActivo()) {
+      try {
+        const ecRows = await leerHoja('estrategia_config', 'estrategiaConfig');
+        if (ecRows && ecRows.length > 1) {
+          state.estrategiaConfig = ecRows.slice(1).filter(r => r[0]).map(r => {
+            let valor = r[1]; try { valor = JSON.parse(r[1]); } catch (_) { /* deja el texto */ }
+            return { clave: String(r[0] || ''), valor, descripcion: r[2] || '', grupo: r[3] || 'general' };
+          });
+        }
+        const efRows = await leerHoja('estrategia_flags_unidad', 'estrategiaFlags');
+        if (efRows && efRows.length > 1) {
+          state.estrategiaFlags = efRows.slice(1).filter(r => r[0]).map(r => ({
+            flag_id: String(r[0] || ''), unidad_id: String(r[1] || ''), proyecto: r[2] || '',
+            tipo: r[3] || 'bloqueo', categoria: r[4] || '', fecha_compromiso: r[5] || '',
+            nota: r[6] || '', activo: r[7] !== 'FALSE' && r[7] !== 'false'
+          }));
+        }
+      } catch (e) { console.error('gsLoadAll estrategia (Sheets)', e); }
     }
   } catch (e) {
     console.error('gsLoadAll error', e);
@@ -1752,6 +1780,7 @@ export async function respaldarTodoASheets() {
   // INGRESOS (Fase 1): incluir en el respaldo solo si el módulo está activo. Cada
   // saver además se autoprotege con guardarPermitido (no escribe si no cargó).
   if (ingresosDataActiva()) savers.push(gsSaveClientes, gsSaveVentas, gsSaveCobros);
+  if (estrategiaActivo()) savers.push(gsSaveEstrategiaConfig, gsSaveEstrategiaFlags);
   let ok = 0, fail = 0;
   for (const fn of savers) {
     try { await fn({ porFila: true }); ok++; }

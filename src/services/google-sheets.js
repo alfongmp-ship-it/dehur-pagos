@@ -52,7 +52,7 @@ export async function gsClearAndWrite(sheet, rows, headers) {
 }
 
 export async function gsInitSheets() {
-  const sheetsNeeded = ['proveedores', 'empleados', 'historial_pagos', 'proyectos', 'facturas', 'factura_pagos', 'aliases', 'cuentas_propias', 'traspasos', 'creditos', 'pagares', 'pagos_pagare', 'movimientos_internos', 'pendientes_confirmacion', 'historial_saldos', 'unidades', 'presupuesto_unidad', 'costo_asignaciones', 'partidas_catalogo', 'partidas_obra', 'clientes', 'ventas', 'cobros'];
+  const sheetsNeeded = ['proveedores', 'empleados', 'historial_pagos', 'proyectos', 'facturas', 'factura_pagos', 'aliases', 'cuentas_propias', 'traspasos', 'creditos', 'pagares', 'pagos_pagare', 'movimientos_internos', 'pendientes_confirmacion', 'historial_saldos', 'unidades', 'presupuesto_unidad', 'costo_asignaciones', 'partidas_catalogo', 'partidas_obra', 'clientes', 'ventas', 'cobros', 'estrategia_config', 'estrategia_flags_unidad'];
   try {
     const r = await gsFetch(`https://sheets.googleapis.com/v4/spreadsheets/${GS_SPREADSHEET_ID}`);
     const existing = r.sheets.map(s => s.properties.title);
@@ -85,7 +85,10 @@ export async function gsInitSheets() {
         // INGRESOS (Fase 1) — mismos encabezados que gsSaveClientes/Ventas/Cobros.
         clientes: [['cliente_id', 'nombre', 'rfc', 'telefono', 'email', 'observaciones', 'activo']],
         ventas: [['venta_id', 'unidad_id', 'proyecto', 'cliente_id', 'precio_venta', 'tipo_credito', 'estatus_comercial', 'fecha_apartado', 'fecha_escritura_estimada', 'fecha_escritura_real', 'valor_liberacion', 'credito_id', 'monto_cobrado', 'saldo_cliente', 'observaciones', 'activo']],
-        cobros: [['cobro_id', 'venta_id', 'cliente_id', 'proyecto', 'fecha', 'monto', 'tipo_cobro', 'metodo', 'cuenta_destino_tipo', 'cuenta_destino_id', 'referencia', 'concepto', 'observaciones', 'activo']]
+        cobros: [['cobro_id', 'venta_id', 'cliente_id', 'proyecto', 'fecha', 'monto', 'tipo_cobro', 'metodo', 'cuenta_destino_tipo', 'cuenta_destino_id', 'referencia', 'concepto', 'observaciones', 'activo']],
+        // ESTRATEGIA (Fase 2) — mismos encabezados que gsSaveEstrategiaConfig/Flags.
+        estrategia_config: [['clave', 'valor', 'descripcion', 'grupo']],
+        estrategia_flags_unidad: [['flag_id', 'unidad_id', 'proyecto', 'tipo', 'categoria', 'fecha_compromiso', 'nota', 'activo']]
       };
       for (const sheet of toCreate) {
         await gsWriteRange(sheet + '!A1', headers[sheet]);
