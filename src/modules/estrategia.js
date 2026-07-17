@@ -26,7 +26,7 @@ import { costosPresupuestosBatch } from './costos-fiscales.js';
 import { esGastoRealJP } from './resumen-costos.js';
 import { calcularSaldosNetosPrestamos } from './resumen-ejecutivo.js';
 import { rankearUnidades } from './estrategia-score.js';
-import { proyectarCaja } from './simulador-caja.js';
+import { proyectarCaja, sugerirFondeo } from './simulador-caja.js';
 
 // ---- Defaults de código (espejo 1:1 de los seeds del SQL 30) -----------------
 export const CFG_DEFAULTS = {
@@ -228,6 +228,38 @@ function _saldoDispuesto(credito) {
 }
 function _creditosActivos() {
   return state.creditos.filter(c => c.activo !== false && (c.estatus || 'Activo') === 'Activo');
+}
+// Capacidad de DISPOSICIÓN de un crédito — REGLA DE LA CASA (pantalla Créditos):
+// autorizado − Σ pagarés activos del crédito (INCLUYE pagados; no revolvente).
+// OJO: distinta de _saldoDispuesto (vigentes + override), que es para el INTERÉS.
+function _disponibleCredito(c) {
+  const dispuesto = state.pagares
+    .filter(p => String(p.credito_id) === String(c.credito_id) && p.activo !== false)
+    .reduce((s, p) => s + (p.monto || 0), 0);
+  return (c.monto_autorizado || 0) - dispuesto;
+}
+// Deuda viva entre proyectos para el sugeridor: canoniza cada extremo contra los
+// nombres de la PROYECCIÓN, netea pares que queden invertidos tras canonizar y
+// DESCARTA los que no resuelven (no se mapean a '(Sin proyecto)': colapsaría
+// deudas de proyectos viejos sobre la concentradora).
+function _deudaVivaCanon(netos, nombresProyeccion) {
+  const resolver = s => nombresProyeccion.find(n => n !== '(Sin proyecto)' && proyectoMatch(n, s)) || null;
+  const acum = new Map();   // 'k1|||k2' (orden alfabético) → monto con signo (+ = k1 debe a k2)
+  for (const sn of netos) {
+    const deudor = resolver(sn.neto > 0 ? sn.b : sn.a);
+    const acreedor = resolver(sn.neto > 0 ? sn.a : sn.b);
+    if (!deudor || !acreedor || deudor === acreedor) continue;
+    const [k1, k2] = [deudor, acreedor].sort();
+    const key = k1 + '|||' + k2;
+    acum.set(key, (acum.get(key) || 0) + (deudor === k1 ? Math.abs(sn.neto) : -Math.abs(sn.neto)));
+  }
+  const out = [];
+  for (const [key, v] of acum) {
+    if (Math.abs(v) <= 0.5) continue;
+    const [k1, k2] = key.split('|||');
+    out.push(v > 0 ? { deudor: k1, acreedor: k2, monto: v } : { deudor: k2, acreedor: k1, monto: -v });
+  }
+  return out;
 }
 function _tasaDeProyecto(nombreProy) {
   const c = _creditosActivos().find(x => x.proyecto && proyectoMatch(x.proyecto, nombreProy));
@@ -618,6 +650,69 @@ export function renderSimuladorCaja() {
     const filaCons = `<tr style="font-weight:700;border-top:2px solid var(--border);"><td style="${stickyTd}">Consolidado</td>${cons.timeline.map(celda).join('')}<td style="font-family:'DM Mono',monospace;font-size:12px;text-align:right;color:var(--muted);" title="Neteado entre proyectos (como si la caja fuera compartida); la cifra operativa es la suma por proyecto de arriba">${necCons > 0 ? fmt(necCons) : '—'}</td></tr>`;
     const tabla = `<div class="table-wrap"><table><thead><tr>${th}</tr></thead><tbody>${filas}${filaCons}</tbody></table></div>`;
 
+    // ======== D) Sugerencia de fondeo (Pieza B — quién le presta a quién) ========
+    // try/catch propio: si el sugeridor falla, las secciones A-C sobreviven.
+    let secD = '';
+    let sugSupuestos = [];
+    try {
+      const nombresProy = proy.proyectos.map(p => p.nombre);
+      const deudaViva = _deudaVivaCanon(netos, nombresProy);
+      const capacidadCredito = _creditosActivos()
+        .map(c => ({ proyecto: canon(c.proyecto), credito: `${c.nombre || ('Crédito ' + c.credito_id)}${c.banco ? ' – ' + c.banco : ''}`, disponible: _disponibleCredito(c), tasaMes: (c.tasa_base || 0) / 100 / 12 }))
+        .filter(c => c.disponible > 0.5);
+      const sug = sugerirFondeo({ proyectos: proy.proyectos, deudaViva, capacidadCredito }, cfg);
+      sugSupuestos = sug.supuestos || [];
+
+      const tituloD = secTitulo('var(--green)', `Sugerencia de fondeo — quién le presta a quién (${H} meses)`);
+      if (!sug.sugerencias.length) {
+        secD = tituloD + `<div style="font-size:12px;color:var(--green);">✓ La proyección no detecta necesidades de fondeo en el horizonte.</div>`;
+      } else {
+        const chips = `<div class="stats-row">` +
+          kpi('Fondeo sugerido', sug.totales.cubierto > 0 ? fmt(sug.totales.cubierto) : '—',
+            `🔄 ${fmt(sug.totales.devoluciones)} · 🤝 ${fmt(sug.totales.prestamos)} · 🏦 ${fmt(sug.totales.disposiciones)}`, 'stat-blue') +
+          kpi('Sin cubrir (socios)', sug.totales.sinCubrir > 0 ? fmt(sug.totales.sinCubrir) : '—',
+            sug.totales.sinCubrir > 0 ? 'Requiere aportación de socios' : 'Todo cubierto con fondeo interno y crédito',
+            sug.totales.sinCubrir > 0 ? 'stat-orange' : 'stat-green') +
+          (sug.totales.disposiciones > 0 ? kpi('Costo de disposición', fmt(sug.totales.costoDisposicionMes) + '/mes', 'Interés estimado de lo dispuesto sugerido', 'stat-purple') : '') +
+          `</div>`;
+
+        const ICON = { devolucion: '🔄', prestamo: '🤝', disposicion: '🏦', sin_cubrir: '⚠️' };
+        const labelDe = s =>
+          s.tipo === 'devolucion' ? `<b>${escapeHtml(s.de)}</b> le devuelve a <b>${escapeHtml(s.para)}</b>` :
+          s.tipo === 'prestamo' ? `<b>${escapeHtml(s.de)}</b> le presta a <b>${escapeHtml(s.para)}</b>` :
+          s.tipo === 'disposicion' ? `<b>${escapeHtml(s.para)}</b> dispone de «${escapeHtml(s.credito || '')}»` :
+          `<b>${escapeHtml(s.para)}</b> requiere aportación de socios`;
+        const porMes = new Map();
+        sug.sugerencias.forEach(s => { if (!porMes.has(s.mes)) porMes.set(s.mes, []); porMes.get(s.mes).push(s); });
+        const listaMeses = [...porMes.entries()].map(([mes, items]) => {
+          const totMes = items.reduce((x, s) => x + s.monto, 0);
+          const filasS = items.map(s => `<details style="border-bottom:1px solid var(--border);padding:4px 0;">
+            <summary style="cursor:pointer;display:flex;justify-content:space-between;gap:10px;align-items:center;font-size:12px;list-style:none;">
+              <span>${ICON[s.tipo]} ${labelDe(s)}${s.tipo === 'disposicion' ? ` <span style="font-size:10px;color:var(--muted);">costo ≈ ${fmt(s.costoMes)}/mes</span>` : ''}</span>
+              <span style="font-family:'DM Mono',monospace;font-weight:700;white-space:nowrap;${s.tipo === 'sin_cubrir' ? 'color:var(--orange);' : ''}">${fmt(s.monto)}</span>
+            </summary>
+            <div style="font-size:11px;color:var(--muted);padding:4px 0 6px 22px;">${escapeHtml(s.porque)}</div>
+          </details>`).join('');
+          return `<div style="margin-bottom:12px;"><div style="font-size:11px;font-weight:700;margin-bottom:2px;">${mes} <span style="color:var(--muted);font-weight:400;">· ${fmt(totMes)}</span></div>${filasS}</div>`;
+        }).join('');
+
+        const filasRes = sug.resumen.map(r => `<tr>
+          <td style="white-space:nowrap;">${escapeHtml(r.proyecto)}</td>
+          <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;">${r.recibe.total > 0.5 ? fmt(r.recibe.total) : '—'}</td>
+          <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;">${r.da.total > 0.5 ? fmt(r.da.total) : '—'}</td>
+          <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;">${r.recibe.disposicion > 0.5 ? fmt(r.recibe.disposicion) : '—'}</td>
+          <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);">${r.costoDisposicionMes > 0.5 ? fmt(r.costoDisposicionMes) : '—'}</td>
+          <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;${r.sinCubrir > 0.5 ? 'color:var(--orange);font-weight:700;' : ''}">${r.sinCubrir > 0.5 ? fmt(r.sinCubrir) : '—'}</td></tr>`).join('');
+        const tablaRes = `<div class="table-wrap" style="margin-top:10px;max-width:860px;"><table><thead><tr><th>Proyecto</th><th style="text-align:right">Recibe</th><th style="text-align:right">Presta/Devuelve</th><th style="text-align:right">Dispone</th><th style="text-align:right">Costo disp./mes</th><th style="text-align:right">Socios</th></tr></thead><tbody>${filasRes}</tbody></table></div>`;
+
+        secD = tituloD + chips + `<div style="max-width:860px;">${listaMeses}</div>` + tablaRes +
+          `<div style="font-size:11px;color:var(--muted);margin-top:8px;">Esto es una <b>sugerencia</b> — no mueve dinero. Ejecuta los movimientos que decidas con la herramienta de Traspasos.</div>`;
+      }
+    } catch (e) {
+      console.error('sugeridorFondeo', e);
+      secD = secTitulo('var(--green)', 'Sugerencia de fondeo') + '<div style="font-size:12px;color:var(--muted);">La sugerencia de fondeo no pudo calcularse; el resto de la página no está afectado.</div>';
+    }
+
     // ---- Supuestos ----
     const supuestos = `<details style="margin-top:16px;"><summary style="cursor:pointer;font-size:11px;color:var(--muted);">Ver supuestos del modelo</summary>
       <div style="padding:10px 14px;border:1px solid var(--border);border-radius:10px;margin-top:8px;max-width:680px;font-size:11px;color:var(--muted);">
@@ -625,6 +720,7 @@ export function renderSimuladorCaja() {
       <div style="padding:2px 0;">• Gasto real = regla del reporte JP: Pagos + Aportaciones + Créditos solo intereses (Traspasos y Préstamos NO)</div>
       <div style="padding:2px 0;">• Préstamos entre proyectos: mismos netos que el Resumen Ejecutivo</div>
       ${proy.supuestos.map(s => `<div style="padding:2px 0;">• ${escapeHtml(s)}</div>`).join('')}
+      ${sugSupuestos.map(s => `<div style="padding:2px 0;">• ${escapeHtml(s)}</div>`).join('')}
       ${burnRaw ? '' : '<div style="padding:6px 0 0;color:var(--orange);">⚠ Configura direccion.partidas_fijas en Configuración para activar el burn fijo y el colchón.</div>'}
       </div></details>`;
 
@@ -637,6 +733,7 @@ export function renderSimuladorCaja() {
       + bloquePrest
       + secTitulo('var(--blue)', `Proyección — ¿cuánto se va a necesitar? (${H} meses)`)
       + tabla
+      + secD
       + supuestos;
   } catch (e) {
     console.error('renderSimuladorCaja', e);
