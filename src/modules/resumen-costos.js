@@ -523,6 +523,10 @@ function _cuentaJP(h) {
   return false;
 }
 
+// Export aditivo (única fuente de verdad de la regla): la usa el Presupuesto de
+// caja (estrategia.js) para "gasto real por mes". No cambia nada de este módulo.
+export function esGastoRealJP(h) { return _cuentaJP(h); }
+
 export function abrirReporteJuanPablo() {
   const desde = document.getElementById('rc-desde')?.value || '';
   const hasta = document.getElementById('rc-hasta')?.value || '';

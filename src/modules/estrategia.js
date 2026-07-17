@@ -23,6 +23,8 @@ import { getPartidasParaSelect } from '../config/sub-partidas.js';
 import { proyectoMatch } from '../config/proyectos.js';
 import { parseFechaHist } from './historial.js';
 import { costosPresupuestosBatch } from './costos-fiscales.js';
+import { esGastoRealJP } from './resumen-costos.js';
+import { calcularSaldosNetosPrestamos } from './resumen-ejecutivo.js';
 import { rankearUnidades } from './estrategia-score.js';
 import { proyectarCaja } from './simulador-caja.js';
 
@@ -425,10 +427,12 @@ export function renderEstrategiaTablero() {
   }
 }
 
-// ---- Presupuesto de caja por periodo (Fase 3, SOLO LECTURA) ------------------
-// Proyecta la caja mes a mes por proyecto y consolidada reusando el ranking del
-// motor de score + el motor puro proyectarCaja(). NO mueve dinero: solo calcula y
-// marca dónde/cuándo un proyecto cae bajo su colchón.
+// ---- Presupuesto de caja por FLUJOS (Fase 3 · A2, SOLO LECTURA) --------------
+// SIN saldos bancarios: los saldos capturados a mano no son confiables (se
+// modifican y eran un parche de antes de registrar ingresos). Todo sale de
+// REGISTROS: gasto real (regla del reporte JP), cobros reales, préstamos entre
+// proyectos (se llevan aparte, como deuda), y la proyección estima cuánto FONDEO
+// externo (aportación / préstamo / disposición) necesitará cada proyecto y cuándo.
 let _simProyAbierto = new Set();   // proyectos con desglose expandido (persiste entre renders)
 let _simProyNombres = [];          // nombres del último render (toggle por índice, robusto a acentos/comillas)
 
@@ -439,19 +443,58 @@ export function simToggleProyecto(idx) {
   renderSimuladorCaja();
 }
 
+// Últimos n meses como ['YYYY-MM', ...] terminando en el mes actual.
+function _mesesUltimos(n) {
+  const hoy = new Date();
+  const out = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+    out.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  }
+  return out;
+}
+
+// Gasto REAL por proyecto y mes desde el historial (regla del reporte JP: Pagos +
+// Aportaciones + Créditos solo intereses; Traspasos y Préstamos NO).
+// Devuelve Map(proyecto canonizado → Map(ym → $)).
+function _gastoRealPorProyectoMes(mesesYm, canon) {
+  const meses = new Set(mesesYm);
+  const out = new Map();
+  state.historial.forEach(h => {
+    if (!esGastoRealJP(h)) return;
+    const iso = parseFechaHist(h.fecha);
+    if (!iso) return;
+    const ym = iso.slice(0, 7);
+    if (!meses.has(ym)) return;
+    const p = canon(h.proyecto);
+    if (!out.has(p)) out.set(p, new Map());
+    const m = out.get(p);
+    m.set(ym, (m.get(ym) || 0) + (parseFloat(h.importe) || 0));
+  });
+  return out;
+}
+
+// Cobrado REAL consolidado por mes (módulo Ingresos). Map(ym → $).
+function _cobradoPorMes(mesesYm) {
+  const meses = new Set(mesesYm);
+  const out = new Map();
+  state.cobros.forEach(c => {
+    if (c.activo === false) return;
+    const iso = parseFechaHist(c.fecha || '');
+    if (!iso) return;
+    const ym = iso.slice(0, 7);
+    if (meses.has(ym)) out.set(ym, (out.get(ym) || 0) + (c.monto || 0));
+  });
+  return out;
+}
+
 export function renderSimuladorCaja() {
   const el = document.getElementById('lista-estrategia-simulador-caja');
   if (!el) return;
   try {
-    // Proyectos canónicos + canonizador (burn/créditos/cuentas se mapean a estos nombres).
+    // Proyectos canónicos + canonizador (gasto/burn/créditos se mapean a estos nombres).
     const proysCanon = state.proyectos.filter(p => p.activo).map(p => p.nombre);
     const canon = s => { if (!s) return '(Sin proyecto)'; return proysCanon.find(n => proyectoMatch(n, s)) || '(Sin proyecto)'; };
-
-    // Saldo inicial por proyecto (Σ debe cuadrar con "Caja disponible" del Tablero).
-    const saldoIni = new Map(proysCanon.map(n => [n, 0]));
-    saldoIni.set('(Sin proyecto)', 0);
-    state.proyectos.filter(p => p.activo).forEach(p => saldoIni.set(p.nombre, (saldoIni.get(p.nombre) || 0) + (p.saldo || 0)));
-    state.cuentasPropias.filter(c => c.activo !== false).forEach(c => { const n = canon(c.proyecto); saldoIni.set(n, (saldoIni.get(n) || 0) + (c.saldo || 0)); });
 
     // Ranking (mismo motor que el Tablero) → unidades para el motor de caja.
     const rank = rankearUnidades(_construirInsumos(''), cfg);
@@ -468,11 +511,15 @@ export function renderSimuladorCaja() {
     if (burnRaw) { burnPorProyecto = {}; for (const [p, v] of burnRaw) { const n = canon(p); burnPorProyecto[n] = (burnPorProyecto[n] || 0) + v; } }
     const creditos = _creditosActivos().map(c => ({ proyecto: canon(c.proyecto), dispuesto: _saldoDispuesto(c), tasaMes: (c.tasa_base || 0) / 100 / 12 }));
 
-    // Proyectos a mostrar: activos + '(Sin proyecto)' solo si tiene saldo o unidades.
+    // Proyectos del modelo con saldoInicial 0 (SIN saldos bancarios): la proyección
+    // mide FLUJO puro; el "saldo corrido" del motor se vuelve flujo acumulado y su
+    // deficit (colchón − flujoAcum) se lee como NECESIDAD de fondeo externo.
+    // '(Sin proyecto)' entra si tiene unidades o burn (gasto central concentradora).
     const conUnidades = new Set(unidades.map(u => u.proyecto));
-    const proyectos = [...saldoIni.entries()]
-      .filter(([n, s]) => n !== '(Sin proyecto)' || s !== 0 || conUnidades.has(n))
-      .map(([nombre, saldoInicial]) => ({ nombre, saldoInicial }));
+    const proyectos = proysCanon.map(nombre => ({ nombre, saldoInicial: 0 }));
+    if (conUnidades.has('(Sin proyecto)') || (burnPorProyecto && burnPorProyecto['(Sin proyecto)'])) {
+      proyectos.push({ nombre: '(Sin proyecto)', saldoInicial: 0 });
+    }
 
     const hoy = new Date();
     const mesInicio = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
@@ -480,60 +527,117 @@ export function renderSimuladorCaja() {
     _simProyNombres = proy.proyectos.map(p => p.nombre);
 
     if (!proy.proyectos.length) {
-      el.innerHTML = _emptyEst('💧', 'Sin proyectos para proyectar', 'Da de alta proyectos con saldo y unidades para ver el presupuesto de caja.');
+      el.innerHTML = _emptyEst('💧', 'Sin proyectos para proyectar', 'Da de alta proyectos y unidades para ver el presupuesto de caja.');
       return;
     }
 
     const H = proy.horizonte;
     const cons = proy.consolidado;
-    const primerRojo = proy.faltantes.length ? proy.faltantes.reduce((a, b) => (a.i <= b.i ? a : b)) : null;
-    const faltMax = proy.faltantes.length ? proy.faltantes.reduce((a, b) => (a.deficit >= b.deficit ? a : b)) : null;
-    const cajaFin = cons.timeline[H - 1].saldoFinal;
+    const stickyTd = 'position:sticky;left:0;background:var(--surface);';
+    const secTitulo = (color, texto) => `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:${color};margin:24px 0 8px;">${texto}</div>`;
+
+    // ======== A) Gasto real por mes (histórico, de registros, regla JP) ========
+    const mesesHist = _mesesUltimos(H);
+    const ymActual = mesesHist[mesesHist.length - 1];
+    const gasto = _gastoRealPorProyectoMes(mesesHist, canon);
+    const cobrado = _cobradoPorMes(mesesHist);
+    const proysHist = [...proysCanon, ...(gasto.has('(Sin proyecto)') ? ['(Sin proyecto)'] : [])];
+    const mesesCompletos = mesesHist.slice(0, -1);   // el actual va aparte ("en curso")
+    const totalMesG = ym => proysHist.reduce((s, n) => s + (gasto.get(n)?.get(ym) || 0), 0);
+    const gastoPromMes = mesesCompletos.length ? mesesCompletos.reduce((s, ym) => s + totalMesG(ym), 0) / mesesCompletos.length : 0;
+    const celdaHist = (v, extra = '') => `<td style="font-family:'DM Mono',monospace;font-size:12px;text-align:right;${extra}">${Math.abs(v) >= 0.005 ? fmt(v) : '<span style="color:var(--muted);">—</span>'}</td>`;
+    const thHist = `<th style="${stickyTd}text-align:left;">Proyecto</th>` + mesesHist.map(m => `<th style="text-align:right;">${m}${m === ymActual ? '<div style="font-weight:400;font-size:9px;color:var(--muted);">(en curso)</div>' : ''}</th>`).join('') + `<th style="text-align:right;">Prom/mes</th>`;
+    const filasHist = proysHist.map(n => {
+      const m = gasto.get(n);
+      const prom = mesesCompletos.length ? mesesCompletos.reduce((s, ym) => s + (m?.get(ym) || 0), 0) / mesesCompletos.length : 0;
+      return `<tr><td style="${stickyTd}white-space:nowrap;">${escapeHtml(n)}</td>${mesesHist.map(ym => celdaHist(m?.get(ym) || 0)).join('')}${celdaHist(prom, 'color:var(--muted);')}</tr>`;
+    }).join('');
+    const filaTotalG = `<tr style="font-weight:700;border-top:2px solid var(--border);"><td style="${stickyTd}">TOTAL gastado</td>${mesesHist.map(ym => celdaHist(totalMesG(ym))).join('')}${celdaHist(gastoPromMes)}</tr>`;
+    const filaCobrado = `<tr style="color:var(--green);"><td style="${stickyTd}white-space:nowrap;">Cobrado (real)</td>${mesesHist.map(ym => celdaHist(cobrado.get(ym) || 0)).join('')}<td></td></tr>`;
+    const tablaHist = `<div class="table-wrap"><table><thead><tr>${thHist}</tr></thead><tbody>${filasHist}${filaTotalG}${filaCobrado}</tbody></table></div>`;
+
+    // ======== B) Préstamos entre proyectos (cómo van hoy; mismos netos que Resumen Ejecutivo) ========
+    const netos = calcularSaldosNetosPrestamos('');
+    const prestamosVivos = netos.reduce((s, p) => s + Math.abs(p.neto), 0);
+    const bloquePrest = netos.length
+      ? `<div style="max-width:560px;">${netos.slice().sort((x, y) => Math.abs(y.neto) - Math.abs(x.neto)).map(sn => {
+          const deudor = sn.neto > 0 ? sn.b : sn.a;
+          const acreedor = sn.neto > 0 ? sn.a : sn.b;
+          return `<div style="display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px;"><span><b>${escapeHtml(deudor)}</b> le debe a <b>${escapeHtml(acreedor)}</b></span><span style="font-family:'DM Mono',monospace;font-weight:700;">${fmt(Math.abs(sn.neto))}</span></div>`;
+        }).join('')}</div>`
+      : `<div style="font-size:12px;color:var(--muted);">Sin préstamos vivos entre proyectos.</div>`;
+
+    // ======== C) Necesidad de fondeo (deficit del motor = colchón − flujo acumulado) ========
+    const necesidadDe = tl => tl.reduce((mx, t) => Math.max(mx, t.deficit || 0), 0);
+    const necPorProyecto = new Map(proy.proyectos.map(p => {
+      const primera = p.timeline.find(t => (t.deficit || 0) > 0) || null;
+      return [p.nombre, { nec: necesidadDe(p.timeline), desde: primera ? primera.mes : null }];
+    }));
+    const necesidadTotal = [...necPorProyecto.values()].reduce((s, x) => s + x.nec, 0);
+    const primeraNec = proy.proyectos
+      .map(p => { const t = p.timeline.find(x => (x.deficit || 0) > 0); return t ? { proyecto: p.nombre, mes: t.mes, i: t.i, deficit: t.deficit } : null; })
+      .filter(Boolean).sort((a, b) => a.i - b.i)[0] || null;
+    const cobrosEsp = cons.timeline.reduce((s, t) => s + t.entradas, 0);
 
     // ---- KPIs ----
     const kpi = (label, valor, sub, color) =>
       `<div class="stat-card"><div class="stat-label">${label}</div><div class="stat-value ${color || 'stat-accent'}" style="font-size:20px;">${valor}</div><div class="stat-sub">${sub}</div></div>`;
     const kpis = `<div class="stats-row">` +
-      kpi('Caja consolidada hoy', fmt(cons.saldoInicial), 'Saldos de proyectos + cuentas propias', 'stat-blue') +
-      kpi(`Caja al mes ${H}`, fmt(cajaFin), `Proyección a ${H} meses`, cajaFin < 0 ? 'stat-orange' : 'stat-green') +
-      kpi('Primer mes en rojo', primerRojo ? primerRojo.mes : '—', primerRojo ? `${escapeHtml(primerRojo.proyecto)} · faltan ${fmt(primerRojo.deficit)}` : 'Ningún proyecto cae bajo su colchón', primerRojo ? 'stat-orange' : 'stat-green') +
-      kpi('Faltante máximo', faltMax ? fmt(faltMax.deficit) : '—', faltMax ? `${escapeHtml(faltMax.proyecto)} · ${faltMax.mes}` : 'Sin faltantes', faltMax ? 'stat-orange' : 'stat-green') +
-      kpi('Meses-proyecto en rojo', String(proy.faltantes.length), 'Celdas bajo el colchón', proy.faltantes.length ? 'stat-orange' : 'stat-green') +
+      kpi('Gasto real promedio/mes', gastoPromMes ? fmt(gastoPromMes) : '—', `Regla del reporte JP · últimos ${mesesCompletos.length} meses completos`, 'stat-orange') +
+      kpi(`Necesidad de fondeo (${H}m)`, necesidadTotal > 0 ? fmt(necesidadTotal) : '—', necesidadTotal > 0 ? 'Σ por proyecto · a cubrir con aportación, préstamo o disposición' : 'Ningún proyecto necesita fondeo externo', necesidadTotal > 0 ? 'stat-orange' : 'stat-green') +
+      kpi('Primer mes con necesidad', primeraNec ? primeraNec.mes : '—', primeraNec ? `${escapeHtml(primeraNec.proyecto)} · ${fmt(primeraNec.deficit)} ese mes` : 'Sin necesidades en el horizonte', primeraNec ? 'stat-orange' : 'stat-green') +
+      kpi(`Cobros esperados (${H}m)`, fmt(cobrosEsp), 'Del motor de score (esperanza, no promesa)', 'stat-green') +
+      kpi('Préstamos vivos', prestamosVivos > 0 ? fmt(prestamosVivos) : '—', netos.length ? `${netos.length} par(es) de proyectos · detalle abajo` : 'Sin deuda entre proyectos', 'stat-purple') +
       `</div>`;
 
-    // ---- Matriz proyectos × meses (saldo corrido; rojo = faltante) ----
-    const stickyTd = 'position:sticky;left:0;background:var(--surface);';
+    // ---- Matriz proyectos × meses (flujo NETO del mes; rojo = consume caja) ----
     const celda = t => {
-      const rojo = t.faltante ? 'background:rgba(224,90,90,.16);color:var(--red);font-weight:700;' : '';
-      const ti = t.faltante ? ` title="Déficit ${fmt(t.deficit)} · colchón ${fmt(t.colchon)}"` : '';
-      return `<td style="font-family:'DM Mono',monospace;font-size:12px;text-align:right;${rojo}"${ti}>${fmt(t.saldoFinal)}</td>`;
+      const neto = t.entradas - t.salidas;
+      if (Math.abs(neto) < 0.005) return `<td style="font-size:12px;text-align:right;color:var(--muted);">—</td>`;
+      const estilo = neto < 0 ? 'background:rgba(224,90,90,.16);color:var(--red);font-weight:700;' : 'color:var(--green);';
+      return `<td style="font-family:'DM Mono',monospace;font-size:12px;text-align:right;${estilo}" title="Entra ${fmt(t.entradas)} · Sale ${fmt(t.salidas)} (burn ${fmt(t.burn)} + interés ${fmt(t.interes)} + obra ${fmt(t.obra)})">${fmt(neto)}</td>`;
     };
-    const th = `<th style="${stickyTd}text-align:left;">Proyecto</th>` + proy.meses.map(m => `<th style="text-align:right;">${m}</th>`).join('');
+    const th = `<th style="${stickyTd}text-align:left;">Proyecto</th>` + proy.meses.map(m => `<th style="text-align:right;">${m}</th>`).join('') + `<th style="text-align:right;">Necesidad ${H}m</th>`;
     const filas = proy.proyectos.map((p, idx) => {
       const abierto = _simProyAbierto.has(p.nombre);
+      const np = necPorProyecto.get(p.nombre) || { nec: 0, desde: null };
+      const celNec = np.nec > 0
+        ? `<td style="font-family:'DM Mono',monospace;font-size:12px;text-align:right;color:var(--red);font-weight:700;" title="Fondeo externo necesario en el horizonte (incluye el colchón)${np.desde ? ` · desde ${np.desde}` : ''}">${fmt(np.nec)}</td>`
+        : `<td style="font-size:12px;text-align:right;color:var(--green);">—</td>`;
       const primera = `<td style="${stickyTd}cursor:pointer;white-space:nowrap;" onclick="simToggleProyecto(${idx})"><span style="color:var(--muted);">${abierto ? '▾' : '▸'}</span> ${escapeHtml(p.nombre)}</td>`;
-      const fila = `<tr>${primera}${p.timeline.map(celda).join('')}</tr>`;
+      const fila = `<tr>${primera}${p.timeline.map(celda).join('')}${celNec}</tr>`;
       if (!abierto) return fila;
-      const desg = `<tr><td colspan="${H + 1}" style="background:var(--surface2);padding:10px 14px;">
-        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:6px;">Desglose mensual — ${escapeHtml(p.nombre)}</div>
-        <div class="table-wrap"><table><thead><tr><th>Mes</th><th style="text-align:right">Entradas</th><th style="text-align:right">Burn</th><th style="text-align:right">Interés</th><th style="text-align:right">Obra</th><th style="text-align:right">Saldo fin</th><th style="text-align:right">Colchón</th></tr></thead><tbody>
-        ${p.timeline.map(t => `<tr${t.faltante ? ' style="color:var(--red);"' : ''}><td>${t.mes}</td><td style="text-align:right;font-family:'DM Mono',monospace;">${fmt(t.entradas)}</td><td style="text-align:right;font-family:'DM Mono',monospace;">${fmt(t.burn)}</td><td style="text-align:right;font-family:'DM Mono',monospace;">${fmt(t.interes)}</td><td style="text-align:right;font-family:'DM Mono',monospace;">${fmt(t.obra)}</td><td style="text-align:right;font-family:'DM Mono',monospace;font-weight:700;">${fmt(t.saldoFinal)}</td><td style="text-align:right;font-family:'DM Mono',monospace;color:var(--muted);">${fmt(t.colchon)}</td></tr>`).join('')}
+      const desg = `<tr><td colspan="${H + 2}" style="background:var(--surface2);padding:10px 14px;">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:6px;">Desglose mensual — ${escapeHtml(p.nombre)} · flujo acumulado desde 0 (lo que quede bajo el colchón es lo que hay que fondear)</div>
+        <div class="table-wrap"><table><thead><tr><th>Mes</th><th style="text-align:right">Entradas</th><th style="text-align:right">Burn</th><th style="text-align:right">Interés</th><th style="text-align:right">Obra</th><th style="text-align:right">Flujo acum.</th><th style="text-align:right">Colchón</th></tr></thead><tbody>
+        ${p.timeline.map(t => `<tr${(t.deficit || 0) > 0 ? ' style="color:var(--red);"' : ''}><td>${t.mes}</td><td style="text-align:right;font-family:'DM Mono',monospace;">${fmt(t.entradas)}</td><td style="text-align:right;font-family:'DM Mono',monospace;">${fmt(t.burn)}</td><td style="text-align:right;font-family:'DM Mono',monospace;">${fmt(t.interes)}</td><td style="text-align:right;font-family:'DM Mono',monospace;">${fmt(t.obra)}</td><td style="text-align:right;font-family:'DM Mono',monospace;font-weight:700;">${fmt(t.saldoFinal)}</td><td style="text-align:right;font-family:'DM Mono',monospace;color:var(--muted);">${fmt(t.colchon)}</td></tr>`).join('')}
         </tbody></table></div></td></tr>`;
       return fila + desg;
     }).join('');
-    const filaCons = `<tr style="font-weight:700;border-top:2px solid var(--border);"><td style="${stickyTd}">Consolidado</td>${cons.timeline.map(celda).join('')}</tr>`;
+    const necCons = necesidadDe(cons.timeline);
+    const filaCons = `<tr style="font-weight:700;border-top:2px solid var(--border);"><td style="${stickyTd}">Consolidado</td>${cons.timeline.map(celda).join('')}<td style="font-family:'DM Mono',monospace;font-size:12px;text-align:right;color:var(--muted);" title="Neteado entre proyectos (como si la caja fuera compartida); la cifra operativa es la suma por proyecto de arriba">${necCons > 0 ? fmt(necCons) : '—'}</td></tr>`;
     const tabla = `<div class="table-wrap"><table><thead><tr>${th}</tr></thead><tbody>${filas}${filaCons}</tbody></table></div>`;
 
     // ---- Supuestos ----
     const supuestos = `<details style="margin-top:16px;"><summary style="cursor:pointer;font-size:11px;color:var(--muted);">Ver supuestos del modelo</summary>
       <div style="padding:10px 14px;border:1px solid var(--border);border-radius:10px;margin-top:8px;max-width:680px;font-size:11px;color:var(--muted);">
+      <div style="padding:2px 0;">• Sin saldos bancarios: la proyección parte de 0 y mide FLUJO; la "necesidad" es lo que falta por fondear (incluye el colchón)</div>
+      <div style="padding:2px 0;">• Gasto real = regla del reporte JP: Pagos + Aportaciones + Créditos solo intereses (Traspasos y Préstamos NO)</div>
+      <div style="padding:2px 0;">• Préstamos entre proyectos: mismos netos que el Resumen Ejecutivo</div>
       ${proy.supuestos.map(s => `<div style="padding:2px 0;">• ${escapeHtml(s)}</div>`).join('')}
       ${burnRaw ? '' : '<div style="padding:6px 0 0;color:var(--orange);">⚠ Configura direccion.partidas_fijas en Configuración para activar el burn fijo y el colchón.</div>'}
       </div></details>`;
 
-    const intro = `<div style="font-size:11px;color:var(--muted);margin-bottom:14px;max-width:780px;">Proyección de caja a ${H} meses. Cada celda es el saldo al cierre del mes; en <span style="color:var(--red);font-weight:700;">rojo</span> cuando el proyecto cae bajo su colchón. La obra se secuencia por prioridad (score) y NO se frena por falta de caja: así el faltante se ve. Es una estimación de planeación — no mueve dinero. Toca un proyecto para ver su desglose mensual.</div>`;
+    const intro = `<div style="font-size:11px;color:var(--muted);margin-bottom:14px;max-width:820px;">Esta página NO usa los saldos bancarios capturados: todo sale de <b>registros</b> — el gasto real (regla del reporte JP), los cobros reales y los préstamos entre proyectos. La proyección estima cuánto <b>fondeo externo</b> (aportación, préstamo interno o disposición de crédito) necesitará cada proyecto y desde cuándo. La obra se secuencia por prioridad (score) y no se frena por falta de caja: así la necesidad se ve completa. Toca un proyecto para ver su desglose mensual.</div>`;
 
-    el.innerHTML = kpis + intro + tabla + supuestos;
+    el.innerHTML = kpis + intro
+      + secTitulo('var(--accent)', 'Gasto real por mes — de los registros (regla del reporte JP)')
+      + tablaHist
+      + secTitulo('var(--purple)', 'Préstamos entre proyectos — cómo van hoy')
+      + bloquePrest
+      + secTitulo('var(--blue)', `Proyección — ¿cuánto se va a necesitar? (${H} meses)`)
+      + tabla
+      + supuestos;
   } catch (e) {
     console.error('renderSimuladorCaja', e);
     el.innerHTML = '<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">💧</div><div>El presupuesto de caja no pudo calcularse; la operación no está afectada.</div></div>';

@@ -169,8 +169,10 @@ function calcularEgresosPrevios(periodo) {
   return calcularEgresos(prevP).total;
 }
 
-// Saldos netos de préstamos entre proyectos (toda la historia, no solo período)
-function calcularSaldosNetosPrestamos() {
+// Saldos netos de préstamos entre proyectos (toda la historia, no solo período).
+// EXPORTADA: el Presupuesto de caja (estrategia.js) la llama con filtro '' para
+// mostrar LOS MISMOS números que esta pantalla sin heredar su filtro de proyecto.
+export function calcularSaldosNetosPrestamos(filtro = proyectoActivo) {
   const pares = {};
   for (const t of state.traspasos) {
     if (t.tipo !== 'Préstamo') continue;
@@ -185,7 +187,7 @@ function calcularSaldosNetosPrestamos() {
   }
   return Object.values(pares).filter(p => {
     if (Math.abs(p.neto) <= 0.01) return false;
-    if (proyectoActivo) return proyectoMatch(p.a, proyectoActivo) || proyectoMatch(p.b, proyectoActivo);
+    if (filtro) return proyectoMatch(p.a, filtro) || proyectoMatch(p.b, filtro);
     return true;
   });
 }
