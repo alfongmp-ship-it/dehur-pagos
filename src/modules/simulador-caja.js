@@ -186,3 +186,238 @@ export function proyectarCaja(insumos, cfgFn) {
     faltantes, supuestos
   };
 }
+
+// ============================================================================
+// sugerirFondeo — SUGERIDOR DE PRÉSTAMOS INTERNOS / FONDEO (Fase 3 · Pieza B).
+// ============================================================================
+// PURO (sin DOM/state/Date/imports). Consume la salida de proyectarCaja y decide,
+// mes a mes, cómo cubrir cada necesidad: (1) DEVOLUCIÓN primero (recuperar dinero
+// propio: si al necesitado le deben, que le paguen antes de crear deuda nueva),
+// (2) préstamo interno y disposición de crédito en el ORDEN de
+// tesoreria.jerarquia_fondeo, (3) lo que no alcance = sin_cubrir (aportación de
+// socios) y se aplica como "aportación fantasma" al flujo simulado para que los
+// meses siguientes solo reporten necesidad NUEVA (cero doble conteo).
+// El prestamista NUNCA queda bajo su piso (max(colchón prestamista, colchón)) en
+// NINGÚN mes futuro: prestable = min sobre t≥m de (flujo − piso).
+// Invariante: totales.cubierto + totales.sinCubrir = Σ por proyecto del máximo
+// deficit original = el KPI "Necesidad de fondeo" del tablero.
+// SOLO SUGIERE: no mueve dinero; el humano ejecuta con Traspasos.
+//
+// entrada = {
+//   proyectos: proyectarCaja(...).proyectos,   // lee nombre y timeline[{i,mes,saldoFinal,burn,colchon}]
+//   deudaViva: [{ deudor, acreedor, monto }],  // nombres canónicos (canoniza el llamador)
+//   capacidadCredito: [{ proyecto, credito, disponible, tasaMes }]  // regla de la casa
+// }
+// ============================================================================
+
+const EPS_FONDEO = 0.5;   // medio peso: no sugerir movimientos de centavos
+
+export function sugerirFondeo(entrada, cfgFn) {
+  const cf = typeof cfgFn === 'function' ? cfgFn : () => undefined;
+  const proyectos = (entrada && Array.isArray(entrada.proyectos)) ? entrada.proyectos : [];
+  const deudaVivaIn = (entrada && Array.isArray(entrada.deudaViva)) ? entrada.deudaViva : [];
+  const capIn = (entrada && Array.isArray(entrada.capacidadCredito)) ? entrada.capacidadCredito : [];
+  const supuestos = [];
+  const vacio = { horizonte: 0, meses: [], sugerencias: [], resumen: [], totales: { necesidad: 0, devoluciones: 0, prestamos: 0, disposiciones: 0, cubierto: 0, sinCubrir: 0, costoDisposicionMes: 0 }, supuestos };
+  if (!proyectos.length) return vacio;
+
+  const H = Math.min(...proyectos.map(p => (p.timeline || []).length));
+  if (!H) return vacio;
+  const meses = proyectos[0].timeline.slice(0, H).map(t => t.mes);
+  const nombres = proyectos.map(p => p.nombre);
+  const nombreSet = new Set(nombres);
+  const colPrestMes = _num(cf('tesoreria.colchon_prestamista_meses'), 1);
+  const r2 = v => Math.round(v * 100) / 100;
+  const _fm = n => '$' + Math.round(n).toLocaleString('en-US');
+
+  // ---- Estado simulado (COPIAS; la entrada no se muta) ----
+  const flujo = new Map(), colNec = new Map(), pisoPrest = new Map();
+  for (const p of proyectos) {
+    const f = [], c = [], pp = [];
+    for (let t = 0; t < H; t++) {
+      const tl = p.timeline[t];
+      f.push(_num(tl.saldoFinal, 0));
+      c.push(_num(tl.colchon, 0));
+      // Piso del prestamista: max(colchón prestamista, colchón del proyecto) — así
+      // prestar jamás crea una necesidad nueva (sin rescates circulares).
+      pp.push(Math.max(colPrestMes * _num(tl.burn, 0), _num(tl.colchon, 0)));
+    }
+    flujo.set(p.nombre, f); colNec.set(p.nombre, c); pisoPrest.set(p.nombre, pp);
+  }
+
+  // Necesidad total original (invariante): Σ por proyecto del máximo deficit.
+  const necesidadOriginal = proyectos.reduce((s, p) => {
+    let mx = 0;
+    for (let t = 0; t < H; t++) mx = Math.max(mx, Math.max(_num(p.timeline[t].colchon, 0) - _num(p.timeline[t].saldoFinal, 0), 0));
+    return s + mx;
+  }, 0);
+
+  // Deuda viva simulada (solo pares donde ambos están en la proyección).
+  const kD = (d, a) => d + '|||' + a;
+  const deuda = new Map();
+  for (const dv of deudaVivaIn) {
+    if (!nombreSet.has(dv.deudor) || !nombreSet.has(dv.acreedor) || dv.deudor === dv.acreedor) continue;
+    const m = _num(dv.monto, 0);
+    if (m > EPS_FONDEO) deuda.set(kD(dv.deudor, dv.acreedor), (deuda.get(kD(dv.deudor, dv.acreedor)) || 0) + m);
+  }
+  const nDeudaPares = deuda.size;
+
+  // Capacidad de crédito por proyecto (mutable; tasa más barata primero).
+  const capPorProy = new Map();
+  for (const c of capIn) {
+    if (!nombreSet.has(c.proyecto)) continue;
+    const disp = _num(c.disponible, 0);
+    if (disp <= EPS_FONDEO) continue;
+    if (!capPorProy.has(c.proyecto)) capPorProy.set(c.proyecto, []);
+    capPorProy.get(c.proyecto).push({ credito: c.credito || '', disponible: disp, tasaMes: _num(c.tasaMes, 0) });
+  }
+  for (const arr of capPorProy.values()) arr.sort((a, b) => a.tasaMes - b.tasaMes);
+
+  // Jerarquía accionable ('caja' = el flujo propio, ya neteado dentro del deficit).
+  const jerRaw = cf('tesoreria.jerarquia_fondeo');
+  let jer = (Array.isArray(jerRaw) ? jerRaw : []).filter(x => x === 'prestamo_interno' || x === 'disposicion');
+  if (!jer.length) jer = ['prestamo_interno', 'disposicion'];
+  const peldanos = ['devolucion', ...jer];
+
+  // ---- Primitivas ----
+  const necesidad = (X, m) => Math.max(colNec.get(X)[m] - flujo.get(X)[m], 0);
+  const prestable = (Y, m) => {
+    const f = flujo.get(Y), pp = pisoPrest.get(Y);
+    let mn = Infinity;
+    for (let t = m; t < H; t++) mn = Math.min(mn, f[t] - pp[t]);
+    return Math.max(0, mn);
+  };
+  const sumarDesde = (X, m, L) => { const f = flujo.get(X); for (let t = m; t < H; t++) f[t] += L; };
+
+  // ---- Bucle greedy mes a mes ----
+  const sugerencias = [];
+  for (let m = 0; m < H; m++) {
+    const necesitados = nombres
+      .map(n => ({ n, need: necesidad(n, m) }))
+      .filter(x => x.need > EPS_FONDEO)
+      .sort((a, b) => (b.need - a.need) || a.n.localeCompare(b.n))
+      .map(x => x.n);
+
+    for (const X of necesitados) {
+      let falta = necesidad(X, m);
+      if (falta <= EPS_FONDEO) continue;
+      const needInicial = falta;
+
+      for (const peldano of peldanos) {
+        if (falta <= EPS_FONDEO) break;
+
+        if (peldano === 'devolucion') {
+          // Recuperar dinero PROPIO: deudores de X con excedente, cap = deuda viva.
+          for (;;) {
+            if (falta <= EPS_FONDEO) break;
+            const cands = nombres
+              .filter(D => D !== X && (deuda.get(kD(D, X)) || 0) > EPS_FONDEO && prestable(D, m) > EPS_FONDEO)
+              .map(D => ({ D, cap: Math.min(deuda.get(kD(D, X)), prestable(D, m)) }))
+              .sort((a, b) => (b.cap - a.cap) || a.D.localeCompare(b.D));
+            if (!cands.length) break;
+            const { D } = cands[0];
+            const pAntes = prestable(D, m);
+            const dAntes = deuda.get(kD(D, X));
+            const L = r2(Math.min(dAntes, pAntes, falta));
+            sumarDesde(X, m, L); sumarDesde(D, m, -L);
+            deuda.set(kD(D, X), dAntes - L);
+            falta -= L;
+            sugerencias.push({
+              i: m, mes: meses[m], tipo: 'devolucion', de: D, para: X, monto: L, credito: null, costoMes: 0,
+              porque: `«${X}» necesita ${_fm(needInicial)} en ${meses[m]} (colchón incluido). «${D}» ya le debe ${_fm(dAntes)} y trae excedente prestable de ${_fm(pAntes)} (su colchón queda respetado en todos los meses del horizonte) → devolución antes que deuda nueva.`,
+              datos: { necesidadMes: r2(needInicial), deudaPrevia: r2(dAntes), excedentePrestable: r2(pAntes) }
+            });
+          }
+
+        } else if (peldano === 'prestamo_interno') {
+          for (;;) {
+            if (falta <= EPS_FONDEO) break;
+            const cands = nombres
+              .filter(Y => Y !== X)
+              .map(Y => ({ Y, p: prestable(Y, m) }))
+              .filter(x => x.p > EPS_FONDEO)
+              .sort((a, b) => (b.p - a.p) || a.Y.localeCompare(b.Y));
+            if (!cands.length) break;
+            const { Y, p } = cands[0];
+            const L = r2(Math.min(p, falta));
+            sumarDesde(X, m, L); sumarDesde(Y, m, -L);
+            // Deuda simulada NETEADA: si Y le debía a X, primero se compensa.
+            const dYX = deuda.get(kD(Y, X)) || 0;
+            const compensa = Math.min(dYX, L);
+            if (compensa > 0) deuda.set(kD(Y, X), dYX - compensa);
+            const nuevo = r2(L - compensa);
+            if (nuevo > 0) deuda.set(kD(X, Y), (deuda.get(kD(X, Y)) || 0) + nuevo);
+            falta -= L;
+            const piso = pisoPrest.get(Y)[m];
+            sugerencias.push({
+              i: m, mes: meses[m], tipo: 'prestamo', de: Y, para: X, monto: L, credito: null, costoMes: 0,
+              porque: `«${X}» necesita ${_fm(needInicial)} en ${meses[m]}. «${Y}» es quien más excedente prestable trae: ${_fm(p)} (mínimo de su flujo futuro menos su colchón de prestamista ${_fm(piso)}). Queda registrado: «${X}» le deberá ${_fm(nuevo)} a «${Y}».`,
+              datos: { necesidadMes: r2(needInicial), excedentePrestable: r2(p), colchonPrestamista: r2(piso) }
+            });
+          }
+
+        } else if (peldano === 'disposicion') {
+          const creditos = capPorProy.get(X) || [];
+          for (const c of creditos) {
+            if (falta <= EPS_FONDEO) break;
+            if (c.disponible <= EPS_FONDEO) continue;
+            const dispPrevio = c.disponible;
+            const L = r2(Math.min(c.disponible, falta));
+            sumarDesde(X, m, L);
+            c.disponible -= L;
+            falta -= L;
+            const costoMes = r2(L * c.tasaMes);
+            sugerencias.push({
+              i: m, mes: meses[m], tipo: 'disposicion', de: null, para: X, monto: L, credito: c.credito, costoMes,
+              porque: `Sin excedente interno suficiente para «${X}» en ${meses[m]}. Disponer ${_fm(L)} de «${c.credito}» (disponible ${_fm(dispPrevio)}; regla de la casa: autorizado − pagarés). Costo ≈ ${_fm(costoMes)}/mes (≈ ${_fm(costoMes * (H - m))} hasta el fin del horizonte). Este interés NO está restado de la proyección.`,
+              datos: { necesidadMes: r2(needInicial), disponiblePrevio: r2(dispPrevio), tasaMes: c.tasaMes, costoHastaH: r2(costoMes * (H - m)) }
+            });
+          }
+        }
+      }
+
+      if (falta > EPS_FONDEO) {
+        const L = r2(falta);
+        // Aportación fantasma: los meses siguientes suponen la aportación hecha
+        // (así lo "sin cubrir" es incremental y jamás se cuenta dos veces).
+        sumarDesde(X, m, L);
+        sugerencias.push({
+          i: m, mes: meses[m], tipo: 'sin_cubrir', de: null, para: X, monto: L, credito: null, costoMes: 0,
+          porque: `A «${X}» le faltan ${_fm(L)} en ${meses[m]} tras agotar devoluciones, préstamos y crédito → requiere aportación de socios. Los meses siguientes ya suponen esta aportación hecha.`,
+          datos: { necesidadMes: r2(needInicial) }
+        });
+      }
+    }
+  }
+
+  // ---- Totales y resumen (desde las sugerencias emitidas, para que siempre cuadren) ----
+  const tot = { necesidad: r2(necesidadOriginal), devoluciones: 0, prestamos: 0, disposiciones: 0, cubierto: 0, sinCubrir: 0, costoDisposicionMes: 0 };
+  const porProy = new Map();
+  const acc = n => {
+    if (!porProy.has(n)) porProy.set(n, { proyecto: n, recibe: { devolucion: 0, prestamo: 0, disposicion: 0, total: 0 }, da: { devolucion: 0, prestamo: 0, total: 0 }, sinCubrir: 0, costoDisposicionMes: 0 });
+    return porProy.get(n);
+  };
+  for (const s of sugerencias) {
+    if (s.tipo === 'devolucion') { tot.devoluciones += s.monto; const a = acc(s.para); a.recibe.devolucion += s.monto; a.recibe.total += s.monto; const d = acc(s.de); d.da.devolucion += s.monto; d.da.total += s.monto; }
+    else if (s.tipo === 'prestamo') { tot.prestamos += s.monto; const a = acc(s.para); a.recibe.prestamo += s.monto; a.recibe.total += s.monto; const d = acc(s.de); d.da.prestamo += s.monto; d.da.total += s.monto; }
+    else if (s.tipo === 'disposicion') { tot.disposiciones += s.monto; tot.costoDisposicionMes += s.costoMes; const a = acc(s.para); a.recibe.disposicion += s.monto; a.recibe.total += s.monto; a.costoDisposicionMes += s.costoMes; }
+    else if (s.tipo === 'sin_cubrir') { tot.sinCubrir += s.monto; acc(s.para).sinCubrir += s.monto; }
+  }
+  tot.devoluciones = r2(tot.devoluciones); tot.prestamos = r2(tot.prestamos); tot.disposiciones = r2(tot.disposiciones);
+  tot.cubierto = r2(tot.devoluciones + tot.prestamos + tot.disposiciones);
+  tot.sinCubrir = r2(tot.sinCubrir); tot.costoDisposicionMes = r2(tot.costoDisposicionMes);
+  const resumen = [...porProy.values()].sort((a, b) => (b.sinCubrir - a.sinCubrir) || (b.recibe.total - a.recibe.total) || a.proyecto.localeCompare(b.proyecto));
+
+  supuestos.push(
+    'Devolución primero: recuperar dinero propio domina a cualquier deuda nueva (cap = deuda viva)',
+    `Orden de fondeo: ${peldanos.join(' → ')} (tesoreria.jerarquia_fondeo)`,
+    `Colchón del prestamista = ${colPrestMes} mes(es) de burn: nunca queda debajo en ningún mes del horizonte`,
+    'Capacidad de crédito = regla de la casa: autorizado − pagarés del crédito (incluye pagados)',
+    'El interés de las disposiciones sugeridas NO está restado de los flujos proyectados (la necesidad real sería un poco mayor)',
+    'Lo "sin cubrir" se supone aportado por socios en su mes (los meses siguientes ya lo asumen)',
+    `Deuda viva considerada: ${nDeudaPares} par(es) de proyectos`,
+    'Cubierto + sin cubrir = la "Necesidad de fondeo" del tablero (cuadre exacto)'
+  );
+
+  return { horizonte: H, meses, sugerencias, resumen, totales: tot, supuestos };
+}
