@@ -869,6 +869,7 @@
         </div>
         <button class="btn btn-ghost" id="rc-reset">↺ Mes actual</button>
         <button class="btn btn-primary" id="rc-reporte-jp" style="margin-left:auto" onclick="abrirReporteJuanPablo()">📊 Reporte Juan Pablo</button>
+        <button class="btn btn-ghost" id="rc-reporte-comp" onclick="abrirReporteComparativo()">⚖️ Comparativo</button>
       </div>
 
       <div id="rc-cards" style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px;"></div>
@@ -1165,6 +1166,28 @@
     <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px;">
       <button class="btn btn-ghost" onclick="cerrar('modal-reporte-jp')">Cancelar</button>
       <button class="btn btn-primary" onclick="generarReporteJuanPablo()">⬇ Generar Excel</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-reporte-comp">
+  <div class="modal" style="max-width:560px;">
+    <div class="modal-header">
+      <div class="modal-title">⚖️ Comparativo entre proyectos (Excel)</div>
+      <button class="modal-close" onclick="cerrar('modal-reporte-comp')">✕</button>
+    </div>
+    <div class="info-box" style="margin-bottom:16px;">
+      Compara el costo por partida entre los proyectos que elijas: cuánto gastó cada uno, el <b>peso %</b> de cada partida dentro del gasto de su proyecto, la <b>diferencia</b> entre ambos (al comparar exactamente 2) y la <b>evolución mensual</b>. Incluye hoja de <b>Detalle</b> con los movimientos. Sin partidas marcadas = todas. Usa los mismos movimientos que esta pantalla.
+    </div>
+    <div class="form-grid">
+      <div class="field"><label>Desde *</label><input type="date" id="rcomp-desde"></div>
+      <div class="field"><label>Hasta *</label><input type="date" id="rcomp-hasta"></div>
+      <div class="field"><label>Proyectos a comparar * (2 o más)</label><div id="rcomp-proyectos" style="border:1px solid var(--border);border-radius:8px;padding:6px;max-height:160px;overflow:auto;"></div></div>
+      <div class="field"><label>Partidas (vacío = todas)</label><div id="rcomp-partidas" style="border:1px solid var(--border);border-radius:8px;padding:6px;max-height:160px;overflow:auto;"></div></div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px;">
+      <button class="btn btn-ghost" onclick="cerrar('modal-reporte-comp')">Cancelar</button>
+      <button class="btn btn-primary" onclick="generarReporteComparativo()">⬇ Generar Excel</button>
     </div>
   </div>
 </div>

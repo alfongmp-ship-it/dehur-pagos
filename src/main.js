@@ -31,7 +31,7 @@ import { renderConfigPartidasObra, filtrarPartidasObra, abrirModalPartidaObra, g
 import { descargarPlantillaPresupuesto, handleSubirPlantillaPresupuesto } from './modules/presupuesto-bulk.js';
 import { renderCuentasPropias, abrirNuevaCuenta, editarCuenta, editarCuentaProyecto, guardarCuenta, actualizarSaldoCuenta, guardarSaldoCuenta, actualizarSaldoExtra } from './modules/cuentas-propias.js';
 import { renderPosicionSaldos } from './modules/posicion-saldos.js';
-import { renderResumenCostos, abrirReporteJuanPablo, generarReporteJuanPablo } from './modules/resumen-costos.js';
+import { renderResumenCostos, abrirReporteJuanPablo, generarReporteJuanPablo, abrirReporteComparativo, generarReporteComparativo } from './modules/resumen-costos.js';
 import { renderFlujoSalida, fsAbrirDetalle, fsCerrarDetalle } from './modules/flujo-salida.js';
 import { renderResumenEjecutivo } from './modules/resumen-ejecutivo.js';
 import { renderCostosFiscales, abrirNuevaUnidad, editarUnidad, guardarUnidad, toggleUnidad, setFechaTermino, abrirLoteUnidades, guardarLoteUnidades, cfLimpiarHuerfanas, abrirAsignarCosto, reasignarCosto, eliminarAsignacionCosto, cfCambiarMetodo, cfPreviewReparto, cfRepartirResto, cfRepartirRestoIndiviso, cfCustomSetModo, cfFiltrarUnidades, cfSelTodas, cfFiltrarPendientes, cfFiltrarAsignados, guardarAsignacionCosto, cfAgregarPartidaPresup, guardarPresupuestoUnidad, cfVerUnidad, abrirRepartirFactura, cfLimpiarRepartoFactura, cfFacturaPartidaChange, cfToggleEstimado } from './modules/costos-fiscales.js';
@@ -257,6 +257,8 @@ window.renderPosicionSaldos = renderPosicionSaldos;
 window.renderResumenCostos = renderResumenCostos;
 window.abrirReporteJuanPablo = abrirReporteJuanPablo;
 window.generarReporteJuanPablo = generarReporteJuanPablo;
+window.abrirReporteComparativo = abrirReporteComparativo;
+window.generarReporteComparativo = generarReporteComparativo;
 
 // Flujo de Salida por Cuenta y Proyecto
 window.renderFlujoSalida = renderFlujoSalida;

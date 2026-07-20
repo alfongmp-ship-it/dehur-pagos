@@ -712,3 +712,201 @@ export function generarReporteJuanPablo() {
   cerrar('modal-reporte-jp');
   notify(fp ? '✅ Reporte generado' : '✅ Reporte generado (consolidado + por proyecto)', 'success');
 }
+
+/* ============================================================
+   Reporte COMPARATIVO entre proyectos (Excel).
+   Compara el costo por partida entre 2+ proyectos en un rango:
+   Hoja 1 "Comparativo": partida × proyecto con el PESO % de cada
+     partida dentro del gasto total de su proyecto, Δ y Δ% al
+     comparar exactamente 2, TOTAL e insights (gasto total, peso
+     de lo elegido, promedio mensual, movimientos, partida top).
+   Hoja 2 "Por mes": evolución mensual por proyecto (con Δ si son 2).
+   Hoja 3 "Detalle": los movimientos, cada uno asignado a UN solo
+     proyecto (coincidencia más específica, como el reporte JP).
+   Base: TODOS los movimientos del historial (igual que la pantalla).
+   ============================================================ */
+export function abrirReporteComparativo() {
+  // Pre-llenar con lo que ya está filtrado en la pantalla.
+  const desde = document.getElementById('rc-desde')?.value || '';
+  const hasta = document.getElementById('rc-hasta')?.value || '';
+  const di = document.getElementById('rcomp-desde'); if (di) di.value = desde;
+  const hi = document.getElementById('rcomp-hasta'); if (hi) hi.value = hasta;
+  const contP = document.getElementById('rcomp-proyectos');
+  if (contP) {
+    const preProy = document.getElementById('rc-proyecto')?.value || '';
+    contP.innerHTML = state.proyectos.filter(p => p.activo !== false).map(p =>
+      `<label style="display:flex;align-items:center;gap:8px;padding:4px 6px;cursor:pointer;font-size:12px;">
+        <input type="checkbox" value="${escapeHtml(p.nombre)}"${preProy && proyectoMatch(p.nombre, preProy) ? ' checked' : ''} style="accent-color:var(--accent);flex-shrink:0;">
+        <span>${escapeHtml(p.nombre)}</span></label>`).join('');
+  }
+  const contPa = document.getElementById('rcomp-partidas');
+  if (contPa) {
+    const enHistorial = [...new Set(state.historial.map(h => h.partida).filter(Boolean))];
+    const opts = getPartidasParaSelect(enHistorial).map(o => ({ value: o.value, label: o.label }));
+    if (state.historial.some(h => !h.partida)) opts.push({ value: 'Sin partida', label: 'Sin partida' });
+    contPa.innerHTML = opts.map(o =>
+      `<label style="display:flex;align-items:center;gap:8px;padding:4px 6px;cursor:pointer;font-size:12px;">
+        <input type="checkbox" value="${escapeHtml(o.value)}"${rcPartidasSel.has(o.value) ? ' checked' : ''} style="accent-color:var(--accent);flex-shrink:0;">
+        <span>${escapeHtml(o.label)}</span></label>`).join('');
+  }
+  document.getElementById('modal-reporte-comp')?.classList.add('open');
+}
+
+export function generarReporteComparativo() {
+  if (!window.XLSX) { notify('Cargando la librería de Excel, intenta de nuevo en 2 segundos', 'error'); return; }
+  const desde = document.getElementById('rcomp-desde')?.value || '';
+  const hasta = document.getElementById('rcomp-hasta')?.value || '';
+  if (!desde || !hasta) { notify('Elige el rango de fechas (Desde y Hasta)', 'error'); return; }
+  if (desde > hasta) { notify('La fecha "Desde" no puede ser mayor que la fecha "Hasta"', 'error'); return; }
+  const proys = [...document.querySelectorAll('#rcomp-proyectos input:checked')].map(i => i.value);
+  if (proys.length < 2) { notify('Marca al menos 2 proyectos para comparar', 'error'); return; }
+  const partsSel = [...document.querySelectorAll('#rcomp-partidas input:checked')].map(i => i.value);
+
+  // Movimientos del rango (misma base que la pantalla: todo el historial).
+  const enRango = state.historial.filter(h => {
+    const iso = parseFechaHist(h.fecha);
+    return iso && iso >= desde && iso <= hasta;
+  });
+
+  // Meses del rango (aunque alguno quede en cero).
+  const meses = [];
+  let y = parseInt(desde.slice(0, 4), 10), m = parseInt(desde.slice(5, 7), 10);
+  const yF = parseInt(hasta.slice(0, 4), 10), mF = parseInt(hasta.slice(5, 7), 10);
+  while ((y < yF || (y === yF && m <= mF)) && meses.length < 1200) {
+    meses.push(`${y}-${String(m).padStart(2, '0')}`);
+    m++; if (m > 12) { m = 1; y++; }
+  }
+  const etiqueta = ym => { const [yy, mm] = ym.split('-'); return `${_MESES_JP[+mm - 1]} ${yy}`; };
+
+  // Por proyecto: gasto TOTAL (todas las partidas, para el peso %) y las filas del reporte.
+  const data = proys.map(P => {
+    const todas = enRango.filter(h => proyectoMatch(h.proyecto, P));
+    const filas = partsSel.length ? todas.filter(h => partsSel.includes(h.partida || 'Sin partida')) : todas;
+    const porPartida = {}; const porMes = {}; meses.forEach(me => (porMes[me] = 0));
+    let total = 0;
+    filas.forEach(h => {
+      const v = parseFloat(h.importe) || 0;
+      const p = h.partida || 'Sin partida';
+      porPartida[p] = (porPartida[p] || 0) + v;
+      const me = parseFechaHist(h.fecha).slice(0, 7);
+      if (me in porMes) porMes[me] += v;
+      total += v;
+    });
+    const gastoTotal = todas.reduce((s, h) => s + (parseFloat(h.importe) || 0), 0);
+    return { P, filas, porPartida, porMes, total, gastoTotal, n: filas.length };
+  });
+  if (data.every(d => !d.filas.length)) { notify('No hay movimientos de esos proyectos/partidas en el rango', 'error'); return; }
+
+  // Partidas del reporte: las elegidas (aunque queden en 0) o la unión de las presentes;
+  // ordenadas por el total combinado de mayor a menor.
+  const totalComb = p => data.reduce((s, d) => s + (d.porPartida[p] || 0), 0);
+  const partidas = (partsSel.length ? [...partsSel] : [...new Set(data.flatMap(d => Object.keys(d.porPartida)))])
+    .sort((a, b) => totalComb(b) - totalComb(a));
+
+  const dos = proys.length === 2;
+  const wb = XLSX.utils.book_new();
+  const usados = new Set();
+
+  // ---- Hoja 1: Comparativo (partida × proyecto, con peso % e insights) ----
+  const head = ['Partida'];
+  data.forEach(d => head.push(d.P, `% del gasto de ${d.P}`));
+  if (dos) head.push(`Δ (${proys[0]} − ${proys[1]})`, 'Δ %');
+  const aoa = [
+    ['Comparativo de costos entre proyectos'],
+    [`Periodo: ${fmtFecha(desde)} a ${fmtFecha(hasta)}`],
+    [partsSel.length ? `Partidas: ${partsSel.join(', ')}` : 'Partidas: Todas'],
+    ['Base: todos los movimientos del historial (igual que la pantalla). El % es el peso de la partida dentro del gasto TOTAL de su proyecto en el rango.'],
+    [],
+    head
+  ];
+  partidas.forEach(p => {
+    const row = [p];
+    data.forEach(d => { const v = d.porPartida[p] || 0; row.push(v, d.gastoTotal > 0 ? v / d.gastoTotal : ''); });
+    if (dos) {
+      const a = data[0].porPartida[p] || 0, b = data[1].porPartida[p] || 0;
+      row.push(a - b, b > 0 ? (a - b) / b : '');
+    }
+    aoa.push(row);
+  });
+  const totRow = ['TOTAL (partidas del reporte)'];
+  data.forEach(d => totRow.push(d.total, d.gastoTotal > 0 ? d.total / d.gastoTotal : ''));
+  if (dos) totRow.push(data[0].total - data[1].total, data[1].total > 0 ? (data[0].total - data[1].total) / data[1].total : '');
+  aoa.push(totRow);
+  aoa.push([]);
+  aoa.push(['— Insights —']);
+  const insight = (label, fn) => { const row = [label]; data.forEach(d => row.push(fn(d), '')); aoa.push(row); return aoa.length - 1; };
+  insight('Gasto TOTAL del proyecto (todas las partidas)', d => d.gastoTotal);
+  const rPeso = insight('Peso de las partidas del reporte en su gasto', d => (d.gastoTotal > 0 ? d.total / d.gastoTotal : ''));
+  insight('Promedio mensual (partidas del reporte)', d => (meses.length ? d.total / meses.length : ''));
+  const rMovs = insight('Movimientos', d => d.n);
+  insight('Partida más pesada del proyecto', d => {
+    const ps = Object.entries(d.porPartida).sort((x, yy2) => yy2[1] - x[1]);
+    return ps.length ? `${ps[0][0]} (${d.gastoTotal > 0 ? Math.round((ps[0][1] / d.gastoTotal) * 100) : 0}% de su gasto)` : '—';
+  });
+
+  const ws1 = XLSX.utils.aoa_to_sheet(aoa);
+  ws1['!cols'] = [{ wch: 36 }, ...data.flatMap(() => [{ wch: 16 }, { wch: 15 }]), ...(dos ? [{ wch: 18 }, { wch: 10 }] : [])];
+  const pctCols = new Set(data.map((_, i) => 2 + 2 * i));
+  if (dos) pctCols.add(head.length - 1);   // la columna Δ %
+  for (let r = 5; r < aoa.length; r++) {
+    for (let c = 1; c < head.length; c++) {
+      const ref = XLSX.utils.encode_cell({ r, c });
+      if (!ws1[ref] || typeof ws1[ref].v !== 'number') continue;
+      if (pctCols.has(c) || r === rPeso) ws1[ref].z = '0.0%';
+      else if (r === rMovs) ws1[ref].z = '#,##0';
+      else ws1[ref].z = '"$"#,##0.00';
+    }
+  }
+  XLSX.utils.book_append_sheet(wb, ws1, _nombreHoja('Comparativo', usados));
+
+  // ---- Hoja 2: Por mes (evolución de las partidas del reporte) ----
+  const head2 = ['Mes', ...proys, ...(dos ? [`Δ (${proys[0]} − ${proys[1]})`] : [])];
+  const aoa2 = [['Evolución mensual (partidas del reporte)'], [`Periodo: ${fmtFecha(desde)} a ${fmtFecha(hasta)}`], [], head2];
+  meses.forEach(me => {
+    const row = [etiqueta(me), ...data.map(d => d.porMes[me] || 0)];
+    if (dos) row.push((data[0].porMes[me] || 0) - (data[1].porMes[me] || 0));
+    aoa2.push(row);
+  });
+  aoa2.push(['TOTAL', ...data.map(d => d.total), ...(dos ? [data[0].total - data[1].total] : [])]);
+  const ws2 = XLSX.utils.aoa_to_sheet(aoa2);
+  ws2['!cols'] = [{ wch: 14 }, ...proys.map(() => ({ wch: 16 })), ...(dos ? [{ wch: 18 }] : [])];
+  for (let r = 4; r < aoa2.length; r++) {
+    for (let c = 1; c < head2.length; c++) {
+      const ref = XLSX.utils.encode_cell({ r, c });
+      if (ws2[ref] && typeof ws2[ref].v === 'number') ws2[ref].z = '"$"#,##0.00';
+    }
+  }
+  XLSX.utils.book_append_sheet(wb, ws2, _nombreHoja('Por mes', usados));
+
+  // ---- Hoja 3: Detalle (cada movimiento en UN solo proyecto: el match más específico) ----
+  const bucketSel = h => {
+    const matches = proys.filter(P => proyectoMatch(h.proyecto, P));
+    if (!matches.length) return null;
+    matches.sort((a, b) => _normJP(b).length - _normJP(a).length);
+    return matches[0];
+  };
+  const detalle = [];
+  enRango.forEach(h => {
+    if (partsSel.length && !partsSel.includes(h.partida || 'Sin partida')) return;
+    const P = bucketSel(h);
+    if (!P) return;
+    detalle.push({ iso: parseFechaHist(h.fecha), fila: [fmtFecha(h.fecha), P, h.partida || 'Sin partida', h.sub_partida || '', h.nombre || '', h.concepto || '', parseFloat(h.importe) || 0, h.tipo_registro || 'Pago'] });
+  });
+  detalle.sort((a, b) => a.iso.localeCompare(b.iso));
+  const aoa3 = [['Detalle de movimientos'], [`Periodo: ${fmtFecha(desde)} a ${fmtFecha(hasta)}`], [],
+    ['Fecha', 'Proyecto', 'Partida', 'Subpartida', 'Beneficiario', 'Concepto', 'Importe', 'Tipo'],
+    ...detalle.map(d => d.fila)];
+  const ws3 = XLSX.utils.aoa_to_sheet(aoa3);
+  ws3['!cols'] = [{ wch: 11 }, { wch: 20 }, { wch: 26 }, { wch: 20 }, { wch: 30 }, { wch: 36 }, { wch: 14 }, { wch: 10 }];
+  for (let r = 4; r < aoa3.length; r++) {
+    const ref = XLSX.utils.encode_cell({ r, c: 6 });
+    if (ws3[ref] && typeof ws3[ref].v === 'number') ws3[ref].z = '"$"#,##0.00';
+  }
+  XLSX.utils.book_append_sheet(wb, ws3, _nombreHoja('Detalle', usados));
+
+  const safe = s => String(s).replace(/[\\/:*?"<>|\s]+/g, '_');
+  const nombre = dos ? `${safe(proys[0])}_vs_${safe(proys[1])}` : `${proys.length}_proyectos`;
+  XLSX.writeFile(wb, `Comparativo_${nombre}_${desde}_a_${hasta}.xlsx`);
+  cerrar('modal-reporte-comp');
+  notify('✅ Comparativo generado (Comparativo + Por mes + Detalle)', 'success');
+}
