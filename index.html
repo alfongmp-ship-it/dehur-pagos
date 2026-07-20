@@ -863,7 +863,10 @@
         <input type="date" class="filter-select" id="rc-desde" title="Desde">
         <input type="date" class="filter-select" id="rc-hasta" title="Hasta">
         <select class="filter-select" id="rc-proyecto"><option value="">Todos los proyectos</option></select>
-        <select class="filter-select" id="rc-partida"><option value="">Todas las partidas</option></select>
+        <div id="rc-partida-dd" style="position:relative;display:inline-block;">
+          <button type="button" class="filter-select" id="rc-partida-btn" style="display:flex;align-items:center;gap:8px;justify-content:space-between;min-width:200px;">Todas las partidas <span style="font-size:9px;opacity:.6;">▼</span></button>
+          <div id="rc-partida-panel" style="display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:60;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:6px;min-width:280px;max-height:300px;overflow:auto;box-shadow:0 12px 32px rgba(0,0,0,.35);"></div>
+        </div>
         <button class="btn btn-ghost" id="rc-reset">↺ Mes actual</button>
         <button class="btn btn-primary" id="rc-reporte-jp" style="margin-left:auto" onclick="abrirReporteJuanPablo()">📊 Reporte Juan Pablo</button>
       </div>

@@ -11,6 +11,7 @@ import { chartTheme } from '../ui/chart-theme.js';
 let chartProyecto = null;
 let chartTendencia = null;
 let rcInitialized = false;
+let rcPartidasSel = new Set();   // filtro de partidas MULTISELECCIÓN (vacío = todas)
 
 const CARD_COLORS = ['#c8a96e', '#5a9be0', '#4caf7d', '#e07a3a', '#9b7fe8', '#3498db', '#27ae60', '#e05a5a'];
 
@@ -49,16 +50,53 @@ function initOnce() {
   refreshSelects();
   if (rcInitialized) return;
   setDefaultDates();
-  ['rc-desde', 'rc-hasta', 'rc-proyecto', 'rc-partida'].forEach(id => {
+  ['rc-desde', 'rc-hasta', 'rc-proyecto'].forEach(id => {
     document.getElementById(id)?.addEventListener('change', renderResumenCostos);
   });
   document.getElementById('rc-reset')?.addEventListener('click', () => {
     setDefaultDates();
     const sp = document.getElementById('rc-proyecto'); if (sp) sp.value = '';
-    const spt = document.getElementById('rc-partida'); if (spt) spt.value = '';
+    rcPartidasSel.clear();
     renderResumenCostos();
   });
+  // Dropdown de partidas (multiselección): DELEGACIÓN sobre el contenedor — el
+  // panel se reconstruye en cada render y los listeners delegados sobreviven.
+  const dd = document.getElementById('rc-partida-dd');
+  dd?.addEventListener('click', e => {
+    if (e.target.closest('#rc-partida-btn')) {
+      const panel = document.getElementById('rc-partida-panel');
+      if (panel) panel.style.display = panel.style.display === 'none' ? '' : 'none';
+    }
+    if (e.target.closest('#rc-partida-limpiar')) {
+      e.preventDefault();
+      rcPartidasSel.clear();
+      renderResumenCostos();
+    }
+  });
+  dd?.addEventListener('change', e => {
+    const cb = e.target.closest('input[type="checkbox"]');
+    if (!cb) return;
+    if (cb.checked) rcPartidasSel.add(cb.value); else rcPartidasSel.delete(cb.value);
+    renderResumenCostos();
+  });
+  // Clic fuera del dropdown lo cierra (es un filtro, no un modal con captura).
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#rc-partida-dd')) {
+      const panel = document.getElementById('rc-partida-panel');
+      if (panel) panel.style.display = 'none';
+    }
+  });
   rcInitialized = true;
+}
+
+// Etiqueta del botón del filtro de partidas según la selección.
+function _syncPartidaBtn() {
+  const btn = document.getElementById('rc-partida-btn');
+  if (!btn) return;
+  const n = rcPartidasSel.size;
+  const texto = n === 0 ? 'Todas las partidas' : (n === 1 ? [...rcPartidasSel][0] : `${n} partidas`);
+  btn.innerHTML = `<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px;">${escapeHtml(texto)}</span> <span style="font-size:9px;opacity:.6;">▼</span>`;
+  btn.style.borderColor = n ? 'var(--accent)' : '';
 }
 
 function setDefaultDates() {
@@ -78,25 +116,32 @@ function refreshSelects() {
     selProy.innerHTML = '<option value="">Todos los proyectos</option>' + opts.map(n => `<option>${escapeHtml(n)}</option>`).join('');
     selProy.value = val;
   }
-  const selPart = document.getElementById('rc-partida');
-  if (selPart) {
-    const val = selPart.value;
-    // Partidas del catálogo activo + legacy del historial.
+  const panel = document.getElementById('rc-partida-panel');
+  if (panel) {
+    // Partidas del catálogo activo + legacy del historial (multiselección).
     const enHistorial = [...new Set(state.historial.map(h => h.partida).filter(Boolean))];
-    const opts = getPartidasParaSelect(enHistorial);
-    const haySinPartida = state.historial.some(h => !h.partida);
-    let opciones = '<option value="">Todas las partidas</option>';
-    opciones += opts.map(o => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`).join('');
-    if (haySinPartida) opciones += '<option value="Sin partida">Sin partida</option>';
-    selPart.innerHTML = opciones;
-    selPart.value = val;
+    const opts = getPartidasParaSelect(enHistorial).map(o => ({ value: o.value, label: o.label }));
+    if (state.historial.some(h => !h.partida)) opts.push({ value: 'Sin partida', label: 'Sin partida' });
+    // Depurar selecciones que ya no existen en el catálogo/historial.
+    const validas = new Set(opts.map(o => o.value));
+    [...rcPartidasSel].forEach(v => { if (!validas.has(v)) rcPartidasSel.delete(v); });
+    panel.innerHTML =
+      `<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:4px 8px 6px;border-bottom:1px solid var(--border);margin-bottom:4px;">
+        <span style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);">Elige una o varias</span>
+        <a href="#" id="rc-partida-limpiar" style="font-size:11px;color:var(--accent);text-decoration:none;">Limpiar</a>
+      </div>` +
+      opts.map(o => `<label style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;cursor:pointer;font-size:12px;">
+        <input type="checkbox" value="${escapeHtml(o.value)}"${rcPartidasSel.has(o.value) ? ' checked' : ''} style="accent-color:var(--accent);flex-shrink:0;">
+        <span>${escapeHtml(o.label)}</span></label>`).join('');
+    _syncPartidaBtn();
   }
 }
 
-function filterHistorial(fd, fh, fp, fpart) {
+function filterHistorial(fd, fh, fp, fparts) {
   return state.historial.filter(h => {
     if (fp && !proyectoMatch(h.proyecto, fp)) return false;
-    if (fpart && (h.partida || 'Sin partida') !== fpart) return false;
+    // fparts = array de partidas elegidas (vacío = todas).
+    if (fparts && fparts.length && !fparts.includes(h.partida || 'Sin partida')) return false;
     if (fd || fh) {
       const iso = parseFechaHist(h.fecha);
       if (fd && iso < fd) return false;
@@ -110,8 +155,7 @@ function getFiltered() {
   const fd = document.getElementById('rc-desde')?.value || '';
   const fh = document.getElementById('rc-hasta')?.value || '';
   const fp = document.getElementById('rc-proyecto')?.value || '';
-  const fpart = document.getElementById('rc-partida')?.value || '';
-  return filterHistorial(fd, fh, fp, fpart);
+  return filterHistorial(fd, fh, fp, [...rcPartidasSel]);
 }
 
 function shiftISODate(iso, deltaDays) {
@@ -124,13 +168,12 @@ function calcVariacion(totalActual) {
   const fd = document.getElementById('rc-desde')?.value || '';
   const fh = document.getElementById('rc-hasta')?.value || '';
   const fp = document.getElementById('rc-proyecto')?.value || '';
-  const fpart = document.getElementById('rc-partida')?.value || '';
   if (!fd || !fh) return null;
   const msDia = 86400000;
   const dias = Math.round((new Date(fh) - new Date(fd)) / msDia) + 1;
   const prevHasta = shiftISODate(fd, -1);
   const prevDesde = shiftISODate(fd, -dias);
-  const prev = filterHistorial(prevDesde, prevHasta, fp, fpart);
+  const prev = filterHistorial(prevDesde, prevHasta, fp, [...rcPartidasSel]);
   const totalPrev = prev.reduce((s, h) => s + (parseFloat(h.importe) || 0), 0);
   if (totalPrev <= 0) return { totalPrev: 0, delta: totalActual, pct: null };
   const delta = totalActual - totalPrev;
