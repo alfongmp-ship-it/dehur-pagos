@@ -69,10 +69,16 @@ export function sincronizarAportacionesATraspasos() {
   let creados = 0, reparados = 0;
   aportaciones.forEach(h => {
     const fechaISO = parseFechaHist(h.fecha);
+    // La fecha (normalizada a ISO en ambos lados) va en la llave: sin ella, varias
+    // aportaciones del mismo origen/destino/monto pero fecha distinta caían sobre el
+    // MISMO traspaso y se reescribían la fecha en cada pasada (flip-flop infinito, y
+    // las extras nunca se creaban). Con la fecha, cada aportación empareja su propio
+    // traspaso (o ninguno → se crea) y la reparación de fecha converge.
     const existente = state.traspasos.find(t =>
       t.proyecto_origen === h.cuenta_origen &&
       t.cuenta_destino_nombre === h.nombre &&
-      (+t.monto) === (+h.importe)
+      (+t.monto) === (+h.importe) &&
+      (parseFechaHist(t.fecha) || t.fecha || '') === (fechaISO || h.fecha || '')
     );
     if (existente) {
       // Reparar la fecha a ISO si quedó en otro formato (DD/MM/YYYY de una
