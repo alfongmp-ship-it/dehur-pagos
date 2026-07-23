@@ -31,6 +31,13 @@ export function renderHistorial() {
 
   const fil = getFilteredHistorial();
 
+  // Total sumado de lo que quedó tras los filtros (vacío = $0.00).
+  const _htot = document.getElementById('hist-total');
+  if (_htot) {
+    const total = fil.reduce((s, h) => s + (parseFloat(h.importe) || 0), 0);
+    _htot.innerHTML = `Total filtrado: <b style="color:var(--accent);font-family:'DM Mono',monospace;">${fmt(total)}</b>`;
+  }
+
   const sub = document.getElementById('hist-subtitulo');
   if (fil.length !== state.historial.length) {
     sub.textContent = `${fil.length} de ${state.historial.length} registros`;
