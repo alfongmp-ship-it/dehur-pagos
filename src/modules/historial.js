@@ -228,12 +228,16 @@ export function eliminarHistorial(idx) {
     if (window.renderHeaderBadges) window.renderHeaderBadges();
   }
 
-  // Eliminar traspaso correspondiente en módulo de Traspasos
+  // Eliminar traspaso correspondiente en módulo de Traspasos. La FECHA (normalizada
+  // a ISO en ambos lados) va en la llave: sin ella, con montos recurrentes se
+  // borraba el traspaso de OTRO mes (mismo defecto que el sync, fix 87a6b56).
   if (h.tipo_registro === 'Traspaso') {
+    const _fH = parseFechaHist(h.fecha) || h.fecha || '';
     const ti = state.traspasos.findIndex(t =>
       t.proyecto_origen === h.cuenta_origen &&
       t.cuenta_destino_nombre === h.nombre &&
-      t.monto === h.importe
+      t.monto === h.importe &&
+      (parseFechaHist(t.fecha) || t.fecha || '') === _fH
     );
     if (ti !== -1) {
       state.traspasos.splice(ti, 1);
@@ -495,10 +499,13 @@ export function eliminarHistorialBulk() {
     if (h.tipo_registro === 'Traspaso') {
       if (revertirSaldo(h.cuenta_origen, +h.importe, fechaISO)) saldoChanged = true;
       if (revertirSaldo(h.cuenta_destino, -h.importe, fechaISO)) saldoChanged = true;
+      // Llave CON fecha (ver comentario en eliminarHistorial): no borrar el
+      // traspaso de otro mes cuando hay montos recurrentes.
       const ti = state.traspasos.findIndex(t =>
         t.proyecto_origen === h.cuenta_origen &&
         t.cuenta_destino_nombre === h.nombre &&
-        t.monto === h.importe
+        t.monto === h.importe &&
+        (parseFechaHist(t.fecha) || t.fecha || '') === (fechaISO || h.fecha || '')
       );
       if (ti !== -1) { state.traspasos.splice(ti, 1); traspasosChanged = true; }
     } else if (h.tipo_registro === 'Pago' && h.cuenta_origen) {

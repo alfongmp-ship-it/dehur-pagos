@@ -210,10 +210,15 @@ export const historialImporter = createExcelImporter({
     let maxTId = state.traspasos.reduce((m, t) => Math.max(m, t.traspaso_id || 0), 0);
     registros.forEach(r => {
       if (r.tipo !== 'Aportación') return;
+      // La FECHA (normalizada) va en la llave: sin ella, una aportación importada se
+      // quedaba SIN traspaso si existía uno de otro mes con el mismo monto (mismo
+      // defecto que el sync, fix 87a6b56).
+      const _fR = parseFechaHist(r.fecha) || r.fecha || '';
       const yaExiste = state.traspasos.some(t =>
         t.proyecto_origen === r.cuenta_origen &&
         t.cuenta_destino_nombre === r.nombre &&
-        (+t.monto) === (+r.importe)
+        (+t.monto) === (+r.importe) &&
+        (parseFechaHist(t.fecha) || t.fecha || '') === _fR
       );
       if (!yaExiste) {
         const nuevo = traspasoDesdeAportacionHistorial(r, ++maxTId);

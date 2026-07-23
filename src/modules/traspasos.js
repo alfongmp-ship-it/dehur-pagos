@@ -262,6 +262,108 @@ export function editarTraspaso(id) {
   document.getElementById('modal-traspaso').classList.add('open');
 }
 
+// Efectos de un traspaso COMPLETADO: ajuste de saldos + registro contable (espejo
+// de Aportación en historial, o movimiento interno). Usado por la CREACIÓN (igual
+// que siempre) y por la TRANSICIÓN pendiente/cancelado→completado al EDITAR —
+// antes ese camino no hacía NADA (ni saldos ni espejo → aportaciones fantasma).
+// evitarEspejoDuplicado: solo en la transición — si el espejo ya existe por llave
+// exacta CON fecha, no se duplica (en creación se conserva el comportamiento de
+// siempre: el espejo se crea sin chequeo).
+function _aplicarEfectosCompletado(obj, o, d, noHistorial, evitarEspejoDuplicado) {
+  const monto = obj.monto;
+  // Ajuste de saldos bancarios SIEMPRE (aplica a Aportación, Préstamo y Traspaso)
+  const todayISO = new Date().toISOString().split('T')[0];
+  let saldoProyChanged = false;
+  let saldoExtraChanged = false;
+
+  function ajustarSaldo(cuentaId, cuentaTipo, delta) {
+    if (cuentaTipo === 'proyecto') {
+      const proy = state.proyectos.find(x => x.id === cuentaId);
+      if (proy && proy.ultima_act_saldo && todayISO >= proy.ultima_act_saldo.slice(0, 10)) {
+        proy.saldo = (proy.saldo || 0) + delta;
+        saldoProyChanged = true;
+      }
+    } else {
+      const extra = state.cuentasPropias.find(x => String(x.cuenta_id) === String(cuentaId));
+      if (extra && extra.ultima_actualizacion && todayISO >= extra.ultima_actualizacion.slice(0, 10)) {
+        extra.saldo = (extra.saldo || 0) + delta;
+        saldoExtraChanged = true;
+      }
+    }
+  }
+
+  ajustarSaldo(obj.cuenta_origen_id, o?.tipo, -monto);
+  ajustarSaldo(obj.cuenta_destino_id, d?.tipo, monto);
+
+  if (saldoProyChanged) { saveProy(state.proyectos); gsSaveProyectos(); }
+  if (saldoExtraChanged) { gsSaveCuentasPropias(); }
+  if (saldoProyChanged || saldoExtraChanged) {
+    if (window.renderCuentasPropias) window.renderCuentasPropias();
+    if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
+    if (window.renderHeaderBadges) window.renderHeaderBadges();
+  }
+
+  // Registro contable: solo Aportación genera costo en historial.
+  // Préstamo y Traspaso son movimientos internos (sin costo).
+  const registrarHistorial = obj.tipo === 'Aportación' && o?.proyecto && !noHistorial;
+
+  if (registrarHistorial) {
+    if (evitarEspejoDuplicado) {
+      const fISO = parseFechaHist(obj.fecha) || obj.fecha || '';
+      const yaEspejo = state.historial.some(h =>
+        h.tipo_registro === 'Traspaso' && h.tipo === 'Aportación' &&
+        h.cuenta_origen === o.proyecto && h.nombre === d.nombre &&
+        (+h.importe) === (+monto) &&
+        (parseFechaHist(h.fecha) || h.fecha || '') === fISO
+      );
+      if (yaEspejo) return;
+    }
+    const fechaHist = fmtFecha(obj.fecha);
+    state.historial.unshift({
+      fecha: fechaHist,
+      nombre: d.nombre,
+      concepto: obj.concepto || `${obj.tipo} a ${d.nombre}`,
+      importe: monto,
+      proyecto: o.proyecto,
+      banco: 'BBVA',
+      tipo: obj.tipo,
+      proveedor_id: '',
+      factura_id: '',
+      cuenta_origen: o.proyecto,
+      cuenta_destino: d?.proyecto || '',
+      tipo_registro: 'Traspaso',
+      partida: obj.partida || ''
+    });
+    saveData();
+    // Fase 3: la fila de aportación nace sin id (unshift); ensureHistorialIds
+    // la numera y se guarda por fila a Supabase.
+    ensureHistorialIds();
+    if (esPorFila('historial')) sbGuardarFila('historial', state.historial[0]);
+    // Devengado/reparto: las APORTACIONES (nómina, impuestos, etc.) afectan SIEMPRE
+    // por indiviso a TODAS las unidades activas del proyecto. Se reparte automático
+    // al registrarla (de aquí en adelante); las históricas se asignan a mano.
+    if (aplicarAutoIndiviso(state.historial[0], null, true) > 0) gsSaveCostoAsignaciones();
+    const cntHist = document.getElementById('cnt-hist');
+    if (cntHist) cntHist.textContent = state.historial.length;
+    if (window.renderHistorial) window.renderHistorial();
+  } else {
+    const _mi = {
+      id: state.movimientosInternos.reduce((max, m) => Math.max(max, m.id || 0), 0) + 1,
+      fecha: obj.fecha,
+      tipo: obj.tipo,
+      origen: o?.nombre || '',
+      destino: d?.nombre || '',
+      monto: monto,
+      concepto: obj.concepto || '',
+      referencia: obj.referencia || ''
+    };
+    state.movimientosInternos.push(_mi);
+    const _pfMi = esPorFila('movimientosInternos');
+    gsSaveMovimientosInternos({ porFila: _pfMi });
+    if (_pfMi) sbGuardarFila('movimientosInternos', _mi);
+  }
+}
+
 export function guardarTraspaso() {
   const origenId = document.getElementById('tr-origen').value;
   const destinoId = document.getElementById('tr-destino').value;
@@ -306,93 +408,27 @@ export function guardarTraspaso() {
 
   if (state.editTraspasoId) {
     const i = state.traspasos.findIndex(t => t.traspaso_id === state.editTraspasoId);
+    const estatusAntes = state.traspasos[i]?.estatus || 'pendiente';
+    // Revertir un completado editándole el estatus dejaría los saldos aplicados sin
+    // revertir: se bloquea (la ruta correcta es eliminarlo con ✕, que SÍ los regresa).
+    if (estatusAntes === 'completado' && obj.estatus !== 'completado') {
+      notify('Para revertir un traspaso completado, elimínalo (✕ — eso sí regresa los saldos) y recréalo', 'error');
+      return;
+    }
     state.traspasos[i] = obj;
+    // Transición pendiente/cancelado → completado: aplicar los MISMOS efectos que la
+    // creación (saldos + espejo en historial o movimiento interno). Antes este camino
+    // no hacía NADA → traspasos "completados" sin saldos ni historial (fantasmas).
+    // (Editar monto/fecha de uno YA completado sigue sin re-ajustar saldos — limitación conocida.)
+    if (estatusAntes !== 'completado' && obj.estatus === 'completado') {
+      const noHistorial = document.getElementById('tr-no-historial')?.checked;
+      _aplicarEfectosCompletado(obj, o, d, noHistorial, true);
+    }
   } else {
     state.traspasos.push(obj);
-
     if (obj.estatus === 'completado') {
-      // Ajuste de saldos bancarios SIEMPRE (aplica a Aportación, Préstamo y Traspaso)
-      const todayISO = new Date().toISOString().split('T')[0];
-      let saldoProyChanged = false;
-      let saldoExtraChanged = false;
-
-      function ajustarSaldo(cuentaId, cuentaTipo, delta) {
-        if (cuentaTipo === 'proyecto') {
-          const proy = state.proyectos.find(x => x.id === cuentaId);
-          if (proy && proy.ultima_act_saldo && todayISO >= proy.ultima_act_saldo.slice(0, 10)) {
-            proy.saldo = (proy.saldo || 0) + delta;
-            saldoProyChanged = true;
-          }
-        } else {
-          const extra = state.cuentasPropias.find(x => String(x.cuenta_id) === String(cuentaId));
-          if (extra && extra.ultima_actualizacion && todayISO >= extra.ultima_actualizacion.slice(0, 10)) {
-            extra.saldo = (extra.saldo || 0) + delta;
-            saldoExtraChanged = true;
-          }
-        }
-      }
-
-      ajustarSaldo(origenId, o?.tipo, -monto);
-      ajustarSaldo(destinoId, d?.tipo, monto);
-
-      if (saldoProyChanged) { saveProy(state.proyectos); gsSaveProyectos(); }
-      if (saldoExtraChanged) { gsSaveCuentasPropias(); }
-      if (saldoProyChanged || saldoExtraChanged) {
-        if (window.renderCuentasPropias) window.renderCuentasPropias();
-        if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
-        if (window.renderHeaderBadges) window.renderHeaderBadges();
-      }
-
-      // Registro contable: solo Aportación genera costo en historial.
-      // Préstamo y Traspaso son movimientos internos (sin costo).
       const noHistorial = document.getElementById('tr-no-historial')?.checked;
-      const registrarHistorial = obj.tipo === 'Aportación' && o?.proyecto && !noHistorial;
-
-      if (registrarHistorial) {
-        const fechaHist = fmtFecha(fecha);
-        state.historial.unshift({
-          fecha: fechaHist,
-          nombre: d.nombre,
-          concepto: obj.concepto || `${obj.tipo} a ${d.nombre}`,
-          importe: monto,
-          proyecto: o.proyecto,
-          banco: 'BBVA',
-          tipo: obj.tipo,
-          proveedor_id: '',
-          factura_id: '',
-          cuenta_origen: o.proyecto,
-          cuenta_destino: d?.proyecto || '',
-          tipo_registro: 'Traspaso',
-          partida: partida || ''
-        });
-        saveData();
-        // Fase 3: la fila de aportación nace sin id (unshift); ensureHistorialIds
-        // la numera y se guarda por fila a Supabase.
-        ensureHistorialIds();
-        if (esPorFila('historial')) sbGuardarFila('historial', state.historial[0]);
-        // Devengado/reparto: las APORTACIONES (nómina, impuestos, etc.) afectan SIEMPRE
-        // por indiviso a TODAS las unidades activas del proyecto. Se reparte automático
-        // al registrarla (de aquí en adelante); las históricas se asignan a mano.
-        if (aplicarAutoIndiviso(state.historial[0], null, true) > 0) gsSaveCostoAsignaciones();
-        const cntHist = document.getElementById('cnt-hist');
-        if (cntHist) cntHist.textContent = state.historial.length;
-        if (window.renderHistorial) window.renderHistorial();
-      } else {
-        const _mi = {
-          id: state.movimientosInternos.reduce((max, m) => Math.max(max, m.id || 0), 0) + 1,
-          fecha: fecha,
-          tipo: tipo,
-          origen: o?.nombre || '',
-          destino: d?.nombre || '',
-          monto: monto,
-          concepto: obj.concepto || '',
-          referencia: obj.referencia || ''
-        };
-        state.movimientosInternos.push(_mi);
-        const _pfMi = esPorFila('movimientosInternos');
-        gsSaveMovimientosInternos({ porFila: _pfMi });
-        if (_pfMi) sbGuardarFila('movimientosInternos', _mi);
-      }
+      _aplicarEfectosCompletado(obj, o, d, noHistorial, false);
     }
   }
 
@@ -445,13 +481,18 @@ export function eliminarTraspaso(id) {
       if (window.renderHeaderBadges) window.renderHeaderBadges();
     }
 
-    // Solo Aportación tiene entrada en historial que haya que eliminar
+    // Solo Aportación tiene entrada en historial que haya que eliminar.
+    // La FECHA (normalizada a ISO en ambos lados) va en la llave: sin ella, con
+    // montos recurrentes se borraba la aportación de OTRO mes (mismo defecto que
+    // el sync, fix 87a6b56).
     if (t.tipo === 'Aportación') {
+      const _fT = parseFechaHist(t.fecha) || t.fecha || '';
       const hi = state.historial.findIndex(h =>
         h.tipo_registro === 'Traspaso' &&
         h.cuenta_origen === t.proyecto_origen &&
         h.nombre === t.cuenta_destino_nombre &&
-        h.importe === t.monto
+        h.importe === t.monto &&
+        (parseFechaHist(h.fecha) || h.fecha || '') === _fT
       );
       if (hi !== -1) {
         const _hid = state.historial[hi].id;
