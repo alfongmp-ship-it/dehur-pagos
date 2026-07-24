@@ -1,10 +1,10 @@
-import { state, datosListos, puedeEditar } from '../state.js';
+import { state, datosListos, puedeEditar, esAdmin } from '../state.js';
 import { fmt, fmtFecha, escapeHtml } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { gsSaveTraspasos, saveData, gsSaveHistorial, gsSaveProyectos, gsSaveCuentasPropias, gsSaveMovimientosInternos, ensureHistorialIds, esPorFila, sbGuardarFila, sbBorrarFila, gsSaveCostoAsignaciones } from '../services/google-sync.js';
 import { aplicarAutoIndiviso } from './confirmar-pagos.js';
-import { saveProy } from '../config/proyectos.js';
+import { saveProy, proyectoMatch } from '../config/proyectos.js';
 import { getPartidasParaSelect } from '../config/sub-partidas.js';
 import { parseFechaHist } from './historial.js';
 
@@ -135,6 +135,71 @@ function estatusBadge(estatus) {
   return `<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:600;background:${style};">${estatus}</span>`;
 }
 
+// ---- Filtros + selección para borrado en bloque (patrón de Historial) ----
+const trasSel = new Set();   // traspaso_id (como String) seleccionados
+
+function refreshTraspasosProyectos() {
+  const sel = document.getElementById('ft-proy');
+  if (!sel) return;
+  const val = sel.value;
+  const opts = state.proyectos.filter(p => p.activo !== false).map(p => p.nombre);
+  sel.innerHTML = '<option value="">Todos los proyectos</option>' + opts.map(n => `<option>${escapeHtml(n)}</option>`).join('');
+  sel.value = val;
+}
+
+function getFilteredTraspasos() {
+  const tipo = document.getElementById('ft-tipo')?.value || '';
+  const proy = document.getElementById('ft-proy')?.value || '';
+  const est = document.getElementById('ft-estatus')?.value || '';
+  const desde = document.getElementById('ft-desde')?.value || '';
+  const hasta = document.getElementById('ft-hasta')?.value || '';
+  return state.traspasos.filter(t => {
+    if (tipo && t.tipo !== tipo) return false;
+    if (est && (t.estatus || 'pendiente') !== est) return false;
+    if (proy && !(proyectoMatch(t.proyecto_origen, proy) || proyectoMatch(t.proyecto_destino, proy))) return false;
+    if (desde || hasta) {
+      const f = parseFechaHist(t.fecha) || t.fecha || '';
+      if (desde && f < desde) return false;
+      if (hasta && f > hasta) return false;
+    }
+    return true;
+  });
+}
+
+export function limpiarFiltrosTraspasos() {
+  ['ft-tipo', 'ft-proy', 'ft-estatus', 'ft-desde', 'ft-hasta'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  renderTraspasos();
+}
+
+export function toggleTrasSel(id, ev) {
+  if (ev) ev.stopPropagation();
+  const k = String(id);
+  if (trasSel.has(k)) trasSel.delete(k); else trasSel.add(k);
+  actualizarBarraSelTras();
+}
+
+export function toggleTrasSelAll(check) {
+  getFilteredTraspasos().forEach(t => {
+    const k = String(t.traspaso_id);
+    if (check) trasSel.add(k); else trasSel.delete(k);
+  });
+  renderTraspasos();
+}
+
+function actualizarBarraSelTras() {
+  const n = trasSel.size;
+  const btn = document.getElementById('tras-bulk-del');
+  if (btn) { btn.style.display = n > 0 ? '' : 'none'; btn.textContent = `🗑 Eliminar seleccionados (${n})`; }
+}
+
+// Checkbox maestro del thead: marcado solo si TODOS los visibles están seleccionados.
+function _syncSelAllTras(fil) {
+  const cb = document.getElementById('tras-sel-all');
+  if (cb) cb.checked = fil.length > 0 && fil.every(t => trasSel.has(String(t.traspaso_id)));
+}
+
 export function renderTraspasos() {
   const tb = document.getElementById('tbody-traspasos');
   if (!tb) return;
@@ -142,21 +207,48 @@ export function renderTraspasos() {
   if (!datosListos()) {
     tb.innerHTML = '<tr><td colspan="10"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔒</div><div>Conecta Google Sheets para ver esta información</div></div></td></tr>';
     const cnt = document.getElementById('cnt-traspasos'); if (cnt) cnt.textContent = '0';
+    const sub = document.getElementById('cnt-traspasos-sub'); if (sub) sub.textContent = '';
     return;
   }
 
+  refreshTraspasosProyectos();
   const cnt = document.getElementById('cnt-traspasos');
   if (cnt) cnt.textContent = state.traspasos.length;
 
   if (!state.traspasos.length) {
-    tb.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">↔</div><div>Sin traspasos o préstamos registrados</div></div></td></tr>';
+    tb.innerHTML = '<tr><td colspan="10"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">↔</div><div>Sin traspasos o préstamos registrados</div></div></td></tr>';
+    const sub0 = document.getElementById('cnt-traspasos-sub'); if (sub0) sub0.textContent = '0 registros';
+    trasSel.clear();
+    actualizarBarraSelTras();
+    _syncSelAllTras([]);
     return;
   }
 
-  const sorted = [...state.traspasos].sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
+  const fil = getFilteredTraspasos();
+  const sub = document.getElementById('cnt-traspasos-sub');
+  if (sub) {
+    const totalFil = fil.reduce((s, t) => s + (+t.monto || 0), 0);
+    sub.textContent = (fil.length !== state.traspasos.length)
+      ? `${fil.length} de ${state.traspasos.length} registros · ${fmt(totalFil)}`
+      : `${state.traspasos.length} registros · ${fmt(totalFil)}`;
+  }
+
+  // Depurar de la selección ids que ya no existen y refrescar barra + maestro.
+  const idsActuales = new Set(state.traspasos.map(t => String(t.traspaso_id)));
+  [...trasSel].forEach(k => { if (!idsActuales.has(k)) trasSel.delete(k); });
+  actualizarBarraSelTras();
+  _syncSelAllTras(fil);
+
+  if (!fil.length) {
+    tb.innerHTML = '<tr><td colspan="10"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔍</div><div>Sin resultados con los filtros actuales</div></div></td></tr>';
+    return;
+  }
+
+  const sorted = [...fil].sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
 
   tb.innerHTML = sorted.map(t => `
     <tr>
+      <td style="text-align:center;"><input type="checkbox" class="req-admin" ${trasSel.has(String(t.traspaso_id)) ? 'checked' : ''} onclick="toggleTrasSel('${t.traspaso_id}', event)" style="cursor:pointer;" title="Seleccionar"></td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${fmtFecha(t.fecha) || '—'}</td>
       <td>${tipoBadge(t.tipo)}</td>
       <td style="font-size:12px;font-weight:500;">${escapeHtml(t.cuenta_origen_nombre) || '—'}</td>
@@ -443,69 +535,78 @@ export function guardarTraspaso() {
   if (porFila) sbGuardarFila('traspasos', obj);
 }
 
+// Revierte los efectos de UN traspaso COMPLETADO: saldos (guard de fecha) y, en
+// Aportación, su espejo del historial (emparejado CON fecha, fix 67db88f). NO
+// persiste nada: acumula en `fx` lo que cambió para que el llamador (borrado
+// individual o en BLOQUE) guarde una sola vez.
+function _revertirEfectosTraspaso(t, fx) {
+  if (t.estatus !== 'completado') return;
+  const todayISO = new Date().toISOString().split('T')[0];
+
+  function ajustarSaldo(cuentaId, cuentaTipo, delta) {
+    if (cuentaTipo === 'proyecto') {
+      const proy = state.proyectos.find(x => x.id === cuentaId);
+      if (proy && proy.ultima_act_saldo && todayISO >= proy.ultima_act_saldo.slice(0, 10)) {
+        proy.saldo = (proy.saldo || 0) + delta;
+        fx.saldoProy = true;
+      }
+    } else {
+      const extra = state.cuentasPropias.find(x => String(x.cuenta_id) === String(cuentaId));
+      if (extra && extra.ultima_actualizacion && todayISO >= extra.ultima_actualizacion.slice(0, 10)) {
+        extra.saldo = (extra.saldo || 0) + delta;
+        fx.saldoExtra = true;
+      }
+    }
+  }
+
+  ajustarSaldo(t.cuenta_origen_id, t.cuenta_origen_tipo, +t.monto);
+  ajustarSaldo(t.cuenta_destino_id, t.cuenta_destino_tipo, -t.monto);
+
+  // Solo Aportación tiene entrada en historial que haya que eliminar.
+  if (t.tipo === 'Aportación') {
+    const _fT = parseFechaHist(t.fecha) || t.fecha || '';
+    const hi = state.historial.findIndex(h =>
+      h.tipo_registro === 'Traspaso' &&
+      h.cuenta_origen === t.proyecto_origen &&
+      h.nombre === t.cuenta_destino_nombre &&
+      h.importe === t.monto &&
+      (parseFechaHist(h.fecha) || h.fecha || '') === _fT
+    );
+    if (hi !== -1) {
+      fx.histIds.push(state.historial[hi].id);
+      state.historial.splice(hi, 1);
+      fx.histChanged = true;
+    }
+  }
+}
+
+// Persiste lo acumulado por _revertirEfectosTraspaso (saldos + historial) UNA vez.
+function _persistirReversion(fx) {
+  if (fx.saldoProy) { saveProy(state.proyectos); gsSaveProyectos(); }
+  if (fx.saldoExtra) { gsSaveCuentasPropias(); }
+  if (fx.saldoProy || fx.saldoExtra) {
+    if (window.renderCuentasPropias) window.renderCuentasPropias();
+    if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
+    if (window.renderHeaderBadges) window.renderHeaderBadges();
+  }
+  if (fx.histChanged) {
+    const _pfHist = esPorFila('historial');
+    gsSaveHistorial({ porFila: _pfHist });
+    if (_pfHist) fx.histIds.forEach(hid => { if (hid) sbBorrarFila('historial', hid); });
+    const cntHist = document.getElementById('cnt-hist');
+    if (cntHist) cntHist.textContent = state.historial.length;
+    if (window.renderHistorial) window.renderHistorial();
+  }
+}
+
 export function eliminarTraspaso(id) {
   const t = state.traspasos.find(x => x.traspaso_id === id);
   if (!t) return;
   if (!confirm('¿Eliminar este registro?')) return;
 
-  if (t.estatus === 'completado') {
-    // Revertir saldos directamente desde los datos del traspaso (no dependen de historial)
-    const todayISO = new Date().toISOString().split('T')[0];
-    let saldoProyChanged = false;
-    let saldoExtraChanged = false;
-
-    function ajustarSaldo(cuentaId, cuentaTipo, delta) {
-      if (cuentaTipo === 'proyecto') {
-        const proy = state.proyectos.find(x => x.id === cuentaId);
-        if (proy && proy.ultima_act_saldo && todayISO >= proy.ultima_act_saldo.slice(0, 10)) {
-          proy.saldo = (proy.saldo || 0) + delta;
-          saldoProyChanged = true;
-        }
-      } else {
-        const extra = state.cuentasPropias.find(x => String(x.cuenta_id) === String(cuentaId));
-        if (extra && extra.ultima_actualizacion && todayISO >= extra.ultima_actualizacion.slice(0, 10)) {
-          extra.saldo = (extra.saldo || 0) + delta;
-          saldoExtraChanged = true;
-        }
-      }
-    }
-
-    ajustarSaldo(t.cuenta_origen_id, t.cuenta_origen_tipo, +t.monto);
-    ajustarSaldo(t.cuenta_destino_id, t.cuenta_destino_tipo, -t.monto);
-
-    if (saldoProyChanged) { saveProy(state.proyectos); gsSaveProyectos(); }
-    if (saldoExtraChanged) { gsSaveCuentasPropias(); }
-    if (saldoProyChanged || saldoExtraChanged) {
-      if (window.renderCuentasPropias) window.renderCuentasPropias();
-      if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
-      if (window.renderHeaderBadges) window.renderHeaderBadges();
-    }
-
-    // Solo Aportación tiene entrada en historial que haya que eliminar.
-    // La FECHA (normalizada a ISO en ambos lados) va en la llave: sin ella, con
-    // montos recurrentes se borraba la aportación de OTRO mes (mismo defecto que
-    // el sync, fix 87a6b56).
-    if (t.tipo === 'Aportación') {
-      const _fT = parseFechaHist(t.fecha) || t.fecha || '';
-      const hi = state.historial.findIndex(h =>
-        h.tipo_registro === 'Traspaso' &&
-        h.cuenta_origen === t.proyecto_origen &&
-        h.nombre === t.cuenta_destino_nombre &&
-        h.importe === t.monto &&
-        (parseFechaHist(h.fecha) || h.fecha || '') === _fT
-      );
-      if (hi !== -1) {
-        const _hid = state.historial[hi].id;
-        state.historial.splice(hi, 1);
-        const _pfHist = esPorFila('historial');
-        gsSaveHistorial({ porFila: _pfHist });
-        if (_pfHist && _hid) sbBorrarFila('historial', _hid);
-        const cntHist = document.getElementById('cnt-hist');
-        if (cntHist) cntHist.textContent = state.historial.length;
-        if (window.renderHistorial) window.renderHistorial();
-      }
-    }
-  }
+  const fx = { saldoProy: false, saldoExtra: false, histIds: [], histChanged: false };
+  _revertirEfectosTraspaso(t, fx);
+  _persistirReversion(fx);
 
   state.traspasos = state.traspasos.filter(x => x.traspaso_id !== id);
   renderTraspasos();
@@ -514,4 +615,29 @@ export function eliminarTraspaso(id) {
   const porFila = esPorFila('traspasos');
   gsSaveTraspasos({ porFila });
   if (porFila) sbBorrarFila('traspasos', id);
+}
+
+// Borrado en BLOQUE de los traspasos seleccionados (solo admin, como el bulk del
+// historial): revierte saldos de los completados y el espejo del historial de las
+// aportaciones (llaves CON fecha), y persiste todo en una sola pasada.
+export function eliminarTraspasosBulk() {
+  if (!esAdmin()) { notify('Solo el admin puede borrar en bloque', 'error'); return; }
+  const ids = new Set([...trasSel]);
+  const aBorrar = state.traspasos.filter(t => ids.has(String(t.traspaso_id)));
+  if (!aBorrar.length) { notify('No hay traspasos seleccionados', 'error'); return; }
+  const total = aBorrar.reduce((s, t) => s + (+t.monto || 0), 0);
+  if (!confirm(`¿Eliminar ${aBorrar.length} traspaso(s)/préstamo(s) seleccionado(s)?\nSuma: ${fmt(total)}\n\nSe revierten los saldos de los completados y se borra el registro en historial de las aportaciones. Esta acción no se puede deshacer.`)) return;
+
+  const fx = { saldoProy: false, saldoExtra: false, histIds: [], histChanged: false };
+  aBorrar.forEach(t => _revertirEfectosTraspaso(t, fx));
+  state.traspasos = state.traspasos.filter(t => !ids.has(String(t.traspaso_id)));
+  trasSel.clear();
+  _persistirReversion(fx);
+
+  renderTraspasos();
+  if (window.renderResumenTraspasos) window.renderResumenTraspasos();
+  const porFila = esPorFila('traspasos');
+  gsSaveTraspasos({ porFila });
+  if (porFila) aBorrar.forEach(t => sbBorrarFila('traspasos', t.traspaso_id));
+  notify(`✅ ${aBorrar.length} registro(s) eliminados`);
 }

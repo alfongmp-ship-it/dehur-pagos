@@ -640,9 +640,31 @@
           <button class="btn btn-primary req-editor" onclick="abrirNuevoTraspaso()">+ Nuevo</button>
         </div>
       </div>
+      <div class="toolbar">
+        <select class="filter-select" id="ft-tipo" onchange="renderTraspasos()">
+          <option value="">Todos los tipos</option>
+          <option>Traspaso</option>
+          <option>Préstamo</option>
+          <option>Aportación</option>
+        </select>
+        <select class="filter-select" id="ft-proy" onchange="renderTraspasos()">
+          <option value="">Todos los proyectos</option>
+        </select>
+        <select class="filter-select" id="ft-estatus" onchange="renderTraspasos()">
+          <option value="">Todos los estatus</option>
+          <option value="completado">completado</option>
+          <option value="pendiente">pendiente</option>
+          <option value="cancelado">cancelado</option>
+        </select>
+        <input type="date" class="filter-select" id="ft-desde" onchange="renderTraspasos()" title="Desde">
+        <input type="date" class="filter-select" id="ft-hasta" onchange="renderTraspasos()" title="Hasta">
+        <button class="btn btn-ghost btn-sm" onclick="limpiarFiltrosTraspasos()">Limpiar</button>
+        <button id="tras-bulk-del" class="btn btn-ghost btn-sm req-admin danger" onclick="eliminarTraspasosBulk()" style="display:none;font-size:11px;padding:3px 10px;margin-left:auto;">🗑 Eliminar seleccionados (0)</button>
+      </div>
       <div class="card" style="padding:0;">
         <table class="table">
           <thead><tr>
+            <th style="width:34px;text-align:center;"><input type="checkbox" id="tras-sel-all" class="req-admin" onclick="toggleTrasSelAll(this.checked)" title="Seleccionar todos los visibles" style="cursor:pointer;"></th>
             <th>Fecha</th>
             <th>Tipo</th>
             <th>Origen</th>
