@@ -67,6 +67,7 @@ export function sincronizarAportacionesATraspasos() {
   const aportaciones = state.historial.filter(h => h.tipo_registro === 'Traspaso' && h.tipo === 'Aportación');
   let maxId = state.traspasos.reduce((m, t) => Math.max(m, t.traspaso_id || 0), 0);
   let creados = 0, reparados = 0;
+  const tocados = [];   // filas creadas/reparadas → se guardan POR FILA (sin tormenta de espejo)
   aportaciones.forEach(h => {
     const fechaISO = parseFechaHist(h.fecha);
     // La fecha (normalizada a ISO en ambos lados) va en la llave: sin ella, varias
@@ -83,14 +84,20 @@ export function sincronizarAportacionesATraspasos() {
     if (existente) {
       // Reparar la fecha a ISO si quedó en otro formato (DD/MM/YYYY de una
       // sincronización anterior) → para que el filtro por fechas las encuentre.
-      if (fechaISO && existente.fecha !== fechaISO) { existente.fecha = fechaISO; reparados++; }
+      if (fechaISO && existente.fecha !== fechaISO) { existente.fecha = fechaISO; reparados++; tocados.push(existente); }
       return;
     }
-    state.traspasos.push(traspasoDesdeAportacionHistorial(h, ++maxId));
+    const nuevo = traspasoDesdeAportacionHistorial(h, ++maxId);
+    state.traspasos.push(nuevo);
+    tocados.push(nuevo);
     creados++;
   });
   if (creados > 0 || reparados > 0) {
-    gsSaveTraspasos();
+    // POR FILA: antes se espejaba la tabla completa (DELETE×N + INSERT×N) y la
+    // tormenta de eventos realtime hacía rebotar la lista en esta misma pestaña.
+    const _pfT = esPorFila('traspasos');
+    gsSaveTraspasos({ porFila: _pfT });
+    if (_pfT) tocados.forEach(t => sbGuardarFila('traspasos', t));
     if (window.renderTraspasos) window.renderTraspasos();
     if (window.renderResumenTraspasos) window.renderResumenTraspasos();
     const cnt = document.getElementById('cnt-traspasos');
@@ -144,6 +151,10 @@ function refreshTraspasosProyectos() {
   const val = sel.value;
   const opts = state.proyectos.filter(p => p.activo !== false).map(p => p.nombre);
   sel.innerHTML = '<option value="">Todos los proyectos</option>' + opts.map(n => `<option>${escapeHtml(n)}</option>`).join('');
+  // Resiliencia: si el valor elegido ya no está entre las opciones (p. ej. un
+  // render cayó a media recarga del state), se re-agrega para NUNCA perder el
+  // filtro en silencio (perderlo mostraba TODO y parecía "duplicado" y "filtro roto").
+  if (val && !opts.includes(val)) sel.insertAdjacentHTML('beforeend', `<option>${escapeHtml(val)}</option>`);
   sel.value = val;
 }
 
@@ -361,25 +372,49 @@ export function editarTraspaso(id) {
 // evitarEspejoDuplicado: solo en la transición — si el espejo ya existe por llave
 // exacta CON fecha, no se duplica (en creación se conserva el comportamiento de
 // siempre: el espejo se crea sin chequeo).
+// Guarda los saldos tocados POR FILA: upsert de SOLO esas filas a Supabase
+// (Sheets sigue whole-table). Antes se espejaba la tabla COMPLETA de proyectos/
+// cuentas (DELETE×N + INSERT×N en Supabase) → tormenta de eventos realtime hacia
+// esta misma pestaña que hacía "rebotar" la lista y podía perder el filtro
+// elegido a media reconstrucción. Con porFila no hay tormenta.
+function _guardarSaldosCambiados(proysCambiados, cuentasCambiadas) {
+  if (proysCambiados.length) {
+    saveProy(state.proyectos);
+    const pf = esPorFila('proyectos');
+    gsSaveProyectos({ porFila: pf });
+    if (pf) proysCambiados.forEach(p => sbGuardarFila('proyectos', p));
+  }
+  if (cuentasCambiadas.length) {
+    const pf = esPorFila('cuentasPropias');
+    gsSaveCuentasPropias({ porFila: pf });
+    if (pf) cuentasCambiadas.forEach(c => sbGuardarFila('cuentasPropias', c));
+  }
+  if (proysCambiados.length || cuentasCambiadas.length) {
+    if (window.renderCuentasPropias) window.renderCuentasPropias();
+    if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
+    if (window.renderHeaderBadges) window.renderHeaderBadges();
+  }
+}
+
 function _aplicarEfectosCompletado(obj, o, d, noHistorial, evitarEspejoDuplicado) {
   const monto = obj.monto;
   // Ajuste de saldos bancarios SIEMPRE (aplica a Aportación, Préstamo y Traspaso)
   const todayISO = new Date().toISOString().split('T')[0];
-  let saldoProyChanged = false;
-  let saldoExtraChanged = false;
+  const proysCambiados = [];
+  const cuentasCambiadas = [];
 
   function ajustarSaldo(cuentaId, cuentaTipo, delta) {
     if (cuentaTipo === 'proyecto') {
       const proy = state.proyectos.find(x => x.id === cuentaId);
       if (proy && proy.ultima_act_saldo && todayISO >= proy.ultima_act_saldo.slice(0, 10)) {
         proy.saldo = (proy.saldo || 0) + delta;
-        saldoProyChanged = true;
+        proysCambiados.push(proy);
       }
     } else {
       const extra = state.cuentasPropias.find(x => String(x.cuenta_id) === String(cuentaId));
       if (extra && extra.ultima_actualizacion && todayISO >= extra.ultima_actualizacion.slice(0, 10)) {
         extra.saldo = (extra.saldo || 0) + delta;
-        saldoExtraChanged = true;
+        cuentasCambiadas.push(extra);
       }
     }
   }
@@ -387,13 +422,7 @@ function _aplicarEfectosCompletado(obj, o, d, noHistorial, evitarEspejoDuplicado
   ajustarSaldo(obj.cuenta_origen_id, o?.tipo, -monto);
   ajustarSaldo(obj.cuenta_destino_id, d?.tipo, monto);
 
-  if (saldoProyChanged) { saveProy(state.proyectos); gsSaveProyectos(); }
-  if (saldoExtraChanged) { gsSaveCuentasPropias(); }
-  if (saldoProyChanged || saldoExtraChanged) {
-    if (window.renderCuentasPropias) window.renderCuentasPropias();
-    if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
-    if (window.renderHeaderBadges) window.renderHeaderBadges();
-  }
+  _guardarSaldosCambiados(proysCambiados, cuentasCambiadas);
 
   // Registro contable: solo Aportación genera costo en historial.
   // Préstamo y Traspaso son movimientos internos (sin costo).
@@ -456,7 +485,12 @@ function _aplicarEfectosCompletado(obj, o, d, noHistorial, evitarEspejoDuplicado
   }
 }
 
+let _ultimoGuardadoTraspaso = 0;
+
 export function guardarTraspaso() {
+  // Anti doble-clic: dos guardados seguidos en <800ms crearían DOS traspasos
+  // idénticos con ids consecutivos (el modal no deshabilita el botón).
+  if (Date.now() - _ultimoGuardadoTraspaso < 800) return;
   const origenId = document.getElementById('tr-origen').value;
   const destinoId = document.getElementById('tr-destino').value;
   const monto = parseFloat(document.getElementById('tr-monto').value) || 0;
@@ -477,7 +511,7 @@ export function guardarTraspaso() {
   const tipo = document.getElementById('tr-tipo-select')?.value || detectarTipo(origenId, destinoId);
 
   const obj = {
-    traspaso_id: state.editTraspasoId || (state.traspasos.reduce((max, t) => Math.max(max, t.traspaso_id), 0) + 1),
+    traspaso_id: state.editTraspasoId || (state.traspasos.reduce((max, t) => Math.max(max, t.traspaso_id || 0), 0) + 1),
     tipo,
     cuenta_origen_id: origenId,
     cuenta_origen_tipo: o?.tipo || 'proyecto',
@@ -524,6 +558,7 @@ export function guardarTraspaso() {
     }
   }
 
+  _ultimoGuardadoTraspaso = Date.now();
   cerrar('modal-traspaso');
   renderTraspasos();
   if (window.renderResumenTraspasos) window.renderResumenTraspasos();
@@ -548,13 +583,13 @@ function _revertirEfectosTraspaso(t, fx) {
       const proy = state.proyectos.find(x => x.id === cuentaId);
       if (proy && proy.ultima_act_saldo && todayISO >= proy.ultima_act_saldo.slice(0, 10)) {
         proy.saldo = (proy.saldo || 0) + delta;
-        fx.saldoProy = true;
+        if (!fx.proys.includes(proy)) fx.proys.push(proy);
       }
     } else {
       const extra = state.cuentasPropias.find(x => String(x.cuenta_id) === String(cuentaId));
       if (extra && extra.ultima_actualizacion && todayISO >= extra.ultima_actualizacion.slice(0, 10)) {
         extra.saldo = (extra.saldo || 0) + delta;
-        fx.saldoExtra = true;
+        if (!fx.cuentas.includes(extra)) fx.cuentas.push(extra);
       }
     }
   }
@@ -582,13 +617,7 @@ function _revertirEfectosTraspaso(t, fx) {
 
 // Persiste lo acumulado por _revertirEfectosTraspaso (saldos + historial) UNA vez.
 function _persistirReversion(fx) {
-  if (fx.saldoProy) { saveProy(state.proyectos); gsSaveProyectos(); }
-  if (fx.saldoExtra) { gsSaveCuentasPropias(); }
-  if (fx.saldoProy || fx.saldoExtra) {
-    if (window.renderCuentasPropias) window.renderCuentasPropias();
-    if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
-    if (window.renderHeaderBadges) window.renderHeaderBadges();
-  }
+  _guardarSaldosCambiados(fx.proys, fx.cuentas);
   if (fx.histChanged) {
     const _pfHist = esPorFila('historial');
     gsSaveHistorial({ porFila: _pfHist });
@@ -604,7 +633,7 @@ export function eliminarTraspaso(id) {
   if (!t) return;
   if (!confirm('¿Eliminar este registro?')) return;
 
-  const fx = { saldoProy: false, saldoExtra: false, histIds: [], histChanged: false };
+  const fx = { proys: [], cuentas: [], histIds: [], histChanged: false };
   _revertirEfectosTraspaso(t, fx);
   _persistirReversion(fx);
 
@@ -628,7 +657,7 @@ export function eliminarTraspasosBulk() {
   const total = aBorrar.reduce((s, t) => s + (+t.monto || 0), 0);
   if (!confirm(`¿Eliminar ${aBorrar.length} traspaso(s)/préstamo(s) seleccionado(s)?\nSuma: ${fmt(total)}\n\nSe revierten los saldos de los completados y se borra el registro en historial de las aportaciones. Esta acción no se puede deshacer.`)) return;
 
-  const fx = { saldoProy: false, saldoExtra: false, histIds: [], histChanged: false };
+  const fx = { proys: [], cuentas: [], histIds: [], histChanged: false };
   aBorrar.forEach(t => _revertirEfectosTraspaso(t, fx));
   state.traspasos = state.traspasos.filter(t => !ids.has(String(t.traspaso_id)));
   trasSel.clear();

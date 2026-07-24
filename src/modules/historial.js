@@ -195,6 +195,7 @@ export function sortHistorialByFecha() {
 
 export function parseFechaHist(fecha) {
   if (!fecha) return '';
+  fecha = String(fecha);   // blindaje: un dato no-string jamás debe tronar renders/filtros
   if (fecha.includes('-') && fecha.length >= 10) return fecha.slice(0, 10);
   const parts = fecha.split('/');
   if (parts.length === 3) {
@@ -240,8 +241,13 @@ export function eliminarHistorial(idx) {
       (parseFechaHist(t.fecha) || t.fecha || '') === _fH
     );
     if (ti !== -1) {
+      const _tid = state.traspasos[ti].traspaso_id;
       state.traspasos.splice(ti, 1);
-      gsSaveTraspasos();
+      // POR FILA: el espejo de tabla completa (DELETE×N + INSERT×N en Supabase)
+      // generaba una tormenta de eventos realtime que hacía rebotar la lista.
+      const _pfT = esPorFila('traspasos');
+      gsSaveTraspasos({ porFila: _pfT });
+      if (_pfT) sbBorrarFila('traspasos', _tid);
       if (window.renderTraspasos) window.renderTraspasos();
       if (window.renderResumenTraspasos) window.renderResumenTraspasos();
       const cntT = document.getElementById('cnt-traspasos');
@@ -494,6 +500,7 @@ export function eliminarHistorialBulk() {
 
   let saldoChanged = false;
   let traspasosChanged = false;
+  const traspasosBorrados = [];   // ids → borrado POR FILA (sin tormenta de espejo)
   aBorrar.forEach(h => {
     const fechaISO = parseFechaHist(h.fecha);
     if (h.tipo_registro === 'Traspaso') {
@@ -507,7 +514,7 @@ export function eliminarHistorialBulk() {
         t.monto === h.importe &&
         (parseFechaHist(t.fecha) || t.fecha || '') === (fechaISO || h.fecha || '')
       );
-      if (ti !== -1) { state.traspasos.splice(ti, 1); traspasosChanged = true; }
+      if (ti !== -1) { traspasosBorrados.push(state.traspasos[ti].traspaso_id); state.traspasos.splice(ti, 1); traspasosChanged = true; }
     } else if (h.tipo_registro === 'Pago' && h.cuenta_origen) {
       if (revertirSaldo(h.cuenta_origen, +h.importe, fechaISO)) saldoChanged = true;
     }
@@ -528,7 +535,12 @@ export function eliminarHistorialBulk() {
   gsSaveHistorial({ porFila: _pfHist });
   if (_pfHist) aBorrar.forEach(h => { if (h.id) sbBorrarFila('historial', h.id); });
   if (saldoChanged) { saveProy(state.proyectos); gsSaveProyectos(); gsSaveCuentasPropias(); }
-  if (traspasosChanged) gsSaveTraspasos();
+  if (traspasosChanged) {
+    // POR FILA (sin espejo whole-table → sin tormenta realtime).
+    const _pfT = esPorFila('traspasos');
+    gsSaveTraspasos({ porFila: _pfT });
+    if (_pfT) traspasosBorrados.forEach(id => sbBorrarFila('traspasos', id));
+  }
   if (asigChanged) gsSaveCostoAsignaciones();
   // Revertir facturas ligadas a los pagos borrados (quita facturaPagos + saldo/estatus).
   purgarFacturaPagosDePagos([...ids]);
