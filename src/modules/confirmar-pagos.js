@@ -24,6 +24,12 @@ const _normPart = s => String(s || '').trim().toLowerCase()
 // invocar gsSaveCostoAsignaciones() después si se creó al menos una.
 export function aplicarAutoIndiviso(h, repartoMetodo, forzar = false) {
   if (!h || !h.id || !h.proyecto) return 0;
+  // CAPITAL de crédito (Crédito sin partida de intereses) JAMÁS se reparte a
+  // unidades — es pago de deuda, fiscalmente NO es costo. Aplica incluso con
+  // `forzar` (p. ej. al cambiarle la partida a "Pago de Deuda" desde el
+  // historial). Los INTERESES sí pueden repartirse.
+  if (h.tipo_registro === 'Crédito' &&
+      !String(h.partida || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').includes('interes')) return 0;
   if (repartoMetodo === 'vacio') return 0;                     // opt-out explícito
   if (!forzar) {
     const part = _normPart(h.partida);

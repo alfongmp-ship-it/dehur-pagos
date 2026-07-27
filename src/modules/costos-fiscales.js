@@ -130,15 +130,31 @@ function _pagosCubiertosPorFacturaSet() {
 // NO vaciar el reporte en una carga parcial). Sirven para no contar asignaciones huérfanas.
 function _factExistSet() { return (state.facturas && state.facturas.length) ? new Set(state.facturas.map(f => String(f.factura_id))) : null; }
 function _pagoExistSet() { return (state.historial && state.historial.length) ? new Set(state.historial.map(h => String(h.id))) : null; }
+// ===== Capital de crédito ≠ costo =====
+// Regla fiscal: de las filas tipo_registro='Crédito' SOLO los INTERESES son costo
+// (partida que contenga "interes", sin acentos/mayúsculas). El CAPITAL (p.ej.
+// partida "Pago de Deuda") es devolución de deuda: JAMÁS cuenta ni se reparte a
+// unidades. Misma convención que _cuentaJP del Reporte JP (resumen-costos.js).
+const _normPartCap = s => String(s || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+function _esCreditoNoInteres(h) {
+  return h.tipo_registro === 'Crédito' && !_normPartCap(h.partida).includes('interes');
+}
+// Ids de pagos de CAPITAL: sus asignaciones (si alguna existiera) dejan de contar.
+function _pagosCapitalSet() {
+  const set = new Set();
+  state.historial.forEach(h => { if (h.id && _esCreditoNoInteres(h)) set.add(String(h.id)); });
+  return set;
+}
 // 'devengado' | 'pagado' | null. null = no cuenta: factura cancelada, pago ya cubierto por su
 // factura repartida, o HUÉRFANA (su factura/pago ya no existe). Las huérfanas NO se borran (para
 // no perder reparto válido en edición simultánea), solo se dejan de contar → no inflan el costo.
-function _tipoAsignacion(a, pagosCubiertos, factCanceladas, factExist, pagoExist) {
+function _tipoAsignacion(a, pagosCubiertos, factCanceladas, factExist, pagoExist, pagosCapital) {
   if (a.factura_id) {
     if (factExist && !factExist.has(String(a.factura_id))) return null; // huérfana: su factura ya no existe
     return factCanceladas.has(String(a.factura_id)) ? null : 'devengado';
   }
   if (pagoExist && !pagoExist.has(String(a.pago_id))) return null; // huérfana: su pago ya no existe
+  if (pagosCapital && pagosCapital.has(String(a.pago_id))) return null; // capital de crédito: deuda, jamás costo
   return pagosCubiertos.has(String(a.pago_id)) ? null : 'pagado';
 }
 
@@ -147,9 +163,10 @@ function costoAsignadoDesglose(unidadId) {
   const pcf = _pagosCubiertosPorFacturaSet();
   const fc = _facturasCanceladasSet();
   const fe = _factExistSet(); const pe = _pagoExistSet();
+  const pcap = _pagosCapitalSet();
   let devengado = 0, pagadoSinFactura = 0;
   asignacionesDeUnidad(unidadId).forEach(a => {
-    const t = _tipoAsignacion(a, pcf, fc, fe, pe);
+    const t = _tipoAsignacion(a, pcf, fc, fe, pe, pcap);
     if (t === 'devengado') devengado += a.monto_asignado || 0;
     else if (t === 'pagado') pagadoSinFactura += a.monto_asignado || 0;
   });
@@ -192,9 +209,10 @@ export function costosPresupuestosBatch() {
   const pcf = _pagosCubiertosPorFacturaSet();
   const fc = _facturasCanceladasSet();
   const fe = _factExistSet(); const pe = _pagoExistSet();
+  const pcap = _pagosCapitalSet();
   const asignado = new Map();
   state.costoAsignaciones.forEach(a => {
-    const t = _tipoAsignacion(a, pcf, fc, fe, pe);
+    const t = _tipoAsignacion(a, pcf, fc, fe, pe, pcap);
     if (!t) return;
     const k = String(a.unidad_id);
     asignado.set(k, (asignado.get(k) || 0) + (a.monto_asignado || 0));
@@ -229,9 +247,10 @@ function desglosePorPartida(unidadId) {
   const pcf = _pagosCubiertosPorFacturaSet();
   const fc = _facturasCanceladasSet();
   const fe = _factExistSet(); const pe = _pagoExistSet();
+  const pcap = _pagosCapitalSet();
   asignacionesDeUnidad(unidadId).forEach(a => {
-    const t = _tipoAsignacion(a, pcf, fc, fe, pe);
-    if (!t) return; // no cuenta (doble conteo evitado, factura cancelada o huérfana)
+    const t = _tipoAsignacion(a, pcf, fc, fe, pe, pcap);
+    if (!t) return; // no cuenta (doble conteo evitado, cancelada, huérfana o capital)
     const row = get(partidaDeAsignacion(a));
     if (t === 'devengado') row.devengado += a.monto_asignado || 0;
     else row.pagadoSinFactura += a.monto_asignado || 0;
@@ -242,11 +261,13 @@ function desglosePorPartida(unidadId) {
 }
 
 // Un movimiento del historial cuenta como costo asignable a unidades.
-// Se EXCLUYEN únicamente los Traspasos internos y los Préstamos entre
-// proyectos (no son costo de construcción). Todo lo demás —Pagos,
-// Aportaciones, Créditos— sí es costo asignable a una casa.
+// Se EXCLUYEN: los Traspasos internos y Préstamos entre proyectos (no son costo
+// de construcción) y el CAPITAL de crédito (Crédito sin partida de intereses —
+// es pago de deuda, fiscalmente no es costo). Sí cuentan: Pagos, Aportaciones y
+// los INTERESES de crédito.
 function esCostoAsignable(h) {
   if (h.tipo_registro === 'Traspaso' && h.tipo !== 'Aportación') return false;
+  if (_esCreditoNoInteres(h)) return false;
   return true;
 }
 

@@ -401,7 +401,11 @@ export function marcarPagoPagado(pagoId) {
     tipo: 'Crédito',
     proveedor_id: '', factura_id: '',
     cuenta_origen: c?.cuenta_pago || '',
-    tipo_registro: 'Crédito'
+    tipo_registro: 'Crédito',
+    // Los INTERESES nacen con su partida: así cuentan en el Reporte JP desde el
+    // día uno (la regla fiscal cuenta Crédito SOLO si la partida contiene
+    // "interes"). El CAPITAL va aparte (partida "Pago de Deuda", jamás es costo).
+    partida: 'Intereses'
   });
 
   document.getElementById('cnt-hist').textContent = state.historial.length;
@@ -435,6 +439,9 @@ export function marcarPagoPagado(pagoId) {
   }
 
   saveData();
+  // Persistir la fila de intereses POR FILA a Supabase (saveData ya numeró el id;
+  // antes solo iba a Sheets y la fila se perdía del historial al recargar).
+  if (esPorFila('historial')) sbGuardarFila('historial', state.historial[0]);
   const _pfPP = esPorFila('pagosPagare');
   gsSavePagosPagare({ porFila: _pfPP });
   if (_pfPP) sbGuardarFila('pagosPagare', pp);
@@ -482,9 +489,15 @@ export function eliminarPagoPagare(pagoId) {
       h.nombre === `${banco} – Pagaré ${numPagare}` &&
       h.importe === pp.monto_intereses
     );
-    if (idx !== -1) state.historial.splice(idx, 1);
+    if (idx !== -1) {
+      const _hid = state.historial[idx].id;
+      state.historial.splice(idx, 1);
+      // POR FILA (antes espejaba la tabla completa → tormenta de eventos realtime).
+      const _pfH = esPorFila('historial');
+      gsSaveHistorial({ porFila: _pfH });
+      if (_pfH && _hid) sbBorrarFila('historial', _hid);
+    }
     document.getElementById('cnt-hist').textContent = state.historial.length;
-    gsSaveHistorial();
   }
 
   // Eliminar el pago
