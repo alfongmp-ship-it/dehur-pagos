@@ -576,8 +576,14 @@ function _ofrecerReparacionPorUnidad(u, fechaAntes) {
     if (mios.length) {
       const totalCasa = mios.reduce((s, c) =>
         s + c.asigs.filter(a => String(a.unidad_id) === k).reduce((x, a) => x + (a.monto_asignado || 0), 0), 0);
-      // Detalle VISIBLE ANTES de decidir (consola F12).
-      console.table(mios.map(c => ({ PROYECTO: c.h.proyecto, FECHA: c.h.fecha, IMPORTE: c.h.importe, CONCEPTO: (c.h.concepto || '').slice(0, 45) })));
+      // Detalle VISIBLE ANTES de decidir (consola F12), con el pool resultante.
+      console.table(mios.map(c => {
+        const sigue = new Set((c.esperado?.filas || []).map(f => String(f.unidad_id)));
+        return { PROYECTO: c.h.proyecto, FECHA: c.h.fecha, IMPORTE: c.h.importe,
+          CASAS_HOY: c.asigs.length, CASAS_DESPUES: sigue.size,
+          SALEN: c.asigs.filter(a => !sigue.has(String(a.unidad_id))).length,
+          CONCEPTO: (c.h.concepto || '').slice(0, 45) };
+      }));
       if (confirm(`⚠️ ${mios.length} pago(s) le repartieron ${fmt(totalCasa)} a "${u.nombre}" después de su fecha de terminación.\n\n¿Recolocar esos repartos SOLO entre las casas en obra de ${u.proyecto || 'su proyecto'}? (los editados a mano no se tocan; detalle en consola F12)`)) {
         const n = aplicarReparacionRepartos(mios);
         notify(`♻️ ${n} reparto(s) recolocados — el costo de "${u.nombre}" se ajustó`);
@@ -601,8 +607,15 @@ export function revisarRepartos() {
     return;
   }
   if (res.corregibles.length) {
-    // Detalle VISIBLE ANTES de decidir (consola F12): qué pagos, de qué proyecto, cuánto.
-    console.table(res.corregibles.map(c => ({ PROYECTO: c.h.proyecto, FECHA: c.h.fecha, IMPORTE: c.h.importe, CONCEPTO: (c.h.concepto || '').slice(0, 45), CASAS_HOY: c.asigs.length })));
+    // Detalle VISIBLE ANTES de decidir (consola F12): qué pagos, de qué proyecto,
+    // cuánto, y a cuántas casas queda el reparto tras corregir (y cuántas salen).
+    console.table(res.corregibles.map(c => {
+      const sigue = new Set((c.esperado?.filas || []).map(f => String(f.unidad_id)));
+      return { PROYECTO: c.h.proyecto, FECHA: c.h.fecha, IMPORTE: c.h.importe,
+        CASAS_HOY: c.asigs.length, CASAS_DESPUES: sigue.size,
+        SALEN: c.asigs.filter(a => !sigue.has(String(a.unidad_id))).length,
+        CONCEPTO: (c.h.concepto || '').slice(0, 45) };
+    }));
     const porProy = new Map();
     res.corregibles.forEach(c => {
       const p = c.h.proyecto || '(sin proyecto)';

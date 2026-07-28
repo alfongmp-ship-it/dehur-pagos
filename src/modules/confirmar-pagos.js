@@ -212,7 +212,8 @@ export function auditarRepartos() {
       const a = porUnidad.get(String(f.unidad_id));
       return !a || Math.abs((a.factor || 0) - f.factor) > 0.001;
     });
-    if (difiere) res.corregibles.push({ h, asigs });
+    // Se incluye `esperado` para que el preview muestre a cuántas casas quedará.
+    if (difiere) res.corregibles.push({ h, asigs, esperado });
   }
   return res;
 }
