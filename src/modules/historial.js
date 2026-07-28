@@ -138,7 +138,16 @@ function getFilteredHistorial() {
   const fd = document.getElementById('fh-desde')?.value || '';
   const fh2 = document.getElementById('fh-hasta')?.value || '';
   return state.historial.filter(h => {
-    if (q && !(/^\d+$/.test(q) ? String(h.proveedor_id) === q : h.nombre.toLowerCase().includes(q))) return false;
+    if (q) {
+      // ID de proveedor exacto (query de solo dígitos), beneficiario (texto), o
+      // MONTO: la query numérica acepta $ , y espacios ("$25,321.54" → "25321.54")
+      // y matchea si el importe la CONTIENE ("25321" encuentra 25321.54).
+      const qNum = q.replace(/[$,\s]/g, '');
+      const esNum = /^\d+(\.\d+)?$/.test(qNum);
+      const matchMonto = esNum && String(+h.importe || 0).includes(qNum);
+      const matchBase = /^\d+$/.test(q) ? String(h.proveedor_id) === q : h.nombre.toLowerCase().includes(q);
+      if (!matchBase && !matchMonto) return false;
+    }
     if (ft) {
       const tipoLabel = h.tipo_registro === 'Crédito' ? 'Crédito'
                       : h.tipo_registro !== 'Traspaso' ? 'Pago'
