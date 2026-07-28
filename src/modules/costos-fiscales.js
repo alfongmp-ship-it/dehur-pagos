@@ -450,7 +450,7 @@ function renderUnidadesTab(panel) {
         <thead><tr>
           <th>Unidad</th><th>Tipo</th><th style="text-align:right">% Indiviso</th>
           <th style="text-align:right">Superficie</th><th>Estatus</th><th>Terminación</th>
-          <th style="text-align:right">Costo real</th>${estim ? '<th style="text-align:right">Estimado (por asignar)</th>' : ''}<th style="text-align:right">Acciones</th>
+          <th style="text-align:right">Costo real</th>${estim ? '<th style="text-align:right">Estimado (por asignar)</th><th style="text-align:right" title="Costo real + estimado por asignar: lo que costará la casa cuando se reparta todo lo pendiente (si se reparte por indiviso)">Costo proyectado</th>' : ''}<th style="text-align:right">Acciones</th>
         </tr></thead>
         <tbody>${unidades.map(u => {
           const real = costoRealUnidad(u.unidad_id);
@@ -464,7 +464,7 @@ function renderUnidadesTab(panel) {
               ? `<input type="date" value="${escapeHtml(u.fecha_termino || '')}" onchange="setFechaTermino(${u.unidad_id}, this.value)" title="Fecha en que la casa salió del indiviso (vacío = sigue en obra)" style="font-size:11px;padding:2px 4px;width:130px;">`
               : `<span style="font-size:11px;color:var(--muted);">${escapeHtml(u.fecha_termino) || '—'}</span>`}</td>
             <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--accent);">${fmt(real)}</td>
-            ${estim ? `<td style="text-align:right;font-family:'DM Mono',monospace;color:var(--muted);">${fmt(estim.porUnidad.get(u.unidad_id) || 0)}</td>` : ''}
+            ${estim ? `<td style="text-align:right;font-family:'DM Mono',monospace;color:var(--muted);">${fmt(estim.porUnidad.get(u.unidad_id) || 0)}</td><td style="text-align:right;font-family:'DM Mono',monospace;font-weight:700;color:var(--green);">${fmt(real + (estim.porUnidad.get(u.unidad_id) || 0))}</td>` : ''}
             <td style="text-align:right;white-space:nowrap;">
               <button class="btn btn-ghost btn-sm" onclick="editarUnidad(${u.unidad_id})">Editar</button>
               <button class="btn btn-ghost btn-sm" onclick="toggleUnidad(${u.unidad_id})" style="color:${u.activo === false ? 'var(--green)' : 'var(--red)'};">${u.activo === false ? 'Activar' : 'Baja'}</button>
