@@ -13,6 +13,7 @@ import { planoDeProyecto } from '../config/planos.js';
 import { parseFechaHist } from './historial.js';
 import { gsSaveUnidades, gsSavePresupuestoUnidad, gsSaveCostoAsignaciones, esPorFila, sbGuardarFila } from '../services/google-sync.js';
 import { nuevoAsignacionId } from '../state.js';
+import { auditarRepartos, aplicarReparacionRepartos } from './confirmar-pagos.js';
 
 const PALETA = ['#c8a96e', '#5a9be0', '#4caf7d', '#e07a3a', '#9b7fe8', '#e05a5a', '#27ae60', '#3498db'];
 
@@ -520,9 +521,11 @@ export async function guardarUnidad() {
     fecha_termino: document.getElementById('un-fecha-termino').value || '',
     estatus: document.getElementById('un-estatus').value,
   };
+  let _uEdit = null, _fechaAntes = '';
   if (state.editUnidadId) {
-    const u = unidadById(state.editUnidadId);
-    if (u) Object.assign(u, obj);
+    _uEdit = unidadById(state.editUnidadId);
+    _fechaAntes = _uEdit ? (_uEdit.fecha_termino || '') : '';
+    if (_uEdit) Object.assign(_uEdit, obj);
   } else {
     state.unidades.push({
       unidad_id: state.nextUnidadId++,
@@ -541,6 +544,8 @@ export async function guardarUnidad() {
   if (porFila && _u) sbGuardarFila('unidades', _u);
   notify('Unidad guardada');
   renderCostosFiscales();
+  // Si el modal cambió la fecha de terminación, ofrecer recolocar los repartos.
+  if (_uEdit) _ofrecerReparacionPorUnidad(_uEdit, _fechaAntes);
 }
 
 export async function toggleUnidad(id) {
@@ -556,9 +561,64 @@ export async function toggleUnidad(id) {
 // Captura rápida de la fecha de terminación (sale del pool de indiviso) desde la
 // tabla de unidades. Guarda solo esa casa; sin re-render para no perder el scroll
 // al capturar varias seguidas. gsSaveUnidades ya valida puedeEditar() por dentro.
+// Al capturar/cambiar la fecha de terminación de una casa, detectar los repartos
+// automáticos que la incluyeron cuando ya no debía (la foto del reparto se toma
+// al registrar el pago y NO se recalcula sola) y OFRECER recolocarlos, con
+// confirmación. Los editados a mano solo se reportan — jamás se tocan.
+function _ofrecerReparacionPorUnidad(u, fechaAntes) {
+  try {
+    if ((u.fecha_termino || '') === (fechaAntes || '')) return;
+    if (!u.fecha_termino) return;   // quitar la fecha no expulsa a nadie del pool
+    const res = auditarRepartos();
+    const k = String(u.unidad_id);
+    const mios = res.corregibles.filter(c => c.asigs.some(a => String(a.unidad_id) === k));
+    const manuales = res.manuales.filter(c => c.asigs.some(a => String(a.unidad_id) === k));
+    if (mios.length) {
+      const totalCasa = mios.reduce((s, c) =>
+        s + c.asigs.filter(a => String(a.unidad_id) === k).reduce((x, a) => x + (a.monto_asignado || 0), 0), 0);
+      if (confirm(`⚠️ ${mios.length} pago(s) le repartieron ${fmt(totalCasa)} a "${u.nombre}" después de su fecha de terminación.\n\n¿Recolocar esos repartos entre las casas en obra? (los editados a mano no se tocan)`)) {
+        const n = aplicarReparacionRepartos(mios);
+        console.table(mios.map(c => ({ FECHA: c.h.fecha, IMPORTE: c.h.importe, CONCEPTO: (c.h.concepto || '').slice(0, 45) })));
+        notify(`♻️ ${n} reparto(s) recolocados — el costo de "${u.nombre}" se ajustó`);
+        renderCostosFiscales();
+      }
+    }
+    if (manuales.length) {
+      notify(`✋ ${manuales.length} reparto(s) EDITADOS A MANO incluyen a "${u.nombre}" con fecha posterior — revísalos con "Reasignar"`, 'error');
+      console.table(manuales.map(c => ({ FECHA: c.h.fecha, IMPORTE: c.h.importe, CONCEPTO: (c.h.concepto || '').slice(0, 45) })));
+    }
+  } catch (e) { console.error('reparacionRepartos', e); }
+}
+
+// Auditoría GLOBAL de repartos congelados (botón ♻️ de la página). Idempotente:
+// en estado limpio solo avisa que todo cuadra.
+export function revisarRepartos() {
+  if (!puedeEditar()) { notify('No tienes permiso para editar', 'error'); return; }
+  const res = auditarRepartos();
+  if (!res.corregibles.length && !res.manuales.length && !res.sinPool.length) {
+    notify('✅ No hay repartos por corregir — todo cuadra con las fechas actuales');
+    return;
+  }
+  if (res.corregibles.length) {
+    const total = res.corregibles.reduce((s, c) => s + (c.h.importe || 0), 0);
+    if (confirm(`♻️ ${res.corregibles.length} reparto(s) automáticos quedaron con una foto vieja (pagos por ${fmt(total)}).\n\n¿Recolocarlos con las fechas de terminación actuales? (los editados a mano no se tocan)`)) {
+      const n = aplicarReparacionRepartos(res.corregibles);
+      console.table(res.corregibles.map(c => ({ FECHA: c.h.fecha, IMPORTE: c.h.importe, PROYECTO: c.h.proyecto, CONCEPTO: (c.h.concepto || '').slice(0, 45) })));
+      notify(`♻️ ${n} reparto(s) recolocados`);
+      renderCostosFiscales();
+    }
+  }
+  if (res.manuales.length) {
+    notify(`✋ ${res.manuales.length} reparto(s) editados a mano incluyen casas ya terminadas — revísalos con "Reasignar" (detalle en consola F12)`, 'error');
+    console.table(res.manuales.map(c => ({ FECHA: c.h.fecha, IMPORTE: c.h.importe, CONCEPTO: (c.h.concepto || '').slice(0, 45) })));
+  }
+  if (res.sinPool.length) notify(`ℹ️ ${res.sinPool.length} pago(s) en proyectos 100% terminados — no hay casas en obra a quién recolocar (quedan como están)`);
+}
+
 export async function setFechaTermino(id, value) {
   const u = unidadById(id);
   if (!u) return;
+  const fechaAntes = u.fecha_termino || '';
   u.fecha_termino = value || '';
   // La fecha marca que la casa salió de obra → refleja el estatus en automático.
   // No tocamos 'Entregada'/'Vendida' (ya están más allá de 'Terminada').
@@ -570,6 +630,7 @@ export async function setFechaTermino(id, value) {
   await gsSaveUnidades({ porFila });
   if (porFila) sbGuardarFila('unidades', u);
   notify(value ? `Terminación: ${u.nombre} → ${value} · ${u.estatus}` : `${u.nombre}: sin fecha · ${u.estatus}`);
+  _ofrecerReparacionPorUnidad(u, fechaAntes);
 }
 
 export function abrirLoteUnidades() {

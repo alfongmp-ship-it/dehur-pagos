@@ -485,6 +485,25 @@ export function aplicarCambiarPartida() {
   if (window.renderCostosFiscales) window.renderCostosFiscales();
   if (window.renderConfigPartidas) window.renderConfigPartidas();
   notify(`✓ ${objetivos.length} pago(s) actualizado(s)`);
+  // Si cambió la FECHA, el reparto automático del pago quedó con el pool de la
+  // fecha VIEJA (la foto del reparto no se recalcula sola) → recolocarlo con el
+  // pool correcto. Import dinámico para no tocar los imports de arriba. Lo
+  // editado a mano JAMÁS se toca — solo se reporta.
+  if (fechaCambiada) {
+    import('./confirmar-pagos.js').then(m => {
+      let rec = 0, manual = 0;
+      objetivos.forEach(h => {
+        if (m.esRepartoAutoIntactoDePago(h)) { if (m.reRepartirPago(h) === 'recolocado') rec++; }
+        else if (state.costoAsignaciones.some(a => !a.factura_id && String(a.pago_id) === String(h.id))) manual++;
+      });
+      if (rec > 0) {
+        gsSaveCostoAsignaciones();
+        notify(`♻️ ${rec} reparto(s) recolocados a la fecha corregida`);
+        if (window.renderCostosFiscales) window.renderCostosFiscales();
+      }
+      if (manual > 0) notify(`✋ Reparto editado a mano en ${manual} pago(s): revísalo con "Reasignar" en Costos por Unidad`, 'error');
+    }).catch(e => console.error('recolocarPorFecha', e));
+  }
 }
 
 // Elimina TODOS los seleccionados de una vez, reutilizando la misma lógica de

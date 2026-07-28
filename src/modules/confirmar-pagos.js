@@ -72,6 +72,159 @@ export function aplicarAutoIndiviso(h, repartoMetodo, forzar = false) {
   return creadas;
 }
 
+// ============================================================================
+// REPARACIÓN DE REPARTOS CONGELADOS (fecha de terminación retroactiva / fecha
+// de pago corregida). El reparto por indiviso es una FOTO al capturar el pago;
+// capturar DESPUÉS una fecha_termino retroactiva (o corregir la fecha del pago)
+// no lo recalculaba y la casa terminada seguía absorbiendo costo. Estas
+// funciones detectan los repartos AUTOMÁTICOS e INTACTOS cuya foto ya no
+// corresponde y los recolocan con el pool correcto de su fecha. Reglas duras:
+// lo editado a mano JAMÁS se toca (solo se reporta); nunca se borra una
+// asignación sin tener su reemplazo ya calculado; proyecto 100% terminado
+// (pool vacío → el fallback re-incluiría a todas) = "sin cambio posible".
+// ============================================================================
+
+// Asignaciones PROPIAS de un pago (las de factura no se tocan aquí).
+function _asigsDePago(h) {
+  return state.costoAsignaciones.filter(a => !a.factura_id && String(a.pago_id) === String(h.id));
+}
+
+// ¿El costo del pago lo lleva el devengado de su factura? (misma condición que
+// la recolocación por cambio de proyecto en historial.js).
+function _cubiertoPorFactura(h) {
+  return !!h.factura_id
+    && state.costoAsignaciones.some(a => String(a.factura_id) === String(h.factura_id))
+    && !(state.facturas || []).some(f => String(f.factura_id) === String(h.factura_id) && f.estado_sat === 'Cancelada');
+}
+
+// Reparto "como debería ser" HOY para la fecha del pago (misma fórmula que
+// aplicarAutoIndiviso). null = sin unidades; {sinPool:true} = proyecto 100%
+// terminado (no hay a quién recolocar).
+function _repartoEsperado(h) {
+  const activas = state.unidades.filter(u => u.activo !== false && u.proyecto === h.proyecto);
+  if (!activas.length) return null;
+  const pool = activas.filter(u => unidadEnIndivisoAFecha(u, _isoFecha(h.fecha)));
+  if (!pool.length) return { sinPool: true };
+  const sumaInd = pool.reduce((s, u) => s + (u.indiviso_pct || 0), 0);
+  const usarInd = sumaInd > 0.01;
+  const filas = [];
+  pool.forEach(u => {
+    const pct = usarInd ? ((u.indiviso_pct || 0) / sumaInd) * 100 : 100 / pool.length;
+    if (pct <= 0) return;
+    filas.push({ unidad_id: u.unidad_id, factor: pct / 100, monto: ((h.importe || 0) * pct) / 100, metodo: usarInd ? 'indiviso' : 'equitativo' });
+  });
+  return filas.length ? { filas } : { sinPool: true };
+}
+
+// ¿El set guardado es un reparto AUTOMÁTICO INTACTO? (métodos indiviso/
+// equitativo, sin partida_override, y factores/montos que calzan con la fórmula
+// de indiviso sobre SU PROPIO conjunto de casas). Cualquier edición manual
+// rompe el calce → se clasifica "editado a mano" y no se toca.
+function _esRepartoAutoIntacto(h, asigs) {
+  if (!asigs.length) return false;
+  if (asigs.some(a => !['indiviso', 'equitativo'].includes(a.metodo || '') || (a.partida_override || '') !== '')) return false;
+  const unidades = asigs.map(a => state.unidades.find(u => String(u.unidad_id) === String(a.unidad_id))).filter(Boolean);
+  if (unidades.length !== asigs.length) return false;
+  const sumaInd = unidades.reduce((s, u) => s + (u.indiviso_pct || 0), 0);
+  const usarInd = sumaInd > 0.01;
+  return asigs.every(a => {
+    const u = unidades.find(x => String(x.unidad_id) === String(a.unidad_id));
+    const fEsp = usarInd ? ((u.indiviso_pct || 0) / sumaInd) : 1 / unidades.length;
+    return Math.abs((a.factor || 0) - fEsp) <= 0.01
+      && Math.abs((a.monto_asignado || 0) - (h.importe || 0) * fEsp) <= Math.max(1, (h.importe || 0) * 0.01);
+  });
+}
+
+// ¿El pago tiene reparto propio auto-intacto elegible para recolocarse?
+export function esRepartoAutoIntactoDePago(h) {
+  if (!h || !h.id || !h.proyecto) return false;
+  if (_cubiertoPorFactura(h)) return false;
+  const asigs = _asigsDePago(h);
+  return asigs.length > 0 && _esRepartoAutoIntacto(h, asigs);
+}
+
+// Recoloca el reparto de UN pago con el pool correcto de su fecha, EN SITIO:
+// actualiza las casas que siguen (conserva asignacion_id), crea las que entran
+// y quita las expulsadas — nunca hay un instante sin reemplazo. NO persiste (el
+// llamador llama gsSaveCostoAsignaciones() UNA vez al final del lote).
+// Devuelve 'recolocado' | 'sin_cambio' | 'sin_pool'.
+export function reRepartirPago(h) {
+  const esperado = _repartoEsperado(h);
+  if (!esperado) return 'sin_cambio';
+  if (esperado.sinPool) return 'sin_pool';
+  const asigs = _asigsDePago(h);
+  const porUnidad = new Map(asigs.map(a => [String(a.unidad_id), a]));
+  const igual = asigs.length === esperado.filas.length && esperado.filas.every(f => {
+    const a = porUnidad.get(String(f.unidad_id));
+    return a && Math.abs((a.factor || 0) - f.factor) <= 0.001;
+  });
+  if (igual) return 'sin_cambio';
+  const hoyISO = new Date().toISOString().split('T')[0];
+  esperado.filas.forEach(f => {
+    const a = porUnidad.get(String(f.unidad_id));
+    if (a) {
+      a.monto_asignado = f.monto; a.factor = f.factor; a.metodo = f.metodo; a.fecha_asignacion = hoyISO;
+      porUnidad.delete(String(f.unidad_id));
+    } else {
+      state.costoAsignaciones.push({
+        asignacion_id: nuevoAsignacionId(), pago_id: h.id, unidad_id: f.unidad_id,
+        proyecto: h.proyecto, metodo: f.metodo, monto_asignado: f.monto, factor: f.factor,
+        fecha_asignacion: hoyISO, partida_override: ''
+      });
+    }
+  });
+  if (porUnidad.size) {
+    const quitar = new Set([...porUnidad.values()].map(a => String(a.asignacion_id)));
+    state.costoAsignaciones = state.costoAsignaciones.filter(a => !quitar.has(String(a.asignacion_id)));
+  }
+  return 'recolocado';
+}
+
+// AUDITORÍA completa (solo lectura): para cada pago con reparto propio, compara
+// la foto guardada vs el reparto esperado hoy. Los no-intactos solo se reportan
+// si incluyen una casa que ya no califica a la fecha del pago.
+export function auditarRepartos() {
+  const porPago = new Map();
+  state.costoAsignaciones.forEach(a => {
+    if (a.factura_id) return;
+    const k = String(a.pago_id);
+    if (!porPago.has(k)) porPago.set(k, []);
+    porPago.get(k).push(a);
+  });
+  const res = { corregibles: [], manuales: [], sinPool: [] };
+  for (const [pid, asigs] of porPago) {
+    const h = state.historial.find(x => String(x.id) === pid);
+    if (!h || !h.proyecto) continue;
+    if (_cubiertoPorFactura(h)) continue;
+    const tieneExpulsada = asigs.some(a => {
+      const u = state.unidades.find(x => String(x.unidad_id) === String(a.unidad_id));
+      return u && !unidadEnIndivisoAFecha(u, _isoFecha(h.fecha));
+    });
+    if (!_esRepartoAutoIntacto(h, asigs)) {
+      if (tieneExpulsada) res.manuales.push({ h, asigs });
+      continue;
+    }
+    const esperado = _repartoEsperado(h);
+    if (!esperado) continue;
+    if (esperado.sinPool) { if (tieneExpulsada) res.sinPool.push({ h, asigs }); continue; }
+    const porUnidad = new Map(asigs.map(a => [String(a.unidad_id), a]));
+    const difiere = asigs.length !== esperado.filas.length || esperado.filas.some(f => {
+      const a = porUnidad.get(String(f.unidad_id));
+      return !a || Math.abs((a.factor || 0) - f.factor) > 0.001;
+    });
+    if (difiere) res.corregibles.push({ h, asigs });
+  }
+  return res;
+}
+
+// Aplica la recolocación a un lote de corregibles y persiste UNA vez.
+export function aplicarReparacionRepartos(corregibles) {
+  let n = 0;
+  corregibles.forEach(c => { if (reRepartirPago(c.h) === 'recolocado') n++; });
+  if (n > 0) gsSaveCostoAsignaciones();
+  return n;
+}
+
 export function renderConfirmarPagos() {
   const el = document.getElementById('confirmar-lista');
   if (!el) return;
