@@ -576,9 +576,10 @@ function _ofrecerReparacionPorUnidad(u, fechaAntes) {
     if (mios.length) {
       const totalCasa = mios.reduce((s, c) =>
         s + c.asigs.filter(a => String(a.unidad_id) === k).reduce((x, a) => x + (a.monto_asignado || 0), 0), 0);
-      if (confirm(`⚠️ ${mios.length} pago(s) le repartieron ${fmt(totalCasa)} a "${u.nombre}" después de su fecha de terminación.\n\n¿Recolocar esos repartos entre las casas en obra? (los editados a mano no se tocan)`)) {
+      // Detalle VISIBLE ANTES de decidir (consola F12).
+      console.table(mios.map(c => ({ PROYECTO: c.h.proyecto, FECHA: c.h.fecha, IMPORTE: c.h.importe, CONCEPTO: (c.h.concepto || '').slice(0, 45) })));
+      if (confirm(`⚠️ ${mios.length} pago(s) le repartieron ${fmt(totalCasa)} a "${u.nombre}" después de su fecha de terminación.\n\n¿Recolocar esos repartos SOLO entre las casas en obra de ${u.proyecto || 'su proyecto'}? (los editados a mano no se tocan; detalle en consola F12)`)) {
         const n = aplicarReparacionRepartos(mios);
-        console.table(mios.map(c => ({ FECHA: c.h.fecha, IMPORTE: c.h.importe, CONCEPTO: (c.h.concepto || '').slice(0, 45) })));
         notify(`♻️ ${n} reparto(s) recolocados — el costo de "${u.nombre}" se ajustó`);
         renderCostosFiscales();
       }
@@ -600,10 +601,18 @@ export function revisarRepartos() {
     return;
   }
   if (res.corregibles.length) {
-    const total = res.corregibles.reduce((s, c) => s + (c.h.importe || 0), 0);
-    if (confirm(`♻️ ${res.corregibles.length} reparto(s) automáticos quedaron con una foto vieja (pagos por ${fmt(total)}).\n\n¿Recolocarlos con las fechas de terminación actuales? (los editados a mano no se tocan)`)) {
+    // Detalle VISIBLE ANTES de decidir (consola F12): qué pagos, de qué proyecto, cuánto.
+    console.table(res.corregibles.map(c => ({ PROYECTO: c.h.proyecto, FECHA: c.h.fecha, IMPORTE: c.h.importe, CONCEPTO: (c.h.concepto || '').slice(0, 45), CASAS_HOY: c.asigs.length })));
+    const porProy = new Map();
+    res.corregibles.forEach(c => {
+      const p = c.h.proyecto || '(sin proyecto)';
+      const acc = porProy.get(p) || { n: 0, total: 0 };
+      acc.n++; acc.total += c.h.importe || 0;
+      porProy.set(p, acc);
+    });
+    const desglose = [...porProy.entries()].map(([p, v]) => `· ${p}: ${v.n} pago(s) (${fmt(v.total)})`).join('\n');
+    if (confirm(`♻️ ${res.corregibles.length} reparto(s) automáticos quedaron con una foto vieja:\n\n${desglose}\n\nCada pago se recoloca SOLO entre casas de SU propio proyecto (el total por proyecto no cambia). Los editados a mano no se tocan. Detalle en la consola (F12).\n\n¿Recolocarlos con las fechas de terminación actuales?`)) {
       const n = aplicarReparacionRepartos(res.corregibles);
-      console.table(res.corregibles.map(c => ({ FECHA: c.h.fecha, IMPORTE: c.h.importe, PROYECTO: c.h.proyecto, CONCEPTO: (c.h.concepto || '').slice(0, 45) })));
       notify(`♻️ ${n} reparto(s) recolocados`);
       renderCostosFiscales();
     }
