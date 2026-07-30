@@ -715,6 +715,23 @@ export async function guardarLoteUnidades() {
   renderCostosFiscales();
 }
 
+// Estado de un pago pendiente respecto a facturas (única fuente de verdad para
+// la lista Y el export a Excel): 'libre' | 'sin_repartir' | 'parcial' | 'muerta'.
+function _estadoFacturaPago(h, cubiertosSet) {
+  const ligadas = _facturasLigadasAPago(h);
+  let fid = null, fLig = null, fMuerta = null;
+  for (const cand of ligadas) {
+    const f = facturaById(cand);
+    if (f && f.estado_sat !== 'Cancelada' && f.estatus_factura !== 'cancelada') {
+      if (!state.costoAsignaciones.some(a => String(a.factura_id) === String(cand))) { fid = cand; fLig = f; break; }
+    } else if (!fMuerta) { fMuerta = cand; }
+  }
+  if (fid) return { tipo: 'sin_repartir', fid, fLig, rest: restantePago(h) };
+  if (cubiertosSet.has(String(h.id))) return { tipo: 'parcial', fid: null, fLig: null, rest: restantePago(h) };
+  if (ligadas.size && fMuerta) return { tipo: 'muerta', fid: fMuerta, fLig: null, rest: restantePago(h) };
+  return { tipo: 'libre', fid: null, fLig: null, rest: h.importe || 0 };
+}
+
 // ========== TAB: ASIGNAR PAGOS ==========
 function renderAsignarTab(panel) {
   const todosPend = pagosSinAsignar();
@@ -748,7 +765,10 @@ function renderAsignarTab(panel) {
 
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
       <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;">Pendientes de asignar</div>
-      <input type="text" id="cf-pend-search" placeholder="🔍 Buscar beneficiario, concepto..." oninput="cfFiltrarPendientes()" style="width:280px;">
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn btn-ghost btn-sm" onclick="exportarPendientesExcel()" title="Exporta los pendientes con su estado de factura + columnas para que contabilidad indique la factura de cada pago">⬇ Excel</button>
+        <input type="text" id="cf-pend-search" placeholder="🔍 Buscar beneficiario, concepto..." oninput="cfFiltrarPendientes()" style="width:280px;">
+      </div>
     </div>
 
     ${pendientes.length ? `
@@ -757,30 +777,19 @@ function renderAsignarTab(panel) {
       <table>
         <thead><tr><th>Fecha</th><th>Beneficiario</th><th>Concepto</th><th>Partida</th><th style="text-align:right">Importe</th><th style="text-align:right">Acción</th></tr></thead>
         <tbody id="cf-pend-tbody">${pendientes.map(h => {
-          const ligadas = _facturasLigadasAPago(h);
-          const esParcial = cubiertosSet.has(String(h.id));   // cubierto en parte, con restante
-          // Buscar una factura ligada ACCIONABLE (viva y sin repartir) — es la
-          // acción correcta; detectar también ligas muertas (cancelada/inexistente).
-          let fid = null, fLig = null, fMuerta = null;
-          for (const cand of ligadas) {
-            const f = facturaById(cand);
-            if (f && f.estado_sat !== 'Cancelada' && f.estatus_factura !== 'cancelada') {
-              if (!state.costoAsignaciones.some(a => String(a.factura_id) === String(cand))) { fid = cand; fLig = f; break; }
-            } else if (!fMuerta) { fMuerta = cand; }
-          }
+          const e = _estadoFacturaPago(h, cubiertosSet);
           const _bdg = (txt, color, title) => `<span style="display:inline-block;padding:1px 7px;border-radius:6px;font-size:10px;font-weight:600;background:${color};" title="${escapeHtml(title)}">${txt}</span><br>`;
           const btnAsignar = `<button class="btn btn-primary btn-sm" onclick="abrirAsignarCosto('${h.id}')">Asignar</button>`;
           const btnLigar = `<button class="btn btn-ghost btn-sm req-editor" onclick="abrirLigarFactura('${h.id}')" title="Aplicar este pago a una factura; el reparto vivirá en la factura (devengado)">📎 Factura</button>`;
           let badge = '', accion = '';
-          if (fid) {
-            badge = _bdg(`📎 Fac ${escapeHtml(String(fid))} sin repartir`, 'rgba(90,155,224,.15);color:var(--blue)', `Este pago está aplicado a la factura ${fid}${fLig && fLig.numero_factura ? ' (' + fLig.numero_factura + ')' : ''} pero la factura AÚN no se reparte a las casas — repártela y este pago quedará cubierto`);
-            accion = `<button class="btn btn-primary btn-sm" onclick="abrirRepartirFactura('${escapeHtml(String(fid))}')" title="El costo debe vivir en la factura (devengado)">Repartir factura</button>`;
-          } else if (esParcial) {
-            const rest = restantePago(h);
-            badge = _bdg(`📎 parcial · restante ${fmt(rest)}`, 'rgba(90,155,224,.15);color:var(--blue)', `Este pago ya está aplicado en parte a factura(s) repartida(s); le quedan ${fmt(rest)} por aplicar a otra factura`);
+          if (e.tipo === 'sin_repartir') {
+            badge = _bdg(`📎 Fac ${escapeHtml(String(e.fid))} sin repartir`, 'rgba(90,155,224,.15);color:var(--blue)', `Este pago está aplicado a la factura ${e.fid}${e.fLig && e.fLig.numero_factura ? ' (' + e.fLig.numero_factura + ')' : ''} pero la factura AÚN no se reparte a las casas — repártela y este pago quedará cubierto`);
+            accion = `<button class="btn btn-primary btn-sm" onclick="abrirRepartirFactura('${escapeHtml(String(e.fid))}')" title="El costo debe vivir en la factura (devengado)">Repartir factura</button>`;
+          } else if (e.tipo === 'parcial') {
+            badge = _bdg(`📎 parcial · restante ${fmt(e.rest)}`, 'rgba(90,155,224,.15);color:var(--blue)', `Este pago ya está aplicado en parte a factura(s) repartida(s); le quedan ${fmt(e.rest)} por aplicar a otra factura`);
             accion = btnLigar;
-          } else if (ligadas.size && fMuerta) {
-            badge = _bdg(`⚠ Fac ${escapeHtml(String(fMuerta))} cancelada/inexistente`, 'rgba(224,122,58,.15);color:var(--orange)', 'La factura ligada está cancelada o ya no existe: asigna reparto propio al pago o lígalo a otra factura');
+          } else if (e.tipo === 'muerta') {
+            badge = _bdg(`⚠ Fac ${escapeHtml(String(e.fid))} cancelada/inexistente`, 'rgba(224,122,58,.15);color:var(--orange)', 'La factura ligada está cancelada o ya no existe: asigna reparto propio al pago o lígalo a otra factura');
             accion = `${btnAsignar} ${btnLigar}`;
           } else {
             accion = `${btnAsignar} ${btnLigar}`;
@@ -799,6 +808,73 @@ function renderAsignarTab(panel) {
     </div>` : '<div class="empty-state" style="margin-bottom:24px;"><div style="font-size:28px;opacity:.4;margin-bottom:8px;">✅</div><div>Todos los pagos de ' + escapeHtml(cfProyecto) + ' están asignados o cubiertos por facturas</div></div>'}
   `;
   cfFiltrarPendientes();
+}
+
+// Exporta a Excel los pagos de la pestaña Asignar (para CONTABILIDAD): hoja de
+// pendientes con su estado de factura + columnas en blanco para que contabilidad
+// indique la factura de cada pago, y hoja de cubiertos como referencia.
+export function exportarPendientesExcel() {
+  if (!window.XLSX) { notify('Cargando la librería de Excel, intenta de nuevo en 2 segundos', 'error'); return; }
+  const todosPend = pagosSinAsignar();
+  const cubiertosSet = _pagosCubiertosPorFacturaSet();
+  const pendientes = [], cubiertos = [];
+  todosPend.forEach(h => {
+    if (cubiertosSet.has(String(h.id)) && restantePago(h) <= 0.01) cubiertos.push(h);
+    else pendientes.push(h);
+  });
+  if (!pendientes.length && !cubiertos.length) { notify('No hay pagos que exportar en este proyecto', 'error'); return; }
+
+  const ESTADO = { libre: 'SIN FACTURA', sin_repartir: 'Ligado a factura SIN repartir', parcial: 'Aplicado PARCIAL a factura', muerta: 'Factura cancelada/inexistente' };
+  const hoyISO = new Date().toISOString().slice(0, 10);
+  const wb = XLSX.utils.book_new();
+
+  const aoa = [
+    [`Pagos por asignar — ${cfProyecto}`],
+    [`Generado: ${fmtFecha(hoyISO)} · ${pendientes.length} pago(s) pendientes`],
+    ['Para contabilidad: indicar en las columnas finales a qué factura corresponde cada pago (o confirmar que no tiene factura).'],
+    [],
+    ['ID pago', 'Fecha', 'Beneficiario', 'Concepto', 'Partida', 'Importe', 'Restante por aplicar', 'Estado', 'Factura ligada', 'N° Factura (contabilidad)', 'UUID (contabilidad)', 'Comentarios']
+  ];
+  pendientes.forEach(h => {
+    const e = _estadoFacturaPago(h, cubiertosSet);
+    const fRef = e.fid ? `Fac ${e.fid}${e.fLig && e.fLig.numero_factura ? ' · ' + e.fLig.numero_factura : ''}` : '';
+    aoa.push([h.id, fmtFecha(h.fecha), h.nombre || '', h.concepto || '', h.partida || 'Sin partida', h.importe || 0, e.rest, ESTADO[e.tipo] || '', fRef, '', '', '']);
+  });
+  aoa.push([]);
+  aoa.push(['TOTAL', '', '', '', '', pendientes.reduce((s, h) => s + (h.importe || 0), 0), '', '', '', '', '', '']);
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{ wch: 8 }, { wch: 11 }, { wch: 34 }, { wch: 42 }, { wch: 20 }, { wch: 14 }, { wch: 15 }, { wch: 26 }, { wch: 18 }, { wch: 20 }, { wch: 38 }, { wch: 30 }];
+  for (let r = 5; r < aoa.length; r++) {
+    [5, 6].forEach(c => {
+      const ref = XLSX.utils.encode_cell({ r, c });
+      if (ws[ref] && typeof ws[ref].v === 'number') ws[ref].z = '"$"#,##0.00';
+    });
+  }
+  XLSX.utils.book_append_sheet(wb, ws, 'Pendientes');
+
+  if (cubiertos.length) {
+    const aoa2 = [
+      [`Cubiertos por factura (referencia) — ${cfProyecto}`],
+      ['Su costo ya entra por el devengado de su factura repartida; no requieren acción.'],
+      [],
+      ['ID pago', 'Fecha', 'Beneficiario', 'Concepto', 'Importe', 'Factura(s)']
+    ];
+    cubiertos.forEach(h => {
+      aoa2.push([h.id, fmtFecha(h.fecha), h.nombre || '', h.concepto || '', h.importe || 0, [..._facturasLigadasAPago(h)].map(x => 'Fac ' + x).join(', ')]);
+    });
+    aoa2.push([]);
+    aoa2.push(['TOTAL', '', '', '', cubiertos.reduce((s, h) => s + (h.importe || 0), 0), '']);
+    const ws2 = XLSX.utils.aoa_to_sheet(aoa2);
+    ws2['!cols'] = [{ wch: 8 }, { wch: 11 }, { wch: 34 }, { wch: 42 }, { wch: 14 }, { wch: 26 }];
+    for (let r = 4; r < aoa2.length; r++) {
+      const ref = XLSX.utils.encode_cell({ r, c: 4 });
+      if (ws2[ref] && typeof ws2[ref].v === 'number') ws2[ref].z = '"$"#,##0.00';
+    }
+    XLSX.utils.book_append_sheet(wb, ws2, 'Cubiertos por factura');
+  }
+
+  XLSX.writeFile(wb, `Pagos_por_asignar_${String(cfProyecto || 'proyecto').replace(/[\\/:*?"<>|\s]+/g, '_')}_${hoyISO}.xlsx`);
+  notify(`✅ Excel generado: ${pendientes.length} pendiente(s)${cubiertos.length ? ` + ${cubiertos.length} cubiertos` : ''}`);
 }
 
 // ---- Ligar pago a factura (📎, desde la lista de pendientes) ----
