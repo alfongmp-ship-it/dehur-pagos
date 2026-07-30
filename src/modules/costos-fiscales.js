@@ -14,6 +14,7 @@ import { parseFechaHist } from './historial.js';
 import { gsSaveUnidades, gsSavePresupuestoUnidad, gsSaveCostoAsignaciones, esPorFila, sbGuardarFila } from '../services/google-sync.js';
 import { nuevoAsignacionId } from '../state.js';
 import { auditarRepartos, aplicarReparacionRepartos } from './confirmar-pagos.js';
+import { aplicarPagoAFactura, restantePago } from './facturas.js';
 
 const PALETA = ['#c8a96e', '#5a9be0', '#4caf7d', '#e07a3a', '#9b7fe8', '#e05a5a', '#27ae60', '#3498db'];
 
@@ -125,6 +126,16 @@ function _pagosCubiertosPorFacturaSet() {
   const set = new Set();
   state.historial.forEach(h => { if (cubierta(h.factura_id)) set.add(String(h.id)); });
   (state.facturaPagos || []).forEach(fp => { if (String(fp.pago_id || '') !== '' && cubierta(fp.factura_id)) set.add(String(fp.pago_id)); });
+  return set;
+}
+// Facturas ligadas a un pago (ambas vías: bandera h.factura_id + aplicaciones por
+// partes en facturaPagos). Set de factura_ids como String.
+function _facturasLigadasAPago(h) {
+  const set = new Set();
+  if (h.factura_id != null && String(h.factura_id) !== '') set.add(String(h.factura_id));
+  (state.facturaPagos || []).forEach(fp => {
+    if (String(fp.pago_id || '') === String(h.id)) set.add(String(fp.factura_id));
+  });
   return set;
 }
 // Sets de factura_ids / pago_ids que EXISTEN (o null si esa tabla aún no cargó con datos, para
@@ -298,11 +309,16 @@ function estimadoIndivisoPorUnidad() {
   const porUnidad = new Map();
   const asignados = new Set(state.costoAsignaciones.map(a => String(a.pago_id)));
   const activas = unidadesDeProyecto();
+  // Excluir pagos ligados a factura por CUALQUIER vía (bandera directa o
+  // facturaPagos por partes): su costo va por el devengado de la factura.
+  const ligadosFp = new Set();
+  (state.facturaPagos || []).forEach(fp => { if (String(fp.pago_id || '') !== '') ligadosFp.add(String(fp.pago_id)); });
   const pend = state.historial.filter(h =>
     esCostoAsignable(h) && h.id &&
     proyectoMatch(h.proyecto, cfProyecto) &&
     !asignados.has(String(h.id)) &&
-    !(h.factura_id && String(h.factura_id) !== '')
+    !(h.factura_id && String(h.factura_id) !== '') &&
+    !ligadosFp.has(String(h.id))
   );
   let total = 0;
   pend.forEach(h => { total += h.importe || 0; });
@@ -701,14 +717,32 @@ export async function guardarLoteUnidades() {
 
 // ========== TAB: ASIGNAR PAGOS ==========
 function renderAsignarTab(panel) {
-  const pendientes = pagosSinAsignar();
+  const todosPend = pagosSinAsignar();
   const asignados = pagosAsignados();
   const huerfanas = asignacionesHuerfanas();
 
+  // Clasificación por vínculo con facturas (modelo devengado):
+  // - CUBIERTOS: ligados a factura REPARTIDA (no cancelada) → su costo YA está en
+  //   el devengado de la factura; NO son pendientes (antes inflaban la tarjeta y
+  //   la lista, aunque el costo por casa nunca se duplicó gracias a la supresión).
+  // - LIGADOS a factura SIN repartir → la acción correcta es repartir la FACTURA.
+  // - LIBRES: sin factura → reparto propio o ligarlo a una factura (📎).
+  const cubiertosSet = _pagosCubiertosPorFacturaSet();
+  const cubiertos = [], pendientes = [];
+  todosPend.forEach(h => {
+    // Cubierto DE VERDAD = alguna factura repartida lo cubre Y ya no le queda
+    // restante por aplicar. Un pago aplicado PARCIALMENTE sigue pendiente por su
+    // restante (se liga a otra factura con 📎) — si saliera de la lista, ese
+    // restante se volvería invisible.
+    if (cubiertosSet.has(String(h.id)) && restantePago(h) <= 0.01) cubiertos.push(h);
+    else pendientes.push(h);
+  });
+
   panel.innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
       <div class="stat-card"><div class="stat-label">Pagos sin asignar</div><div class="stat-value" style="color:var(--orange);">${pendientes.length}</div><div class="stat-sub">${fmt(pendientes.reduce((s, h) => s + (h.importe || 0), 0))}</div></div>
       <div class="stat-card"><div class="stat-label">Pagos asignados</div><div class="stat-value" style="color:var(--green);">${asignados.length}</div><div class="stat-sub">${fmt(asignados.reduce((s, h) => s + (h.importe || 0), 0))}</div></div>
+      <div class="stat-card" title="Pagos aplicados POR COMPLETO a facturas ya repartidas: su costo entra por el devengado de la factura, por eso no están pendientes"><div class="stat-label">Cubiertos por factura</div><div class="stat-value" style="color:var(--blue);">${cubiertos.length}</div><div class="stat-sub">${fmt(cubiertos.reduce((s, h) => s + (h.importe || 0), 0))}</div></div>
       <div class="stat-card"><div class="stat-label">Asignaciones huérfanas</div><div class="stat-value" style="color:${huerfanas.length ? 'var(--red)' : 'var(--muted)'};">${huerfanas.length}</div><div class="stat-sub">${huerfanas.length ? '<a href="#" onclick="cfLimpiarHuerfanas();return false;" style="color:var(--accent);">Limpiar</a>' : 'Sin problemas'}</div></div>
     </div>
 
@@ -722,19 +756,117 @@ function renderAsignarTab(panel) {
     <div class="table-wrap cf-tabla-scroll" style="margin-bottom:24px;">
       <table>
         <thead><tr><th>Fecha</th><th>Beneficiario</th><th>Concepto</th><th>Partida</th><th style="text-align:right">Importe</th><th style="text-align:right">Acción</th></tr></thead>
-        <tbody id="cf-pend-tbody">${pendientes.map(h => `
+        <tbody id="cf-pend-tbody">${pendientes.map(h => {
+          const ligadas = _facturasLigadasAPago(h);
+          const esParcial = cubiertosSet.has(String(h.id));   // cubierto en parte, con restante
+          // Buscar una factura ligada ACCIONABLE (viva y sin repartir) — es la
+          // acción correcta; detectar también ligas muertas (cancelada/inexistente).
+          let fid = null, fLig = null, fMuerta = null;
+          for (const cand of ligadas) {
+            const f = facturaById(cand);
+            if (f && f.estado_sat !== 'Cancelada' && f.estatus_factura !== 'cancelada') {
+              if (!state.costoAsignaciones.some(a => String(a.factura_id) === String(cand))) { fid = cand; fLig = f; break; }
+            } else if (!fMuerta) { fMuerta = cand; }
+          }
+          const _bdg = (txt, color, title) => `<span style="display:inline-block;padding:1px 7px;border-radius:6px;font-size:10px;font-weight:600;background:${color};" title="${escapeHtml(title)}">${txt}</span><br>`;
+          const btnAsignar = `<button class="btn btn-primary btn-sm" onclick="abrirAsignarCosto('${h.id}')">Asignar</button>`;
+          const btnLigar = `<button class="btn btn-ghost btn-sm req-editor" onclick="abrirLigarFactura('${h.id}')" title="Aplicar este pago a una factura; el reparto vivirá en la factura (devengado)">📎 Factura</button>`;
+          let badge = '', accion = '';
+          if (fid) {
+            badge = _bdg(`📎 Fac ${escapeHtml(String(fid))} sin repartir`, 'rgba(90,155,224,.15);color:var(--blue)', `Este pago está aplicado a la factura ${fid}${fLig && fLig.numero_factura ? ' (' + fLig.numero_factura + ')' : ''} pero la factura AÚN no se reparte a las casas — repártela y este pago quedará cubierto`);
+            accion = `<button class="btn btn-primary btn-sm" onclick="abrirRepartirFactura('${escapeHtml(String(fid))}')" title="El costo debe vivir en la factura (devengado)">Repartir factura</button>`;
+          } else if (esParcial) {
+            const rest = restantePago(h);
+            badge = _bdg(`📎 parcial · restante ${fmt(rest)}`, 'rgba(90,155,224,.15);color:var(--blue)', `Este pago ya está aplicado en parte a factura(s) repartida(s); le quedan ${fmt(rest)} por aplicar a otra factura`);
+            accion = btnLigar;
+          } else if (ligadas.size && fMuerta) {
+            badge = _bdg(`⚠ Fac ${escapeHtml(String(fMuerta))} cancelada/inexistente`, 'rgba(224,122,58,.15);color:var(--orange)', 'La factura ligada está cancelada o ya no existe: asigna reparto propio al pago o lígalo a otra factura');
+            accion = `${btnAsignar} ${btnLigar}`;
+          } else {
+            accion = `${btnAsignar} ${btnLigar}`;
+          }
+          return `
           <tr class="cf-pend-row" data-buscar="${escapeHtml(`${h.nombre || ''} ${h.concepto || ''} ${h.partida || ''}`.toLowerCase().replace(/"/g, ''))}">
             <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${fmtFecha(h.fecha)}</td>
             <td style="font-weight:500;">${escapeHtml(h.nombre) || '—'}</td>
             <td style="color:var(--muted);font-size:12px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(h.concepto) || '—'}</td>
-            <td style="color:var(--muted);font-size:12px;">${escapeHtml(h.partida) || 'Sin partida'}</td>
+            <td style="color:var(--muted);font-size:12px;">${badge}${escapeHtml(h.partida) || 'Sin partida'}</td>
             <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--accent);">${fmt(h.importe || 0)}</td>
-            <td style="text-align:right;"><button class="btn btn-primary btn-sm" onclick="abrirAsignarCosto('${h.id}')">Asignar</button></td>
-          </tr>`).join('')}</tbody>
+            <td style="text-align:right;white-space:nowrap;">${accion}</td>
+          </tr>`;
+        }).join('')}</tbody>
       </table>
-    </div>` : '<div class="empty-state" style="margin-bottom:24px;"><div style="font-size:28px;opacity:.4;margin-bottom:8px;">✅</div><div>Todos los pagos de ' + escapeHtml(cfProyecto) + ' están asignados</div></div>'}
+    </div>` : '<div class="empty-state" style="margin-bottom:24px;"><div style="font-size:28px;opacity:.4;margin-bottom:8px;">✅</div><div>Todos los pagos de ' + escapeHtml(cfProyecto) + ' están asignados o cubiertos por facturas</div></div>'}
   `;
   cfFiltrarPendientes();
+}
+
+// ---- Ligar pago a factura (📎, desde la lista de pendientes) ----
+let _lfPagoId = null;
+
+export function abrirLigarFactura(pagoId) {
+  if (!puedeEditar()) { notify('No tienes permiso para editar', 'error'); return; }
+  const h = state.historial.find(x => String(x.id) === String(pagoId));
+  if (!h) return;
+  _lfPagoId = String(pagoId);
+  const rest = restantePago(h);
+  const info = document.getElementById('lf-pago-info');
+  if (info) info.innerHTML = `<b>${escapeHtml(h.nombre || '')}</b> · ${fmtFecha(h.fecha)} · ${fmt(h.importe || 0)}${rest < (h.importe || 0) ? ` · restante ${fmt(rest)}` : ''}<br><span style="font-size:11px;color:var(--muted);">${escapeHtml(h.concepto || '')}</span>`;
+
+  // Candidatas: con saldo real por aplicar, no canceladas, no ligadas ya a este
+  // pago. Espejo del flujo de Facturas: mismo proveedor primero (por cercanía de
+  // monto), luego otros con monto igual/cercano, y las de OTRO proyecto al fondo
+  // con advertencia.
+  const yaLigadas = _facturasLigadasAPago(h);
+  const saldoDe = f => Math.round(((f.monto_total || 0) - (f.monto_pagado || 0)) * 100) / 100;
+  const cand = (state.facturas || []).filter(f =>
+    f.estatus_factura !== 'cancelada' && f.estado_sat !== 'Cancelada' &&
+    !yaLigadas.has(String(f.factura_id)) && saldoDe(f) > 0.01);
+  const provId = parseInt(h.proveedor_id) || 0;
+  const mismoProy = f => !f.proyecto || !h.proyecto || proyectoMatch(h.proyecto, f.proyecto);
+  const diff = f => Math.min(Math.abs((f.monto_total || 0) - rest), Math.abs(saldoDe(f) - rest));
+  const g1 = cand.filter(f => f.proveedor_id === provId && mismoProy(f)).sort((a, b) => diff(a) - diff(b)).slice(0, 25);
+  const g2 = cand.filter(f => f.proveedor_id !== provId && mismoProy(f) && diff(f) <= Math.max(1, rest * 0.01)).sort((a, b) => diff(a) - diff(b)).slice(0, 10);
+  const g3 = cand.filter(f => !mismoProy(f)).sort((a, b) => ((a.proveedor_id === provId ? 0 : 1) - (b.proveedor_id === provId ? 0 : 1)) || (diff(a) - diff(b))).slice(0, 12);
+
+  const fila = (f, warn) => {
+    const saldo = saldoDe(f);
+    const repartida = state.costoAsignaciones.some(a => String(a.factura_id) === String(f.factura_id));
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid var(--border);">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Fac ${escapeHtml(String(f.factura_id))}${f.numero_factura ? ' · ' + escapeHtml(f.numero_factura) : ''} · ${escapeHtml(f.razon_social || f.nombre_proveedor || '')}</div>
+        <div style="font-size:11px;color:var(--muted);">${escapeHtml(f.proyecto || 'sin proyecto')} · total ${fmt(f.monto_total || 0)} · saldo ${fmt(saldo)} · ${repartida ? '<span style="color:var(--green);">repartida ✓</span>' : '<span style="color:var(--orange);">sin repartir</span>'}${warn ? ' · <span style="color:var(--orange);font-weight:700;">⚠ otro proyecto</span>' : ''}</div>
+      </div>
+      <input type="number" step="0.01" min="0" id="lf-m-${escapeHtml(String(f.factura_id))}" value="${Math.min(saldo, rest).toFixed(2)}" style="width:110px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;">
+      <button class="btn btn-primary btn-sm" onclick="lfAplicar('${escapeHtml(String(f.factura_id))}')">Aplicar</button>
+    </div>`;
+  };
+  const secc = (titulo, arr, warn) => arr.length
+    ? `<div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:8px 10px 2px;">${titulo}</div>` + arr.map(f => fila(f, warn)).join('')
+    : '';
+  const lista = document.getElementById('lf-lista');
+  if (lista) {
+    const html = secc('Del mismo proveedor', g1, false)
+      + secc('Otros proveedores con monto igual o cercano', g2, false)
+      + secc('⚠ De OTRO proyecto (verifica antes de aplicar)', g3, true);
+    lista.innerHTML = html || '<div class="empty-state" style="padding:20px;"><div>No hay facturas con saldo por aplicar para este pago</div></div>';
+  }
+  document.getElementById('modal-ligar-factura')?.classList.add('open');
+}
+
+export function lfAplicar(facturaId) {
+  if (!_lfPagoId) return;
+  const monto = parseFloat(document.getElementById('lf-m-' + facturaId)?.value);
+  const res = aplicarPagoAFactura(_lfPagoId, facturaId, monto);
+  if (!res || !res.ok) return;
+  cerrar('modal-ligar-factura');
+  renderCostosFiscales();   // el pago sale de pendientes si quedó cubierto, o muestra su badge 📎
+  const repartida = state.costoAsignaciones.some(a => String(a.factura_id) === String(facturaId));
+  if (!repartida) {
+    if (confirm('La factura aún NO está repartida a las casas.\n\n¿Repartirla ahora (devengado)? Al completar su reparto, este pago (y todos los aplicados a ella) quedan cubiertos y salen de pendientes.')) {
+      abrirRepartirFactura(facturaId);
+    }
+  }
 }
 
 // Filtra la lista de pagos pendientes por beneficiario, concepto o partida.

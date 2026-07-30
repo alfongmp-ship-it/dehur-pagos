@@ -734,7 +734,7 @@ export function renderFacturaPagos() {
 
 // Restante de un pago = su importe menos lo YA aplicado a facturas (suma de sus facturaPagos).
 // Con esto un mismo pago se puede repartir POR PARTES entre varias facturas sin pasarse.
-function restantePago(pago) {
+export function restantePago(pago) {
   if (!pago) return 0;
   const aplicado = state.facturaPagos
     .filter(fp => String(fp.pago_id) === String(pago.id))
@@ -887,32 +887,36 @@ export function filtrarPagosParaFactura() {
   cont.innerHTML = html;
 }
 
-export function vincularPagoAFactura(pagoId, montoAplicado) {
-  const fact = state.facturas.find(x => x.factura_id === state.editFactId);
-  if (!fact) { notify('Abre una factura primero', 'error'); return; }
+// CORE reutilizable (headless): aplica un pago a UNA factura recibida POR
+// PARÁMETRO — mismas validaciones y efectos de siempre. No depende del modal de
+// facturas; lo usa también el botón "📎 Factura" de Costos por Unidad. Devuelve
+// { ok, factura } para que el llamador encadene (p.ej. ofrecer repartir).
+export function aplicarPagoAFactura(pagoId, facturaId, montoAplicado) {
+  const fact = state.facturas.find(x => String(x.factura_id) === String(facturaId));
+  if (!fact) { notify('No se encontró la factura', 'error'); return { ok: false }; }
   if (fact.estatus_factura === 'cancelada') {
-    notify('La factura está cancelada', 'error'); return;
+    notify('La factura está cancelada', 'error'); return { ok: false };
   }
   // Se permite ligar aunque el estatus diga "pagada" (p.ej. facturas viejas capturadas como
   // pagadas): lo que importa es que quede SALDO REAL por aplicar (total − pagado), no la etiqueta.
   // Al ligar el pago, recalcularSaldoEstatus deja el estatus consistente.
   const saldoReal = Math.round(((fact.monto_total || 0) - (fact.monto_pagado || 0)) * 100) / 100;
   if (saldoReal <= 0.01) {
-    notify('La factura ya no tiene saldo por aplicar', 'error'); return;
+    notify('La factura ya no tiene saldo por aplicar', 'error'); return { ok: false };
   }
   ensureHistorialIds(); // asegura pago.id estable para guardar la fila
   const pago = state.historial.find(h => String(h.id) === String(pagoId));
-  if (!pago) { notify('No se encontró el pago', 'error'); return; }
+  if (!pago) { notify('No se encontró el pago', 'error'); return { ok: false }; }
   // Un pago se puede aplicar POR PARTES a VARIAS facturas. Solo se evita aplicar el MISMO
   // pago a la MISMA factura dos veces (duplicaría el monto_pagado). Para corregir un monto,
   // borra la línea en "Pagos a Facturas" y vuelve a aplicar.
   if (state.facturaPagos.some(fp => String(fp.pago_id) === String(pago.id) && String(fp.factura_id) === String(fact.factura_id))) {
-    notify('Ese pago ya está aplicado a esta factura', 'error'); return;
+    notify('Ese pago ya está aplicado a esta factura', 'error'); return { ok: false };
   }
   const restante = restantePago(pago);
-  if (restante <= 0.01) { notify('Ese pago ya está aplicado por completo a otras facturas', 'error'); return; }
+  if (restante <= 0.01) { notify('Ese pago ya está aplicado por completo a otras facturas', 'error'); return { ok: false }; }
   if (parseInt(pago.proveedor_id) !== fact.proveedor_id) {
-    if (!confirm('El proveedor del pago no coincide con el de la factura. ¿Vincular de todos modos?')) return;
+    if (!confirm('El proveedor del pago no coincide con el de la factura. ¿Vincular de todos modos?')) return { ok: false };
   }
   // Monto a aplicar EN ESTA factura: lo que pida el usuario, topado al saldo de la factura y
   // al restante del pago → imposible sobrepagar la factura ni pasar del importe del pago.
@@ -920,7 +924,7 @@ export function vincularPagoAFactura(pagoId, montoAplicado) {
   let monto = parseFloat(montoAplicado);
   if (!isFinite(monto) || monto <= 0) monto = tope;
   monto = Math.round(Math.min(monto, tope) * 100) / 100;
-  if (monto <= 0) { notify('No hay saldo por aplicar en esta factura', 'error'); return; }
+  if (monto <= 0) { notify('No hay saldo por aplicar en esta factura', 'error'); return { ok: false }; }
 
   const fpId = nuevoFacturaPagoId();
   const nuevoFp = {
@@ -957,10 +961,18 @@ export function vincularPagoAFactura(pagoId, montoAplicado) {
   filtrarPagosParaFactura();              // desaparece de ESTA factura; sigue en otras si le queda restante
   const sel = document.getElementById('f-estatus');
   if (sel) sel.value = fact.estatus_factura; // refleja el estatus nuevo en el modal abierto
-  document.getElementById('cnt-fp').textContent = state.facturaPagos.length;
+  const cntFp = document.getElementById('cnt-fp');
+  if (cntFp) cntFp.textContent = state.facturaPagos.length;
   if (window.renderHistorial) window.renderHistorial();
   const rest2 = restantePago(pago);
   notify(rest2 > 0.01
     ? `Aplicado ${fmt(monto)} a la factura · restante del pago ${fmt(rest2)}`
     : `Aplicado ${fmt(monto)} · pago aplicado por completo`);
+  return { ok: true, factura: fact };
+}
+
+// Wrapper del modal de facturas: usa la factura abierta en el editor (como siempre).
+export function vincularPagoAFactura(pagoId, montoAplicado) {
+  if (!state.editFactId) { notify('Abre una factura primero', 'error'); return; }
+  aplicarPagoAFactura(pagoId, state.editFactId, montoAplicado);
 }
