@@ -232,6 +232,15 @@ body[data-rol="lector"] .req-facturas,
 body[data-rol="contabilidad"] .req-facturas,
 body[data-rol="solo_lectura"] .req-facturas,
 body[data-rol="aprobador"] .req-facturas { display: none !important; }
+/* .req-obra → admin, capturista y 'obra' (Gustavo, residente): captura de DATOS DE OBRA
+   (fecha de terminación, estatus de la casa y presupuestos por partida). Los perfiles de
+   facturas y los de solo-ver no capturan obra. */
+body[data-rol="lector"] .req-obra,
+body[data-rol="contabilidad"] .req-obra,
+body[data-rol="solo_lectura"] .req-obra,
+body[data-rol="aprobador"] .req-obra,
+body[data-rol="facturas"] .req-obra,
+body[data-rol="facturas_obra"] .req-obra { display: none !important; }
 /* .req-ligar-pagos → admin, capturista y 'facturas' (Gonzalo): LIGAR/DESLIGAR pagos a
    facturas. Permiso aparte del de capturar facturas: 'facturas_obra' (Anahi) y 'obra'
    (Gustavo) NO ligan, aunque Anahi sí capture/edite/borre facturas y reparta. */

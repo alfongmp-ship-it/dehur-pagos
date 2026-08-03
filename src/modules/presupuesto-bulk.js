@@ -1,7 +1,7 @@
 // Captura masiva de presupuesto + costo inicial por unidad usando Excel.
 // Genera plantilla (descargar) y procesa subida con merge inteligente.
 
-import { state } from '../state.js';
+import { state, puedeCapturarObra } from '../state.js';
 import { notify } from '../ui/notify.js';
 import { gsSavePresupuestoUnidad } from '../services/google-sync.js';
 
@@ -139,6 +139,7 @@ function procesarHoja(rows, campo, proyecto, partidasCatalogoNorm) {
 }
 
 export async function subirPlantillaPresupuesto(file) {
+  if (!puedeCapturarObra()) { notify('No tienes permiso para capturar presupuestos', 'error'); return; }
   if (!file) return;
   if (!window.XLSX) { notify('Cargando librería XLSX, intenta en 2 segundos', 'error'); return; }
   try {

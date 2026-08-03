@@ -2,7 +2,7 @@
 // Capa nueva y aislada: asigna los pagos del historial a unidades (casas)
 // para conocer el costo real por casa. No toca el flujo de pagos existente.
 
-import { state, datosListos, puedeEditar, puedeLigarPagos } from '../state.js';
+import { state, datosListos, puedeEditar, puedeLigarPagos, puedeFacturas, puedeCapturarObra } from '../state.js';
 import { fmt, fmtFecha, escapeHtml } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
@@ -455,8 +455,8 @@ function renderUnidadesTab(panel) {
         <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);cursor:pointer;" title="Reparte por indiviso (respetando fechas) los pagos sin factura ni reparto, SOLO para verlos. No crea asignaciones reales ni afecta el costo real.">
           <input type="checkbox" ${cfMostrarEstimado ? 'checked' : ''} onchange="cfToggleEstimado(this.checked)" style="cursor:pointer;"> Estimado por asignar
         </label>
-        <button class="btn btn-ghost" onclick="abrirLoteUnidades()">+ Crear en lote</button>
-        <button class="btn btn-primary" onclick="abrirNuevaUnidad()">+ Nueva Unidad</button>
+        <button class="btn btn-ghost req-editor" onclick="abrirLoteUnidades()">+ Crear en lote</button>
+        <button class="btn btn-primary req-editor" onclick="abrirNuevaUnidad()">+ Nueva Unidad</button>
       </div>
     </div>
     ${estim ? `<div style="font-size:12px;color:var(--accent);background:rgba(200,169,110,.08);border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:12px;">📊 Pendiente por asignar: <strong>${fmt(estim.total)}</strong> en ${estim.count} pago(s) — repartido por indiviso (estimado; no afecta el costo real)</div>` : ''}
@@ -475,15 +475,17 @@ function renderUnidadesTab(panel) {
             <td style="color:var(--muted);">${escapeHtml(u.tipo) || '—'}</td>
             <td style="text-align:right;font-family:'DM Mono',monospace;">${(u.indiviso_pct || 0).toFixed(2)}%</td>
             <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--muted);">${u.superficie_m2 ? u.superficie_m2 + ' m²' : '—'}</td>
-            <td><span id="estatus-u-${u.unidad_id}" style="font-size:11px;color:var(--muted);">${escapeHtml(u.estatus) || '—'}</span></td>
-            <td>${puedeEditar()
-              ? `<input type="date" value="${escapeHtml(u.fecha_termino || '')}" onchange="setFechaTermino(${u.unidad_id}, this.value)" title="Fecha en que la casa salió del indiviso (vacío = sigue en obra)" style="font-size:11px;padding:2px 4px;width:130px;">`
+            <td>${puedeCapturarObra()
+              ? `<select id="estatus-u-${u.unidad_id}" onchange="setEstatusUnidad(${u.unidad_id}, this.value)" title="Estatus de la casa" style="font-size:11px;padding:2px 4px;">${ESTATUS_UNIDAD.map(e => `<option${(u.estatus || 'En obra') === e ? ' selected' : ''}>${e}</option>`).join('')}</select>`
+              : `<span id="estatus-u-${u.unidad_id}" style="font-size:11px;color:var(--muted);">${escapeHtml(u.estatus) || '—'}</span>`}</td>
+            <td>${puedeCapturarObra()
+              ? `<input type="date" id="fecha-u-${u.unidad_id}" value="${escapeHtml(u.fecha_termino || '')}" onchange="setFechaTermino(${u.unidad_id}, this.value)" title="Fecha en que la casa salió del indiviso (vacío = sigue en obra)" style="font-size:11px;padding:2px 4px;width:130px;">`
               : `<span style="font-size:11px;color:var(--muted);">${escapeHtml(u.fecha_termino) || '—'}</span>`}</td>
             <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--accent);">${fmt(real)}</td>
             ${estim ? `<td style="text-align:right;font-family:'DM Mono',monospace;color:var(--muted);">${fmt(estim.porUnidad.get(u.unidad_id) || 0)}</td><td style="text-align:right;font-family:'DM Mono',monospace;font-weight:700;color:var(--green);">${fmt(real + (estim.porUnidad.get(u.unidad_id) || 0))}</td>` : ''}
             <td style="text-align:right;white-space:nowrap;">
-              <button class="btn btn-ghost btn-sm" onclick="editarUnidad(${u.unidad_id})">Editar</button>
-              <button class="btn btn-ghost btn-sm" onclick="toggleUnidad(${u.unidad_id})" style="color:${u.activo === false ? 'var(--green)' : 'var(--red)'};">${u.activo === false ? 'Activar' : 'Baja'}</button>
+              <button class="btn btn-ghost btn-sm req-editor" onclick="editarUnidad(${u.unidad_id})">Editar</button>
+              <button class="btn btn-ghost btn-sm req-editor" onclick="toggleUnidad(${u.unidad_id})" style="color:${u.activo === false ? 'var(--green)' : 'var(--red)'};">${u.activo === false ? 'Activar' : 'Baja'}</button>
             </td>
           </tr>`;
         }).join('')}</tbody>
@@ -526,6 +528,7 @@ export function editarUnidad(id) {
 }
 
 export async function guardarUnidad() {
+  if (!(puedeEditar())) { notify('No tienes permiso para esta accion', 'error'); return; }
   const nombre = document.getElementById('un-nombre').value.trim();
   if (!nombre) { notify('El nombre es obligatorio', 'error'); return; }
   const indiviso = parseFloat(document.getElementById('un-indiviso').value) || 0;
@@ -565,6 +568,7 @@ export async function guardarUnidad() {
 }
 
 export async function toggleUnidad(id) {
+  if (!(puedeEditar())) { notify('No tienes permiso para esta accion', 'error'); return; }
   const u = unidadById(id);
   if (!u) return;
   u.activo = u.activo === false;
@@ -583,6 +587,9 @@ export async function toggleUnidad(id) {
 // confirmación. Los editados a mano solo se reportan — jamás se tocan.
 function _ofrecerReparacionPorUnidad(u, fechaAntes) {
   try {
+    // Recolocar repartos reescribe asignaciones de PAGOS: es de editores. Al
+    // residente de obra no se le pregunta nada (el admin lo corrige con ♻️).
+    if (!puedeEditar()) return;
     if ((u.fecha_termino || '') === (fechaAntes || '')) return;
     if (!u.fecha_termino) return;   // quitar la fecha no expulsa a nadie del pool
     const res = auditarRepartos();
@@ -653,7 +660,45 @@ export function revisarRepartos() {
   if (res.sinPool.length) notify(`ℹ️ ${res.sinPool.length} pago(s) en proyectos 100% terminados — no hay casas en obra a quién recolocar (quedan como están)`);
 }
 
+// Estatus de la casa (En obra → Terminada → Entregada → Vendida). Captura de OBRA:
+// se edita en línea, sin abrir el modal de unidad (que tocaría indiviso y nombre).
+export async function setEstatusUnidad(id, value) {
+  if (!puedeCapturarObra()) { notify('No tienes permiso para cambiar el estatus', 'error'); return; }
+  const u = unidadById(id);
+  if (!u || !ESTATUS_UNIDAD.includes(value)) return;
+  const inpFecha = document.getElementById('fecha-u-' + id);
+  const estatusAntes = u.estatus || 'En obra';
+  // El motor de indiviso decide SOLO por fecha_termino (el estatus no lo mira),
+  // así que estatus y fecha se mantienen coherentes o el costo se reparte mal:
+  //  - salir de obra SIN fecha ⇒ la casa seguiría absorbiendo costo → se pone hoy
+  //    (el residente ajusta la fecha real en la celda de al lado si terminó antes);
+  //  - regresar a 'En obra' BORRA la fecha (la devuelve al reparto) ⇒ se confirma.
+  let aviso = '';
+  if (value === 'En obra') {
+    if (u.fecha_termino) {
+      if (!confirm(`"${u.nombre}" tiene fecha de terminación ${u.fecha_termino}.\n\nRegresarla a "En obra" BORRA esa fecha y la casa vuelve a recibir costos por indiviso.\n\n¿Continuar?`)) {
+        const sel = document.getElementById('estatus-u-' + id);
+        if (sel) sel.value = estatusAntes;   // revertir el select, no se guarda nada
+        return;
+      }
+      u.fecha_termino = '';
+      if (inpFecha) inpFecha.value = '';
+      aviso = ' · se borró su fecha de terminación';
+    }
+  } else if (!u.fecha_termino) {
+    u.fecha_termino = new Date().toISOString().slice(0, 10);
+    if (inpFecha) inpFecha.value = u.fecha_termino;
+    aviso = ` · se puso fecha de terminación ${u.fecha_termino} (ajústala si terminó antes)`;
+  }
+  u.estatus = value;
+  const porFila = esPorFila('unidades');
+  await gsSaveUnidades({ porFila });
+  if (porFila) sbGuardarFila('unidades', u);
+  notify(`${u.nombre}: ${value}${aviso}`);
+}
+
 export async function setFechaTermino(id, value) {
+  if (!puedeCapturarObra()) { notify('No tienes permiso para capturar la fecha de terminación', 'error'); return; }
   const u = unidadById(id);
   if (!u) return;
   const fechaAntes = u.fecha_termino || '';
@@ -662,8 +707,13 @@ export async function setFechaTermino(id, value) {
   // No tocamos 'Entregada'/'Vendida' (ya están más allá de 'Terminada').
   if (value && u.estatus === 'En obra') u.estatus = 'Terminada';
   else if (!value && u.estatus === 'Terminada') u.estatus = 'En obra';
+  // La celda de estatus es <select> para quien captura obra y <span> para el resto:
+  // escribirle textContent a un <select> le borraría las opciones.
   const cell = document.getElementById('estatus-u-' + id);
-  if (cell) cell.textContent = u.estatus || '—';
+  if (cell) {
+    if (cell.tagName === 'SELECT') cell.value = u.estatus || 'En obra';
+    else cell.textContent = u.estatus || '—';
+  }
   const porFila = esPorFila('unidades');
   await gsSaveUnidades({ porFila });
   if (porFila) sbGuardarFila('unidades', u);
@@ -681,6 +731,7 @@ export function abrirLoteUnidades() {
 }
 
 export async function guardarLoteUnidades() {
+  if (!(puedeEditar())) { notify('No tienes permiso para esta accion', 'error'); return; }
   const prefijo = document.getElementById('lote-prefijo').value;
   const desde = parseInt(document.getElementById('lote-desde').value) || 1;
   const cantidad = parseInt(document.getElementById('lote-cantidad').value) || 0;
@@ -760,7 +811,7 @@ function renderAsignarTab(panel) {
       <div class="stat-card"><div class="stat-label">Pagos sin asignar</div><div class="stat-value" style="color:var(--orange);">${pendientes.length}</div><div class="stat-sub">${fmt(pendientes.reduce((s, h) => s + (h.importe || 0), 0))}</div></div>
       <div class="stat-card"><div class="stat-label">Pagos asignados</div><div class="stat-value" style="color:var(--green);">${asignados.length}</div><div class="stat-sub">${fmt(asignados.reduce((s, h) => s + (h.importe || 0), 0))}</div></div>
       <div class="stat-card" title="Pagos aplicados POR COMPLETO a facturas ya repartidas: su costo entra por el devengado de la factura, por eso no están pendientes"><div class="stat-label">Cubiertos por factura</div><div class="stat-value" style="color:var(--blue);">${cubiertos.length}</div><div class="stat-sub">${fmt(cubiertos.reduce((s, h) => s + (h.importe || 0), 0))}</div></div>
-      <div class="stat-card"><div class="stat-label">Asignaciones huérfanas</div><div class="stat-value" style="color:${huerfanas.length ? 'var(--red)' : 'var(--muted)'};">${huerfanas.length}</div><div class="stat-sub">${huerfanas.length ? '<a href="#" onclick="cfLimpiarHuerfanas();return false;" style="color:var(--accent);">Limpiar</a>' : 'Sin problemas'}</div></div>
+      <div class="stat-card"><div class="stat-label">Asignaciones huérfanas</div><div class="stat-value" style="color:${huerfanas.length ? 'var(--red)' : 'var(--muted)'};">${huerfanas.length}</div><div class="stat-sub">${huerfanas.length ? '<a href="#" class="req-editor" onclick="cfLimpiarHuerfanas();return false;" style="color:var(--accent);">Limpiar</a>' : 'Sin problemas'}</div></div>
     </div>
 
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
@@ -779,12 +830,12 @@ function renderAsignarTab(panel) {
         <tbody id="cf-pend-tbody">${pendientes.map(h => {
           const e = _estadoFacturaPago(h, cubiertosSet);
           const _bdg = (txt, color, title) => `<span style="display:inline-block;padding:1px 7px;border-radius:6px;font-size:10px;font-weight:600;background:${color};" title="${escapeHtml(title)}">${txt}</span><br>`;
-          const btnAsignar = `<button class="btn btn-primary btn-sm" onclick="abrirAsignarCosto('${h.id}')">Asignar</button>`;
+          const btnAsignar = `<button class="btn btn-primary btn-sm req-editor" onclick="abrirAsignarCosto('${h.id}')">Asignar</button>`;
           const btnLigar = `<button class="btn btn-ghost btn-sm req-ligar-pagos" onclick="abrirLigarFactura('${h.id}')" title="Aplicar este pago a una factura; el reparto vivirá en la factura (devengado)">📎 Factura</button>`;
           let badge = '', accion = '';
           if (e.tipo === 'sin_repartir') {
             badge = _bdg(`📎 Fac ${escapeHtml(String(e.fid))} sin repartir`, 'rgba(90,155,224,.15);color:var(--blue)', `Este pago está aplicado a la factura ${e.fid}${e.fLig && e.fLig.numero_factura ? ' (' + e.fLig.numero_factura + ')' : ''} pero la factura AÚN no se reparte a las casas — repártela y este pago quedará cubierto`);
-            accion = `<button class="btn btn-primary btn-sm" onclick="abrirRepartirFactura('${escapeHtml(String(e.fid))}')" title="El costo debe vivir en la factura (devengado)">Repartir factura</button>`;
+            accion = `<button class="btn btn-primary btn-sm req-facturas" onclick="abrirRepartirFactura('${escapeHtml(String(e.fid))}')" title="El costo debe vivir en la factura (devengado)">Repartir factura</button>`;
           } else if (e.tipo === 'parcial') {
             badge = _bdg(`📎 parcial · restante ${fmt(e.rest)}`, 'rgba(90,155,224,.15);color:var(--blue)', `Este pago ya está aplicado en parte a factura(s) repartida(s); le quedan ${fmt(e.rest)} por aplicar a otra factura`);
             accion = btnLigar;
@@ -978,7 +1029,7 @@ function renderAsignadosTab(panel) {
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
       <div style="font-size:12px;color:var(--muted);">
         ${asignados.length} pago${asignados.length !== 1 ? 's' : ''} asignado${asignados.length !== 1 ? 's' : ''} · ${fmt(totalAsig)}
-        ${huerfanas.length ? ` · <span style="color:var(--red);">${huerfanas.length} huérfana(s)</span> <a href="#" onclick="cfLimpiarHuerfanas();return false;" style="color:var(--accent);">Limpiar</a>` : ''}
+        ${huerfanas.length ? ` · <span style="color:var(--red);">${huerfanas.length} huérfana(s)</span> <a href="#" class="req-editor" onclick="cfLimpiarHuerfanas();return false;" style="color:var(--accent);">Limpiar</a>` : ''}
       </div>
       <input type="text" id="cf-asig-search" placeholder="🔍 Buscar beneficiario, concepto..." oninput="cfFiltrarAsignados()" style="width:280px;">
     </div>
@@ -1000,8 +1051,8 @@ function renderAsignadosTab(panel) {
             <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--accent);">${fmt(h.importe || 0)}</td>
             <td style="font-size:11px;color:var(--muted);"><div style="color:var(--text);font-weight:500;">${escapeHtml(metodo)}</div>${detalle}</td>
             <td style="text-align:right;white-space:nowrap;">
-              <button class="btn btn-ghost btn-sm" onclick="reasignarCosto('${h.id}')">Reasignar</button>
-              <button class="btn btn-ghost btn-sm" onclick="eliminarAsignacionCosto('${h.id}')" style="color:var(--red);">Quitar</button>
+              <button class="btn btn-ghost btn-sm req-editor" onclick="reasignarCosto('${h.id}')">Reasignar</button>
+              <button class="btn btn-ghost btn-sm req-editor" onclick="eliminarAsignacionCosto('${h.id}')" style="color:var(--red);">Quitar</button>
             </td>
           </tr>`;
         }).join('')}</tbody>
@@ -1033,6 +1084,7 @@ export function cfFiltrarAsignados() {
 }
 
 export async function cfLimpiarHuerfanas() {
+  if (!(puedeEditar())) { notify('No tienes permiso para esta accion', 'error'); return; }
   const huerfanas = asignacionesHuerfanas();
   if (!huerfanas.length) return;
   if (!confirm(`¿Eliminar ${huerfanas.length} asignación(es) huérfana(s)? Corresponden a pagos o facturas que ya no existen.`)) return;
@@ -1047,6 +1099,7 @@ export async function cfLimpiarHuerfanas() {
 }
 
 export function abrirAsignarCosto(pagoId) {
+  if (!(puedeEditar())) { notify('No tienes permiso para esta accion', 'error'); return; }
   const pago = pagoById(pagoId);
   if (!pago) { notify('Pago no encontrado', 'error'); return; }
   if (!unidadesDeProyecto().length) { notify('Primero crea unidades en este proyecto', 'error'); return; }
@@ -1068,6 +1121,7 @@ export function abrirAsignarCosto(pagoId) {
 }
 
 export function reasignarCosto(pagoId) {
+  if (!(puedeEditar())) { notify('No tienes permiso para esta accion', 'error'); return; }
   // Reabre el modal; guardarAsignacionCosto reemplaza las asignaciones previas.
   // No se borra nada hasta confirmar, así cancelar no pierde datos.
   abrirAsignarCosto(pagoId);
@@ -1076,6 +1130,7 @@ export function reasignarCosto(pagoId) {
 // Devengado (Fase B): reparte el costo de una FACTURA (sobre su monto_total) a las
 // casas de su proyecto. Reusa el mismo modal que el reparto de pagos.
 export function abrirRepartirFactura(facturaId) {
+  if (!(puedeFacturas())) { notify('Tu perfil no puede repartir facturas', 'error'); return; }
   const f = facturaById(facturaId);
   if (!f) { notify('Factura no encontrada', 'error'); return; }
   if (!f.proyecto) { notify('La factura no tiene proyecto; asígnale uno para repartir su costo', 'error'); return; }
@@ -1106,7 +1161,7 @@ export function abrirRepartirFactura(facturaId) {
     ? `<div style="margin-top:8px;font-size:11px;border-top:1px solid var(--border);padding-top:6px;">
          <div style="color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">Partes ya repartidas</div>
          ${[...partesMap].map(([k, m]) => `<div style="display:flex;justify-content:space-between;"><span>${escapeHtml(k)}</span><span style="font-family:'DM Mono',monospace;">${fmt(m)}</span></div>`).join('')}
-         <button type="button" class="btn btn-ghost btn-sm" style="margin-top:6px;color:var(--red);" onclick="cfLimpiarRepartoFactura()">🗑 Limpiar reparto y rehacer</button>
+         <button type="button" class="btn btn-ghost btn-sm req-facturas" style="margin-top:6px;color:var(--red);" onclick="cfLimpiarRepartoFactura()">🗑 Limpiar reparto y rehacer</button>
        </div>`
     : '';
 
@@ -1173,6 +1228,7 @@ export function cfFacturaPartidaChange() {
 }
 
 export async function eliminarAsignacionCosto(pagoId) {
+  if (!(puedeEditar())) { notify('No tienes permiso para esta accion', 'error'); return; }
   if (!confirm('¿Quitar la asignación de costos de este pago?')) return;
   state.costoAsignaciones = state.costoAsignaciones.filter(a => String(a.pago_id) !== String(pagoId));
   await gsSaveCostoAsignaciones();
@@ -1183,6 +1239,7 @@ export async function eliminarAsignacionCosto(pagoId) {
 // Borra TODO el reparto (todas las partes/sub-partidas) de la factura abierta, para
 // rehacerlo desde cero. Refresca el modal (restante vuelve al total).
 export async function cfLimpiarRepartoFactura() {
+  if (!(puedeFacturas())) { notify('Tu perfil no puede repartir facturas', 'error'); return; }
   if (!cfEsFactura()) return;
   if (!confirm('¿Borrar TODO el reparto de costos de esta factura para rehacerlo?')) return;
   const fid = cfFacturaAsignar;
@@ -1499,6 +1556,7 @@ export function cfPreviewReparto() {
 }
 
 export async function guardarAsignacionCosto() {
+  if (!(puedeEditar() || puedeFacturas())) { notify('No tienes permiso para repartir costos', 'error'); return; }
   if (!cfObjetivoValido()) return;
   const esFact = cfEsFactura();
   const reparto = calcularReparto();
@@ -1603,7 +1661,7 @@ function renderPresupuestosTab(panel) {
     <div style="background:rgba(90,155,224,.07);border:1px solid rgba(90,155,224,.2);border-radius:10px;padding:12px 14px;margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
       <div style="font-size:12px;color:var(--muted);">Captura masiva (${escapeHtml(cfProyecto)}):</div>
       <button class="btn btn-ghost btn-sm" onclick="descargarPlantillaPresupuesto('${(cfProyecto || '').replace(/'/g, "\\'")}')">📥 Descargar plantilla</button>
-      <label class="btn btn-ghost btn-sm" style="cursor:pointer;">
+      <label class="btn btn-ghost btn-sm req-obra" style="cursor:pointer;">
         📤 Subir plantilla
         <input type="file" accept=".xlsx,.xls" style="display:none;" onchange="handleSubirPlantillaPresupuesto(event)">
       </label>
@@ -1647,8 +1705,8 @@ function renderPresupuestoGrid() {
     <div style="display:flex;gap:8px;margin-top:12px;align-items:center;flex-wrap:wrap;">
       <input list="cf-partidas-list" id="cf-nueva-partida" placeholder="Nombre de partida" style="flex:1;min-width:160px;">
       <datalist id="cf-partidas-list">${conocidas.map(p => `<option value="${escapeHtml(p)}">`).join('')}</datalist>
-      <button class="btn btn-ghost" onclick="cfAgregarPartidaPresup()">+ Agregar partida</button>
-      <button class="btn btn-primary" onclick="guardarPresupuestoUnidad()">💾 Guardar presupuesto</button>
+      <button class="btn btn-ghost req-obra" onclick="cfAgregarPartidaPresup()">+ Agregar partida</button>
+      <button class="btn btn-primary req-obra" onclick="guardarPresupuestoUnidad()">💾 Guardar presupuesto</button>
     </div>
     <div style="font-size:11px;color:var(--muted);margin-top:8px;">
       El <strong>costo inicial</strong> es lo ya gastado en esa partida antes de usar el sistema (proyectos empezados). Para proyectos nuevos déjalo en 0.
@@ -1659,14 +1717,15 @@ function renderPresupuestoGrid() {
 function presupuestoFilaHTML(partida, monto, costoIni, idx) {
   const safe = escapeHtml(partida || '');
   return `<tr data-fila="${idx}">
-    <td><input type="text" class="cf-p-partida" value="${safe}" style="width:100%;"></td>
-    <td><input type="number" step="0.01" class="cf-p-monto" value="${monto || ''}" placeholder="0.00" style="width:130px;text-align:right;font-family:'DM Mono',monospace;"></td>
-    <td><input type="number" step="0.01" class="cf-p-inicial" value="${costoIni || ''}" placeholder="0.00" style="width:130px;text-align:right;font-family:'DM Mono',monospace;"></td>
-    <td style="text-align:right;"><button class="btn btn-ghost btn-sm" onclick="this.closest('tr').remove()" style="color:var(--red);">✕</button></td>
+    <td><input type="text" class="cf-p-partida req-obra" value="${safe}" style="width:100%;"></td>
+    <td><input type="number" step="0.01" class="cf-p-monto req-obra" value="${monto || ''}" placeholder="0.00" style="width:130px;text-align:right;font-family:'DM Mono',monospace;"></td>
+    <td><input type="number" step="0.01" class="cf-p-inicial req-obra" value="${costoIni || ''}" placeholder="0.00" style="width:130px;text-align:right;font-family:'DM Mono',monospace;"></td>
+    <td style="text-align:right;"><button class="btn btn-ghost btn-sm req-obra" onclick="this.closest('tr').remove()" style="color:var(--red);">✕</button></td>
   </tr>`;
 }
 
 export function cfAgregarPartidaPresup() {
+  if (!(puedeCapturarObra())) { notify('No tienes permiso para capturar presupuestos', 'error'); return; }
   const inp = document.getElementById('cf-nueva-partida');
   const nombre = (inp.value || '').trim();
   if (!nombre) { notify('Escribe el nombre de la partida', 'error'); return; }
@@ -1676,6 +1735,7 @@ export function cfAgregarPartidaPresup() {
 }
 
 export async function guardarPresupuestoUnidad() {
+  if (!(puedeCapturarObra())) { notify('No tienes permiso para capturar presupuestos', 'error'); return; }
   const tbody = document.getElementById('cf-presup-tbody');
   if (!tbody) return;
   const nuevas = [];
@@ -1909,7 +1969,7 @@ function renderPlanoTab(panel) {
     <div class="cf-plano-toolbar">
       <div class="cf-plano-modos">
         <button class="cf-plano-btn${!editor ? ' active' : ''}" data-modo="vista">👁 Vista</button>
-        <button class="cf-plano-btn${editor ? ' active' : ''}" data-modo="editor">✏️ Editar</button>
+        <button class="cf-plano-btn req-editor${editor ? ' active' : ''}" data-modo="editor">✏️ Editar</button>
       </div>
       ${editor ? `
         <div class="cf-plano-modos">
@@ -2373,6 +2433,7 @@ function cfQuitarPin(uid) {
 }
 
 async function cfGuardarPlano() {
+  if (!puedeEditar()) { notify('No tienes permiso para editar el plano', 'error'); return; }
   await gsSaveUnidades();
   notify('Plano guardado');
 }

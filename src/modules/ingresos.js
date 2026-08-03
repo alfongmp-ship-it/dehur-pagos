@@ -10,7 +10,7 @@
 // candado de vista previa (?ingresos=1), así los usuarios reales no ven nada.
 // ============================================================================
 
-import { state, nuevoClienteId, nuevoVentaId, nuevoCobroId, puedeEditar } from '../state.js';
+import { state, nuevoClienteId, nuevoVentaId, nuevoCobroId, puedeEditar, rol } from '../state.js';
 import { ingresosActivo, estrategiaActivo, esPorFila, sbGuardarFila, sbBorrarFila, gsSaveClientes, gsSaveVentas, gsSaveCobros } from '../services/google-sync.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
@@ -28,6 +28,12 @@ const _ultimaPagina = { pagos: PAGINA_DEFAULT.pagos, ingresos: PAGINA_DEFAULT.in
 
 // Espacios ACTIVOS ahora (Pagos siempre; los demás según su bandera+candado).
 function _wsActivos() {
+  // Los perfiles ACOTADOS (obra, facturas_obra) solo viven en Pagos: sus 3 páginas
+  // están ahí. Devolver solo 'pagos' evita que el switcher se les inyecte y que
+  // queden atrapados con la barra lateral vacía (además desactiva un
+  // localStorage['dt-workspace'] viejo que apuntara a Ingresos/Estrategia).
+  const r = rol();
+  if (r === 'obra' || r === 'facturas_obra') return ['pagos'];
   const a = ['pagos'];
   if (ingresosActivo()) a.push('ingresos');
   if (estrategiaActivo()) a.push('estrategia');

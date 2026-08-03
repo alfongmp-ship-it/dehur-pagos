@@ -1,4 +1,4 @@
-import { state, puedeEditar, esAdmin, puedeFacturas, puedeLigarPagos } from '../state.js';
+import { state, puedeEditar, esAdmin, puedeFacturas, puedeLigarPagos, puedeCapturarObra } from '../state.js';
 import { notify } from '../ui/notify.js';
 import { gsReadSheet, gsWriteRange, gsClearAndWrite, gsAppendRow } from './google-sheets.js';
 import { normalizeBanco } from '../config/bancos.js';
@@ -1279,7 +1279,8 @@ export async function gsSaveHistorial(opts = {}) {
 }
 
 export async function gsSaveUnidades(opts = {}) {
-  if (!puedeEditar()) return;
+  // 'obra' (residente) captura fecha de terminación y estatus de las casas.
+  if (!puedeEditar() && !puedeCapturarObra()) return;
   if (!guardarPermitido('unidades', state.unidades)) return;
   try {
     const rows = state.unidades.map(u => [
@@ -1299,7 +1300,8 @@ export async function gsSaveUnidades(opts = {}) {
 }
 
 export async function gsSavePresupuestoUnidad() {
-  if (!puedeEditar()) return;
+  // 'obra' (residente) captura los presupuestos por partida.
+  if (!puedeEditar() && !puedeCapturarObra()) return;
   if (!guardarPermitido('presupuestoUnidad', state.presupuestoUnidad)) return;
   try {
     const rows = state.presupuestoUnidad.map(p => [
@@ -1700,7 +1702,8 @@ export async function sbGuardarFila(key, item) {
   // vía la herramienta de vincular pago→factura (no tiene otra vía de UI: todos
   // los editores del historial van con .req-editor, que ese rol no ve).
   const esFactKey = key === 'facturas' || key === 'facturaPagos' || key === 'historial';
-  if (!puedeEditar() && !(esFactKey && puedeFacturas())) return;
+  const esObraKey = key === 'unidades' || key === 'presupuestoUnidad';
+  if (!puedeEditar() && !(esFactKey && puedeFacturas()) && !(esObraKey && puedeCapturarObra())) return;
   // Ligar/desligar pagos↔facturas es un permiso APARTE: 'facturas_obra' (Anahi)
   // captura facturas pero NO aplica pagos (backstop más profundo del vínculo).
   if (key === 'facturaPagos' && !puedeLigarPagos()) return;
@@ -1720,7 +1723,8 @@ export async function sbBorrarFila(key, idValue) {
   // Backstop de rol (ver sbGuardarFila): 'facturas' borra facturaPagos al
   // eliminar un pago a factura.
   const esFactKey = key === 'facturas' || key === 'facturaPagos' || key === 'historial';
-  if (!puedeEditar() && !(esFactKey && puedeFacturas())) return;
+  const esObraKey = key === 'unidades' || key === 'presupuestoUnidad';
+  if (!puedeEditar() && !(esFactKey && puedeFacturas()) && !(esObraKey && puedeCapturarObra())) return;
   // Ligar/desligar pagos↔facturas es un permiso APARTE: 'facturas_obra' (Anahi)
   // captura facturas pero NO aplica pagos (backstop más profundo del vínculo).
   if (key === 'facturaPagos' && !puedeLigarPagos()) return;

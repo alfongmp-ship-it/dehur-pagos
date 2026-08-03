@@ -150,6 +150,14 @@ export function puedeBorrarFacturas() {
   return r === 'admin' || r === 'facturas' || r === 'facturas_obra';
 }
 
+// CAPTURA DE OBRA: datos que el residente sí administra — fecha de terminación y
+// estatus de la casa, y presupuesto / costo inicial por partida. NUNCA toca
+// indiviso, nombres de unidad, montos de pagos ni repartos (eso es de editores).
+export function puedeCapturarObra() {
+  const r = rol();
+  return r === 'admin' || r === 'capturista' || r === 'obra';
+}
+
 // LIGAR / DESLIGAR pagos ↔ facturas (aplicar un pago a una factura). Es un permiso
 // APARTE del de capturar facturas: toca el dinero aplicado y la supresión de costo.
 // 'facturas_obra' (Anahi) y 'obra' (Gustavo) NO ligan — solo capturan/consultan.
