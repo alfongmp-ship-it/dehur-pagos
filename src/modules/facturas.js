@@ -1,4 +1,4 @@
-import { state, datosListos, puedeBorrarFacturas, nuevoFacturaPagoId } from '../state.js';
+import { state, datosListos, puedeBorrarFacturas, puedeLigarPagos, nuevoFacturaPagoId } from '../state.js';
 import { fmt, fmtFecha, hoyFecha, escapeHtml } from '../ui/format.js';
 import { proyTag } from '../ui/badges.js';
 import { notify } from '../ui/notify.js';
@@ -727,7 +727,7 @@ export function renderFacturaPagos() {
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${fmtFecha(fp.fecha_pago)}</td>
       <td>${estBadge}</td>
       <td style="font-size:11px;color:var(--muted);">${escapeHtml((fp.observaciones || '').substring(0, 40))}</td>
-      <td style="text-align:right;"><button class="btn btn-ghost req-facturas" style="padding:4px 6px;font-size:11px;color:#e74c3c;" onclick="eliminarPagoFactura('${fp.factura_pago_id}')">✕</button></td>
+      <td style="text-align:right;"><button class="btn btn-ghost req-ligar-pagos" style="padding:4px 6px;font-size:11px;color:#e74c3c;" onclick="eliminarPagoFactura('${fp.factura_pago_id}')">✕</button></td>
     </tr>`;
   }).join('');
 }
@@ -743,6 +743,7 @@ export function restantePago(pago) {
 }
 
 export function eliminarPagoFactura(fpId) {
+  if (!puedeLigarPagos()) { notify('Tu perfil no puede desligar pagos de facturas', 'error'); return; }
   const fp = state.facturaPagos.find(x => String(x.factura_pago_id) === String(fpId));
   if (!fp) return;
   if (!confirm(`¿Eliminar pago de ${fmt(fp.monto_aplicado)} a factura ${fp.factura_id}?`)) return;
@@ -800,6 +801,7 @@ function ocultarBuscadorPagosFactura() {
 }
 
 export function abrirBuscadorPagosFactura() {
+  if (!puedeLigarPagos()) { notify('Tu perfil no puede ligar pagos a facturas', 'error'); return; }
   const panel = document.getElementById('fact-pagos-vinc-panel');
   if (panel) panel.style.display = '';
   const inp = document.getElementById('fact-pagos-buscar');
@@ -874,7 +876,7 @@ export function filtrarPagosParaFactura() {
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
         <span style="font-size:10px;color:var(--muted);">Aplicar $</span>
         <input type="number" step="0.01" min="0" max="${defMonto}" id="${inpId}" value="${defMonto}" style="width:88px;text-align:right;font-family:'DM Mono',monospace;font-size:11px;padding:3px 6px;">
-        <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;" onclick="vincularPagoAFactura('${h.id}', document.getElementById('${inpId}').value)">Vincular</button>
+        <button class="btn btn-ghost req-ligar-pagos" style="padding:4px 10px;font-size:11px;" onclick="vincularPagoAFactura('${h.id}', document.getElementById('${inpId}').value)">Vincular</button>
       </div>
     </div>`;
   };
@@ -892,6 +894,7 @@ export function filtrarPagosParaFactura() {
 // facturas; lo usa también el botón "📎 Factura" de Costos por Unidad. Devuelve
 // { ok, factura } para que el llamador encadene (p.ej. ofrecer repartir).
 export function aplicarPagoAFactura(pagoId, facturaId, montoAplicado) {
+  if (!puedeLigarPagos()) { notify('Tu perfil no puede ligar pagos a facturas', 'error'); return { ok: false }; }
   const fact = state.facturas.find(x => String(x.factura_id) === String(facturaId));
   if (!fact) { notify('No se encontró la factura', 'error'); return { ok: false }; }
   if (fact.estatus_factura === 'cancelada') {

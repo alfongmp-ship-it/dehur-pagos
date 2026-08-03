@@ -1615,7 +1615,7 @@
     </div>
     <!-- Vincular pagos ya existentes del historial a esta factura (solo en edición). -->
     <div id="fact-pagos-vinc" class="req-facturas" style="display:none;margin-top:8px;border-top:1px solid var(--border);padding-top:10px;">
-      <button type="button" class="btn btn-ghost" style="font-size:12px;" onclick="abrirBuscadorPagosFactura()">+ Vincular pago existente</button>
+      <button type="button" class="btn btn-ghost req-ligar-pagos" style="font-size:12px;" onclick="abrirBuscadorPagosFactura()">+ Vincular pago existente</button>
       <div id="fact-pagos-vinc-panel" style="display:none;margin-top:8px;">
         <div style="font-size:10px;color:var(--muted);margin-bottom:6px;">Pagos con saldo por aplicar (puedes repartir un pago entre varias facturas):</div>
         <div class="search-box" style="margin-bottom:6px;"><span class="search-icon">🔍</span><input type="text" id="fact-pagos-buscar" placeholder="Buscar por concepto, monto o fecha..." oninput="filtrarPagosParaFactura()"></div>

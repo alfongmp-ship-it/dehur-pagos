@@ -150,6 +150,14 @@ export function puedeBorrarFacturas() {
   return r === 'admin' || r === 'facturas' || r === 'facturas_obra';
 }
 
+// LIGAR / DESLIGAR pagos ↔ facturas (aplicar un pago a una factura). Es un permiso
+// APARTE del de capturar facturas: toca el dinero aplicado y la supresión de costo.
+// 'facturas_obra' (Anahi) y 'obra' (Gustavo) NO ligan — solo capturan/consultan.
+export function puedeLigarPagos() {
+  const r = rol();
+  return r === 'admin' || r === 'capturista' || r === 'facturas';
+}
+
 // Solo el admin: borrado EN BLOQUE, configuración (proyectos/partidas/cuentas),
 // conectar Google + "Respaldar a Sheets".
 export function esAdmin() {

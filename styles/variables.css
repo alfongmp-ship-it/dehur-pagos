@@ -232,6 +232,15 @@ body[data-rol="lector"] .req-facturas,
 body[data-rol="contabilidad"] .req-facturas,
 body[data-rol="solo_lectura"] .req-facturas,
 body[data-rol="aprobador"] .req-facturas { display: none !important; }
+/* .req-ligar-pagos → admin, capturista y 'facturas' (Gonzalo): LIGAR/DESLIGAR pagos a
+   facturas. Permiso aparte del de capturar facturas: 'facturas_obra' (Anahi) y 'obra'
+   (Gustavo) NO ligan, aunque Anahi sí capture/edite/borre facturas y reparta. */
+body[data-rol="lector"] .req-ligar-pagos,
+body[data-rol="contabilidad"] .req-ligar-pagos,
+body[data-rol="solo_lectura"] .req-ligar-pagos,
+body[data-rol="aprobador"] .req-ligar-pagos,
+body[data-rol="obra"] .req-ligar-pagos,
+body[data-rol="facturas_obra"] .req-ligar-pagos { display: none !important; }
 /* .req-borrar-factura → SOLO admin y facturas (borrar facturas). Oculta también a capturista. */
 body[data-rol="capturista"] .req-borrar-factura,
 body[data-rol="lector"] .req-borrar-factura,

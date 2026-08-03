@@ -1,4 +1,4 @@
-import { state, puedeEditar, esAdmin, puedeFacturas } from '../state.js';
+import { state, puedeEditar, esAdmin, puedeFacturas, puedeLigarPagos } from '../state.js';
 import { notify } from '../ui/notify.js';
 import { gsReadSheet, gsWriteRange, gsClearAndWrite, gsAppendRow } from './google-sheets.js';
 import { normalizeBanco } from '../config/bancos.js';
@@ -1701,6 +1701,9 @@ export async function sbGuardarFila(key, item) {
   // los editores del historial van con .req-editor, que ese rol no ve).
   const esFactKey = key === 'facturas' || key === 'facturaPagos' || key === 'historial';
   if (!puedeEditar() && !(esFactKey && puedeFacturas())) return;
+  // Ligar/desligar pagos↔facturas es un permiso APARTE: 'facturas_obra' (Anahi)
+  // captura facturas pero NO aplica pagos (backstop más profundo del vínculo).
+  if (key === 'facturaPagos' && !puedeLigarPagos()) return;
   if (!sbReady()) return;
   const def = SB_ENTIDADES[key];
   if (!def || !def.rowOne || !def.idCol) return;
@@ -1718,6 +1721,9 @@ export async function sbBorrarFila(key, idValue) {
   // eliminar un pago a factura.
   const esFactKey = key === 'facturas' || key === 'facturaPagos' || key === 'historial';
   if (!puedeEditar() && !(esFactKey && puedeFacturas())) return;
+  // Ligar/desligar pagos↔facturas es un permiso APARTE: 'facturas_obra' (Anahi)
+  // captura facturas pero NO aplica pagos (backstop más profundo del vínculo).
+  if (key === 'facturaPagos' && !puedeLigarPagos()) return;
   if (!sbReady()) return;
   const def = SB_ENTIDADES[key];
   if (!def || !def.idCol) return;
@@ -1898,7 +1904,7 @@ export async function gsSaveFacturas(opts = {}) {
 }
 
 export async function gsSaveFacturaPagos(opts = {}) {
-  if (!puedeEditar() && !puedeFacturas()) return;
+  if (!puedeLigarPagos()) return;   // permiso específico del vínculo pago↔factura
   if (!guardarPermitido('facturaPagos', state.facturaPagos)) return;
   try {
     const rows = state.facturaPagos.map(fp => [fp.factura_pago_id, fp.factura_id, fp.pago_id, fp.proveedor_id, fp.monto_aplicado, fp.fecha_pago, fp.estatus, fp.observaciones]);
