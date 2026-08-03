@@ -470,10 +470,12 @@ window.toggleUserMenu = toggleUserMenu;
 // El bloqueo REAL está en los handlers + el backstop de guardado; esto es UX.
 function aplicarPermisosUI() {
   document.body.dataset.rol = rol();
-  // El rol 'obra' (residente) solo ve Facturas / Pagos a Facturas / Costos por Unidad
-  // (el CSS oculta el resto). Lo mandamos a su página de inicio: Costos por Unidad.
+  // Perfiles acotados: solo ven Facturas / Pagos a Facturas / Costos por Unidad
+  // (el CSS oculta el resto). Cada uno aterriza en su página de inicio.
   if (rol() === 'obra') {
     showPage('costos-fiscales', document.getElementById('nav-costos-fiscales'));
+  } else if (rol() === 'facturas_obra') {
+    showPage('facturas', document.getElementById('nav-facturas'));
   }
 }
 window.aplicarPermisosUI = aplicarPermisosUI;

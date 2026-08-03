@@ -248,6 +248,15 @@ body[data-rol="obra"] .req-borrar-factura { display: none !important; }
 body[data-rol="obra"] .nav-item:not(.nav-obra),
 body[data-rol="obra"] .nav-label,
 body[data-rol="obra"] #header-badges { display: none !important; }
+/* .facturas_obra → captura de facturas con el MENÚ ACOTADO (Anahi): tiene los
+   mismos poderes que 'facturas' (crear/editar/borrar facturas, ligar pagos y
+   repartir el devengado → NO se le ocultan .req-facturas ni .req-borrar-factura),
+   pero solo ve Facturas / Pagos a Facturas / Costos por Unidad y sin la barra de
+   saldos del header. No es editor: .req-editor oculto. */
+body[data-rol="facturas_obra"] .req-editor { display: none !important; }
+body[data-rol="facturas_obra"] .nav-item:not(.nav-obra),
+body[data-rol="facturas_obra"] .nav-label,
+body[data-rol="facturas_obra"] #header-badges { display: none !important; }
 
 /* ===================================================================== */
 /* ===== PASE PREMIUM — elevación tema oscuro + motion safety ========== */

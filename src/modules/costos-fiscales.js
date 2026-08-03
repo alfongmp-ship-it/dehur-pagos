@@ -2,7 +2,7 @@
 // Capa nueva y aislada: asigna los pagos del historial a unidades (casas)
 // para conocer el costo real por casa. No toca el flujo de pagos existente.
 
-import { state, datosListos, puedeEditar } from '../state.js';
+import { state, datosListos, puedeEditar, puedeFacturas } from '../state.js';
 import { fmt, fmtFecha, escapeHtml } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
@@ -780,7 +780,7 @@ function renderAsignarTab(panel) {
           const e = _estadoFacturaPago(h, cubiertosSet);
           const _bdg = (txt, color, title) => `<span style="display:inline-block;padding:1px 7px;border-radius:6px;font-size:10px;font-weight:600;background:${color};" title="${escapeHtml(title)}">${txt}</span><br>`;
           const btnAsignar = `<button class="btn btn-primary btn-sm" onclick="abrirAsignarCosto('${h.id}')">Asignar</button>`;
-          const btnLigar = `<button class="btn btn-ghost btn-sm req-editor" onclick="abrirLigarFactura('${h.id}')" title="Aplicar este pago a una factura; el reparto vivirá en la factura (devengado)">📎 Factura</button>`;
+          const btnLigar = `<button class="btn btn-ghost btn-sm req-facturas" onclick="abrirLigarFactura('${h.id}')" title="Aplicar este pago a una factura; el reparto vivirá en la factura (devengado)">📎 Factura</button>`;
           let badge = '', accion = '';
           if (e.tipo === 'sin_repartir') {
             badge = _bdg(`📎 Fac ${escapeHtml(String(e.fid))} sin repartir`, 'rgba(90,155,224,.15);color:var(--blue)', `Este pago está aplicado a la factura ${e.fid}${e.fLig && e.fLig.numero_factura ? ' (' + e.fLig.numero_factura + ')' : ''} pero la factura AÚN no se reparte a las casas — repártela y este pago quedará cubierto`);
@@ -881,7 +881,9 @@ export function exportarPendientesExcel() {
 let _lfPagoId = null;
 
 export function abrirLigarFactura(pagoId) {
-  if (!puedeEditar()) { notify('No tienes permiso para editar', 'error'); return; }
+  // Ligar un pago a una factura es una acción DE FACTURAS: la pueden hacer los
+  // roles de facturas (Gonzalo, Anahi) además de admin/capturista.
+  if (!puedeFacturas()) { notify('No tienes permiso para ligar pagos a facturas', 'error'); return; }
   const h = state.historial.find(x => String(x.id) === String(pagoId));
   if (!h) return;
   _lfPagoId = String(pagoId);

@@ -3,11 +3,17 @@ import { state, rol } from './state.js';
 // El rol 'obra' (residente) solo navega a estas páginas; cualquier otra lo regresa a
 // Costos por Unidad. Es UX/defensa; el bloqueo de escritura real está en los guardados.
 const OBRA_PAGES = new Set(['facturas', 'factura-pagos', 'costos-fiscales']);
+// Roles con el menú ACOTADO a esas 3 páginas: 'obra' (residente, solo-lectura) y
+// 'facturas_obra' (Anahi: mismos poderes de facturas que 'facturas', pero sin ver
+// el resto de la app). Cualquier otra página los regresa a su inicio.
+const ROLES_ACOTADOS = new Set(['obra', 'facturas_obra']);
 
 export function showPage(name, el) {
-  if (rol() === 'obra' && !OBRA_PAGES.has(name)) {
-    name = 'costos-fiscales';
-    el = document.getElementById('nav-costos-fiscales');
+  if (ROLES_ACOTADOS.has(rol()) && !OBRA_PAGES.has(name)) {
+    // Cada perfil acotado regresa a SU inicio: 'facturas_obra' captura facturas;
+    // 'obra' (residente) revisa Costos por Unidad.
+    name = rol() === 'facturas_obra' ? 'facturas' : 'costos-fiscales';
+    el = document.getElementById('nav-' + name);
   }
   document.querySelectorAll('[id^="page-"]').forEach(p => p.style.display = 'none');
   document.getElementById('page-' + name).style.display = '';

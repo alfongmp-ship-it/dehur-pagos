@@ -134,18 +134,20 @@ export function puedeEditar() {
   return r === 'admin' || r === 'capturista';
 }
 
-// Puede crear/editar facturas y vincular pagos a facturas. Rol dedicado 'facturas'
-// (Gonzalo) además de los que ya editan. 'contabilidad' (Ericka) queda solo-ver.
+// Puede crear/editar facturas, vincular pagos a facturas y repartir su devengado.
+// Roles dedicados: 'facturas' (Gonzalo, ve toda la app) y 'facturas_obra' (Anahi,
+// mismos poderes con el menú acotado a Facturas/Pagos a Facturas/Costos por Unidad),
+// además de los que ya editan. 'contabilidad' (Ericka) queda solo-ver.
 export function puedeFacturas() {
   const r = rol();
-  return r === 'admin' || r === 'capturista' || r === 'facturas';
+  return r === 'admin' || r === 'capturista' || r === 'facturas' || r === 'facturas_obra';
 }
 
-// Borrar facturas (corregir errores): solo admin y el rol 'facturas' (Gonzalo).
+// Borrar facturas (corregir errores): solo admin y los roles de facturas.
 // Capturista NO — es una acción destructiva acotada a quienes manejan facturas.
 export function puedeBorrarFacturas() {
   const r = rol();
-  return r === 'admin' || r === 'facturas';
+  return r === 'admin' || r === 'facturas' || r === 'facturas_obra';
 }
 
 // Solo el admin: borrado EN BLOQUE, configuración (proyectos/partidas/cuentas),
@@ -158,7 +160,7 @@ export function esAdmin() {
 const ROL_LABEL = {
   admin: 'Admin', capturista: 'Capturista', contabilidad: 'Contabilidad',
   lector: 'Lector', aprobador: 'Aprobador', solo_lectura: 'Solo lectura',
-  facturas: 'Facturas', obra: 'Obra'
+  facturas: 'Facturas', obra: 'Obra', facturas_obra: 'Facturas (obra)'
 };
 export function rolLabel() {
   return ROL_LABEL[rol()] || rol();
