@@ -78,14 +78,14 @@ function cfObjetivoValido() {
   return cfEsFactura() ? !!facturaById(cfFacturaAsignar) : !!pagoById(cfPagoAsignar);
 }
 
-function partidasConocidas() {
-  // Fuente principal: catálogo activo. Se conservan partidas legacy de historial/
-  // presupuestos para no perder valores antiguos en el autocomplete.
-  const set = new Set();
-  (state.partidasCatalogo || []).filter(p => p.activa !== false).forEach(p => set.add(p.partida));
-  state.historial.forEach(h => { if (h.partida) set.add(h.partida); });
-  state.presupuestoUnidad.forEach(p => { if (p.partida) set.add(p.partida); });
-  return [...set].sort();
+// Catálogo ADMIN activo (partida + sub-partidas): la ÚNICA taxonomía del sistema
+// — presupuesto, facturas y pagos usan estas mismas etiquetas (Control de Obra v2).
+function _catAdminActivas() {
+  return (state.partidasCatalogo || []).filter(p => p.activa !== false);
+}
+function _subsAdminDe(partida) {
+  const cat = _catAdminActivas().find(p => p.partida === partida);
+  return (cat && Array.isArray(cat.subpartidas)) ? cat.subpartidas : [];
 }
 
 function partidaDeAsignacion(a) {
@@ -245,6 +245,65 @@ export function costosPresupuestosBatch() {
     out.set(k, { real, presupuesto: pr.presupuesto, avance: avancePct(real, pr.presupuesto) });
   });
   return out;
+}
+
+// ===== Control de Obra: presupuesto vs costo real por partida+sub ADMIN =====
+// UNA pasada para TODAS las unidades del proyecto (los 5 Sets se construyen una
+// sola vez — patrón batch obligatorio; jamás llamar esto en bucle por unidad).
+// Llave = norm(partida)+'|'+norm(sub). Devuelve:
+//   porUnidad: Map<String(unidad_id), Map<llave, fila>>
+//   totales:   Map<llave, fila>   (todo el proyecto)
+//   etiquetas: Map<llave, {partida, sub}>   (texto para mostrar)
+// fila = { presupuestado, costoInicial, devengado, pagadoSinFactura, asignado, real, avanceFisico }
+export function desgloseAdminBatch(proyecto) {
+  const uids = new Set(state.unidades
+    .filter(u => u.activo !== false && proyectoMatch(u.proyecto, proyecto))
+    .map(u => String(u.unidad_id)));
+  const pcf = _pagosCubiertosPorFacturaSet();
+  const fc = _facturasCanceladasSet();
+  const fe = _factExistSet(); const pe = _pagoExistSet();
+  const pcap = _pagosCapitalSet();
+  const porUnidad = new Map(); const totales = new Map(); const etiquetas = new Map();
+  const filaDe = (mapa, k) => {
+    let f = mapa.get(k);
+    if (!f) { f = { presupuestado: 0, costoInicial: 0, devengado: 0, pagadoSinFactura: 0, asignado: 0, real: 0, avanceFisico: 0 }; mapa.set(k, f); }
+    return f;
+  };
+  const reg = (uid, partida, sub, cb) => {
+    const k = _normPartCap(partida) + '|' + _normPartCap(sub);
+    if (!etiquetas.has(k)) etiquetas.set(k, { partida: (partida || '').trim() || 'Sin partida', sub: (sub || '').trim() });
+    let mU = porUnidad.get(uid);
+    if (!mU) { mU = new Map(); porUnidad.set(uid, mU); }
+    cb(filaDe(mU, k)); cb(filaDe(totales, k));
+  };
+  // Lado PRESUPUESTO (una fila por llave por unidad tras el merge del grid).
+  state.presupuestoUnidad.forEach(p => {
+    const uid = String(p.unidad_id);
+    if (!uids.has(uid)) return;
+    reg(uid, p.partida, p.sub_partida, f => {
+      f.presupuestado += p.monto_presupuestado || 0;
+      f.costoInicial += p.costo_inicial || 0;
+      f.avanceFisico = p.avance_fisico || 0;   // % físico capturado en esa fila (F4)
+    });
+  });
+  // Lado COSTO REAL: misma regla canónica de siempre (_tipoAsignacion).
+  state.costoAsignaciones.forEach(a => {
+    const uid = String(a.unidad_id);
+    if (!uids.has(uid)) return;
+    const t = _tipoAsignacion(a, pcf, fc, fe, pe, pcap);
+    if (!t) return;
+    const p = pagoById(a.pago_id);
+    const partida = a.partida_override || (p && p.partida) || '';
+    const sub = a.sub_partida_override || (p && p.sub_partida) || '';
+    reg(uid, partida, sub, f => {
+      if (t === 'devengado') f.devengado += a.monto_asignado || 0;
+      else f.pagadoSinFactura += a.monto_asignado || 0;
+      f.asignado += a.monto_asignado || 0;
+    });
+  });
+  porUnidad.forEach(m => m.forEach(f => { f.real = f.costoInicial + f.asignado; }));
+  totales.forEach(f => { f.real = f.costoInicial + f.asignado; });
+  return { porUnidad, totales, etiquetas };
 }
 
 // Devuelve { partida: {presupuestado, costoInicial, devengado, pagadoSinFactura, asignado, real} }
@@ -1687,81 +1746,141 @@ function renderPresupuestoGrid() {
   const cont = document.getElementById('cf-presup-grid');
   if (!cont) return;
   const rows = presupuestoRowsUnidad(cfUnidadDetalle);
-  const conocidas = partidasConocidas();
 
   cont.innerHTML = `
     <div class="table-wrap">
       <table>
         <thead><tr>
           <th>Partida</th>
+          <th>Sub-partida</th>
           <th style="text-align:right">Presupuesto total</th>
           <th style="text-align:right">Costo inicial (saldo apertura)</th>
           <th></th>
         </tr></thead>
         <tbody id="cf-presup-tbody">
-          ${rows.map((p, i) => presupuestoFilaHTML(p.partida, p.monto_presupuestado, p.costo_inicial, i)).join('')}
+          ${rows.map((p, i) => presupuestoFilaHTML(p.partida, p.sub_partida, p.monto_presupuestado, p.costo_inicial, i)).join('')}
         </tbody>
       </table>
     </div>
     <div style="display:flex;gap:8px;margin-top:12px;align-items:center;flex-wrap:wrap;">
-      <input list="cf-partidas-list" id="cf-nueva-partida" placeholder="Nombre de partida" style="flex:1;min-width:160px;">
-      <datalist id="cf-partidas-list">${conocidas.map(p => `<option value="${escapeHtml(p)}">`).join('')}</datalist>
       <button class="btn btn-ghost req-obra" onclick="cfAgregarPartidaPresup()">+ Agregar partida</button>
       <button class="btn btn-primary req-obra" onclick="guardarPresupuestoUnidad()">💾 Guardar presupuesto</button>
     </div>
     <div style="font-size:11px;color:var(--muted);margin-top:8px;">
-      El <strong>costo inicial</strong> es lo ya gastado en esa partida antes de usar el sistema (proyectos empezados). Para proyectos nuevos déjalo en 0.
+      Las partidas y sub-partidas son las del <strong>catálogo de admin</strong> — las mismas con que se clasifican facturas y pagos, para que el comparativo cruce directo.
+      El <strong>costo inicial</strong> es lo ya gastado en esa partida antes de usar el sistema (proyectos empezados); para proyectos nuevos déjalo en 0.
     </div>
   `;
 }
 
-function presupuestoFilaHTML(partida, monto, costoIni, idx) {
-  const safe = escapeHtml(partida || '');
+// Fila del grid: selects del catálogo ADMIN (sub-partida en cascada). Las filas
+// legacy con nombres fuera del catálogo (p.ej. partidas de obra viejas) se
+// muestran marcadas, con montos editables, para poder corregirlas o borrarlas.
+function presupuestoFilaHTML(partida, sub, monto, costoIni, idx) {
+  const cats = _catAdminActivas();
+  const enCat = !partida || cats.some(p => p.partida === partida);
+  const subs = partida ? _subsAdminDe(partida) : [];
+  const partidaCell = enCat
+    ? `<select class="cf-p-partida req-obra" style="width:100%;" onchange="cfPresupPartidaChange(this)">
+        <option value="">— Selecciona —</option>
+        ${cats.map(p => `<option value="${escapeHtml(p.partida)}"${p.partida === partida ? ' selected' : ''}>${escapeHtml(p.partida)}</option>`).join('')}
+      </select>`
+    : `<input type="hidden" class="cf-p-partida" value="${escapeHtml(partida)}"><span style="font-size:12px;">${escapeHtml(partida)}</span> <span style="font-size:10px;color:var(--orange);" title="Este nombre no está en el catálogo de admin: el comparativo no lo cruza con los costos. Bórralo y recaptúralo con el catálogo.">(fuera de catálogo)</span>`;
+  const subCell = enCat
+    ? `<select class="cf-p-sub req-obra" style="width:100%;${subs.length ? '' : 'display:none;'}">
+        <option value="">— Selecciona —</option>
+        ${subs.map(s => `<option${s === sub ? ' selected' : ''}>${escapeHtml(s)}</option>`).join('')}
+      </select>`
+    : `<input type="hidden" class="cf-p-sub" value="${escapeHtml(sub || '')}"><span style="font-size:11px;color:var(--muted);">${escapeHtml(sub || '')}</span>`;
   return `<tr data-fila="${idx}">
-    <td><input type="text" class="cf-p-partida req-obra" value="${safe}" style="width:100%;"></td>
+    <td style="min-width:180px;">${partidaCell}</td>
+    <td style="min-width:160px;">${subCell}</td>
     <td><input type="number" step="0.01" class="cf-p-monto req-obra" value="${monto || ''}" placeholder="0.00" style="width:130px;text-align:right;font-family:'DM Mono',monospace;"></td>
     <td><input type="number" step="0.01" class="cf-p-inicial req-obra" value="${costoIni || ''}" placeholder="0.00" style="width:130px;text-align:right;font-family:'DM Mono',monospace;"></td>
     <td style="text-align:right;"><button class="btn btn-ghost btn-sm req-obra" onclick="this.closest('tr').remove()" style="color:var(--red);">✕</button></td>
   </tr>`;
 }
 
+// Cascada del grid: al cambiar la partida de una fila, repuebla su sub-partida.
+export function cfPresupPartidaChange(sel) {
+  const tr = sel.closest('tr');
+  const subSel = tr ? tr.querySelector('.cf-p-sub') : null;
+  if (!subSel || subSel.tagName !== 'SELECT') return;
+  const subs = _subsAdminDe(sel.value);
+  if (subs.length) {
+    subSel.innerHTML = '<option value="">— Selecciona —</option>' + subs.map(s => `<option>${escapeHtml(s)}</option>`).join('');
+    subSel.style.display = '';
+  } else {
+    subSel.innerHTML = '';
+    subSel.style.display = 'none';
+  }
+}
+
 export function cfAgregarPartidaPresup() {
   if (!(puedeCapturarObra())) { notify('No tienes permiso para capturar presupuestos', 'error'); return; }
-  const inp = document.getElementById('cf-nueva-partida');
-  const nombre = (inp.value || '').trim();
-  if (!nombre) { notify('Escribe el nombre de la partida', 'error'); return; }
   const tbody = document.getElementById('cf-presup-tbody');
-  tbody.insertAdjacentHTML('beforeend', presupuestoFilaHTML(nombre, 0, 0, tbody.children.length));
-  inp.value = '';
+  if (!tbody) return;
+  tbody.insertAdjacentHTML('beforeend', presupuestoFilaHTML('', '', 0, 0, tbody.children.length));
 }
 
 export async function guardarPresupuestoUnidad() {
   if (!(puedeCapturarObra())) { notify('No tienes permiso para capturar presupuestos', 'error'); return; }
   const tbody = document.getElementById('cf-presup-tbody');
   if (!tbody) return;
-  const nuevas = [];
+  const filas = [];
+  let error = null;
   [...tbody.children].forEach(tr => {
-    const partida = tr.querySelector('.cf-p-partida').value.trim();
-    if (!partida) return;
-    const monto = parseFloat(tr.querySelector('.cf-p-monto').value) || 0;
-    const inicial = parseFloat(tr.querySelector('.cf-p-inicial').value) || 0;
-    nuevas.push({ partida, monto, inicial });
+    const pEl = tr.querySelector('.cf-p-partida');
+    const partida = (pEl && pEl.value || '').trim();
+    if (!partida) return;   // fila sin partida elegida: se ignora
+    let sub = ((tr.querySelector('.cf-p-sub') || {}).value || '').trim();
+    if (pEl.tagName === 'SELECT') {
+      const subs = _subsAdminDe(partida);
+      if (subs.length && !sub) { error = `Elige la sub-partida de "${partida}"`; return; }
+      if (!subs.length) sub = '';
+    }
+    const monto = parseFloat((tr.querySelector('.cf-p-monto') || {}).value) || 0;
+    const inicial = parseFloat((tr.querySelector('.cf-p-inicial') || {}).value) || 0;
+    filas.push({ partida, sub, monto, inicial });
   });
-  // Reemplaza las filas de esta unidad
-  state.presupuestoUnidad = state.presupuestoUnidad.filter(p => p.unidad_id !== cfUnidadDetalle);
-  nuevas.forEach(n => {
-    state.presupuestoUnidad.push({
-      presupuesto_id: state.nextPresupuestoId++,
-      unidad_id: cfUnidadDetalle,
-      partida: n.partida,
-      sub_partida: '',
-      monto_presupuestado: n.monto,
-      costo_inicial: n.inicial,
-      notas: '',
-    });
+  if (error) { notify(error, 'error'); return; }
+  const llaveDe = (p, s) => _normPartCap(p) + '|' + _normPartCap(s);
+  const llaves = new Set();
+  for (const f of filas) {
+    const k = llaveDe(f.partida, f.sub);
+    if (llaves.has(k)) { notify(`Partida repetida en la captura: ${f.partida}${f.sub ? ' / ' + f.sub : ''}`, 'error'); return; }
+    llaves.add(k);
+  }
+  // MERGE no destructivo por (unidad, partida, sub): actualiza EN SITIO conservando
+  // presupuesto_id (nada de regenerar ids), crea solo las filas nuevas y elimina
+  // únicamente las quitadas de la captura (también dedupe de llaves repetidas legacy).
+  const previas = state.presupuestoUnidad.filter(p => p.unidad_id === cfUnidadDetalle);
+  const porLlave = new Map(previas.map(p => [llaveDe(p.partida, p.sub_partida), p]));
+  state.presupuestoUnidad = state.presupuestoUnidad.filter(p => {
+    if (p.unidad_id !== cfUnidadDetalle) return true;
+    const k = llaveDe(p.partida, p.sub_partida);
+    return llaves.has(k) && porLlave.get(k) === p;
+  });
+  filas.forEach(f => {
+    const ex = porLlave.get(llaveDe(f.partida, f.sub));
+    if (ex) {
+      ex.partida = f.partida; ex.sub_partida = f.sub;   // canonicaliza el texto al catálogo
+      ex.monto_presupuestado = f.monto; ex.costo_inicial = f.inicial;
+    } else {
+      state.presupuestoUnidad.push({
+        presupuesto_id: state.nextPresupuestoId++,
+        unidad_id: cfUnidadDetalle,
+        partida: f.partida,
+        sub_partida: f.sub,
+        monto_presupuestado: f.monto,
+        costo_inicial: f.inicial,
+        notas: '',
+      });
+    }
   });
   await gsSavePresupuestoUnidad();
   notify('Presupuesto guardado');
+  renderPresupuestoGrid();   // refleja canonicalización y orden estable
 }
 
 // ========== TAB: REPORTES ==========

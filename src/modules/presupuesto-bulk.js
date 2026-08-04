@@ -16,45 +16,69 @@ function unidadesDelProyecto(proyecto) {
     .sort((a, b) => (a.orden || 0) - (b.orden || 0) || String(a.nombre).localeCompare(String(b.nombre)));
 }
 
-function partidasObraDelProyecto(proyecto) {
-  const nProy = norm(proyecto);
-  return (state.partidasObra || [])
-    .filter(p => p.activa !== false && (!p.proyecto || norm(p.proyecto) === nProy))
-    .sort((a, b) => (a.orden || 0) - (b.orden || 0) || String(a.nombre).localeCompare(String(b.nombre)));
+// Columnas del presupuesto = catálogo ADMIN (Control de Obra v2): una columna por
+// partida sin sub-partidas y una por cada "PARTIDA / Sub" cuando las tiene
+// (CONSTRUCCION). Misma taxonomía con que se clasifican facturas y pagos.
+function columnasPresupuestoAdmin() {
+  const cols = [];
+  (state.partidasCatalogo || [])
+    .filter(p => p.activa !== false)
+    .sort((a, b) => (a.orden || 0) - (b.orden || 0) || String(a.partida).localeCompare(String(b.partida)))
+    .forEach(p => {
+      const subs = Array.isArray(p.subpartidas) ? p.subpartidas : [];
+      if (subs.length) subs.forEach(s => cols.push({ partida: p.partida, sub: s, header: `${p.partida} / ${s}` }));
+      else cols.push({ partida: p.partida, sub: '', header: p.partida });
+    });
+  return cols;
 }
 
-function presupuestoExistente(unidadId, partida) {
-  const nP = norm(partida);
-  return state.presupuestoUnidad.find(x => x.unidad_id === unidadId && norm(x.partida) === nP);
+// Traduce el texto de una columna a {partida, sub}: primero por match exacto con
+// el catálogo; si no, intenta partir en el PRIMER " / " (las subs pueden contener
+// "/" — p.ej. "Instalaciones Especiales / Voz y Datos"); si tampoco, todo es partida.
+function parseColumnaPresupuesto(header, colsCat) {
+  const h = String(header || '').trim();
+  const cat = colsCat.find(c => norm(c.header) === norm(h));
+  if (cat) return { partida: cat.partida, sub: cat.sub };
+  const i = h.indexOf(' / ');
+  if (i > 0) {
+    const p = h.slice(0, i).trim(), s = h.slice(i + 3).trim();
+    if (colsCat.some(c => norm(c.partida) === norm(p))) return { partida: p, sub: s };
+  }
+  return { partida: h, sub: '' };
+}
+
+function presupuestoExistente(unidadId, partida, sub) {
+  const nP = norm(partida), nS = norm(sub || '');
+  return state.presupuestoUnidad.find(x => x.unidad_id === unidadId && norm(x.partida) === nP && norm(x.sub_partida) === nS);
 }
 
 export function descargarPlantillaPresupuesto(proyecto) {
   if (!window.XLSX) { notify('Cargando librería XLSX, intenta en 2 segundos', 'error'); return; }
   if (!proyecto) { notify('Selecciona un proyecto antes de descargar la plantilla', 'error'); return; }
   const unidades = unidadesDelProyecto(proyecto);
-  const partidas = partidasObraDelProyecto(proyecto);
+  const cols = columnasPresupuestoAdmin();
   if (!unidades.length) { notify(`No hay unidades activas en ${proyecto}`, 'error'); return; }
-  if (!partidas.length) { notify(`No hay partidas de obra en el catálogo para ${proyecto}. Crea el catálogo primero.`, 'error'); return; }
+  if (!cols.length) { notify('No hay partidas en el catálogo de admin. Crea el catálogo primero (Configuración → Partidas).', 'error'); return; }
 
   const fechaTxt = new Date().toISOString().split('T')[0];
-  const headerRow = ['Unidad', ...partidas.map(p => p.nombre)];
+  const headerRow = ['Unidad', ...cols.map(c => c.header)];
 
   function buildSheet(campo) {
     const titleRow = [`${HEADER_ID} — Proyecto: ${proyecto}`];
-    const metaRow = [`Generado: ${fechaTxt} · Unidades: ${unidades.length} · Partidas: ${partidas.length}`];
+    const metaRow = [`Generado: ${fechaTxt} · Unidades: ${unidades.length} · Columnas: ${cols.length} (partida / sub-partida del catálogo admin)`];
     const data = [titleRow, metaRow, headerRow];
     unidades.forEach(u => {
       const row = [u.nombre];
-      partidas.forEach(p => {
-        const ex = presupuestoExistente(u.unidad_id, p.nombre);
+      cols.forEach(c => {
+        const ex = presupuestoExistente(u.unidad_id, c.partida, c.sub);
         const v = ex ? ex[campo] : 0;
         row.push(v && v !== 0 ? v : '');
       });
       data.push(row);
     });
     const ws = XLSX.utils.aoa_to_sheet(data);
-    // Anchos: unidad 14, partidas 16
-    ws['!cols'] = [{ wch: 14 }, ...partidas.map(() => ({ wch: 16 }))];
+    // Anchos: unidad 14, columnas 18 (los headers compuestos son más largos)
+    ws['!cols'] = [{ wch: 14 }, ...cols.map(() => ({ wch: 18 }))];
     // Freeze primera columna y fila de headers
     ws['!freeze'] = { xSplit: 1, ySplit: 3 };
     return ws;
@@ -66,20 +90,21 @@ export function descargarPlantillaPresupuesto(proyecto) {
 
   const fn = `Presupuesto_${proyecto.replace(/[^\w]+/g, '_')}_${fechaTxt.replace(/-/g, '')}.xlsx`;
   XLSX.writeFile(wb, fn);
-  notify(`Plantilla descargada: ${unidades.length} unidades × ${partidas.length} partidas ✓`, 'success');
+  notify(`Plantilla descargada: ${unidades.length} unidades × ${cols.length} columnas ✓`, 'success');
 }
 
 // Procesa una hoja del Excel y aplica merge sobre state.presupuestoUnidad.
 // Devuelve { actualizadas, nuevas, omitidas, avisos }.
-function procesarHoja(rows, campo, proyecto, partidasCatalogoNorm) {
+function procesarHoja(rows, campo, proyecto, colsCat) {
   let actualizadas = 0, nuevas = 0, omitidas = 0;
   const avisos = [];
   if (!rows || rows.length < 4) return { actualizadas, nuevas, omitidas, avisos: ['hoja vacía'] };
 
   // rows[0] = título, rows[1] = meta, rows[2] = headers, rows[3+] = datos
   const headers = rows[2] || [];
-  // headers[0] = 'Unidad', headers[1..] = partidas
+  // headers[0] = 'Unidad', headers[1..] = "Partida" o "Partida / Sub" del catálogo admin
   const partidaCols = headers.slice(1).map(h => String(h || '').trim());
+  const headersCatNorm = new Set(colsCat.map(c => norm(c.header)));
 
   for (let i = 3; i < rows.length; i++) {
     const row = rows[i] || [];
@@ -99,24 +124,25 @@ function procesarHoja(rows, campo, proyecto, partidasCatalogoNorm) {
     }
 
     for (let c = 0; c < partidaCols.length; c++) {
-      const partida = partidaCols[c];
-      if (!partida) continue;
+      const colTxt = partidaCols[c];
+      if (!colTxt) continue;
       const raw = row[c + 1];
       // Celda vacía → no tocar
       if (raw === undefined || raw === null || raw === '') continue;
       const valor = parseFloat(String(raw).replace(/[$,\s]/g, ''));
       if (!isFinite(valor)) {
-        avisos.push(`Celda no numérica en ${nombreUnidad} / ${partida} = "${raw}"`);
+        avisos.push(`Celda no numérica en ${nombreUnidad} / ${colTxt} = "${raw}"`);
         continue;
       }
-      // Aviso si la partida no está en el catálogo actual
-      if (!partidasCatalogoNorm.has(norm(partida))) {
-        // Solo el primer aviso por partida desconocida (para no spammear)
-        const msg = `Partida "${partida}" no está en catálogo Obra (se aplica igual)`;
+      const { partida, sub } = parseColumnaPresupuesto(colTxt, colsCat);
+      // Aviso si la columna no calza con el catálogo admin actual
+      if (!headersCatNorm.has(norm(colTxt))) {
+        // Solo el primer aviso por columna desconocida (para no spammear)
+        const msg = `Columna "${colTxt}" no está en el catálogo admin (se aplica igual)`;
         if (!avisos.includes(msg)) avisos.push(msg);
       }
 
-      const existente = presupuestoExistente(unidad.unidad_id, partida);
+      const existente = presupuestoExistente(unidad.unidad_id, partida, sub);
       if (existente) {
         existente[campo] = valor;
         actualizadas++;
@@ -125,7 +151,7 @@ function procesarHoja(rows, campo, proyecto, partidasCatalogoNorm) {
           presupuesto_id: state.nextPresupuestoId++,
           unidad_id: unidad.unidad_id,
           partida,
-          sub_partida: '',
+          sub_partida: sub,
           monto_presupuestado: campo === 'monto_presupuestado' ? valor : 0,
           costo_inicial: campo === 'costo_inicial' ? valor : 0,
           notas: ''
@@ -175,9 +201,8 @@ export async function subirPlantillaPresupuesto(file) {
       return;
     }
 
-    // Construir set normalizado de partidas activas del catálogo
-    const partidasCat = partidasObraDelProyecto(proyecto);
-    const partidasCatNorm = new Set(partidasCat.map(p => norm(p.nombre)));
+    // Columnas válidas del catálogo ADMIN (para validar y parsear "Partida / Sub")
+    const colsCat = columnasPresupuestoAdmin();
 
     // Confirmación si el alcance es grande
     const numUnidades = (rowsPres.length || 0) - 3;
@@ -188,8 +213,8 @@ export async function subirPlantillaPresupuesto(file) {
     }
 
     // Procesar
-    const resPres = procesarHoja(rowsPres, 'monto_presupuestado', proyecto, partidasCatNorm);
-    const resInic = procesarHoja(rowsInic, 'costo_inicial', proyecto, partidasCatNorm);
+    const resPres = procesarHoja(rowsPres, 'monto_presupuestado', proyecto, colsCat);
+    const resInic = procesarHoja(rowsInic, 'costo_inicial', proyecto, colsCat);
     const totales = {
       actualizadas: resPres.actualizadas + resInic.actualizadas,
       nuevas: resPres.nuevas + resInic.nuevas,
