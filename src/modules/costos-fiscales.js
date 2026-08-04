@@ -1755,10 +1755,11 @@ function renderPresupuestoGrid() {
           <th>Sub-partida</th>
           <th style="text-align:right">Presupuesto total</th>
           <th style="text-align:right">Costo inicial (saldo apertura)</th>
+          <th style="text-align:right" title="Avance FÍSICO de obra capturado por el residente (0-100). No afecta ningún cálculo de dinero: sirve para compararlo contra el avance financiero (gastado/presupuesto).">% Avance físico</th>
           <th></th>
         </tr></thead>
         <tbody id="cf-presup-tbody">
-          ${rows.map((p, i) => presupuestoFilaHTML(p.partida, p.sub_partida, p.monto_presupuestado, p.costo_inicial, i)).join('')}
+          ${rows.map((p, i) => presupuestoFilaHTML(p.partida, p.sub_partida, p.monto_presupuestado, p.costo_inicial, p.avance_fisico, i)).join('')}
         </tbody>
       </table>
     </div>
@@ -1776,7 +1777,7 @@ function renderPresupuestoGrid() {
 // Fila del grid: selects del catálogo ADMIN (sub-partida en cascada). Las filas
 // legacy con nombres fuera del catálogo (p.ej. partidas de obra viejas) se
 // muestran marcadas, con montos editables, para poder corregirlas o borrarlas.
-function presupuestoFilaHTML(partida, sub, monto, costoIni, idx) {
+function presupuestoFilaHTML(partida, sub, monto, costoIni, avance, idx) {
   const cats = _catAdminActivas();
   const enCat = !partida || cats.some(p => p.partida === partida);
   const subs = partida ? _subsAdminDe(partida) : [];
@@ -1797,6 +1798,7 @@ function presupuestoFilaHTML(partida, sub, monto, costoIni, idx) {
     <td style="min-width:160px;">${subCell}</td>
     <td><input type="number" step="0.01" class="cf-p-monto req-obra" value="${monto || ''}" placeholder="0.00" style="width:130px;text-align:right;font-family:'DM Mono',monospace;"></td>
     <td><input type="number" step="0.01" class="cf-p-inicial req-obra" value="${costoIni || ''}" placeholder="0.00" style="width:130px;text-align:right;font-family:'DM Mono',monospace;"></td>
+    <td><input type="number" step="1" min="0" max="100" class="cf-p-avance req-obra" value="${avance || ''}" placeholder="0" style="width:70px;text-align:right;font-family:'DM Mono',monospace;"></td>
     <td style="text-align:right;"><button class="btn btn-ghost btn-sm req-obra" onclick="this.closest('tr').remove()" style="color:var(--red);">✕</button></td>
   </tr>`;
 }
@@ -1842,7 +1844,8 @@ export async function guardarPresupuestoUnidad() {
     }
     const monto = parseFloat((tr.querySelector('.cf-p-monto') || {}).value) || 0;
     const inicial = parseFloat((tr.querySelector('.cf-p-inicial') || {}).value) || 0;
-    filas.push({ partida, sub, monto, inicial });
+    const avance = Math.max(0, Math.min(100, parseFloat((tr.querySelector('.cf-p-avance') || {}).value) || 0));
+    filas.push({ partida, sub, monto, inicial, avance });
   });
   if (error) { notify(error, 'error'); return; }
   const llaveDe = (p, s) => _normPartCap(p) + '|' + _normPartCap(s);
@@ -1872,10 +1875,12 @@ export async function guardarPresupuestoUnidad() {
     const ex = porLlave.get(llaveDe(f.partida, f.sub));
     if (ex) {
       const cambio = ex.partida !== f.partida || (ex.sub_partida || '') !== f.sub ||
-        (ex.monto_presupuestado || 0) !== f.monto || (ex.costo_inicial || 0) !== f.inicial;
+        (ex.monto_presupuestado || 0) !== f.monto || (ex.costo_inicial || 0) !== f.inicial ||
+        (ex.avance_fisico || 0) !== f.avance;
       if (cambio) {
         ex.partida = f.partida; ex.sub_partida = f.sub;   // canonicaliza el texto al catálogo
         ex.monto_presupuestado = f.monto; ex.costo_inicial = f.inicial;
+        ex.avance_fisico = f.avance;
         tocadas.push(ex);
       }
     } else {
@@ -1887,7 +1892,7 @@ export async function guardarPresupuestoUnidad() {
         monto_presupuestado: f.monto,
         costo_inicial: f.inicial,
         notas: '',
-        avance_fisico: 0,
+        avance_fisico: f.avance,
       };
       state.presupuestoUnidad.push(nuevo);
       tocadas.push(nuevo);
