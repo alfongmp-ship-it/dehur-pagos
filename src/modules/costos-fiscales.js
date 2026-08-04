@@ -11,8 +11,8 @@ import { ESTATUS_UNIDAD, METODO_LABEL, unidadEnIndivisoAFecha } from '../config/
 import { chartTheme } from '../ui/chart-theme.js';
 import { planoDeProyecto } from '../config/planos.js';
 import { parseFechaHist } from './historial.js';
-import { gsSaveUnidades, gsSavePresupuestoUnidad, gsSaveCostoAsignaciones, esPorFila, sbGuardarFila } from '../services/google-sync.js';
-import { nuevoAsignacionId } from '../state.js';
+import { gsSaveUnidades, gsSavePresupuestoUnidad, gsSaveCostoAsignaciones, esPorFila, sbGuardarFila, sbBorrarFila } from '../services/google-sync.js';
+import { nuevoAsignacionId, nuevoPresupuestoId } from '../state.js';
 import { auditarRepartos, aplicarReparacionRepartos } from './confirmar-pagos.js';
 import { aplicarPagoAFactura, restantePago } from './facturas.js';
 
@@ -1823,6 +1823,7 @@ export function cfAgregarPartidaPresup() {
   tbody.insertAdjacentHTML('beforeend', presupuestoFilaHTML('', '', 0, 0, tbody.children.length));
 }
 
+let _ultimoGuardadoPresup = 0;
 export async function guardarPresupuestoUnidad() {
   if (!(puedeCapturarObra())) { notify('No tienes permiso para capturar presupuestos', 'error'); return; }
   const tbody = document.getElementById('cf-presup-tbody');
@@ -1851,34 +1852,55 @@ export async function guardarPresupuestoUnidad() {
     if (llaves.has(k)) { notify(`Partida repetida en la captura: ${f.partida}${f.sub ? ' / ' + f.sub : ''}`, 'error'); return; }
     llaves.add(k);
   }
+  // Anti doble-clic (patrón e5c3704): dos guardados en <800ms duplicarían trabajo.
+  if (Date.now() - _ultimoGuardadoPresup < 800) return;
+  _ultimoGuardadoPresup = Date.now();
   // MERGE no destructivo por (unidad, partida, sub): actualiza EN SITIO conservando
   // presupuesto_id (nada de regenerar ids), crea solo las filas nuevas y elimina
   // únicamente las quitadas de la captura (también dedupe de llaves repetidas legacy).
   const previas = state.presupuestoUnidad.filter(p => p.unidad_id === cfUnidadDetalle);
   const porLlave = new Map(previas.map(p => [llaveDe(p.partida, p.sub_partida), p]));
+  const tocadas = [], borradas = [];
   state.presupuestoUnidad = state.presupuestoUnidad.filter(p => {
     if (p.unidad_id !== cfUnidadDetalle) return true;
     const k = llaveDe(p.partida, p.sub_partida);
-    return llaves.has(k) && porLlave.get(k) === p;
+    const queda = llaves.has(k) && porLlave.get(k) === p;
+    if (!queda) borradas.push(String(p.presupuesto_id));
+    return queda;
   });
   filas.forEach(f => {
     const ex = porLlave.get(llaveDe(f.partida, f.sub));
     if (ex) {
-      ex.partida = f.partida; ex.sub_partida = f.sub;   // canonicaliza el texto al catálogo
-      ex.monto_presupuestado = f.monto; ex.costo_inicial = f.inicial;
+      const cambio = ex.partida !== f.partida || (ex.sub_partida || '') !== f.sub ||
+        (ex.monto_presupuestado || 0) !== f.monto || (ex.costo_inicial || 0) !== f.inicial;
+      if (cambio) {
+        ex.partida = f.partida; ex.sub_partida = f.sub;   // canonicaliza el texto al catálogo
+        ex.monto_presupuestado = f.monto; ex.costo_inicial = f.inicial;
+        tocadas.push(ex);
+      }
     } else {
-      state.presupuestoUnidad.push({
-        presupuesto_id: state.nextPresupuestoId++,
+      const nuevo = {
+        presupuesto_id: nuevoPresupuestoId(),
         unidad_id: cfUnidadDetalle,
         partida: f.partida,
         sub_partida: f.sub,
         monto_presupuestado: f.monto,
         costo_inicial: f.inicial,
         notas: '',
-      });
+        avance_fisico: 0,
+      };
+      state.presupuestoUnidad.push(nuevo);
+      tocadas.push(nuevo);
     }
   });
-  await gsSavePresupuestoUnidad();
+  // Persistencia POR FILA (F3b): solo lo tocado — sin espejo de tabla completa,
+  // sin pisar lo que otra sesión (admin/obra) esté capturando en otra unidad.
+  const porFila = esPorFila('presupuestoUnidad');
+  await gsSavePresupuestoUnidad({ porFila });
+  if (porFila) {
+    borradas.forEach(id => sbBorrarFila('presupuestoUnidad', id));
+    tocadas.forEach(p => sbGuardarFila('presupuestoUnidad', p));
+  }
   notify('Presupuesto guardado');
   renderPresupuestoGrid();   // refleja canonicalización y orden estable
 }

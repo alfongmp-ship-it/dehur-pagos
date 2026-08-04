@@ -111,6 +111,21 @@ const RT = {
     }),
     rerender: () => { if (window.renderCreditos) window.renderCreditos(); }
   },
+  // ⚠️ mapRow CALCA el loader de sbLoadAll campo por campo (incluido avance_fisico):
+  // un campo omitido aquí se pondría en cero al recibir cualquier evento.
+  presupuestoUnidad: {
+    tabla: 'presupuesto_unidad',
+    stateKey: 'presupuestoUnidad',
+    idField: 'presupuesto_id',
+    mapRow: r => ({
+      presupuesto_id: r.presupuesto_id != null ? String(r.presupuesto_id) : '',
+      unidad_id: toInt(r.unidad_id), partida: r.partida || '',
+      sub_partida: r.sub_partida || '', monto_presupuestado: toNum(r.monto_presupuestado),
+      costo_inicial: toNum(r.costo_inicial), notas: r.notas || '',
+      avance_fisico: toNum(r.avance_fisico)
+    }),
+    rerender: () => { if (window.renderCostosFiscales) window.renderCostosFiscales(); }
+  },
   unidades: {
     tabla: 'unidades',
     stateKey: 'unidades',

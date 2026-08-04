@@ -84,6 +84,16 @@ export function nuevoAsignacionId() {
   return 'a-' + _asigSalt + '-' + (_asigSeq++).toString(36);
 }
 
+// ID único global para una fila de presupuesto por unidad. Sustituye al contador
+// local nextPresupuestoId (MAX+1): con varios capturistas (admin + obra) en
+// simultáneo, el contador acuñaba el MISMO id en dos pestañas y el upsert por
+// fila pisaba la fila del otro. Los ids enteros viejos se conservan como legacy.
+export function nuevoPresupuestoId() {
+  try { if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID(); } catch (_) { /* fallback abajo */ }
+  if (!_asigSalt) _asigSalt = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+  return 'p-' + _asigSalt + '-' + (_asigSeq++).toString(36);
+}
+
 // ID único global para un enlace pago↔factura (facturaPagos). Mismo motivo que arriba: el
 // contador local MAX+1 colisionaba entre sesiones (uno vinculando pagos + otro confirmando
 // solicitudes con factura_id) → el upsert pisaba un enlace con otro. Un UUID no colisiona.

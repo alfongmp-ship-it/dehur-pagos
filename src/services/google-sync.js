@@ -29,7 +29,7 @@ export const FUENTE_LECTURA = 'supabase';
 // supabase_realtime). El resto de entidades sigue en 'tabla' aunque MODO sea 'fila'.
 // ============================================================================
 export const MODO_GUARDADO = 'fila';
-export const ENTIDADES_POR_FILA = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos', 'proyectos', 'cuentasPropias', 'pagosPagare', 'historial', 'clientes', 'ventas', 'cobros', 'estrategiaConfig', 'estrategiaFlags']);
+export const ENTIDADES_POR_FILA = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos', 'proyectos', 'cuentasPropias', 'pagosPagare', 'historial', 'clientes', 'ventas', 'cobros', 'estrategiaConfig', 'estrategiaFlags', 'presupuestoUnidad']);
 export const REALTIME_ON = true;
 
 // ============================================================================
@@ -84,7 +84,7 @@ export function estrategiaActivo() { return ESTRATEGIA_ON; }
 export function ingresosDataActiva() { return ingresosActivo() || estrategiaActivo(); }
 // pendientesConfirmacion va aquí pero NO en ENTIDADES_POR_FILA: tabla chica, se
 // guarda whole-table; el realtime deja ver la cola compartida en vivo.
-export const ENTIDADES_REALTIME = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos', 'pendientesConfirmacion', 'proyectos', 'cuentasPropias', 'pagosPagare', 'historial']);
+export const ENTIDADES_REALTIME = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos', 'pendientesConfirmacion', 'proyectos', 'cuentasPropias', 'pagosPagare', 'historial', 'presupuestoUnidad']);
 
 // INGRESOS (Fase 1): suscribir realtime de clientes/ventas/cobros SOLO si el módulo
 // está activo (bandera maestra + vista previa). Con preview off no se agrega ninguna
@@ -529,15 +529,20 @@ export async function gsLoadAll() {
     const buRows = await leerHoja('presupuesto_unidad', 'presupuestoUnidad');
     if (buRows && buRows.length > 1) {
       state.presupuestoUnidad = buRows.slice(1).filter(r => r[0]).map(r => ({
-        presupuesto_id: parseInt(r[0]) || 0,
+        presupuesto_id: String(r[0] || ''),   // texto: convive int legacy + UUID nuevo
         unidad_id: parseInt(r[1]) || 0,
         partida: r[2] || '',
         sub_partida: r[3] || '',
         monto_presupuestado: parseFloat(r[4]) || 0,
         costo_inicial: parseFloat(r[5]) || 0,
-        notas: r[6] || ''
+        notas: r[6] || '',
+        avance_fisico: parseFloat(r[7]) || 0
       }));
-      state.nextPresupuestoId = state.presupuestoUnidad.reduce((m, p) => Math.max(m, p.presupuesto_id), 0) + 1;
+      // Contador legacy (ya no acuña ids nuevos): solo ids numéricos, para no dar NaN con UUIDs.
+      state.nextPresupuestoId = state.presupuestoUnidad.reduce((m, p) => {
+        const n = parseInt(p.presupuesto_id);
+        return isFinite(n) ? Math.max(m, n) : m;
+      }, 0) + 1;
     }
 
     // Load costo_asignaciones
@@ -948,9 +953,10 @@ export async function sbLoadAll() {
 
   await cargar('presupuesto_unidad', 'presupuestoUnidad', rows => {
     state.presupuestoUnidad = rows.map(r => ({
-      presupuesto_id: toInt(r.presupuesto_id), unidad_id: toInt(r.unidad_id), partida: r.partida || '',
+      presupuesto_id: r.presupuesto_id != null ? String(r.presupuesto_id) : '', unidad_id: toInt(r.unidad_id), partida: r.partida || '',
       sub_partida: r.sub_partida || '', monto_presupuestado: toNum(r.monto_presupuestado),
-      costo_inicial: toNum(r.costo_inicial), notas: r.notas || ''
+      costo_inicial: toNum(r.costo_inicial), notas: r.notas || '',
+      avance_fisico: toNum(r.avance_fisico)
     }));
   });
 
@@ -1303,20 +1309,23 @@ export async function gsSaveUnidades(opts = {}) {
   } catch (e) { console.error('gsSaveUnidades', e); }
 }
 
-export async function gsSavePresupuestoUnidad() {
+export async function gsSavePresupuestoUnidad(opts = {}) {
   // 'obra' (residente) captura los presupuestos por partida.
   if (!puedeEditar() && !puedeCapturarObra()) return;
   if (!guardarPermitido('presupuestoUnidad', state.presupuestoUnidad)) return;
   try {
     const rows = state.presupuestoUnidad.map(p => [
       p.presupuesto_id, p.unidad_id, p.partida || '', p.sub_partida || '',
-      p.monto_presupuestado || 0, p.costo_inicial || 0, p.notas || ''
+      p.monto_presupuestado || 0, p.costo_inicial || 0, p.notas || '',
+      p.avance_fisico || 0
     ]);
     await gsClearAndWrite('presupuesto_unidad', rows, [
       'presupuesto_id', 'unidad_id', 'partida', 'sub_partida',
-      'monto_presupuestado', 'costo_inicial', 'notas'
+      'monto_presupuestado', 'costo_inicial', 'notas', 'avance_fisico'
     ]);
-    await sbEspejar('presupuestoUnidad');
+    // Por fila (F3b): el llamador guarda solo las filas tocadas con sbGuardarFila /
+    // sbBorrarFila — sin espejo de tabla completa (adiós pisado entre sesiones).
+    if (!opts.porFila) await sbEspejar('presupuestoUnidad');
   } catch (e) { console.error('gsSavePresupuestoUnidad', e); }
 }
 
@@ -1598,13 +1607,16 @@ function _rowUnidad(u) {
 function _rowsUnidades() {
   return _dedupBy(state.unidades.map(_rowUnidad), 'unidad_id');
 }
-function _rowsPresupuestoUnidad() {
-  return _dedupBy(state.presupuestoUnidad.map(p => ({
+function _rowPresupuestoUnidad(p) {
+  return {
     presupuesto_id: _sbStr(p.presupuesto_id), unidad_id: _sbStr(p.unidad_id),
     partida: _sbStr(p.partida), sub_partida: _sbStr(p.sub_partida),
     monto_presupuestado: _sbNum(p.monto_presupuestado), costo_inicial: _sbNum(p.costo_inicial),
-    notas: _sbStr(p.notas)
-  })), 'presupuesto_id');
+    notas: _sbStr(p.notas), avance_fisico: _sbNum(p.avance_fisico)
+  };
+}
+function _rowsPresupuestoUnidad() {
+  return _dedupBy(state.presupuestoUnidad.map(_rowPresupuestoUnidad), 'presupuesto_id');
 }
 function _rowCostoAsignacion(a) {
   return {
@@ -1677,7 +1689,7 @@ const SB_ENTIDADES = {
   pagares:            { tabla: 'pagares',             rows: _rowsPagares, idCol: 'pagare_id', rowOne: _rowPagare },
   pagosPagare:        { tabla: 'pagos_pagare',        rows: _rowsPagosPagare, idCol: 'pago_id', rowOne: _rowPagoPagare },
   unidades:           { tabla: 'unidades',            rows: _rowsUnidades, idCol: 'unidad_id', rowOne: _rowUnidad },
-  presupuestoUnidad:  { tabla: 'presupuesto_unidad',  rows: _rowsPresupuestoUnidad },
+  presupuestoUnidad:  { tabla: 'presupuesto_unidad',  rows: _rowsPresupuestoUnidad, idCol: 'presupuesto_id', rowOne: _rowPresupuestoUnidad },
   costoAsignaciones:  { tabla: 'costo_asignaciones',  rows: _rowsCostoAsignaciones, idCol: 'asignacion_id', rowOne: _rowCostoAsignacion },
   partidasCatalogo:   { tabla: 'partidas_catalogo',   rows: _rowsPartidasCatalogo, idCol: 'partida_id', rowOne: _rowPartidaCatalogo },
   partidasObra:       { tabla: 'partidas_obra',       rows: _rowsPartidasObra, idCol: 'partida_obra_id', rowOne: _rowPartidaObra },

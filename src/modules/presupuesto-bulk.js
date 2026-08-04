@@ -1,9 +1,9 @@
 // Captura masiva de presupuesto + costo inicial por unidad usando Excel.
 // Genera plantilla (descargar) y procesa subida con merge inteligente.
 
-import { state, puedeCapturarObra } from '../state.js';
+import { state, puedeCapturarObra, nuevoPresupuestoId } from '../state.js';
 import { notify } from '../ui/notify.js';
-import { gsSavePresupuestoUnidad } from '../services/google-sync.js';
+import { gsSavePresupuestoUnidad, esPorFila, sbGuardarFila } from '../services/google-sync.js';
 
 const HEADER_ID = 'DEHUR — Presupuesto / Costo Inicial';
 
@@ -95,7 +95,7 @@ export function descargarPlantillaPresupuesto(proyecto) {
 
 // Procesa una hoja del Excel y aplica merge sobre state.presupuestoUnidad.
 // Devuelve { actualizadas, nuevas, omitidas, avisos }.
-function procesarHoja(rows, campo, proyecto, colsCat) {
+function procesarHoja(rows, campo, proyecto, colsCat, tocadas) {
   let actualizadas = 0, nuevas = 0, omitidas = 0;
   const avisos = [];
   if (!rows || rows.length < 4) return { actualizadas, nuevas, omitidas, avisos: ['hoja vacía'] };
@@ -144,19 +144,24 @@ function procesarHoja(rows, campo, proyecto, colsCat) {
 
       const existente = presupuestoExistente(unidad.unidad_id, partida, sub);
       if (existente) {
-        existente[campo] = valor;
+        if ((existente[campo] || 0) !== valor) {
+          existente[campo] = valor;
+          if (tocadas) tocadas.set(String(existente.presupuesto_id), existente);
+        }
         actualizadas++;
       } else {
         const nuevo = {
-          presupuesto_id: state.nextPresupuestoId++,
+          presupuesto_id: nuevoPresupuestoId(),
           unidad_id: unidad.unidad_id,
           partida,
           sub_partida: sub,
           monto_presupuestado: campo === 'monto_presupuestado' ? valor : 0,
           costo_inicial: campo === 'costo_inicial' ? valor : 0,
-          notas: ''
+          notas: '',
+          avance_fisico: 0
         };
         state.presupuestoUnidad.push(nuevo);
+        if (tocadas) tocadas.set(String(nuevo.presupuesto_id), nuevo);
         nuevas++;
       }
     }
@@ -213,8 +218,10 @@ export async function subirPlantillaPresupuesto(file) {
     }
 
     // Procesar
-    const resPres = procesarHoja(rowsPres, 'monto_presupuestado', proyecto, colsCat);
-    const resInic = procesarHoja(rowsInic, 'costo_inicial', proyecto, colsCat);
+    // Filas creadas/cambiadas por AMBAS hojas (por id) → guardado POR FILA (F3b).
+    const tocadas = new Map();
+    const resPres = procesarHoja(rowsPres, 'monto_presupuestado', proyecto, colsCat, tocadas);
+    const resInic = procesarHoja(rowsInic, 'costo_inicial', proyecto, colsCat, tocadas);
     const totales = {
       actualizadas: resPres.actualizadas + resInic.actualizadas,
       nuevas: resPres.nuevas + resInic.nuevas,
@@ -222,7 +229,9 @@ export async function subirPlantillaPresupuesto(file) {
       avisos: [...new Set([...resPres.avisos, ...resInic.avisos])]
     };
 
-    await gsSavePresupuestoUnidad();
+    const porFila = esPorFila('presupuestoUnidad');
+    await gsSavePresupuestoUnidad({ porFila });
+    if (porFila) tocadas.forEach(p => sbGuardarFila('presupuestoUnidad', p));
     if (window.renderCostosFiscales) window.renderCostosFiscales();
 
     const extra = totales.avisos.length ? ` · ⚠ ${totales.avisos.length} aviso(s)` : '';
