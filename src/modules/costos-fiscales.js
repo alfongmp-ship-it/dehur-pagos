@@ -14,7 +14,6 @@ import { parseFechaHist } from './historial.js';
 import { gsSaveUnidades, gsSavePresupuestoUnidad, gsSaveCostoAsignaciones, esPorFila, sbGuardarFila } from '../services/google-sync.js';
 import { nuevoAsignacionId } from '../state.js';
 import { auditarRepartos, aplicarReparacionRepartos } from './confirmar-pagos.js';
-import { partidasObraDelProyecto } from './presupuesto-bulk.js';
 import { aplicarPagoAFactura, restantePago } from './facturas.js';
 
 const PALETA = ['#c8a96e', '#5a9be0', '#4caf7d', '#e07a3a', '#9b7fe8', '#e05a5a', '#27ae60', '#3498db'];
@@ -1152,10 +1151,10 @@ export function abrirRepartirFactura(facturaId) {
   cfFacturaRestante = restante > 0 ? restante : 0;
   const completa = restante <= 0.01;
 
-  // Partes ya repartidas, agrupadas por partida de OBRA (o sub/partida admin).
+  // Partes ya repartidas, agrupadas por sub-partida (o partida) para mostrarlas.
   const partesMap = new Map();
   asigsF.forEach(a => {
-    const k = a.partida_obra || a.sub_partida_override || a.partida_override || '—';
+    const k = a.sub_partida_override || a.partida_override || '—';
     partesMap.set(k, r2((partesMap.get(k) || 0) + (a.monto_asignado || 0)));
   });
   const partesHTML = partesMap.size
@@ -1196,30 +1195,12 @@ export function abrirRepartirFactura(facturaId) {
   document.getElementById('modal-asignar-costo').classList.add('open');
 }
 
-// Selector de partida para el reparto de factura (Control de Obra): primero se
-// ofrece la partida de OBRA (catálogo del residente) — al elegirla, la partida y
-// sub-partida ADMIN se derivan SOLAS del mapeo del catálogo y los selects
-// contables se ocultan. La opción "(solo admin)" conserva el flujo clásico para
-// costos sin partida de obra (honorarios, etc.).
+// Selector de partida (+ sub-partida en cascada) para el reparto de factura.
 function _repartoFacturaPartidaHTML(partidaSel) {
-  const f = facturaById(cfFacturaAsignar);
-  const posAll = partidasObraDelProyecto(f ? f.proyecto : '');
-  const pos = posAll.filter(p => (p.partidaAdmin || '') !== '');
-  const sinMapeo = posAll.length - pos.length;
-  const optsObra = pos.map(p => `<option value="${escapeHtml(p.nombre)}">${escapeHtml(p.nombre)}</option>`).join('');
   const cats = (state.partidasCatalogo || []).filter(p => p.activa !== false);
   const opts = cats.map(p => `<option value="${escapeHtml(p.partida)}" ${p.partida === partidaSel ? 'selected' : ''}>${escapeHtml(p.partida)}</option>`).join('');
   return `
-    ${pos.length ? `
-    <div style="margin-bottom:10px;">
-      <label style="font-size:12px;color:var(--muted);">🏗️ Partida de OBRA (la contable se llena sola)</label>
-      <select id="rf-partida-obra" class="filter-select" style="width:100%;margin-top:4px;" onchange="cfFacturaObraChange()">
-        <option value="">— (solo admin — sin partida de obra) —</option>${optsObra}
-      </select>
-      <div id="rf-obra-admin-hint" style="font-size:11px;color:var(--green);margin-top:4px;display:none;"></div>
-      ${sinMapeo ? `<div style="font-size:10px;color:var(--orange);margin-top:3px;">⚠ ${sinMapeo} partida(s) de obra sin mapeo a admin no aparecen aquí — mapéalas en Configuración → Partidas de Obra</div>` : ''}
-    </div>` : ''}
-    <div id="rf-admin-wrap" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
       <div><label style="font-size:12px;color:var(--muted);">Partida *</label>
         <select id="rf-partida" class="filter-select" style="width:100%;margin-top:4px;" onchange="cfFacturaPartidaChange()">
           <option value="">— Selecciona —</option>${opts}
@@ -1227,27 +1208,6 @@ function _repartoFacturaPartidaHTML(partidaSel) {
       <div id="rf-subpartida-wrap" style="display:none;"><label style="font-size:12px;color:var(--muted);">Sub-partida *</label>
         <select id="rf-subpartida" class="filter-select" style="width:100%;margin-top:4px;"></select></div>
     </div>`;
-}
-
-// Partida de obra elegida en el modal de reparto de factura (o null si "(solo admin)").
-function _partidaObraSeleccionada() {
-  const v = (document.getElementById('rf-partida-obra')?.value || '').trim();
-  if (!v) return null;
-  const f = facturaById(cfFacturaAsignar);
-  return partidasObraDelProyecto(f ? f.proyecto : '').find(p => p.nombre === v && (p.partidaAdmin || '') !== '') || null;
-}
-
-// Al elegir partida de OBRA se muestra el admin derivado y se ocultan los selects
-// contables; al volver a "(solo admin)" regresa el flujo clásico.
-export function cfFacturaObraChange() {
-  const adminWrap = document.getElementById('rf-admin-wrap');
-  const hint = document.getElementById('rf-obra-admin-hint');
-  const po = _partidaObraSeleccionada();
-  if (adminWrap) adminWrap.style.display = po ? 'none' : 'grid';
-  if (hint) {
-    hint.style.display = po ? '' : 'none';
-    if (po) hint.innerHTML = `→ contabilidad: <b>${escapeHtml(po.partidaAdmin)}</b>${po.subPartidaAdmin ? ' / ' + escapeHtml(po.subPartidaAdmin) : ''}`;
-  }
 }
 
 // Cascada: al elegir partida, puebla sub-partida si esa partida tiene sub-partidas.
@@ -1619,28 +1579,14 @@ export async function guardarAsignacionCosto() {
   }
 
   // Reparto de FACTURA: exige partida (y sub-partida si la partida la tiene).
-  // Con partida de OBRA elegida, el ADMIN se deriva del mapeo del catálogo.
-  let partidaOv = '', subPartidaOv = '', partidaObraOv = '';
+  let partidaOv = '', subPartidaOv = '';
   if (esFact) {
-    const po = _partidaObraSeleccionada();
-    if (po) {
-      const cat = (state.partidasCatalogo || []).find(p => p.partida === po.partidaAdmin);
-      const subs = (cat && Array.isArray(cat.subpartidas)) ? cat.subpartidas : [];
-      if (subs.length && !(po.subPartidaAdmin || '')) {
-        notify(`La partida de obra "${po.nombre}" mapea a ${po.partidaAdmin} pero SIN sub-partida; complétala en Configuración → Partidas de Obra`, 'error');
-        return;
-      }
-      partidaOv = po.partidaAdmin;
-      subPartidaOv = po.subPartidaAdmin || '';
-      partidaObraOv = po.nombre;
-    } else {
-      partidaOv = (document.getElementById('rf-partida')?.value || '').trim();
-      if (!partidaOv) { notify('Selecciona la partida de la factura (de obra o admin)', 'error'); return; }
-      const subWrap = document.getElementById('rf-subpartida-wrap');
-      if (subWrap && subWrap.style.display !== 'none') {
-        subPartidaOv = (document.getElementById('rf-subpartida')?.value || '').trim();
-        if (!subPartidaOv) { notify('Selecciona la sub-partida', 'error'); return; }
-      }
+    partidaOv = (document.getElementById('rf-partida')?.value || '').trim();
+    if (!partidaOv) { notify('Selecciona la partida de la factura', 'error'); return; }
+    const subWrap = document.getElementById('rf-subpartida-wrap');
+    if (subWrap && subWrap.style.display !== 'none') {
+      subPartidaOv = (document.getElementById('rf-subpartida')?.value || '').trim();
+      if (!subPartidaOv) { notify('Selecciona la sub-partida', 'error'); return; }
     }
     // Reparto POR PARTES: la suma de partes NO puede pasar del total de la factura
     // (evita doble conteo). Cada parte ACUMULA; para rehacer, usa "Limpiar reparto".
@@ -1675,7 +1621,7 @@ export async function guardarAsignacionCosto() {
       fecha_asignacion: hoy,
       partida_override: partidaOv,
       sub_partida_override: subPartidaOv,
-      partida_obra: partidaObraOv,   // Control de Obra: nombre del catálogo de obra ('' si "(solo admin)")
+      partida_obra: '',   // Fase 2 (Control de Obra): el reparto de factura la elegirá
     });
   });
 
