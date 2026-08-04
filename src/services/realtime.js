@@ -124,7 +124,15 @@ const RT = {
       costo_inicial: toNum(r.costo_inicial), notas: r.notas || '',
       avance_fisico: toNum(r.avance_fisico)
     }),
-    rerender: () => { if (window.renderCostosFiscales) window.renderCostosFiscales(); }
+    rerender: () => {
+      // No pisar una captura EN CURSO: guardar una celda de avance dispara el eco
+      // realtime del propio upsert ~0.5s después; re-renderizar aquí destruiría lo
+      // que el residente esté tecleando en la siguiente celda. El state ya quedó
+      // actualizado; la UI se refresca en el siguiente render natural.
+      const ae = document.activeElement;
+      if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'SELECT') && ae.closest('#page-costos-fiscales')) return;
+      if (window.renderCostosFiscales) window.renderCostosFiscales();
+    }
   },
   unidades: {
     tabla: 'unidades',

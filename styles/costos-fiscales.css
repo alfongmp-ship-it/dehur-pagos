@@ -103,7 +103,9 @@
   position: sticky;
   top: 0;
   background: var(--surface2);
-  z-index: 1;
+  /* Por ENCIMA de la columna sticky de la matriz de Control de Obra (z-index:1);
+     la esquina "Casa" lleva z-index:3 inline para ganar en ambos ejes. */
+  z-index: 2;
 }
 
 /* ===== Pestaña Plano ===== */

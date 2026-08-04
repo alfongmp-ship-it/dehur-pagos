@@ -34,7 +34,7 @@ import { renderPosicionSaldos } from './modules/posicion-saldos.js';
 import { renderResumenCostos, abrirReporteJuanPablo, generarReporteJuanPablo, abrirReporteComparativo, generarReporteComparativo } from './modules/resumen-costos.js';
 import { renderFlujoSalida, fsAbrirDetalle, fsCerrarDetalle } from './modules/flujo-salida.js';
 import { renderResumenEjecutivo } from './modules/resumen-ejecutivo.js';
-import { renderCostosFiscales, abrirNuevaUnidad, editarUnidad, guardarUnidad, toggleUnidad, setFechaTermino, setEstatusUnidad, abrirLoteUnidades, guardarLoteUnidades, cfLimpiarHuerfanas, abrirAsignarCosto, reasignarCosto, eliminarAsignacionCosto, cfCambiarMetodo, cfPreviewReparto, cfRepartirResto, cfRepartirRestoIndiviso, cfCustomSetModo, cfFiltrarUnidades, cfSelTodas, cfFiltrarPendientes, cfFiltrarAsignados, guardarAsignacionCosto, cfAgregarPartidaPresup, guardarPresupuestoUnidad, cfPresupPartidaChange, cfVerUnidad, abrirRepartirFactura, cfLimpiarRepartoFactura, cfFacturaPartidaChange, cfToggleEstimado, revisarRepartos, abrirLigarFactura, lfAplicar, exportarPendientesExcel } from './modules/costos-fiscales.js';
+import { renderCostosFiscales, abrirNuevaUnidad, editarUnidad, guardarUnidad, toggleUnidad, setFechaTermino, setEstatusUnidad, abrirLoteUnidades, guardarLoteUnidades, cfLimpiarHuerfanas, abrirAsignarCosto, reasignarCosto, eliminarAsignacionCosto, cfCambiarMetodo, cfPreviewReparto, cfRepartirResto, cfRepartirRestoIndiviso, cfCustomSetModo, cfFiltrarUnidades, cfSelTodas, cfFiltrarPendientes, cfFiltrarAsignados, guardarAsignacionCosto, cfAgregarPartidaPresup, guardarPresupuestoUnidad, cfPresupPartidaChange, cfObraSetMetrica, cfObraAvanceCell, exportarControlObraExcel, cfVerUnidad, abrirRepartirFactura, cfLimpiarRepartoFactura, cfFacturaPartidaChange, cfToggleEstimado, revisarRepartos, abrirLigarFactura, lfAplicar, exportarPendientesExcel } from './modules/costos-fiscales.js';
 import { renderCreditos, seleccionarCredito, abrirNuevoCredito, editarCredito, guardarCredito, abrirNuevaDisposicion, guardarDisposicion, editarPagare, togglePagare, abrirNuevaFechaPago, editarFechaPago, guardarFechaPago, marcarPagoPagado, eliminarPagoPagare } from './modules/creditos.js';
 import { initIngresosUI, setWorkspace, renderClientes, renderVentas, renderCobros, renderEstadoCuenta, abrirNuevoCliente, editarCliente, guardarCliente, eliminarCliente, abrirNuevaVenta, editarVenta, guardarVenta, eliminarVenta, vPoblarUnidades, abrirNuevoCobro, editarCobro, guardarCobro, eliminarCobro, exportarEstadoCuentaCSV, recalcularVentasDesdeCobros } from './modules/ingresos.js';
 import { renderEstrategiaTablero, renderEstrategiaFlags, renderEstrategiaConfig, guardarConfigEstrategia, restaurarConfigEstrategia, abrirNuevoFlag, editarFlag, guardarFlag, eliminarFlag, efPoblarUnidades, efTipoChange, estToggleDesglose, renderSimuladorCaja, simToggleProyecto } from './modules/estrategia.js';
@@ -307,6 +307,9 @@ window.cfFacturaPartidaChange = cfFacturaPartidaChange;
 window.cfAgregarPartidaPresup = cfAgregarPartidaPresup;
 window.guardarPresupuestoUnidad = guardarPresupuestoUnidad;
 window.cfPresupPartidaChange = cfPresupPartidaChange;
+window.cfObraSetMetrica = cfObraSetMetrica;
+window.cfObraAvanceCell = cfObraAvanceCell;
+window.exportarControlObraExcel = exportarControlObraExcel;
 window.cfVerUnidad = cfVerUnidad;
 
 // Créditos

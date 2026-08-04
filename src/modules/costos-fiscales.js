@@ -256,8 +256,10 @@ export function costosPresupuestosBatch() {
 //   etiquetas: Map<llave, {partida, sub}>   (texto para mostrar)
 // fila = { presupuestado, costoInicial, devengado, pagadoSinFactura, asignado, real, avanceFisico }
 export function desgloseAdminBatch(proyecto) {
+  // Filtro ESTRICTO de proyecto (===), idéntico a unidadesDeProyecto(): las filas
+  // de la matriz y sus totales deben salir del MISMO universo o no cuadran a ojo.
   const uids = new Set(state.unidades
-    .filter(u => u.activo !== false && proyectoMatch(u.proyecto, proyecto))
+    .filter(u => u.activo !== false && u.proyecto === proyecto)
     .map(u => String(u.unidad_id)));
   const pcf = _pagosCubiertosPorFacturaSet();
   const fc = _facturasCanceladasSet();
@@ -306,30 +308,6 @@ export function desgloseAdminBatch(proyecto) {
   return { porUnidad, totales, etiquetas };
 }
 
-// Devuelve { partida: {presupuestado, costoInicial, devengado, pagadoSinFactura, asignado, real} }
-function desglosePorPartida(unidadId) {
-  const out = {};
-  const get = k => (out[k] = out[k] || { presupuestado: 0, costoInicial: 0, devengado: 0, pagadoSinFactura: 0, asignado: 0, real: 0 });
-  presupuestoRowsUnidad(unidadId).forEach(p => {
-    const k = p.partida || 'Sin partida';
-    get(k).presupuestado += p.monto_presupuestado || 0;
-    get(k).costoInicial += p.costo_inicial || 0;
-  });
-  const pcf = _pagosCubiertosPorFacturaSet();
-  const fc = _facturasCanceladasSet();
-  const fe = _factExistSet(); const pe = _pagoExistSet();
-  const pcap = _pagosCapitalSet();
-  asignacionesDeUnidad(unidadId).forEach(a => {
-    const t = _tipoAsignacion(a, pcf, fc, fe, pe, pcap);
-    if (!t) return; // no cuenta (doble conteo evitado, cancelada, huérfana o capital)
-    const row = get(partidaDeAsignacion(a));
-    if (t === 'devengado') row.devengado += a.monto_asignado || 0;
-    else row.pagadoSinFactura += a.monto_asignado || 0;
-    row.asignado += a.monto_asignado || 0;
-  });
-  Object.values(out).forEach(v => { v.real = v.costoInicial + v.asignado; });
-  return out;
-}
 
 // Un movimiento del historial cuenta como costo asignable a unidades.
 // Se EXCLUYEN: los Traspasos internos y Préstamos entre proyectos (no son costo
@@ -460,6 +438,7 @@ function renderSubTabs() {
     { id: 'asignados', label: '✅ Pagos Asignados' },
     { id: 'presupuestos', label: '📋 Presupuestos' },
     { id: 'reportes', label: '📊 Costo por Unidad' },
+    { id: 'obra', label: '🏗️ Control de Obra' },
     { id: 'plano', label: '🗺️ Plano' },
   ];
   cont.innerHTML = tabs.map(t =>
@@ -482,6 +461,7 @@ function renderPanel() {
   else if (cfTab === 'asignados') renderAsignadosTab(panel);
   else if (cfTab === 'presupuestos') renderPresupuestosTab(panel);
   else if (cfTab === 'reportes') renderReportesTab(panel);
+  else if (cfTab === 'obra') renderControlObraTab(panel);
   else if (cfTab === 'plano') renderPlanoTab(panel);
 }
 
@@ -1822,12 +1802,13 @@ export function cfAgregarPartidaPresup() {
   if (!(puedeCapturarObra())) { notify('No tienes permiso para capturar presupuestos', 'error'); return; }
   const tbody = document.getElementById('cf-presup-tbody');
   if (!tbody) return;
-  tbody.insertAdjacentHTML('beforeend', presupuestoFilaHTML('', '', 0, 0, tbody.children.length));
+  tbody.insertAdjacentHTML('beforeend', presupuestoFilaHTML('', '', 0, 0, 0, tbody.children.length));
 }
 
 let _ultimoGuardadoPresup = 0;
 export async function guardarPresupuestoUnidad() {
   if (!(puedeCapturarObra())) { notify('No tienes permiso para capturar presupuestos', 'error'); return; }
+  if (state.cargado && state.cargado.presupuestoUnidad !== true) { notify('Los presupuestos aún no terminan de cargar; intenta en unos segundos', 'error'); return; }
   const tbody = document.getElementById('cf-presup-tbody');
   if (!tbody) return;
   const filas = [];
@@ -1908,6 +1889,262 @@ export async function guardarPresupuestoUnidad() {
   }
   notify('Presupuesto guardado');
   renderPresupuestoGrid();   // refleja canonicalización y orden estable
+}
+
+// ========== TAB: CONTROL DE OBRA ==========
+// Matriz casas × partida/sub ADMIN, alimentada por UNA llamada a desgloseAdminBatch
+// (patrón batch — jamás por unidad en bucle). La ven TODOS los que ven la página;
+// el avance físico solo lo capturan admin/capturista/obra (control en el RENDER,
+// no con .req-obra: esa clase ocultaría a facturas/facturas_obra que sí deben VER).
+let cfObraMetrica = 'desv';   // 'desv' ($ por ejercer) | 'fin' (% financiero) | 'fis' (% físico)
+
+// Umbral del semáforo físico-vs-financiero: si el avance FINANCIERO (gastado /
+// presupuesto) supera al FÍSICO por más de estos puntos, va gastado por encima
+// de lo construido = sobrecosto en formación. 5-15 pts = vigilar (naranja).
+const UMBRAL_SOBRECOSTO_PTS = 15;
+
+function _semaforoFisico(fin, fis) {
+  if (fin === null || fis == null) return '';
+  const d = fin - fis;
+  if (d > UMBRAL_SOBRECOSTO_PTS) return `<span style="color:var(--red);" title="Financiero ${fin.toFixed(0)}% vs físico ${fis.toFixed(0)}%: va gastado ${d.toFixed(0)} pts por ENCIMA de lo construido">⛔</span>`;
+  if (d > 5) return `<span style="color:var(--orange);" title="Financiero ${fin.toFixed(0)}% vs físico ${fis.toFixed(0)}%: vigilar (${d.toFixed(0)} pts arriba)">⚠️</span>`;
+  return `<span style="color:var(--green);" title="Financiero ${fin.toFixed(0)}% vs físico ${fis.toFixed(0)}%: sano">✓</span>`;
+}
+
+function _llaveObra(partida, sub) { return _normPartCap(partida) + '|' + _normPartCap(sub); }
+
+// Llaves con datos, en el ORDEN del catálogo admin (partidas por su orden;
+// CONSTRUCCION expandida por sub-partida); extras fuera de catálogo después y
+// "Sin partida" al final.
+function _ordenLlavesObra(dataKeys, etiquetas) {
+  const orden = [];
+  _catAdminActivas()
+    .slice().sort((a, b) => (a.orden || 0) - (b.orden || 0) || String(a.partida).localeCompare(String(b.partida)))
+    .forEach(p => {
+      const subs = Array.isArray(p.subpartidas) ? p.subpartidas : [];
+      if (subs.length) subs.forEach(s => orden.push(_llaveObra(p.partida, s)));
+      else orden.push(_llaveObra(p.partida, ''));
+    });
+  const enCat = orden.filter(k => dataKeys.has(k));
+  const set = new Set(orden);
+  const esSin = k => ((etiquetas.get(k) || {}).partida || '') === 'Sin partida';
+  const extras = [...dataKeys].filter(k => !set.has(k)).sort();
+  return [...enCat, ...extras.filter(k => !esSin(k)), ...extras.filter(esSin)];
+}
+
+function _lblLlave(etiquetas, k) {
+  const e = etiquetas.get(k) || { partida: k, sub: '' };
+  return e.sub ? `${e.partida} / ${e.sub}` : e.partida;
+}
+
+function renderControlObraTab(panel) {
+  const unidades = unidadesDeProyecto();
+  if (!unidades.length) {
+    panel.innerHTML = '<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🏗️</div><div>Sin unidades en ' + escapeHtml(cfProyecto) + '.</div></div>';
+    return;
+  }
+  const { porUnidad, totales, etiquetas } = desgloseAdminBatch(cfProyecto);
+  const llaves = _ordenLlavesObra(new Set(totales.keys()), etiquetas);
+  if (!llaves.length) {
+    panel.innerHTML = '<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🏗️</div><div>Aún no hay presupuesto ni costos clasificados en ' + escapeHtml(cfProyecto) + '. Captura el presupuesto en la pestaña 📋 Presupuestos.</div></div>';
+    return;
+  }
+  const captura = puedeCapturarObra();
+
+  // % físico ponderado por presupuesto (totales por llave, desde las filas por unidad)
+  const fisPond = new Map();
+  llaves.forEach(k => {
+    let sp = 0, s = 0;
+    porUnidad.forEach(m => {
+      const f = m.get(k);
+      if (f && f.presupuestado > 0) { sp += (f.avanceFisico || 0) * f.presupuestado; s += f.presupuestado; }
+    });
+    fisPond.set(k, s > 0 ? sp / s : null);
+  });
+
+  const celda = (uid, k) => {
+    const f = (porUnidad.get(String(uid)) || new Map()).get(k);
+    if (!f) return '<td style="text-align:right;color:var(--border);font-size:10px;">—</td>';
+    const fin = avancePct(f.real, f.presupuestado);
+    if (cfObraMetrica === 'fis') {
+      const e = etiquetas.get(k) || {};
+      const pTxt = e.partida === 'Sin partida' ? '' : (e.partida || '');
+      const inp = captura && pTxt
+        ? `<input type="number" min="0" max="100" step="1" value="${f.avanceFisico || ''}" placeholder="0" data-uid="${uid}" data-p="${escapeHtml(pTxt)}" data-s="${escapeHtml(e.sub || '')}" onchange="cfObraAvanceCell(this)" style="width:52px;text-align:right;font-family:'DM Mono',monospace;font-size:11px;padding:2px 4px;">`
+        : `<span style="font-family:'DM Mono',monospace;font-size:11px;">${(f.avanceFisico || 0).toFixed(0)}%</span>`;
+      return `<td style="text-align:right;white-space:nowrap;">${inp} ${_semaforoFisico(fin, f.avanceFisico || 0)}</td>`;
+    }
+    if (cfObraMetrica === 'fin') {
+      if (fin === null) return `<td style="text-align:right;font-size:10px;color:${f.real > 0 ? 'var(--orange)' : 'var(--muted)'};" ${f.real > 0 ? `title="Tiene costo (${fmt(f.real)}) sin presupuesto"` : ''}>${f.real > 0 ? '⚠ s/presup' : '—'}</td>`;
+      return `<td style="text-align:right;font-family:'DM Mono',monospace;font-size:11px;color:${avanceColor(fin)};">${fin.toFixed(0)}%</td>`;
+    }
+    // 'desv': por ejercer = presupuesto − real
+    if (!(f.presupuestado > 0) && f.real > 0) return `<td style="text-align:right;font-family:'DM Mono',monospace;font-size:10px;color:var(--orange);" title="Costo sin presupuesto">⚠ ${fmt(f.real)}</td>`;
+    const d = (f.presupuestado || 0) - (f.real || 0);
+    const col = d < 0 ? 'var(--red)' : (f.real > 0 ? 'var(--green)' : 'var(--muted)');
+    return `<td style="text-align:right;font-family:'DM Mono',monospace;font-size:11px;color:${col};" title="Presupuesto ${fmt(f.presupuestado)} · Real ${fmt(f.real)}">${fmt(d)}</td>`;
+  };
+
+  const stickyCss = 'position:sticky;left:0;background:var(--surface);z-index:1;';
+  const btnM = (id, txt, title) => `<button class="btn btn-sm ${cfObraMetrica === id ? 'btn-primary' : 'btn-ghost'}" onclick="cfObraSetMetrica('${id}')" title="${title}">${txt}</button>`;
+
+  panel.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        ${btnM('desv', '$ Por ejercer', 'Presupuesto − costo real por celda (rojo = ya se pasó)')}
+        ${btnM('fin', '% Financiero', 'Gastado ÷ presupuesto por celda')}
+        ${btnM('fis', '% Físico', 'Avance físico de obra por celda' + (captura ? ' — editable: captúralo aquí mismo' : ''))}
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="exportarControlObraExcel()" title="Exporta los totales por partida y el detalle plano por casa (ideal para tablas dinámicas)">⬇ Excel</button>
+    </div>
+    <div class="table-wrap cf-tabla-scroll" style="margin-bottom:20px;max-height:520px;">
+      <table style="min-width:100%;">
+        <thead><tr>
+          <th style="${stickyCss}z-index:3;background:var(--surface2);">Casa</th>
+          ${llaves.map(k => { const e = etiquetas.get(k) || {}; return `<th style="text-align:right;font-size:9px;max-width:110px;" title="${escapeHtml(_lblLlave(etiquetas, k))}">${e.sub ? `<div style="color:var(--muted);">${escapeHtml(e.partida)}</div><div>${escapeHtml(e.sub)}</div>` : escapeHtml(e.partida || '')}</th>`; }).join('')}
+        </tr></thead>
+        <tbody>
+          ${unidades.map(u => `<tr>
+            <td style="${stickyCss}font-weight:600;font-size:12px;white-space:nowrap;">${escapeHtml(u.nombre)}</td>
+            ${llaves.map(k => celda(u.unidad_id, k)).join('')}
+          </tr>`).join('')}
+          <tr style="border-top:2px solid var(--border);">
+            <td style="${stickyCss}font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.05em;">Total</td>
+            ${llaves.map(k => {
+              const t = totales.get(k) || { presupuestado: 0, real: 0 };
+              if (cfObraMetrica === 'fis') { const fp = fisPond.get(k); return `<td style="text-align:right;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;">${fp === null ? '—' : fp.toFixed(0) + '%'}</td>`; }
+              if (cfObraMetrica === 'fin') { const fin = avancePct(t.real, t.presupuestado); return `<td style="text-align:right;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:${avanceColor(fin)};">${fin === null ? '—' : fin.toFixed(0) + '%'}</td>`; }
+              const d = (t.presupuestado || 0) - (t.real || 0);
+              return `<td style="text-align:right;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:${d < 0 ? 'var(--red)' : 'var(--green)'};">${fmt(d)}</td>`;
+            }).join('')}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;margin-bottom:8px;">Totales del proyecto por partida</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Partida</th><th style="text-align:right">Presupuesto</th><th style="text-align:right">Devengado</th><th style="text-align:right">Pagado s/fact</th><th style="text-align:right">Costo real</th><th style="text-align:right">Por ejercer</th><th style="width:120px;">% Financiero</th><th style="text-align:right" title="Avance físico ponderado por presupuesto">% Físico</th><th></th></tr></thead>
+        <tbody>
+          ${llaves.map(k => {
+            const t = totales.get(k) || { presupuestado: 0, devengado: 0, pagadoSinFactura: 0, real: 0 };
+            const fin = avancePct(t.real, t.presupuestado);
+            const fp = fisPond.get(k);
+            const d = (t.presupuestado || 0) - (t.real || 0);
+            const sinPres = !(t.presupuestado > 0) && t.real > 0;
+            return `<tr${sinPres ? ' style="background:rgba(224,122,58,.05);"' : ''}>
+              <td style="font-size:12px;">${escapeHtml(_lblLlave(etiquetas, k))}${sinPres ? ' <span style="font-size:9px;color:var(--orange);">⚠ sin presupuesto</span>' : ''}${t.presupuestado > 0 && !(t.real > 0) ? ' <span style="font-size:9px;color:var(--muted);">sin costo aún</span>' : ''}</td>
+              <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;">${fmt(t.presupuestado)}</td>
+              <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--blue);">${fmt(t.devengado)}</td>
+              <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;">${fmt(t.pagadoSinFactura)}</td>
+              <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--accent);">${fmt(t.real)}</td>
+              <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:${d < 0 ? 'var(--red)' : 'var(--green)'};">${fmt(d)}</td>
+              <td>${barraAvance(fin)}</td>
+              <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;">${fp === null ? '—' : fp.toFixed(0) + '%'}</td>
+              <td>${fin !== null && fp !== null ? _semaforoFisico(fin, fp) : ''}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+export function cfObraSetMetrica(m) {
+  cfObraMetrica = m;
+  renderPanel();
+}
+
+// Captura de avance físico DIRECTO en la matriz (guardado por fila al cambiar).
+export async function cfObraAvanceCell(inp) {
+  if (!puedeCapturarObra()) { notify('No tienes permiso para capturar avance', 'error'); return; }
+  // Sin los presupuestos cargados NO se captura: se crearían filas duplicadas
+  // (el find de abajo no encontraría la existente) y el guardado gs se bloquearía.
+  if (state.cargado && state.cargado.presupuestoUnidad !== true) { notify('Los presupuestos aún no terminan de cargar; intenta en unos segundos', 'error'); return; }
+  const uid = parseInt(inp.dataset.uid);
+  const partida = inp.dataset.p || '';
+  const sub = inp.dataset.s || '';
+  if (!uid || !partida) return;
+  const v = Math.max(0, Math.min(100, parseFloat(inp.value) || 0));
+  inp.value = v || '';
+  const k = _llaveObra(partida, sub);
+  let row = state.presupuestoUnidad.find(p => p.unidad_id === uid && _llaveObra(p.partida, p.sub_partida) === k);
+  if (row) {
+    if ((row.avance_fisico || 0) === v) return;
+    row.avance_fisico = v;
+  } else {
+    // Celda con costo pero sin fila de presupuesto: se crea la fila (monto 0) para
+    // poder registrar el avance; el presupuesto se captura después en 📋.
+    row = { presupuesto_id: nuevoPresupuestoId(), unidad_id: uid, partida, sub_partida: sub, monto_presupuestado: 0, costo_inicial: 0, notas: '', avance_fisico: v };
+    state.presupuestoUnidad.push(row);
+  }
+  const porFila = esPorFila('presupuestoUnidad');
+  await gsSavePresupuestoUnidad({ porFila });
+  if (porFila) sbGuardarFila('presupuestoUnidad', row);
+  notify(`Avance físico guardado: ${v}%`);
+}
+
+// Export para tablas dinámicas: totales por partida + detalle plano casa×partida.
+export function exportarControlObraExcel() {
+  if (!window.XLSX) { notify('Cargando la librería de Excel, intenta de nuevo en 2 segundos', 'error'); return; }
+  const { porUnidad, totales, etiquetas } = desgloseAdminBatch(cfProyecto);
+  const llaves = _ordenLlavesObra(new Set(totales.keys()), etiquetas);
+  if (!llaves.length) { notify('No hay datos que exportar en este proyecto', 'error'); return; }
+  const unidades = unidadesDeProyecto();
+  const hoyISO = new Date().toISOString().slice(0, 10);
+  const wb = XLSX.utils.book_new();
+
+  const aoa1 = [
+    [`Control de Obra — ${cfProyecto} — Totales por partida`],
+    [`Generado: ${hoyISO}`],
+    [],
+    ['Partida', 'Sub-partida', 'Presupuesto', 'Devengado', 'Pagado s/fact', 'Costo inicial', 'Costo real', 'Por ejercer', '% Financiero', '% Físico (pond.)']
+  ];
+  llaves.forEach(k => {
+    const e = etiquetas.get(k) || { partida: k, sub: '' };
+    const t = totales.get(k) || { presupuestado: 0, devengado: 0, pagadoSinFactura: 0, costoInicial: 0, real: 0 };
+    const fin = avancePct(t.real, t.presupuestado);
+    let sp = 0, s = 0;
+    porUnidad.forEach(m => { const f = m.get(k); if (f && f.presupuestado > 0) { sp += (f.avanceFisico || 0) * f.presupuestado; s += f.presupuestado; } });
+    aoa1.push([e.partida, e.sub, t.presupuestado, t.devengado, t.pagadoSinFactura, t.costoInicial, t.real,
+      (t.presupuestado || 0) - (t.real || 0), fin === null ? '' : fin / 100, s > 0 ? (sp / s) / 100 : '']);
+  });
+  const ws1 = XLSX.utils.aoa_to_sheet(aoa1);
+  ws1['!cols'] = [{ wch: 22 }, { wch: 24 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 13 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 12 }];
+  for (let r = 4; r < aoa1.length; r++) {
+    [2, 3, 4, 5, 6, 7].forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (ws1[ref] && typeof ws1[ref].v === 'number') ws1[ref].z = '"$"#,##0.00'; });
+    [8, 9].forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (ws1[ref] && typeof ws1[ref].v === 'number') ws1[ref].z = '0.0%'; });
+  }
+  XLSX.utils.book_append_sheet(wb, ws1, 'Por partida');
+
+  const aoa2 = [
+    [`Control de Obra — ${cfProyecto} — Detalle por casa (una fila por casa × partida)`],
+    [],
+    ['Casa', 'Partida', 'Sub-partida', 'Presupuesto', 'Devengado', 'Pagado s/fact', 'Costo inicial', 'Costo real', 'Por ejercer', '% Financiero', '% Físico']
+  ];
+  unidades.forEach(u => {
+    const m = porUnidad.get(String(u.unidad_id));
+    if (!m) return;
+    llaves.forEach(k => {
+      const f = m.get(k);
+      if (!f) return;
+      const e = etiquetas.get(k) || { partida: k, sub: '' };
+      const fin = avancePct(f.real, f.presupuestado);
+      aoa2.push([u.nombre, e.partida, e.sub, f.presupuestado, f.devengado, f.pagadoSinFactura, f.costoInicial, f.real,
+        (f.presupuestado || 0) - (f.real || 0), fin === null ? '' : fin / 100, (f.avanceFisico || 0) / 100]);
+    });
+  });
+  const ws2 = XLSX.utils.aoa_to_sheet(aoa2);
+  ws2['!cols'] = [{ wch: 14 }, { wch: 22 }, { wch: 24 }, { wch: 13 }, { wch: 13 }, { wch: 13 }, { wch: 12 }, { wch: 13 }, { wch: 13 }, { wch: 12 }, { wch: 10 }];
+  for (let r = 3; r < aoa2.length; r++) {
+    [3, 4, 5, 6, 7, 8].forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (ws2[ref] && typeof ws2[ref].v === 'number') ws2[ref].z = '"$"#,##0.00'; });
+    [9, 10].forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (ws2[ref] && typeof ws2[ref].v === 'number') ws2[ref].z = '0.0%'; });
+  }
+  XLSX.utils.book_append_sheet(wb, ws2, 'Detalle por casa');
+
+  XLSX.writeFile(wb, `Control_Obra_${String(cfProyecto || 'proyecto').replace(/[\\/:*?"<>|\s]+/g, '_')}_${hoyISO}.xlsx`);
+  notify('✅ Excel de Control de Obra generado');
 }
 
 // ========== TAB: REPORTES ==========
@@ -2003,8 +2240,11 @@ function renderDetalleUnidad(id) {
   const u = unidadById(id);
   if (!cont || !u) return;
 
-  const desg = desglosePorPartida(id);
-  const partidas = Object.entries(desg).sort((a, b) => b[1].real - a[1].real);
+  // Desglose por partida+sub ADMIN, en orden del catálogo (motor batch: una pasada).
+  const { porUnidad, etiquetas } = desgloseAdminBatch(cfProyecto);
+  const m = porUnidad.get(String(id)) || new Map();
+  const llaves = _ordenLlavesObra(new Set(m.keys()), etiquetas);
+  const partidas = llaves.map(k => [_lblLlave(etiquetas, k), m.get(k)]);
 
   cont.innerHTML = `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;">
@@ -2012,19 +2252,28 @@ function renderDetalleUnidad(id) {
         <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;">${escapeHtml(u.nombre)} · desglose por partida</div>
         <div style="font-size:11px;color:var(--muted);">Indiviso ${(u.indiviso_pct || 0).toFixed(2)}%</div>
       </div>
-      <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:18px;">
+      <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:18px;">
         <div>
           ${partidas.length ? `
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Partida</th><th style="text-align:right">Presupuesto</th><th style="text-align:right">Real</th><th style="width:130px;">Avance</th></tr></thead>
-              <tbody>${partidas.map(([p, v]) => `
-                <tr>
-                  <td style="font-size:12px;">${escapeHtml(p)}</td>
+              <thead><tr><th>Partida</th><th style="text-align:right">Presupuesto</th><th style="text-align:right" title="Facturas repartidas">Deveng.</th><th style="text-align:right" title="Pagos sin factura">Pagado</th><th style="text-align:right">Real</th><th style="text-align:right" title="Presupuesto − real">Por ejercer</th><th style="width:120px;">Avance</th><th style="text-align:right" title="Avance físico capturado en obra">Fís.</th></tr></thead>
+              <tbody>${partidas.map(([p, v]) => {
+                const fin = avancePct(v.real, v.presupuestado);
+                const d = (v.presupuestado || 0) - (v.real || 0);
+                const sinPres = !(v.presupuestado > 0) && v.real > 0;
+                return `
+                <tr${sinPres ? ' style="background:rgba(224,122,58,.05);"' : ''}>
+                  <td style="font-size:12px;">${escapeHtml(p)}${sinPres ? ' <span style="font-size:9px;color:var(--orange);">⚠ sin presup.</span>' : ''}</td>
                   <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;">${fmt(v.presupuestado)}</td>
+                  <td style="text-align:right;font-family:'DM Mono',monospace;font-size:11px;color:var(--blue);">${fmt(v.devengado)}</td>
+                  <td style="text-align:right;font-family:'DM Mono',monospace;font-size:11px;">${fmt(v.pagadoSinFactura)}</td>
                   <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--accent);">${fmt(v.real)}${v.costoInicial > 0 ? `<div style="font-size:9px;color:var(--muted);">incl. ${fmt(v.costoInicial)} apertura</div>` : ''}</td>
-                  <td>${barraAvance(avancePct(v.real, v.presupuestado))}</td>
-                </tr>`).join('')}</tbody>
+                  <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:${d < 0 ? 'var(--red)' : 'var(--green)'};">${fmt(d)}</td>
+                  <td>${barraAvance(fin)}</td>
+                  <td style="text-align:right;font-family:'DM Mono',monospace;font-size:11px;white-space:nowrap;">${(v.avanceFisico || 0).toFixed(0)}% ${_semaforoFisico(fin, v.avanceFisico || 0)}</td>
+                </tr>`;
+              }).join('')}</tbody>
             </table>
           </div>` : '<div style="color:var(--muted);font-size:12px;">Sin partidas con presupuesto o costo.</div>'}
         </div>
