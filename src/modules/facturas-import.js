@@ -288,7 +288,8 @@ export const facturasImporter = createExcelImporter({
             factor: a.pct / 100,
             fecha_asignacion: hoyISO,
             partida_override: plan.partida_override,
-            sub_partida_override: plan.sub_partida_override
+            sub_partida_override: plan.sub_partida_override,
+            partida_obra: ''
           });
         });
         creoAsig = true;

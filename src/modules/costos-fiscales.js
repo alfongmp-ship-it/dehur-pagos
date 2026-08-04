@@ -1621,6 +1621,7 @@ export async function guardarAsignacionCosto() {
       fecha_asignacion: hoy,
       partida_override: partidaOv,
       sub_partida_override: subPartidaOv,
+      partida_obra: '',   // Fase 2 (Control de Obra): el reparto de factura la elegirá
     });
   });
 

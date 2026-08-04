@@ -65,7 +65,8 @@ export function aplicarAutoIndiviso(h, repartoMetodo, forzar = false) {
       monto_asignado: (h.importe * pct) / 100,
       factor: pct / 100,
       fecha_asignacion: fecha,
-      partida_override: ''
+      partida_override: '',
+      partida_obra: ''
     });
     creadas++;
   });
@@ -169,7 +170,7 @@ export function reRepartirPago(h) {
       state.costoAsignaciones.push({
         asignacion_id: nuevoAsignacionId(), pago_id: h.id, unidad_id: f.unidad_id,
         proyecto: h.proyecto, metodo: f.metodo, monto_asignado: f.monto, factor: f.factor,
-        fecha_asignacion: hoyISO, partida_override: ''
+        fecha_asignacion: hoyISO, partida_override: '', partida_obra: ''
       });
     }
   });
@@ -373,7 +374,12 @@ export async function confirmarPagos() {
         monto_asignado: monto,
         factor: pct / 100,
         fecha_asignacion: new Date().toISOString().split('T')[0],
-        partida_override: d.partidaObra || ''
+        // Doble etiqueta (Control de Obra): la ADMIN resuelta viaja en partida/
+        // sub_partida del pendiente (la resolvió la solicitud vía el catálogo);
+        // la de OBRA va en su campo propio y empareja con el presupuesto.
+        partida_override: d.partida || '',
+        sub_partida_override: d.sub_partida || '',
+        partida_obra: d.partidaObra || ''
       });
       asignacionesCreadas++;
     });

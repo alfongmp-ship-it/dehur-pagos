@@ -555,7 +555,10 @@ export async function gsLoadAll() {
         partida_override: r[8] || '',
         // Devengado (Fase A): si factura_id está lleno, el reparto es de una FACTURA.
         factura_id: r[9] || '',
-        sub_partida_override: r[10] || ''
+        sub_partida_override: r[10] || '',
+        // Control de Obra: la partida del catálogo del residente (la hoja legacy
+        // nunca la trae; simetría con sbLoadAll para que el diff no se confunda).
+        partida_obra: r[11] || ''
       }));
     }
 
@@ -956,7 +959,8 @@ export async function sbLoadAll() {
       asignacion_id: r.asignacion_id != null ? String(r.asignacion_id) : '', pago_id: r.pago_id || '', unidad_id: toInt(r.unidad_id),
       proyecto: r.proyecto || '', metodo: r.metodo || 'directo', monto_asignado: toNum(r.monto_asignado),
       factor: toNum(r.factor), fecha_asignacion: r.fecha_asignacion || '', partida_override: r.partida_override || '',
-      factura_id: r.factura_id || '', sub_partida_override: r.sub_partida_override || ''
+      factura_id: r.factura_id || '', sub_partida_override: r.sub_partida_override || '',
+      partida_obra: r.partida_obra || ''
     }));
   });
 
@@ -1607,7 +1611,8 @@ function _rowCostoAsignacion(a) {
     asignacion_id: _sbStr(a.asignacion_id), pago_id: _sbStr(a.pago_id), unidad_id: _sbStr(a.unidad_id),
     proyecto: _sbStr(a.proyecto), metodo: _sbStr(a.metodo), monto_asignado: _sbNum(a.monto_asignado),
     factor: _sbNum(a.factor), fecha_asignacion: _sbStr(a.fecha_asignacion), partida_override: _sbStr(a.partida_override),
-    factura_id: _sbStr(a.factura_id), sub_partida_override: _sbStr(a.sub_partida_override)
+    factura_id: _sbStr(a.factura_id), sub_partida_override: _sbStr(a.sub_partida_override),
+    partida_obra: _sbStr(a.partida_obra)
   };
 }
 function _rowsCostoAsignaciones() {
