@@ -16,7 +16,7 @@ function unidadesDelProyecto(proyecto) {
     .sort((a, b) => (a.orden || 0) - (b.orden || 0) || String(a.nombre).localeCompare(String(b.nombre)));
 }
 
-function partidasObraDelProyecto(proyecto) {
+export function partidasObraDelProyecto(proyecto) {
   const nProy = norm(proyecto);
   return (state.partidasObra || [])
     .filter(p => p.activa !== false && (!p.proyecto || norm(p.proyecto) === nProy))
