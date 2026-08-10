@@ -38,6 +38,7 @@ import { renderCostosFiscales, abrirNuevaUnidad, editarUnidad, guardarUnidad, to
 import { renderCreditos, seleccionarCredito, abrirNuevoCredito, editarCredito, guardarCredito, abrirNuevaDisposicion, guardarDisposicion, editarPagare, togglePagare, abrirNuevaFechaPago, editarFechaPago, guardarFechaPago, marcarPagoPagado, eliminarPagoPagare } from './modules/creditos.js';
 import { initIngresosUI, setWorkspace, renderClientes, renderVentas, renderCobros, renderEstadoCuenta, abrirNuevoCliente, editarCliente, guardarCliente, eliminarCliente, abrirNuevaVenta, editarVenta, guardarVenta, eliminarVenta, vPoblarUnidades, abrirNuevoCobro, editarCobro, guardarCobro, eliminarCobro, exportarEstadoCuentaCSV, recalcularVentasDesdeCobros } from './modules/ingresos.js';
 import { renderEstrategiaTablero, renderEstrategiaFlags, renderEstrategiaConfig, guardarConfigEstrategia, restaurarConfigEstrategia, abrirNuevoFlag, editarFlag, guardarFlag, eliminarFlag, efPoblarUnidades, efTipoChange, estToggleDesglose, renderSimuladorCaja, simToggleProyecto } from './modules/estrategia.js';
+import { renderActividad, actSetVentana, actDepurar } from './modules/actividad.js';
 import { gsLogin, gsLogout, renderAuthStatus, checkOAuthCallback } from './services/google-auth.js';
 import { iniciarChequeoVersion } from './services/version-check.js';
 import { gsLoadAll, gsSaveProveedores, gsSaveEmpleados, gsSaveProyectos, gsSaveAlias, gsSaveCuentasPropias, gsSaveTraspasos, gsSaveCreditos, gsSavePagares, gsSavePagosPagare, gsSaveMovimientosInternos, migrarTodoASupabase, respaldarTodoASheets, cargarDatos, REALTIME_ON } from './services/google-sync.js';
@@ -310,6 +311,9 @@ window.cfPresupPartidaChange = cfPresupPartidaChange;
 window.cfObraSetMetrica = cfObraSetMetrica;
 window.cfObraAvanceCell = cfObraAvanceCell;
 window.exportarControlObraExcel = exportarControlObraExcel;
+window.renderActividad = renderActividad;
+window.actSetVentana = actSetVentana;
+window.actDepurar = actDepurar;
 window.cfVerUnidad = cfVerUnidad;
 
 // Créditos

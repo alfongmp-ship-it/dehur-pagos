@@ -109,3 +109,30 @@ export async function sbLoadTable(tabla, orderCol) {
 export function sbReady() {
   return !!tenantId();
 }
+
+// ===== Actividad del equipo (dashboard solo-admin) =====
+// Consultas BAJO DEMANDA sobre actividad_log (llenada por triggers del SQL 35).
+// Nada de esto corre en el arranque ni en realtime. RLS: solo el admin ve filas.
+export async function sbRpc(nombre, args) {
+  const client = getSupabaseClient();
+  if (!client || !tenantId()) return { data: null, error: new Error('Sin sesión de Supabase') };
+  return client.rpc(nombre, args);
+}
+
+export async function sbActividadReciente(limite = 50) {
+  const client = getSupabaseClient();
+  const tid = tenantId();
+  if (!client || !tid) return { data: null, error: new Error('Sin sesión de Supabase') };
+  return client.from('actividad_log').select('*')
+    .eq('tenant_id', tid)
+    .order('ocurrido_en', { ascending: false })
+    .limit(limite);
+}
+
+export async function sbActividadDepurar(dias = 90) {
+  const client = getSupabaseClient();
+  const tid = tenantId();
+  if (!client || !tid) return { error: new Error('Sin sesión de Supabase') };
+  const corte = new Date(Date.now() - dias * 86400000).toISOString();
+  return client.from('actividad_log').delete().eq('tenant_id', tid).lt('ocurrido_en', corte);
+}

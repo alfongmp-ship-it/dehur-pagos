@@ -47,4 +47,6 @@ export function showPage(name, el) {
   if (name === 'estrategia-flags' && window.renderEstrategiaFlags) window.renderEstrategiaFlags();
   if (name === 'estrategia-config' && window.renderEstrategiaConfig) window.renderEstrategiaConfig();
   if (name === 'estrategia-simulador-caja' && window.renderSimuladorCaja) window.renderSimuladorCaja();
+  // ACTIVIDAD (solo admin; el backstop real está en renderActividad + RLS)
+  if (name === 'actividad' && window.renderActividad) window.renderActividad();
 }

@@ -405,6 +405,8 @@ export async function confirmarPagos() {
   // `insertados` para usar el id REAL del historial (h.id), NO el id de la cola (d.id), y
   // solo se liga lo que pasó la validación de arriba (h.factura_id válido).
   let factChanged = false;
+  const factsTocadas = new Map();      // factura_id → fact (solo las modificadas)
+  const fpsNuevos = [];                // filas nuevas de facturaPagos
   insertados.forEach(({ d, h }) => {
     if (!h.factura_id) return;
     const factId = parseInt(h.factura_id);
@@ -412,7 +414,7 @@ export async function confirmarPagos() {
     if (!fact) return;
 
     const fpId = nuevoFacturaPagoId();
-    state.facturaPagos.push({
+    const fpNuevo = {
       factura_pago_id: fpId,
       factura_id: factId,
       pago_id: h.id,
@@ -421,7 +423,9 @@ export async function confirmarPagos() {
       fecha_pago: fecha,
       estatus: 'aplicado',
       observaciones: d.concepto || ''
-    });
+    };
+    state.facturaPagos.push(fpNuevo);
+    fpsNuevos.push(fpNuevo);
 
     fact.monto_pagado = (fact.monto_pagado || 0) + d.importe;
     fact.saldo_pendiente = Math.max(0, fact.monto_total - fact.monto_pagado);
@@ -431,11 +435,19 @@ export async function confirmarPagos() {
     } else if (fact.monto_pagado > 0) {
       fact.estatus_factura = 'parcial';
     }
+    factsTocadas.set(factId, fact);
     factChanged = true;
   });
   if (factChanged) {
-    gsSaveFacturas();
-    gsSaveFacturaPagos();
+    // POR FILA (patrón facturas.js): antes esto espejaba la tabla COMPLETA de
+    // facturas y facturaPagos en cada confirmación → DELETE+INSERT de cientos de
+    // filas = tormenta de eventos realtime para TODO el equipo.
+    const pfF = esPorFila('facturas');
+    const pfFp = esPorFila('facturaPagos');
+    gsSaveFacturas({ porFila: pfF });
+    gsSaveFacturaPagos({ porFila: pfFp });
+    if (pfF) factsTocadas.forEach(f => sbGuardarFila('facturas', f));
+    if (pfFp) fpsNuevos.forEach(fp => sbGuardarFila('facturaPagos', fp));
     if (window.renderFacturas) window.renderFacturas();
     if (window.renderFacturaPagos) window.renderFacturaPagos();
     document.getElementById('cnt-fact').textContent = state.facturas.length;
