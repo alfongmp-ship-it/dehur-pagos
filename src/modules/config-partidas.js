@@ -32,7 +32,7 @@ export function renderConfigPartidas() {
   div.innerHTML = cat.map(p => `
     <div style="display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--border);">
       <div style="flex:1;min-width:0;">
-        <div style="font-weight:600;font-size:13px;">${escapeHtml(p.partida)}${p.activa === false ? ' <span style="color:var(--muted);font-weight:400;">(inactiva)</span>' : ''}</div>
+        <div style="font-weight:600;font-size:13px;">${escapeHtml(p.partida)}${p.activa === false ? ' <span style="color:var(--muted);font-weight:400;">(inactiva)</span>' : ''}${p.visibleObra === false ? ' <span style="color:var(--orange);font-weight:400;font-size:10px;" title="Los perfiles de obra (Gustavo/Anahi) no la ven en Costos por Unidad">🚫 oculta a obra</span>' : ''}</div>
         <div style="font-size:11px;color:var(--muted);margin-top:2px;">
           ${(p.subpartidas || []).length} subpartida${(p.subpartidas || []).length === 1 ? '' : 's'}
         </div>
@@ -55,6 +55,8 @@ export function abrirModalPartida(id) {
   const inpNombre = document.getElementById('cat-partida-nombre');
   inpNombre.value = p?.partida || '';
   inpNombre.oninput = actualizarAvisoSubpartidas;
+  const chkVisObra = document.getElementById('cat-partida-visible-obra');
+  if (chkVisObra) chkVisObra.checked = p ? p.visibleObra !== false : true;
   document.getElementById('cat-partida-sub-input').value = '';
   state._editSubpartidas = [...(p?.subpartidas || [])];
   renderEditSubpartidas();
@@ -127,13 +129,17 @@ export function guardarPartidaCatalogo() {
     p.partida.trim().toLowerCase() === nombre.toLowerCase() && p.id !== editId
   );
   if (dup) { notify('Ya existe una partida con ese nombre', 'error'); return; }
+  const visibleObra = document.getElementById('cat-partida-visible-obra')
+    ? document.getElementById('cat-partida-visible-obra').checked
+    : true;
   if (editId) {
     const idx = state.partidasCatalogo.findIndex(p => p.id === editId);
     if (idx >= 0) {
       state.partidasCatalogo[idx] = {
         ...state.partidasCatalogo[idx],
         partida: nombre,
-        subpartidas: subs
+        subpartidas: subs,
+        visibleObra
       };
     }
   } else {
@@ -143,7 +149,8 @@ export function guardarPartidaCatalogo() {
       partida: nombre,
       subpartidas: subs,
       orden,
-      activa: true
+      activa: true,
+      visibleObra
     });
   }
   // Fase 3: en modo 'fila' guarda solo la partida afectada (add o edit).

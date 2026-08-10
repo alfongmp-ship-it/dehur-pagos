@@ -575,7 +575,8 @@ export async function gsLoadAll() {
         partida: r[1] || '',
         subpartidas: (r[2] || '').split('|').map(s => s.trim()).filter(Boolean),
         orden: parseInt(r[3]) || 0,
-        activa: r[4] !== 'false' && r[4] !== 'FALSE' && r[4] !== false
+        activa: r[4] !== 'false' && r[4] !== 'FALSE' && r[4] !== false,
+        visibleObra: r[5] !== 'false' && r[5] !== 'FALSE' && r[5] !== false
       }));
     }
     // Migración: si la hoja está vacía, sembrar con partidas únicas del
@@ -976,7 +977,8 @@ export async function sbLoadAll() {
     state.partidasCatalogo = rows.map(r => ({
       id: r.partida_id || '', partida: r.partida || '',
       subpartidas: Array.isArray(r.subpartidas) ? r.subpartidas : [],
-      orden: toInt(r.orden), activa: r.activa !== false
+      orden: toInt(r.orden), activa: r.activa !== false,
+      visibleObra: r.visible_obra !== false
     }));
   });
 
@@ -1666,7 +1668,8 @@ function _resetCaSnapshot() {
 function _rowPartidaCatalogo(p) {
   return {
     partida_id: _sbStr(p.id), partida: _sbStr(p.partida), subpartidas: p.subpartidas || [],
-    orden: _sbNum(p.orden), activa: p.activa !== false
+    orden: _sbNum(p.orden), activa: p.activa !== false,
+    visible_obra: p.visibleObra !== false
   };
 }
 function _rowsPartidasCatalogo() {
@@ -2073,9 +2076,10 @@ export async function gsSavePartidasCatalogo(opts = {}) {
   try {
     const rows = state.partidasCatalogo.map(p => [
       p.id || '', p.partida || '', (p.subpartidas || []).join('|'),
-      p.orden || 0, p.activa === false ? 'false' : 'true'
+      p.orden || 0, p.activa === false ? 'false' : 'true',
+      p.visibleObra === false ? 'false' : 'true'
     ]);
-    await gsClearAndWrite('partidas_catalogo', rows, ['partida_id', 'partida', 'subpartidas', 'orden', 'activa']);
+    await gsClearAndWrite('partidas_catalogo', rows, ['partida_id', 'partida', 'subpartidas', 'orden', 'activa', 'visible_obra']);
     if (!opts.porFila) await sbEspejar('partidasCatalogo');
   } catch (e) { console.error('gsSavePartidasCatalogo', e); }
 }

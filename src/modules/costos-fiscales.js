@@ -2,7 +2,7 @@
 // Capa nueva y aislada: asigna los pagos del historial a unidades (casas)
 // para conocer el costo real por casa. No toca el flujo de pagos existente.
 
-import { state, datosListos, puedeEditar, puedeLigarPagos, puedeFacturas, puedeCapturarObra, esAdmin, nuevoMarcaFiscalId } from '../state.js';
+import { state, datosListos, puedeEditar, puedeLigarPagos, puedeFacturas, puedeCapturarObra, esAdmin, rol, nuevoMarcaFiscalId } from '../state.js';
 import { fmt, fmtFecha, escapeHtml } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
@@ -82,8 +82,22 @@ function cfObjetivoValido() {
 
 // Catálogo ADMIN activo (partida + sub-partidas): la ÚNICA taxonomía del sistema
 // — presupuesto, facturas y pagos usan estas mismas etiquetas (Control de Obra v2).
+// Los perfiles de obra (Gustavo/Anahi) NO ven las partidas con visibleObra=false:
+// el admin lo controla con el checkbox "Visible para obra" en Configuración.
+function _veTodasLasPartidas() {
+  const r = rol();
+  return r !== 'obra' && r !== 'facturas_obra';
+}
 function _catAdminActivas() {
-  return (state.partidasCatalogo || []).filter(p => p.activa !== false);
+  const todas = (state.partidasCatalogo || []).filter(p => p.activa !== false);
+  return _veTodasLasPartidas() ? todas : todas.filter(p => p.visibleObra !== false);
+}
+// ¿Este rol puede VER una fila de presupuesto con esa partida? (fuera de catálogo
+// o partida oculta = invisible para los perfiles de obra).
+function _partidaVisiblePresup(nombre) {
+  if (_veTodasLasPartidas()) return true;
+  const cat = (state.partidasCatalogo || []).find(p => p.activa !== false && _normPartCap(p.partida) === _normPartCap(nombre));
+  return !!cat && cat.visibleObra !== false;
 }
 function _subsAdminDe(partida) {
   const cat = _catAdminActivas().find(p => p.partida === partida);
@@ -1731,7 +1745,9 @@ function renderPresupuestosTab(panel) {
 function renderPresupuestoGrid() {
   const cont = document.getElementById('cf-presup-grid');
   if (!cont) return;
-  const rows = presupuestoRowsUnidad(cfUnidadDetalle);
+  // Perfiles de obra: las filas de partidas ocultas NI SE MUESTRAN (y el guardado
+  // tampoco las toca — ver guardarPresupuestoUnidad).
+  const rows = presupuestoRowsUnidad(cfUnidadDetalle).filter(p => _partidaVisiblePresup(p.partida));
 
   cont.innerHTML = `
     <div class="table-wrap">
@@ -1848,11 +1864,16 @@ export async function guardarPresupuestoUnidad() {
   // MERGE no destructivo por (unidad, partida, sub): actualiza EN SITIO conservando
   // presupuesto_id (nada de regenerar ids), crea solo las filas nuevas y elimina
   // únicamente las quitadas de la captura (también dedupe de llaves repetidas legacy).
-  const previas = state.presupuestoUnidad.filter(p => p.unidad_id === cfUnidadDetalle);
+  // ⚠️ BLINDAJE por rol: el universo del merge son SOLO las filas que este rol VE.
+  // Un perfil de obra que guarda su captura jamás borra las filas de partidas
+  // ocultas (no estaban en su grid, pero tampoco entran a `previas`/`borradas`).
+  const previas = state.presupuestoUnidad.filter(p =>
+    p.unidad_id === cfUnidadDetalle && _partidaVisiblePresup(p.partida));
   const porLlave = new Map(previas.map(p => [llaveDe(p.partida, p.sub_partida), p]));
   const tocadas = [], borradas = [];
   state.presupuestoUnidad = state.presupuestoUnidad.filter(p => {
     if (p.unidad_id !== cfUnidadDetalle) return true;
+    if (!_partidaVisiblePresup(p.partida)) return true;   // fila oculta para este rol: intocable
     const k = llaveDe(p.partida, p.sub_partida);
     const queda = llaves.has(k) && porLlave.get(k) === p;
     if (!queda) borradas.push(String(p.presupuesto_id));
@@ -1932,6 +1953,9 @@ function _ordenLlavesObra(dataKeys, etiquetas) {
       else orden.push(_llaveObra(p.partida, ''));
     });
   const enCat = orden.filter(k => dataKeys.has(k));
+  // Perfiles de obra: SOLO llaves del catálogo visible (nada de extras fuera de
+  // catálogo ni "Sin partida" — lo que el admin no marcó visible, no existe para ellos).
+  if (!_veTodasLasPartidas()) return enCat;
   const set = new Set(orden);
   const esSin = k => ((etiquetas.get(k) || {}).partida || '') === 'Sin partida';
   const extras = [...dataKeys].filter(k => !set.has(k)).sort();

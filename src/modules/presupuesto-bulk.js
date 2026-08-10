@@ -1,7 +1,7 @@
 // Captura masiva de presupuesto + costo inicial por unidad usando Excel.
 // Genera plantilla (descargar) y procesa subida con merge inteligente.
 
-import { state, puedeCapturarObra, nuevoPresupuestoId } from '../state.js';
+import { state, puedeCapturarObra, nuevoPresupuestoId, rol } from '../state.js';
 import { notify } from '../ui/notify.js';
 import { gsSavePresupuestoUnidad, esPorFila, sbGuardarFila } from '../services/google-sync.js';
 
@@ -19,10 +19,16 @@ function unidadesDelProyecto(proyecto) {
 // Columnas del presupuesto = catálogo ADMIN (Control de Obra v2): una columna por
 // partida sin sub-partidas y una por cada "PARTIDA / Sub" cuando las tiene
 // (CONSTRUCCION). Misma taxonomía con que se clasifican facturas y pagos.
+// Perfiles de obra (Gustavo/Anahi): NO ven las partidas con visibleObra=false.
+function _veTodasLasPartidas() {
+  const r = rol();
+  return r !== 'obra' && r !== 'facturas_obra';
+}
+
 function columnasPresupuestoAdmin() {
   const cols = [];
   (state.partidasCatalogo || [])
-    .filter(p => p.activa !== false)
+    .filter(p => p.activa !== false && (_veTodasLasPartidas() || p.visibleObra !== false))
     .sort((a, b) => (a.orden || 0) - (b.orden || 0) || String(a.partida).localeCompare(String(b.partida)))
     .forEach(p => {
       const subs = Array.isArray(p.subpartidas) ? p.subpartidas : [];
@@ -138,6 +144,16 @@ function procesarHoja(rows, campo, proyecto, colsCat, tocadas) {
       // El avance físico es un porcentaje: se acota a 0-100.
       if (campo === 'avance_fisico') valor = Math.max(0, Math.min(100, valor));
       const { partida, sub } = parseColumnaPresupuesto(colTxt, colsCat);
+      // Perfil de obra subiendo una plantilla con columnas que su rol no ve
+      // (plantilla vieja o de admin): esas columnas se OMITEN, no se aplican.
+      if (!_veTodasLasPartidas()) {
+        const cat = (state.partidasCatalogo || []).find(x => norm(x.partida) === norm(partida));
+        if (!cat || cat.visibleObra === false) {
+          const msgOculta = `Columna "${colTxt}" no disponible para tu perfil — se omitió`;
+          if (!avisos.includes(msgOculta)) avisos.push(msgOculta);
+          continue;
+        }
+      }
       // Aviso si la columna no calza con el catálogo admin actual
       if (!headersCatNorm.has(norm(colTxt))) {
         // Solo el primer aviso por columna desconocida (para no spammear)

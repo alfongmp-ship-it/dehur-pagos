@@ -73,7 +73,8 @@ const RT = {
     mapRow: r => ({
       id: r.partida_id || '', partida: r.partida || '',
       subpartidas: Array.isArray(r.subpartidas) ? r.subpartidas : [],
-      orden: toInt(r.orden), activa: r.activa !== false
+      orden: toInt(r.orden), activa: r.activa !== false,
+      visibleObra: r.visible_obra !== false
     }),
     rerender: () => { if (window.renderConfigPartidas) window.renderConfigPartidas(); }
   },
