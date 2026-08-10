@@ -29,7 +29,7 @@ export const FUENTE_LECTURA = 'supabase';
 // supabase_realtime). El resto de entidades sigue en 'tabla' aunque MODO sea 'fila'.
 // ============================================================================
 export const MODO_GUARDADO = 'fila';
-export const ENTIDADES_POR_FILA = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos', 'proyectos', 'cuentasPropias', 'pagosPagare', 'historial', 'clientes', 'ventas', 'cobros', 'estrategiaConfig', 'estrategiaFlags', 'presupuestoUnidad']);
+export const ENTIDADES_POR_FILA = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos', 'proyectos', 'cuentasPropias', 'pagosPagare', 'historial', 'clientes', 'ventas', 'cobros', 'estrategiaConfig', 'estrategiaFlags', 'presupuestoUnidad', 'fiscalMarcas']);
 export const REALTIME_ON = true;
 
 // ============================================================================
@@ -819,7 +819,9 @@ export async function sbLoadAll() {
     // INGRESOS (Fase 1)
     clientes: 'cliente_id', ventas: 'venta_id', cobros: 'cobro_id',
     // ESTRATEGIA (Fase 2)
-    estrategia_config: 'clave', estrategia_flags_unidad: 'flag_id'
+    estrategia_config: 'clave', estrategia_flags_unidad: 'flag_id',
+    // FISCAL (pestaña 🧾, solo-admin)
+    fiscal_marcas: 'marca_id'
   };
 
   async function cargar(tabla, entidad, fn) {
@@ -1071,6 +1073,21 @@ export async function sbLoadAll() {
       }));
     });
   }
+
+  // FISCAL (pestaña 🧾, solo-admin): marcas de deducibilidad. Vive SOLO en Supabase.
+  // RLS regresa vacío a los no-admin; si la tabla no existe aún (SQL 36 sin correr),
+  // sbLoadTable devuelve null y cargado queda en false → la pestaña avisa.
+  await cargar('fiscal_marcas', 'fiscalMarcas', rows => {
+    state.fiscalMarcas = rows.map(r => ({
+      marca_id: r.marca_id != null ? String(r.marca_id) : '',
+      doc_tipo: r.doc_tipo || 'pago',
+      doc_id: r.doc_id != null ? String(r.doc_id) : '',
+      incluir: r.incluir !== false,
+      motivo: r.motivo || '',
+      usuario_email: r.usuario_email || '',
+      created_at: r.created_at || ''
+    }));
+  });
 
   await finalizarCarga();
 }
@@ -1607,6 +1624,15 @@ function _rowUnidad(u) {
 function _rowsUnidades() {
   return _dedupBy(state.unidades.map(_rowUnidad), 'unidad_id');
 }
+function _rowFiscalMarca(m) {
+  return {
+    marca_id: _sbStr(m.marca_id), doc_tipo: _sbStr(m.doc_tipo), doc_id: _sbStr(m.doc_id),
+    incluir: m.incluir !== false, motivo: _sbStr(m.motivo), usuario_email: _sbStr(m.usuario_email)
+  };
+}
+function _rowsFiscalMarcas() {
+  return _dedupBy(state.fiscalMarcas.map(_rowFiscalMarca), 'marca_id');
+}
 function _rowPresupuestoUnidad(p) {
   return {
     presupuesto_id: _sbStr(p.presupuesto_id), unidad_id: _sbStr(p.unidad_id),
@@ -1690,6 +1716,7 @@ const SB_ENTIDADES = {
   pagosPagare:        { tabla: 'pagos_pagare',        rows: _rowsPagosPagare, idCol: 'pago_id', rowOne: _rowPagoPagare },
   unidades:           { tabla: 'unidades',            rows: _rowsUnidades, idCol: 'unidad_id', rowOne: _rowUnidad },
   presupuestoUnidad:  { tabla: 'presupuesto_unidad',  rows: _rowsPresupuestoUnidad, idCol: 'presupuesto_id', rowOne: _rowPresupuestoUnidad },
+  fiscalMarcas:       { tabla: 'fiscal_marcas',       rows: _rowsFiscalMarcas, idCol: 'marca_id', rowOne: _rowFiscalMarca },
   costoAsignaciones:  { tabla: 'costo_asignaciones',  rows: _rowsCostoAsignaciones, idCol: 'asignacion_id', rowOne: _rowCostoAsignacion },
   partidasCatalogo:   { tabla: 'partidas_catalogo',   rows: _rowsPartidasCatalogo, idCol: 'partida_id', rowOne: _rowPartidaCatalogo },
   partidasObra:       { tabla: 'partidas_obra',       rows: _rowsPartidasObra, idCol: 'partida_obra_id', rowOne: _rowPartidaObra },
@@ -1718,6 +1745,8 @@ export async function sbGuardarFila(key, item) {
   // 'facturas' (Gonzalo) SÍ escribe facturas/facturaPagos, y 'historial' SOLO
   // vía la herramienta de vincular pago→factura (no tiene otra vía de UI: todos
   // los editores del historial van con .req-editor, que ese rol no ve).
+  // Marcas fiscales: SOLO admin (la RLS también lo exige; esto evita el intento).
+  if (key === 'fiscalMarcas' && !esAdmin()) return;
   const esFactKey = key === 'facturas' || key === 'facturaPagos' || key === 'historial';
   const esObraKey = key === 'unidades' || key === 'presupuestoUnidad';
   if (!puedeEditar() && !(esFactKey && puedeFacturas()) && !(esObraKey && puedeCapturarObra())) return;
@@ -1739,6 +1768,8 @@ export async function sbGuardarFila(key, item) {
 export async function sbBorrarFila(key, idValue) {
   // Backstop de rol (ver sbGuardarFila): 'facturas' borra facturaPagos al
   // eliminar un pago a factura.
+  // Marcas fiscales: SOLO admin (la RLS también lo exige; esto evita el intento).
+  if (key === 'fiscalMarcas' && !esAdmin()) return;
   const esFactKey = key === 'facturas' || key === 'facturaPagos' || key === 'historial';
   const esObraKey = key === 'unidades' || key === 'presupuestoUnidad';
   if (!puedeEditar() && !(esFactKey && puedeFacturas()) && !(esObraKey && puedeCapturarObra())) return;
@@ -1776,7 +1807,7 @@ export async function migrarTodoASupabase() {
     // INGRESOS (clientes/ventas/cobros) y ESTRATEGIA (config/flags) tampoco tienen hoja aún y solo
     // se cargan con su módulo activo → sobrescribirlos aquí desde un state vacío BORRARÍA la tabla.
     if (key === 'costoAsignaciones' || key === 'clientes' || key === 'ventas' || key === 'cobros'
-      || key === 'estrategiaConfig' || key === 'estrategiaFlags') continue;
+      || key === 'estrategiaConfig' || key === 'estrategiaFlags' || key === 'fiscalMarcas') continue;
     const def = SB_ENTIDADES[key];
     try {
       const n = await sbReplaceTable(def.tabla, def.rows());
