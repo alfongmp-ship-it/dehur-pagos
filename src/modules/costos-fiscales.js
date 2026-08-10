@@ -28,7 +28,9 @@ let cfMostrarEstimado = false; // toggle: ver estimado por indiviso de pagos sin
 let cfCustomModo = 'pct';   // método Personalizado: 'pct' (%) | 'monto' ($). Default %.
 let cfChartUnidad = null;
 let cfPlanoModo = 'vista';      // 'vista' | 'editor'
-let cfPlanoColor = 'avance';     // 'avance' | 'estatus'
+let cfPlanoColor = 'avance';     // 'avance' | 'estatus' | 'partida'
+let cfPlanoPartidaKey = '';      // llave (norm) de la partida elegida en el modo 'partida'
+let cfPlanoBatch = null;         // desgloseAdminBatch cacheado UNA vez por render del plano
 let cfPlanoEditMode = 'pines';   // 'pines' | 'zonas'  — solo en modo editor
 
 const ESTATUS_COLOR = {
@@ -1705,7 +1707,7 @@ function renderPresupuestosTab(panel) {
         📤 Subir plantilla
         <input type="file" accept=".xlsx,.xls" style="display:none;" onchange="handleSubirPlantillaPresupuesto(event)">
       </label>
-      <div style="font-size:11px;color:var(--muted);flex:1;min-width:0;">Excel con 2 hojas (Presupuesto / Costo Inicial). Merge no destructivo.</div>
+      <div style="font-size:11px;color:var(--muted);flex:1;min-width:0;">Excel con 3 hojas (Presupuesto / Costo Inicial / Avance Físico %). Merge no destructivo; celdas vacías no tocan nada.</div>
     </div>
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">
       <label style="font-size:12px;color:var(--muted);">Unidad:</label>
@@ -2321,6 +2323,15 @@ let cfFormaArrastrada = false; // evita colocar pin tras soltar un arrastre
 
 function colorDePin(u) {
   if (cfPlanoColor === 'estatus') return ESTATUS_COLOR[u.estatus] || '#888';
+  if (cfPlanoColor === 'partida') {
+    // Avance FÍSICO de la partida elegida (el dato de obra que captura el residente).
+    const f = cfPlanoBatch && (cfPlanoBatch.porUnidad.get(String(u.unidad_id)) || new Map()).get(cfPlanoPartidaKey);
+    const fis = f ? (f.avanceFisico || 0) : 0;
+    if (!f || fis <= 0) return '#7a7570';
+    if (fis >= 100) return '#4caf7d';
+    if (fis >= 50) return '#5a9be0';
+    return '#e07a3a';
+  }
   const real = costoRealUnidad(u.unidad_id);
   const presu = presupuestoTotalUnidad(u.unidad_id);
   const pct = avancePct(real, presu);
@@ -2347,6 +2358,16 @@ function renderPlanoTab(panel) {
   const editPines = editor && cfPlanoEditMode === 'pines';
   const editZonas = editor && cfPlanoEditMode === 'zonas';
 
+  // Modo "Por partida": el batch se calcula UNA vez por render (jamás por pin).
+  cfPlanoBatch = null;
+  let partidaOpts = '';
+  if (!editor && cfPlanoColor === 'partida') {
+    cfPlanoBatch = desgloseAdminBatch(cfProyecto);
+    const llavesP = _ordenLlavesObra(new Set(cfPlanoBatch.totales.keys()), cfPlanoBatch.etiquetas);
+    if (!cfPlanoPartidaKey || !cfPlanoBatch.totales.has(cfPlanoPartidaKey)) cfPlanoPartidaKey = llavesP[0] || '';
+    partidaOpts = llavesP.map(k => `<option value="${escapeHtml(k)}"${k === cfPlanoPartidaKey ? ' selected' : ''}>${escapeHtml(_lblLlave(cfPlanoBatch.etiquetas, k))}</option>`).join('');
+  }
+
   let indicador = '';
   let hint = '';
   if (editPines) {
@@ -2365,7 +2386,7 @@ function renderPlanoTab(panel) {
     <div class="cf-plano-toolbar">
       <div class="cf-plano-modos">
         <button class="cf-plano-btn${!editor ? ' active' : ''}" data-modo="vista">👁 Vista</button>
-        <button class="cf-plano-btn req-editor${editor ? ' active' : ''}" data-modo="editor">✏️ Editar</button>
+        <button class="cf-plano-btn req-obra${editor ? ' active' : ''}" data-modo="editor" title="Ubicar casas en el plano (pines y zonas)">✏️ Editar</button>
       </div>
       ${editor ? `
         <div class="cf-plano-modos">
@@ -2380,6 +2401,8 @@ function renderPlanoTab(panel) {
           <span style="font-size:11px;color:var(--muted);">Color:</span>
           <button class="cf-plano-btn${cfPlanoColor === 'avance' ? ' active' : ''}" data-color="avance">% Avance</button>
           <button class="cf-plano-btn${cfPlanoColor === 'estatus' ? ' active' : ''}" data-color="estatus">Estatus</button>
+          <button class="cf-plano-btn${cfPlanoColor === 'partida' ? ' active' : ''}" data-color="partida" title="Colorea cada casa según el avance FÍSICO de una partida">Por partida</button>
+          ${cfPlanoColor === 'partida' ? `<select id="cf-plano-partida" class="filter-select" style="font-size:11px;max-width:230px;">${partidaOpts}</select>` : ''}
         </div>
         <div id="cf-plano-leyenda" class="cf-plano-leyenda"></div>
       `}
@@ -2445,6 +2468,8 @@ function setupPlanoInteraction() {
   document.querySelectorAll('.cf-plano-btn[data-color]').forEach(b => {
     b.addEventListener('click', () => { cfPlanoColor = b.dataset.color; renderPanel(); });
   });
+  const selPartida = document.getElementById('cf-plano-partida');
+  if (selPartida) selPartida.addEventListener('change', () => { cfPlanoPartidaKey = selPartida.value; renderPanel(); });
   const guardar = document.getElementById('cf-plano-guardar');
   if (guardar) guardar.addEventListener('click', cfGuardarPlano);
 
@@ -2746,7 +2771,7 @@ function abrirPopupForma(uid, refEl) {
       ${u.superficie_m2 ? `<div><span>Superficie:</span> ${u.superficie_m2} m²</div>` : ''}
     </div>
     <div class="cf-popup-acciones">
-      <button class="btn btn-ghost btn-sm" type="button" data-action="editar">✏️ Editar</button>
+      ${puedeEditar() ? '<button class="btn btn-ghost btn-sm" type="button" data-action="editar">✏️ Editar</button>' : ''}
       <button class="btn btn-ghost btn-sm" type="button" data-action="quitar" style="color:var(--red);">🗑️ Quitar del plano</button>
     </div>`;
   document.body.appendChild(popup);
@@ -2794,10 +2819,19 @@ function mostrarTooltipPin(uid, pin) {
   const real = costoRealUnidad(u.unidad_id);
   const presu = presupuestoTotalUnidad(u.unidad_id);
   const av = avancePct(real, presu);
+  let lineaPartida = '';
+  if (cfPlanoColor === 'partida' && cfPlanoBatch) {
+    const f = (cfPlanoBatch.porUnidad.get(String(u.unidad_id)) || new Map()).get(cfPlanoPartidaKey);
+    const lbl = _lblLlave(cfPlanoBatch.etiquetas, cfPlanoPartidaKey);
+    lineaPartida = f
+      ? `<br><strong>${escapeHtml(lbl)}</strong>: físico ${(f.avanceFisico || 0).toFixed(0)}% · gastado ${fmt(f.real)}${f.presupuestado > 0 ? ` de ${fmt(f.presupuestado)}` : ''}`
+      : `<br><strong>${escapeHtml(lbl)}</strong>: sin datos en esta casa`;
+  }
   tip.innerHTML = `<strong>${escapeHtml(u.nombre)}</strong><br>`
     + `Costo real: ${fmt(real)}<br>`
     + (presu > 0 ? `Presupuesto: ${fmt(presu)}<br>Avance: ${av.toFixed(1)}%<br>` : 'Sin presupuesto<br>')
-    + `Estatus: ${escapeHtml(u.estatus) || '—'}`;
+    + `Estatus: ${escapeHtml(u.estatus) || '—'}`
+    + lineaPartida;
   const pinRect = pin.getBoundingClientRect();
   const contRect = cont.getBoundingClientRect();
   tip.style.left = (pinRect.left - contRect.left + pinRect.width / 2) + 'px';
@@ -2815,7 +2849,9 @@ function renderLeyendaPlano() {
   if (!el) return;
   const items = cfPlanoColor === 'estatus'
     ? ESTATUS_UNIDAD.map(e => [e, ESTATUS_COLOR[e] || '#888'])
-    : [['En presupuesto', '#4caf7d'], ['Cerca del límite', '#e07a3a'], ['Sobre presupuesto', '#e05a5a'], ['Sin presupuesto', 'var(--muted)']];
+    : cfPlanoColor === 'partida'
+      ? [['Terminada (100%)', '#4caf7d'], ['Avanzada (≥50%)', '#5a9be0'], ['Iniciada (<50%)', '#e07a3a'], ['Sin avance / sin dato', '#7a7570']]
+      : [['En presupuesto', '#4caf7d'], ['Cerca del límite', '#e07a3a'], ['Sobre presupuesto', '#e05a5a'], ['Sin presupuesto', 'var(--muted)']];
   el.innerHTML = items.map(([t, c]) =>
     `<span class="cf-ley-item"><span class="cf-ley-dot" style="background:${c};"></span>${t}</span>`).join('');
 }
@@ -2829,7 +2865,13 @@ function cfQuitarPin(uid) {
 }
 
 async function cfGuardarPlano() {
-  if (!puedeEditar()) { notify('No tienes permiso para editar el plano', 'error'); return; }
-  await gsSaveUnidades();
+  // Ubicar casas en el plano es captura de OBRA (Gustavo puede); las posiciones
+  // viven en las filas de unidades, cuya persistencia ya acepta ese permiso.
+  if (!puedeCapturarObra()) { notify('No tienes permiso para editar el plano', 'error'); return; }
+  // Por fila: sin espejar la tabla completa (mitad de eventos realtime y sin
+  // ventana de DELETE entre sesiones).
+  const porFila = esPorFila('unidades');
+  await gsSaveUnidades({ porFila });
+  if (porFila) unidadesDeProyecto(true).forEach(u => sbGuardarFila('unidades', u));
   notify('Plano guardado');
 }

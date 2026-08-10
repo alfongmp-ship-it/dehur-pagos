@@ -87,6 +87,7 @@ export function descargarPlantillaPresupuesto(proyecto) {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, buildSheet('monto_presupuestado'), 'Presupuesto');
   XLSX.utils.book_append_sheet(wb, buildSheet('costo_inicial'), 'Costo Inicial');
+  XLSX.utils.book_append_sheet(wb, buildSheet('avance_fisico'), 'Avance Fisico');
 
   const fn = `Presupuesto_${proyecto.replace(/[^\w]+/g, '_')}_${fechaTxt.replace(/-/g, '')}.xlsx`;
   XLSX.writeFile(wb, fn);
@@ -129,11 +130,13 @@ function procesarHoja(rows, campo, proyecto, colsCat, tocadas) {
       const raw = row[c + 1];
       // Celda vacía → no tocar
       if (raw === undefined || raw === null || raw === '') continue;
-      const valor = parseFloat(String(raw).replace(/[$,\s]/g, ''));
+      let valor = parseFloat(String(raw).replace(/[$,%\s]/g, ''));
       if (!isFinite(valor)) {
         avisos.push(`Celda no numérica en ${nombreUnidad} / ${colTxt} = "${raw}"`);
         continue;
       }
+      // El avance físico es un porcentaje: se acota a 0-100.
+      if (campo === 'avance_fisico') valor = Math.max(0, Math.min(100, valor));
       const { partida, sub } = parseColumnaPresupuesto(colTxt, colsCat);
       // Aviso si la columna no calza con el catálogo admin actual
       if (!headersCatNorm.has(norm(colTxt))) {
@@ -158,7 +161,7 @@ function procesarHoja(rows, campo, proyecto, colsCat, tocadas) {
           monto_presupuestado: campo === 'monto_presupuestado' ? valor : 0,
           costo_inicial: campo === 'costo_inicial' ? valor : 0,
           notas: '',
-          avance_fisico: 0
+          avance_fisico: campo === 'avance_fisico' ? valor : 0
         };
         state.presupuestoUnidad.push(nuevo);
         if (tocadas) tocadas.set(String(nuevo.presupuesto_id), nuevo);
@@ -178,12 +181,14 @@ export async function subirPlantillaPresupuesto(file) {
     const wb = XLSX.read(buf, { type: 'array' });
     const hojaPres = wb.Sheets['Presupuesto'];
     const hojaInic = wb.Sheets['Costo Inicial'];
+    const hojaAv = wb.Sheets['Avance Fisico'];   // OPCIONAL: plantillas viejas no la traen
     if (!hojaPres || !hojaInic) {
       notify('⛔ El archivo no tiene las hojas "Presupuesto" y "Costo Inicial"', 'error');
       return;
     }
     const rowsPres = XLSX.utils.sheet_to_json(hojaPres, { header: 1, defval: '' });
     const rowsInic = XLSX.utils.sheet_to_json(hojaInic, { header: 1, defval: '' });
+    const rowsAv = hojaAv ? XLSX.utils.sheet_to_json(hojaAv, { header: 1, defval: '' }) : null;
 
     // Validar firma + extraer proyecto
     const titulo = String(rowsPres[0]?.[0] || '');
@@ -212,21 +217,23 @@ export async function subirPlantillaPresupuesto(file) {
     // Confirmación si el alcance es grande
     const numUnidades = (rowsPres.length || 0) - 3;
     const numPartidas = ((rowsPres[2] || []).length || 1) - 1;
-    const totalCeldas = numUnidades * numPartidas * 2;
+    const totalCeldas = numUnidades * numPartidas * (rowsAv ? 3 : 2);
     if (totalCeldas > 200) {
       if (!confirm(`Vas a procesar ${numUnidades} unidades × ${numPartidas} partidas × 2 hojas = hasta ${totalCeldas} celdas para el proyecto "${proyecto}".\n\n¿Continuar?`)) return;
     }
 
     // Procesar
-    // Filas creadas/cambiadas por AMBAS hojas (por id) → guardado POR FILA (F3b).
+    // Filas creadas/cambiadas por TODAS las hojas (por id) → guardado POR FILA (F3b).
     const tocadas = new Map();
     const resPres = procesarHoja(rowsPres, 'monto_presupuestado', proyecto, colsCat, tocadas);
     const resInic = procesarHoja(rowsInic, 'costo_inicial', proyecto, colsCat, tocadas);
+    const resAv = rowsAv ? procesarHoja(rowsAv, 'avance_fisico', proyecto, colsCat, tocadas)
+      : { actualizadas: 0, nuevas: 0, omitidas: 0, avisos: [] };
     const totales = {
-      actualizadas: resPres.actualizadas + resInic.actualizadas,
-      nuevas: resPres.nuevas + resInic.nuevas,
-      omitidas: resPres.omitidas + resInic.omitidas,
-      avisos: [...new Set([...resPres.avisos, ...resInic.avisos])]
+      actualizadas: resPres.actualizadas + resInic.actualizadas + resAv.actualizadas,
+      nuevas: resPres.nuevas + resInic.nuevas + resAv.nuevas,
+      omitidas: resPres.omitidas + resInic.omitidas + resAv.omitidas,
+      avisos: [...new Set([...resPres.avisos, ...resInic.avisos, ...resAv.avisos])]
     };
 
     const porFila = esPorFila('presupuestoUnidad');
