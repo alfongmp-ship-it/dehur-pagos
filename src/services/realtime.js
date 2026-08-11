@@ -20,7 +20,7 @@
 import { getSupabaseClient } from './supabase.js';
 import { state } from '../state.js';
 import { normalizeBanco } from '../config/bancos.js';
-import { ENTIDADES_REALTIME } from './google-sync.js';
+import { ENTIDADES_REALTIME, caSnapshotAplicar, caSnapshotQuitar } from './google-sync.js';
 
 const toInt = v => parseInt(v) || 0;
 const toNum = v => parseFloat(v) || 0;
@@ -120,6 +120,25 @@ const RT = {
       avance_fisico: toNum(r.avance_fisico)
     }),
     pinta: ['renderCostosFiscales']
+  },
+  // ⚠️ mapRow CALCADO CARÁCTER A CARÁCTER del loader de sbLoadAll. Esta tabla se
+  // guarda POR DIFF contra _caSnapshot: UNA coerción distinta aquí haría que el
+  // diff re-upsertee filas ajenas para siempre. NO tocar sin tocar el loader.
+  // (Y monto_asignado/factor deben seguir `numeric` SIN escala en la BD.)
+  // El snapshot SIGUE a los eventos vía `snapshot` (ver aplicarCambio).
+  costoAsignaciones: {
+    tabla: 'costo_asignaciones',
+    stateKey: 'costoAsignaciones',
+    idField: 'asignacion_id',
+    mapRow: r => ({
+      asignacion_id: r.asignacion_id != null ? String(r.asignacion_id) : '', pago_id: r.pago_id || '', unidad_id: toInt(r.unidad_id),
+      proyecto: r.proyecto || '', metodo: r.metodo || 'directo', monto_asignado: toNum(r.monto_asignado),
+      factor: toNum(r.factor), fecha_asignacion: r.fecha_asignacion || '', partida_override: r.partida_override || '',
+      factura_id: r.factura_id || '', sub_partida_override: r.sub_partida_override || '',
+      partida_obra: r.partida_obra || ''
+    }),
+    snapshot: { set: caSnapshotAplicar, del: caSnapshotQuitar },
+    pinta: ['renderCostosFiscales', 'renderFacturas']
   },
   unidades: {
     tabla: 'unidades',
@@ -351,15 +370,22 @@ let _canales = [];
 // de obra). Al volver el foco/visibilidad, se pinta lo pendiente.
 const _pintasPendientes = new Set();
 let _flushTimer = null;
+let _rafagaDesde = 0;   // maxWait: inicio de la ráfaga actual
 
 function _programarPinta(def) {
   (def.pinta || []).forEach(n => _pintasPendientes.add(n));
+  const ahora = Date.now();
+  if (!_rafagaDesde) _rafagaDesde = ahora;
+  // maxWait ~1s: en red lenta (eventos espaciados >200ms) el debounce puro nunca
+  // dispararía; con el tope, la ráfaga larga pinta al menos una vez por segundo.
+  if (ahora - _rafagaDesde >= 1000) { if (_flushTimer) clearTimeout(_flushTimer); _flushPintas(); return; }
   if (_flushTimer) clearTimeout(_flushTimer);
   _flushTimer = setTimeout(_flushPintas, 200);
 }
 
 function _flushPintas() {
   _flushTimer = null;
+  _rafagaDesde = 0;
   if (!_pintasPendientes.size) return;
   const ae = document.activeElement;
   const escribiendo = ae && (ae.tagName === 'INPUT' || ae.tagName === 'SELECT' || ae.tagName === 'TEXTAREA');
@@ -412,6 +438,9 @@ function aplicarCambio(def, payload) {
     if (id == null || id === '') return;
     const i = arr.findIndex(x => String(x[def.idField]) === String(id));
     if (i !== -1) arr.splice(i, 1);
+    // Entidades con guardado por diff: el snapshot SIGUE al evento (si no, el
+    // próximo guardado local "re-borraría"/re-upsertearía filas ajenas).
+    if (def.snapshot) def.snapshot.del(id);
   } else {
     // INSERT o UPDATE
     if (!payload.new) return;
@@ -419,6 +448,7 @@ function aplicarCambio(def, payload) {
     const i = arr.findIndex(x => String(x[def.idField]) === String(obj[def.idField]));
     if (i !== -1) arr[i] = obj;
     else arr.push(obj);
+    if (def.snapshot) def.snapshot.set(obj);
   }
   // Recalc síncrono POR EVENTO (muta state; jamás se difiere — evita persistir
   // saldos viejos si el usuario guarda dentro de la ventana de coalescing).

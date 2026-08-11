@@ -84,7 +84,7 @@ export function estrategiaActivo() { return ESTRATEGIA_ON; }
 export function ingresosDataActiva() { return ingresosActivo() || estrategiaActivo(); }
 // pendientesConfirmacion va aquí pero NO en ENTIDADES_POR_FILA: tabla chica, se
 // guarda whole-table; el realtime deja ver la cola compartida en vivo.
-export const ENTIDADES_REALTIME = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos', 'pendientesConfirmacion', 'proyectos', 'cuentasPropias', 'pagosPagare', 'historial', 'presupuestoUnidad']);
+export const ENTIDADES_REALTIME = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos', 'pendientesConfirmacion', 'proyectos', 'cuentasPropias', 'pagosPagare', 'historial', 'presupuestoUnidad', 'costoAsignaciones']);
 
 // INGRESOS (Fase 1): suscribir realtime de clientes/ventas/cobros SOLO si el módulo
 // está activo (bandera maestra + vista previa). Con preview off no se agrega ninguna
@@ -1375,9 +1375,14 @@ export async function gsSaveCostoAsignaciones() {
   if (!guardarPermitido('costoAsignaciones', state.costoAsignaciones)) return;
   if (!sbReady()) return;
   try {
+    // FOTO de la lista ANTES de los await: los eventos realtime pueden mutar
+    // state.costoAsignaciones DURANTE los await; el diff y el snapshot deben
+    // trabajar sobre lo que ESTA sesión decidió persistir, no sobre un array
+    // que se mueve (evita la "fila fantasma": UI con filas que ya no existen).
+    const filas = state.costoAsignaciones.slice();
     const curIds = new Set();
     const cambios = [];   // filas nuevas o modificadas → upsert
-    for (const a of state.costoAsignaciones) {
+    for (const a of filas) {
       const id = String(a.asignacion_id);
       curIds.add(id);
       const row = _rowCostoAsignacion(a);
@@ -1385,9 +1390,17 @@ export async function gsSaveCostoAsignaciones() {
     }
     const borrar = []; // ids que estaban guardados y ya NO están en local → delete (quita de ESTA sesión)
     for (const id of _caSnapshot.keys()) { if (!curIds.has(id)) borrar.push(id); }
-    for (const row of cambios) await sbUpsertRow('costo_asignaciones', 'asignacion_id', row);
-    for (const id of borrar) await sbDeleteRow('costo_asignaciones', 'asignacion_id', id);
-    _resetCaSnapshot();   // solo si todo fue bien
+    // Snapshot INCREMENTAL tras cada operación exitosa (nada de reconstruirlo
+    // completo al final: con realtime, los eventos ajenos ya lo van actualizando
+    // por su cuenta vía caSnapshotAplicar/Quitar — reconstruirlo pisaría eso).
+    for (const row of cambios) {
+      await sbUpsertRow('costo_asignaciones', 'asignacion_id', row);
+      _caSnapshot.set(String(row.asignacion_id), JSON.stringify(row));
+    }
+    for (const id of borrar) {
+      await sbDeleteRow('costo_asignaciones', 'asignacion_id', id);
+      _caSnapshot.delete(String(id));
+    }
   } catch (e) { console.error('gsSaveCostoAsignaciones (por fila)', e); }
 }
 
@@ -1681,6 +1694,15 @@ function _rowsCostoAsignaciones() {
 let _caSnapshot = new Map();
 function _resetCaSnapshot() {
   _caSnapshot = new Map(state.costoAsignaciones.map(a => [String(a.asignacion_id), JSON.stringify(_rowCostoAsignacion(a))]));
+}
+// Hooks para REALTIME (repartos en vivo): el snapshot debe SEGUIR a los eventos.
+// Si una fila ajena entra al state sin entrar aquí, el diff del guardado la vería
+// como "nueva" y la re-upsertearía en cada guardado (amplificación sin techo).
+export function caSnapshotAplicar(a) {
+  _caSnapshot.set(String(a.asignacion_id), JSON.stringify(_rowCostoAsignacion(a)));
+}
+export function caSnapshotQuitar(id) {
+  _caSnapshot.delete(String(id));
 }
 function _rowPartidaCatalogo(p) {
   return {
