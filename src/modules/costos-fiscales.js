@@ -455,6 +455,7 @@ function renderSubTabs() {
     { id: 'presupuestos', label: '📋 Presupuestos' },
     { id: 'reportes', label: '📊 Costo por Unidad' },
     { id: 'obra', label: '🏗️ Control de Obra' },
+    { id: 'avance', label: '📉 Avance' },
     { id: 'plano', label: '🗺️ Plano' },
   ];
   // La vista fiscal es del dueño: la pestaña ni siquiera se pinta para otros roles
@@ -481,6 +482,7 @@ function renderPanel() {
   else if (cfTab === 'presupuestos') renderPresupuestosTab(panel);
   else if (cfTab === 'reportes') renderReportesTab(panel);
   else if (cfTab === 'obra') renderControlObraTab(panel);
+  else if (cfTab === 'avance') renderAvanceTab(panel);
   else if (cfTab === 'plano') renderPlanoTab(panel);
   else if (cfTab === 'fiscal') renderFiscalTab(panel);
 }
@@ -2175,6 +2177,216 @@ export function exportarControlObraExcel() {
 
   XLSX.writeFile(wb, `Control_Obra_${String(cfProyecto || 'proyecto').replace(/[\\/:*?"<>|\s]+/g, '_')}_${hoyISO}.xlsx`);
   notify('✅ Excel de Control de Obra generado');
+}
+
+// ========== TAB: 📉 AVANCE (físico vs financiero, drill global→partida→casa) ==========
+// Vista GRÁFICA para el control de obra: compara el avance FÍSICO capturado por
+// el residente contra el FINANCIERO (gastado/presupuesto) y permite taladrar.
+// Mismo motor que Control de Obra (desgloseAdminBatch, UNA pasada por render);
+// los roles obra/facturas_obra quedan filtrados a sus partidas visibles solos.
+let cfAvNivel = 'global';    // 'global' | 'partida' | 'casa'
+let cfAvPartidaKey = '';
+let cfAvCasaId = 0;
+let cfChartAvance = null;
+
+// Colores de las 2 series — VALIDADOS (dataviz: banda de luminosidad, croma,
+// separación CVD y contraste) contra la superficie de cada tema. El color sigue
+// a la serie SIEMPRE: físico = azul, financiero = dorado.
+function _avColores() {
+  const light = document.documentElement.getAttribute('data-theme') === 'light';
+  return light
+    ? { fis: '#3d78c2', fin: '#9c6f22' }
+    : { fis: '#4f8ccd', fin: '#b8862b' };
+}
+
+function _avDatos() {
+  const { porUnidad, totales, etiquetas } = desgloseAdminBatch(cfProyecto);
+  const llaves = _ordenLlavesObra(new Set(totales.keys()), etiquetas);
+  const fisPond = new Map();   // % físico ponderado por presupuesto, por llave
+  llaves.forEach(k => {
+    let sp = 0, s = 0;
+    porUnidad.forEach(m => {
+      const f = m.get(k);
+      if (f && f.presupuestado > 0) { sp += (f.avanceFisico || 0) * f.presupuestado; s += f.presupuestado; }
+    });
+    fisPond.set(k, s > 0 ? sp / s : null);
+  });
+  return { porUnidad, totales, etiquetas, llaves, fisPond };
+}
+
+function _avBrechaBadge(fin, fis) {
+  if (fin === null || fis == null) return '<span style="color:var(--muted);">—</span>';
+  const d = fin - fis;
+  if (d > UMBRAL_SOBRECOSTO_PTS) return `<span style="color:var(--red);font-weight:700;">⛔ +${d.toFixed(0)} pts</span>`;
+  if (d > 5) return `<span style="color:var(--orange);font-weight:600;">⚠️ +${d.toFixed(0)} pts</span>`;
+  return `<span style="color:var(--green);">✓ ${d >= 0 ? '+' : ''}${d.toFixed(0)} pts</span>`;
+}
+
+// Gráfica de barras agrupadas físico vs financiero (una instancia viva a la vez).
+function _avChart(labels, fisVals, finVals, onClickIdx) {
+  const canvas = document.getElementById('cf-chart-avance');
+  if (!canvas || typeof Chart === 'undefined') return;
+  if (cfChartAvance) { cfChartAvance.destroy(); cfChartAvance = null; }
+  const t = chartTheme();
+  const c = _avColores();
+  cfChartAvance = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Físico %', data: fisVals, backgroundColor: c.fis, borderRadius: 4, maxBarThickness: 16 },
+        { label: 'Financiero (gastado) %', data: finVals, backgroundColor: c.fin, borderRadius: 4, maxBarThickness: 16 }
+      ]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      onClick: onClickIdx ? (ev, els) => { if (els && els.length) onClickIdx(els[0].index); } : undefined,
+      plugins: {
+        legend: { position: 'top', labels: { color: t.ticks, boxWidth: 12, boxHeight: 12 } },
+        tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.x == null ? 'sin dato' : ctx.parsed.x.toFixed(1) + '%'}` } }
+      },
+      scales: {
+        x: { beginAtZero: true, suggestedMax: 110, ticks: { color: t.ticksSoft, callback: v => v + '%' }, grid: { color: t.grid } },
+        y: { ticks: { color: t.ticks, autoSkip: false, font: { size: 11 } }, grid: { display: false } }
+      }
+    }
+  });
+}
+
+export function cfAvNav(nivel, arg) {
+  if (nivel === 'global') { cfAvNivel = 'global'; cfAvPartidaKey = ''; cfAvCasaId = 0; }
+  else if (nivel === 'partida') { cfAvNivel = 'partida'; if (arg != null && arg !== '') cfAvPartidaKey = String(arg); cfAvCasaId = 0; }
+  else if (nivel === 'casa') { const n = parseInt(arg); if (n) { cfAvNivel = 'casa'; cfAvCasaId = n; } }
+  renderPanel();
+}
+
+function renderAvanceTab(panel) {
+  const unidades = unidadesDeProyecto();
+  if (!unidades.length) {
+    panel.innerHTML = '<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">📉</div><div>Sin unidades en ' + escapeHtml(cfProyecto) + '.</div></div>';
+    return;
+  }
+  const d = _avDatos();
+  if (!d.llaves.length) {
+    panel.innerHTML = '<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">📉</div><div>Aún no hay presupuesto ni costos en ' + escapeHtml(cfProyecto) + '. Captura el presupuesto (y el avance físico) para ver las gráficas.</div></div>';
+    return;
+  }
+  if (cfAvNivel === 'partida' && !d.totales.has(cfAvPartidaKey)) cfAvNivel = 'global';
+  if (cfAvNivel === 'casa' && !unidades.find(u => u.unidad_id === cfAvCasaId)) cfAvNivel = 'global';
+
+  // ---- breadcrumb + selector de casa ----
+  const casaSel = `<select class="filter-select" style="font-size:11px;max-width:150px;" onchange="if(this.value)cfAvNav('casa',this.value)">
+      <option value="">🏠 Ir a casa…</option>
+      ${unidades.map(u => `<option value="${u.unidad_id}"${cfAvNivel === 'casa' && u.unidad_id === cfAvCasaId ? ' selected' : ''}>${escapeHtml(u.nombre)}</option>`).join('')}
+    </select>`;
+  const miga = (txt, onclick, activo) => activo
+    ? `<span style="font-weight:700;">${txt}</span>`
+    : `<a href="#" onclick="${onclick};return false;" style="color:var(--accent);">${txt}</a>`;
+  const migas = [`${miga('🌎 Global', "cfAvNav('global')", cfAvNivel === 'global')}`];
+  if (cfAvNivel !== 'global' && cfAvPartidaKey) migas.push(miga('🧱 ' + escapeHtml(_lblLlave(d.etiquetas, cfAvPartidaKey)), "cfAvNav('partida')", cfAvNivel === 'partida'));
+  if (cfAvNivel === 'casa') { const u = unidades.find(x => x.unidad_id === cfAvCasaId); migas.push(miga('🏠 ' + escapeHtml(u ? u.nombre : ''), '', true)); }
+  const header = `
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+      <div style="font-size:13px;display:flex;gap:8px;align-items:center;">${migas.join(' <span style="color:var(--muted);">›</span> ')}</div>
+      ${casaSel}
+    </div>`;
+
+  const fmtPct = v => v === null || v == null ? '—' : v.toFixed(1) + '%';
+  const cards = (fis, fin, presu, real) => {
+    const brecha = (fin !== null && fis != null) ? fin - fis : null;
+    return `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
+      <div class="stat-card"><div class="stat-label">🏗️ Avance FÍSICO</div><div class="stat-value" style="color:${_avColores().fis};">${fmtPct(fis)}</div><div class="stat-sub">lo construido (capturado en obra)</div></div>
+      <div class="stat-card"><div class="stat-label">💰 Avance FINANCIERO</div><div class="stat-value" style="color:${_avColores().fin};">${fmtPct(fin)}</div><div class="stat-sub">gastado ${fmt(real)} de ${fmt(presu)}</div></div>
+      <div class="stat-card" title="Financiero − físico: positivo = va gastado por ENCIMA de lo construido"><div class="stat-label">Brecha</div><div class="stat-value" style="font-size:20px;">${brecha === null ? '—' : _avBrechaBadge(fin, fis)}</div><div class="stat-sub">${brecha === null ? 'captura el avance físico para compararla' : brecha > 5 ? 'va gastado por encima de lo construido' : 'gasto y obra van de la mano'}</div></div>
+      <div class="stat-card"><div class="stat-label">Por ejercer</div><div class="stat-value">${fmt(Math.max(0, presu - real))}</div><div class="stat-sub">presupuesto restante</div></div>
+    </div>`;
+  };
+  const atencion = filas => filas.length ? `
+    <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;margin:18px 0 8px;">⚠ Requieren atención (gasto adelantado a la obra)</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>${cfAvNivel === 'global' ? 'Partida' : 'Casa'}</th><th style="text-align:right">Físico</th><th style="text-align:right">Financiero</th><th style="text-align:right">Brecha</th><th></th></tr></thead>
+      <tbody>${filas.map(f => `<tr>
+        <td style="font-size:12px;">${escapeHtml(f.nombre)}</td>
+        <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;">${fmtPct(f.fis)}</td>
+        <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;">${fmtPct(f.fin)}</td>
+        <td style="text-align:right;">${_avBrechaBadge(f.fin, f.fis)}</td>
+        <td style="text-align:right;"><button class="btn btn-ghost btn-sm" onclick="${f.onclick}">Ver</button></td>
+      </tr>`).join('')}</tbody>
+    </table></div>` : `<div style="font-size:12px;color:var(--green);margin-top:14px;">✓ Nada fuera de orden: en ningún ${cfAvNivel === 'global' ? 'rubro' : 'punto'} el gasto va adelantado a la obra más de 5 pts.</div>`;
+
+  // =============== NIVEL GLOBAL ===============
+  if (cfAvNivel === 'global') {
+    let totPres = 0, totReal = 0, sp = 0, s = 0;
+    d.totales.forEach(t => { totPres += t.presupuestado; totReal += t.real; });
+    d.llaves.forEach(k => { const t = d.totales.get(k); const fp = d.fisPond.get(k); if (t && t.presupuestado > 0 && fp !== null) { sp += fp * t.presupuestado; s += t.presupuestado; } });
+    const fisG = s > 0 ? sp / s : null;
+    const finG = avancePct(totReal, totPres);
+    const labels = d.llaves.map(k => _lblLlave(d.etiquetas, k));
+    const fisVals = d.llaves.map(k => d.fisPond.get(k));
+    const finVals = d.llaves.map(k => { const t = d.totales.get(k); return avancePct(t.real, t.presupuestado); });
+    const flagged = d.llaves.map(k => {
+      const t = d.totales.get(k); const fin = avancePct(t.real, t.presupuestado); const fis = d.fisPond.get(k);
+      return { k, nombre: _lblLlave(d.etiquetas, k), fin, fis, brecha: (fin !== null && fis !== null) ? fin - fis : -1, onclick: `cfAvNav('partida','${escapeHtml(k)}')` };
+    }).filter(f => f.brecha > 5).sort((a, b) => b.brecha - a.brecha).slice(0, 10);
+
+    panel.innerHTML = header + cards(fisG, finG, totPres, totReal) + `
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">Clic en una barra (o en "Ver") para abrir esa partida.</div>
+      <div style="position:relative;height:${Math.max(240, labels.length * 34 + 70)}px;"><canvas id="cf-chart-avance"></canvas></div>
+      ${atencion(flagged)}`;
+    _avChart(labels, fisVals, finVals, idx => cfAvNav('partida', d.llaves[idx]));
+    return;
+  }
+
+  // =============== NIVEL PARTIDA ===============
+  if (cfAvNivel === 'partida') {
+    const k = cfAvPartidaKey;
+    const t = d.totales.get(k) || { presupuestado: 0, real: 0 };
+    const casas = unidades.map(u => {
+      const f = (d.porUnidad.get(String(u.unidad_id)) || new Map()).get(k);
+      if (!f) return null;
+      return { u, fis: f.presupuestado > 0 ? (f.avanceFisico || 0) : null, fin: avancePct(f.real, f.presupuestado), presu: f.presupuestado, real: f.real };
+    }).filter(Boolean);
+    const labels = casas.map(c => c.u.nombre);
+    const flagged = casas.map(c => ({ nombre: c.u.nombre, fin: c.fin, fis: c.fis, brecha: (c.fin !== null && c.fis !== null) ? c.fin - c.fis : -1, onclick: `cfAvNav('casa',${c.u.unidad_id})` }))
+      .filter(f => f.brecha > 5).sort((a, b) => b.brecha - a.brecha).slice(0, 10);
+
+    panel.innerHTML = header + cards(d.fisPond.get(k), avancePct(t.real, t.presupuestado), t.presupuestado, t.real) + `
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">Cómo va <b>${escapeHtml(_lblLlave(d.etiquetas, k))}</b> en cada casa — clic en una barra para abrir la casa.</div>
+      <div style="position:relative;height:${Math.max(240, labels.length * 34 + 70)}px;"><canvas id="cf-chart-avance"></canvas></div>
+      ${atencion(flagged)}`;
+    _avChart(labels, casas.map(c => c.fis), casas.map(c => c.fin), idx => cfAvNav('casa', casas[idx].u.unidad_id));
+    return;
+  }
+
+  // =============== NIVEL CASA ===============
+  const u = unidades.find(x => x.unidad_id === cfAvCasaId);
+  const m = d.porUnidad.get(String(cfAvCasaId)) || new Map();
+  const llavesCasa = d.llaves.filter(k => m.has(k));
+  let cPres = 0, cReal = 0, cSp = 0, cS = 0;
+  llavesCasa.forEach(k => { const f = m.get(k); cPres += f.presupuestado; cReal += f.real; if (f.presupuestado > 0) { cSp += (f.avanceFisico || 0) * f.presupuestado; cS += f.presupuestado; } });
+  const labels = llavesCasa.map(k => _lblLlave(d.etiquetas, k));
+  panel.innerHTML = header + cards(cS > 0 ? cSp / cS : null, avancePct(cReal, cPres), cPres, cReal) + `
+    <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:16px;align-items:start;">
+      <div style="position:relative;height:${Math.max(240, labels.length * 34 + 70)}px;"><canvas id="cf-chart-avance"></canvas></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Partida</th><th style="text-align:right">Presup.</th><th style="text-align:right">Gastado</th><th style="text-align:right">Fin.</th><th style="text-align:right">Fís.</th><th></th></tr></thead>
+        <tbody>${llavesCasa.map(k => {
+          const f = m.get(k);
+          const fin = avancePct(f.real, f.presupuestado);
+          const fis = f.presupuestado > 0 ? (f.avanceFisico || 0) : null;
+          return `<tr>
+            <td style="font-size:11px;">${escapeHtml(_lblLlave(d.etiquetas, k))}</td>
+            <td style="text-align:right;font-family:'DM Mono',monospace;font-size:11px;">${fmt(f.presupuestado)}</td>
+            <td style="text-align:right;font-family:'DM Mono',monospace;font-size:11px;">${fmt(f.real)}</td>
+            <td style="text-align:right;font-family:'DM Mono',monospace;font-size:11px;">${fmtPct(fin)}</td>
+            <td style="text-align:right;font-family:'DM Mono',monospace;font-size:11px;">${fis === null ? '—' : fis.toFixed(0) + '%'}</td>
+            <td>${_avBrechaBadge(fin, fis)}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div>
+    </div>`;
+  _avChart(labels, llavesCasa.map(k => { const f = m.get(k); return f.presupuestado > 0 ? (f.avanceFisico || 0) : null; }), llavesCasa.map(k => { const f = m.get(k); return avancePct(f.real, f.presupuestado); }), null);
 }
 
 // ========== TAB: 🧾 FISCAL (solo admin) ==========
