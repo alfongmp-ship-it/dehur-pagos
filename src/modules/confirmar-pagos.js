@@ -264,20 +264,25 @@ export function renderConfirmarPagos() {
     '<div style="font-size:11px;color:var(--muted);margin-bottom:4px;">NO CONFIRMADOS</div>' +
     '<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:700;color:var(--red);">' + fmt(total - selTotal) + ' (' + (state.pendientesConfirmacion.length - selCount) + ')</div></div></div>';
 
-  el.innerHTML = state.pendientesConfirmacion.map((d, i) =>
+  // Los handlers van por ID, no por índice: la cola es COMPARTIDA por realtime y
+  // el array puede moverse entre el pintado y el clic — con índice, el clic caería
+  // en el pago EQUIVOCADO (borrar/confirmar otro). Con id es a prueba de carreras.
+  el.innerHTML = state.pendientesConfirmacion.map(d =>
     '<div style="display:grid;grid-template-columns:32px 1fr 1fr auto 100px 40px;gap:10px;align-items:center;padding:11px 16px;border-bottom:1px solid var(--border);">' +
-    '<input type="checkbox" ' + (d.confirmado ? 'checked' : '') + ' onchange="toggleConfPago(' + i + ',this.checked)" style="width:16px;height:16px;cursor:pointer;">' +
+    '<input type="checkbox" ' + (d.confirmado ? 'checked' : '') + ' onchange="toggleConfPago(\'' + String(d.id) + '\',this.checked)" style="width:16px;height:16px;cursor:pointer;">' +
     '<div><div style="font-size:12px;font-weight:500;">' + escapeHtml(d.nombre) + '</div><div style="font-size:10px;color:var(--muted);">' + escapeHtml(d.banco || '') + ' · ' + escapeHtml(d.tipo || '') + '</div></div>' +
     '<div style="font-size:11px;color:var(--muted);">' + escapeHtml(d.concepto) + '</div>' +
     '<div>' + proyTag(d.proyecto) + '</div>' +
     '<div style="font-family:\'DM Mono\',monospace;font-size:12px;font-weight:600;text-align:right;">' + fmt(d.importe) + '</div>' +
-    '<button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;color:var(--red);" onclick="eliminarPendiente(' + i + ')">✕</button>' +
+    '<button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;color:var(--red);" onclick="eliminarPendiente(\'' + String(d.id) + '\')">✕</button>' +
     '</div>'
   ).join('');
 }
 
-export function toggleConfPago(idx, checked) {
-  state.pendientesConfirmacion[idx].confirmado = checked;
+export function toggleConfPago(id, checked) {
+  const d = state.pendientesConfirmacion.find(x => String(x.id) === String(id));
+  if (!d) { renderConfirmarPagos(); return; }   // ya no existe (otro admin lo movió): repintar
+  d.confirmado = checked;
   renderConfirmarPagos();
 }
 
@@ -286,9 +291,14 @@ export function toggleAllConf(v) {
   renderConfirmarPagos();
 }
 
-export function eliminarPendiente(idx) {
+export function eliminarPendiente(id) {
+  const idx = state.pendientesConfirmacion.findIndex(x => String(x.id) === String(id));
+  if (idx < 0) { renderConfirmarPagos(); return; }   // ya lo borró/confirmó otro admin
   if (!confirm('¿Eliminar este pago pendiente?')) return;
-  state.pendientesConfirmacion.splice(idx, 1);
+  // Revalidar tras el confirm (pudo llegar un evento realtime mientras el diálogo estaba abierto).
+  const idx2 = state.pendientesConfirmacion.findIndex(x => String(x.id) === String(id));
+  if (idx2 < 0) { renderConfirmarPagos(); return; }
+  state.pendientesConfirmacion.splice(idx2, 1);
   gsSavePendientes();
   renderConfirmarPagos();
   notify('Pago pendiente eliminado');
