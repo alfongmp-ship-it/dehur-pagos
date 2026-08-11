@@ -829,11 +829,23 @@ export async function sbLoadAll() {
 
   async function cargar(tabla, entidad, fn) {
     const rows = await sbLoadTable(tabla, ORDER[tabla]);
-    state.cargado[entidad] = (rows !== null);
-    if (rows && rows.length) fn(rows);
+    try {
+      state.cargado[entidad] = (rows !== null);
+      if (rows && rows.length) fn(rows);
+    } catch (e) {
+      // Un error de mapeo NO debe tumbar el resto de la carga: se marca la
+      // entidad como no-cargada (guardarPermitido bloquea SOLO su guardado).
+      console.error('sbLoadAll: fallo mapeando ' + tabla, e);
+      state.cargado[entidad] = false;
+    }
   }
+  // Rendimiento: las tablas son INDEPENDIENTES entre sí (ningún map lee otro
+  // state.*), así que se cargan EN PARALELO; la única barrera es finalizarCarga.
+  const _cargas = [];
+  const P = (tabla, entidad, fn) => _cargas.push(cargar(tabla, entidad, fn));
+  const _t0 = (typeof performance !== 'undefined') ? performance.now() : 0;
 
-  await cargar('proveedores', 'proveedores', rows => {
+  P('proveedores', 'proveedores', rows => {
     state.proveedores = rows.map(r => ({
       id: toInt(r.id), nombre: r.nombre || '', rfc: r.rfc || '', banco: normalizeBanco(r.banco || ''),
       tipo_cuenta: r.tipo_cuenta || '', cuenta: r.cuenta || '', clabe: r.clabe || '',
@@ -843,7 +855,7 @@ export async function sbLoadAll() {
     }));
   });
 
-  await cargar('historial', 'historial', rows => {
+  P('historial', 'historial', rows => {
     state.historial = rows.map(r => ({
       proveedor_id: r.proveedor_id || '', factura_id: r.factura_id || '', fecha: r.fecha || '',
       nombre: r.nombre || '', banco: normalizeBanco(r.banco || ''), tipo: r.tipo || '',
@@ -853,7 +865,7 @@ export async function sbLoadAll() {
     }));
   });
 
-  await cargar('proyectos', 'proyectos', rows => {
+  P('proyectos', 'proyectos', rows => {
     state.proyectos = rows.map(r => ({
       id: r.id || '', nombre: r.nombre || '', empresa: r.empresa || '', cuenta: r.cuenta || '',
       clabe: r.clabe || '', color: r.color || '#C8A96E', activo: r.activo !== false,
@@ -861,7 +873,7 @@ export async function sbLoadAll() {
     }));
   });
 
-  await cargar('empleados', 'empleados', rows => {
+  P('empleados', 'empleados', rows => {
     state.empleados = rows.map(r => ({
       id: toInt(r.id), nombre: r.nombre || '', puesto: r.puesto || '', empresa: r.empresa || '',
       banco: r.banco || 'BBVA', tipo_cuenta: r.tipo_cuenta || '', cuenta: r.cuenta || '',
@@ -869,7 +881,7 @@ export async function sbLoadAll() {
     }));
   });
 
-  await cargar('cuentas_propias', 'cuentasPropias', rows => {
+  P('cuentas_propias', 'cuentasPropias', rows => {
     state.cuentasPropias = rows.map(r => ({
       cuenta_id: toInt(r.cuenta_id), nombre: r.nombre || '', banco: r.banco || '', clabe: r.clabe || '',
       numero_cuenta: r.numero_cuenta || '', proyecto: r.proyecto || '', tipo: r.tipo || 'General',
@@ -877,7 +889,7 @@ export async function sbLoadAll() {
     }));
   });
 
-  await cargar('facturas', 'facturas', rows => {
+  P('facturas', 'facturas', rows => {
     state.facturas = rows.map(r => ({
       factura_id: toInt(r.factura_id), numero_factura: r.numero_factura || '', razon_social: r.razon_social || '',
       proveedor_id: toInt(r.proveedor_id), nombre_proveedor: r.nombre_proveedor || '',
@@ -894,7 +906,7 @@ export async function sbLoadAll() {
     }));
   });
 
-  await cargar('factura_pagos', 'facturaPagos', rows => {
+  P('factura_pagos', 'facturaPagos', rows => {
     state.facturaPagos = rows.map(r => ({
       factura_pago_id: r.factura_pago_id != null ? String(r.factura_pago_id) : '', factura_id: toInt(r.factura_id), pago_id: toInt(r.pago_id),
       proveedor_id: toInt(r.proveedor_id), monto_aplicado: toNum(r.monto_aplicado),
@@ -902,7 +914,7 @@ export async function sbLoadAll() {
     }));
   });
 
-  await cargar('traspasos', 'traspasos', rows => {
+  P('traspasos', 'traspasos', rows => {
     state.traspasos = rows.map(r => ({
       traspaso_id: toInt(r.traspaso_id), tipo: r.tipo || '', cuenta_origen_id: r.cuenta_origen_id || '',
       cuenta_origen_tipo: r.cuenta_origen_tipo || 'proyecto', cuenta_origen_nombre: r.cuenta_origen_nombre || '',
@@ -914,14 +926,14 @@ export async function sbLoadAll() {
     }));
   });
 
-  await cargar('movimientos_internos', 'movimientosInternos', rows => {
+  P('movimientos_internos', 'movimientosInternos', rows => {
     state.movimientosInternos = rows.map(r => ({
       id: toInt(r.id), fecha: r.fecha || '', tipo: r.tipo || '', origen: r.origen || '',
       destino: r.destino || '', monto: toNum(r.monto), concepto: r.concepto || '', referencia: r.referencia || ''
     }));
   });
 
-  await cargar('creditos', 'creditos', rows => {
+  P('creditos', 'creditos', rows => {
     state.creditos = rows.map(r => ({
       credito_id: toInt(r.credito_id), nombre: r.nombre || '', banco: r.banco || '',
       tipo_credito: r.tipo_credito || 'Puente', monto_autorizado: toNum(r.monto_autorizado),
@@ -930,7 +942,7 @@ export async function sbLoadAll() {
     }));
   });
 
-  await cargar('pagares', 'pagares', rows => {
+  P('pagares', 'pagares', rows => {
     state.pagares = rows.map(r => ({
       pagare_id: toInt(r.pagare_id), credito_id: toInt(r.credito_id), numero_pagare: r.numero_pagare || '',
       monto: toNum(r.monto), fecha_disposicion: r.fecha_disposicion || '', fecha_vencimiento: r.fecha_vencimiento || '',
@@ -938,7 +950,7 @@ export async function sbLoadAll() {
     }));
   });
 
-  await cargar('pagos_pagare', 'pagosPagare', rows => {
+  P('pagos_pagare', 'pagosPagare', rows => {
     state.pagosPagare = rows.map(r => ({
       pago_id: toInt(r.pago_id), pagare_id: toInt(r.pagare_id), credito_id: toInt(r.credito_id),
       fecha_pago: r.fecha_pago || '', monto_intereses: toNum(r.monto_intereses), concepto: r.concepto || '',
@@ -946,7 +958,7 @@ export async function sbLoadAll() {
     }));
   });
 
-  await cargar('unidades', 'unidades', rows => {
+  P('unidades', 'unidades', rows => {
     state.unidades = rows.map(r => ({
       unidad_id: toInt(r.unidad_id), proyecto: r.proyecto || '', nombre: r.nombre || '', tipo: r.tipo || '',
       indiviso_pct: toNum(r.indiviso_pct), superficie_m2: toNum(r.superficie_m2), estatus: r.estatus || 'En obra',
@@ -956,7 +968,7 @@ export async function sbLoadAll() {
     }));
   });
 
-  await cargar('presupuesto_unidad', 'presupuestoUnidad', rows => {
+  P('presupuesto_unidad', 'presupuestoUnidad', rows => {
     state.presupuestoUnidad = rows.map(r => ({
       presupuesto_id: r.presupuesto_id != null ? String(r.presupuesto_id) : '', unidad_id: toInt(r.unidad_id), partida: r.partida || '',
       sub_partida: r.sub_partida || '', monto_presupuestado: toNum(r.monto_presupuestado),
@@ -965,7 +977,7 @@ export async function sbLoadAll() {
     }));
   });
 
-  await cargar('costo_asignaciones', 'costoAsignaciones', rows => {
+  P('costo_asignaciones', 'costoAsignaciones', rows => {
     state.costoAsignaciones = rows.map(r => ({
       asignacion_id: r.asignacion_id != null ? String(r.asignacion_id) : '', pago_id: r.pago_id || '', unidad_id: toInt(r.unidad_id),
       proyecto: r.proyecto || '', metodo: r.metodo || 'directo', monto_asignado: toNum(r.monto_asignado),
@@ -975,7 +987,7 @@ export async function sbLoadAll() {
     }));
   });
 
-  await cargar('partidas_catalogo', 'partidasCatalogo', rows => {
+  P('partidas_catalogo', 'partidasCatalogo', rows => {
     state.partidasCatalogo = rows.map(r => ({
       id: r.partida_id || '', partida: r.partida || '',
       subpartidas: Array.isArray(r.subpartidas) ? r.subpartidas : [],
@@ -984,7 +996,7 @@ export async function sbLoadAll() {
     }));
   });
 
-  await cargar('partidas_obra', 'partidasObra', rows => {
+  P('partidas_obra', 'partidasObra', rows => {
     state.partidasObra = rows.map(r => ({
       id: r.partida_obra_id || '', nombre: r.nombre || '', proyecto: r.proyecto || '',
       partidaAdmin: r.partida_admin || '', subPartidaAdmin: r.sub_partida_admin || '',
@@ -992,7 +1004,7 @@ export async function sbLoadAll() {
     }));
   });
 
-  await cargar('pendientes_confirmacion', 'pendientesConfirmacion', rows => {
+  P('pendientes_confirmacion', 'pendientesConfirmacion', rows => {
     state.pendientesConfirmacion = rows.map(r => {
       const ap = r.asignaciones_planificadas || {};
       return {
@@ -1011,7 +1023,7 @@ export async function sbLoadAll() {
   // Gated: solo carga si el módulo está activo (bandera maestra + vista previa),
   // así los usuarios reales no pagan este costo mientras se construye. IDs = text
   // (UUID) → String(). NO toca nada de Pagos.
-  if (ingresosDataActiva()) {
+  if (ingresosDataActiva()) _cargas.push((async () => {
     await cargar('clientes', 'clientes', rows => {
       state.clientes = rows.map(r => ({
         cliente_id: r.cliente_id != null ? String(r.cliente_id) : '',
@@ -1056,11 +1068,11 @@ export async function sbLoadAll() {
       v.monto_cobrado = cobrado;
       v.saldo_cliente = Math.max(0, (v.precio_venta || 0) - cobrado);
     }
-  }
+  })());
 
   // ===== ESTRATEGIA (Fase 2) =====
   // Gated: solo con el módulo activo. valor es jsonb (llega ya como JS nativo).
-  if (estrategiaActivo()) {
+  if (estrategiaActivo()) _cargas.push((async () => {
     await cargar('estrategia_config', 'estrategiaConfig', rows => {
       state.estrategiaConfig = rows.map(r => ({
         clave: r.clave != null ? String(r.clave) : '',
@@ -1076,12 +1088,12 @@ export async function sbLoadAll() {
         fecha_compromiso: r.fecha_compromiso || '', nota: r.nota || '', activo: r.activo !== false
       }));
     });
-  }
+  })());
 
   // FISCAL (pestaña 🧾, solo-admin): marcas de deducibilidad. Vive SOLO en Supabase.
   // RLS regresa vacío a los no-admin; si la tabla no existe aún (SQL 36 sin correr),
   // sbLoadTable devuelve null y cargado queda en false → la pestaña avisa.
-  await cargar('fiscal_marcas', 'fiscalMarcas', rows => {
+  P('fiscal_marcas', 'fiscalMarcas', rows => {
     state.fiscalMarcas = rows.map(r => ({
       marca_id: r.marca_id != null ? String(r.marca_id) : '',
       doc_tipo: r.doc_tipo || 'pago',
@@ -1092,6 +1104,9 @@ export async function sbLoadAll() {
       created_at: r.created_at || ''
     }));
   });
+
+  await Promise.allSettled(_cargas);
+  if (_t0) console.log('✓ sbLoadAll (paralelo) en ' + Math.round(performance.now() - _t0) + ' ms');
 
   await finalizarCarga();
 }

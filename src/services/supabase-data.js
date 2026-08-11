@@ -77,18 +77,51 @@ export async function sbDeleteRow(tabla, idCol, idValue) {
 // PAGINA de 1000 en 1000: PostgREST limita cada consulta a 1000 filas, así que
 // sin paginar el historial (1045+) cargaría incompleto. Ordena por `orderCol`
 // (id único de la tabla) para que la paginación NO duplique ni salte filas.
+// Tablas grandes: sus páginas se piden EN PARALELO (con red de seguridad).
+const TABLAS_GRANDES = { historial: 'id', costo_asignaciones: 'asignacion_id', presupuesto_unidad: 'presupuesto_id' };
+
 export async function sbLoadTable(tabla, orderCol) {
   const tid = tenantId();
   if (!tid) return null;
   try {
     const client = getSupabaseClient();
     const PAGE = 1000;
-    let all = [];
-    let from = 0;
-    while (true) {
+    const consulta = () => {
       let q = client.from(tabla).select('*').eq('tenant_id', tid);
       if (orderCol) q = q.order(orderCol, { ascending: true });
-      const { data, error } = await q.range(from, from + PAGE - 1);
+      return q;
+    };
+
+    // ---- Camino PARALELO (solo tablas grandes): count → N rangos a la vez ----
+    // Red de seguridad doble contra inserts DURANTE la carga: (a) si la última
+    // página vino llena, se sigue paginando en serie (el count se quedó corto);
+    // (b) dedup por id al concatenar (ids string/UUID no son monótonos: un
+    // insert concurrente puede duplicar/desplazar filas entre rangos fijos).
+    const idCol = TABLAS_GRANDES[tabla];
+    let all = [];
+    let from = 0;
+    if (idCol) {
+      const { count, error: errC } = await client.from(tabla)
+        .select('*', { count: 'exact', head: true }).eq('tenant_id', tid);
+      if (!errC && count != null && count > PAGE) {
+        const nPag = Math.ceil(count / PAGE);
+        const res = await Promise.all(
+          Array.from({ length: nPag }, (_, i) => consulta().range(i * PAGE, (i + 1) * PAGE - 1))
+        );
+        const conError = res.find(r => r.error);
+        if (conError) { console.warn(`sbLoadTable(${tabla}) error (paralelo):`, conError.error); return null; }
+        all = res.flatMap(r => r.data || []);
+        from = nPag * PAGE;
+        if (((res[res.length - 1] || {}).data || []).length < PAGE) {
+          // La última página no vino llena: no hay cola pendiente.
+          return _dedupPorId(all, idCol);
+        }
+        // cae al while de abajo para la cola (serie)
+      }
+    }
+
+    while (true) {
+      const { data, error } = await consulta().range(from, from + PAGE - 1);
       if (error) {
         console.warn(`sbLoadTable(${tabla}) error:`, error);
         return null;
@@ -98,11 +131,17 @@ export async function sbLoadTable(tabla, orderCol) {
       if (data.length < PAGE) break; // última página
       from += PAGE;
     }
-    return all;
+    return idCol ? _dedupPorId(all, idCol) : all;
   } catch (e) {
     console.warn(`sbLoadTable(${tabla}) excepción:`, e);
     return null;
   }
+}
+
+function _dedupPorId(rows, idCol) {
+  const vistos = new Map();
+  rows.forEach(r => { const k = String(r[idCol]); if (!vistos.has(k)) vistos.set(k, r); });
+  return vistos.size === rows.length ? rows : [...vistos.values()];
 }
 
 // ¿Hay sesión Supabase con tenant? Útil para decidir si intentar el espejo.
