@@ -10,7 +10,7 @@ import { renderHeaderBadges, renderCuentaDispSelect, actualizarDisplaySaldo } fr
 import { refreshProyectosEnSelects } from './ui/nav.js';
 import { renderProveedores, abrirNuevoProveedor, editarProv, validarCuentaProv, guardarProveedor, exportarCSV, toggleSubcat, toggleSinCuenta } from './modules/proveedores.js';
 import { renderNomina, abrirNuevoEmpleado, editarEmp, updateTipoEmp, validarCuentaEmp, guardarEmpleado, exportarNomina } from './modules/nomina.js';
-import { renderHistorial, exportarHistorial, eliminarHistorial, eliminarHistorialBulk, toggleHistSel, toggleHistSelAll, editarPartidaPago, abrirCambiarPartidaBulk, aplicarCambiarPartida, actualizarSubpartidaCambiar, cpFiltrarProv, cpSelProv } from './modules/historial.js';
+import { renderHistorial, exportarHistorial, eliminarHistorial, eliminarHistorialBulk, toggleHistSel, toggleHistSelAll, editarPartidaPago, abrirCambiarPartidaBulk, aplicarCambiarPartida, actualizarSubpartidaCambiar, cpFiltrarProv, cpSelProv, histVerTodo, histMostrarMas } from './modules/historial.js';
 import { abrirImportHistorial, descargarPlantillaHistorial } from './modules/historial-import.js';
 import { abrirImportProveedores } from './modules/proveedores-import.js';
 import { abrirImportEmpleados } from './modules/empleados-import.js';
@@ -178,6 +178,8 @@ window.gsSaveTraspasos = gsSaveTraspasos;
 window.renderHistorial = renderHistorial;
 window.exportarHistorial = exportarHistorial;
 window.eliminarHistorial = eliminarHistorial;
+window.histVerTodo = histVerTodo;
+window.histMostrarMas = histMostrarMas;
 window.eliminarHistorialBulk = eliminarHistorialBulk;
 window.toggleHistSel = toggleHistSel;
 window.toggleHistSelAll = toggleHistSelAll;

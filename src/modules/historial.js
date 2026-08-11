@@ -9,6 +9,13 @@ import { getPartidasParaSelect, getSubPartidas, subPartidaObligatoria } from '..
 // Selección para borrado en bloque del historial (por id estable del pago).
 const histSel = new Set();
 
+// Rendimiento: filtro de fecha por DEFECTO (últimos 3 meses, visible en el input
+// #fh-desde — no lógica oculta: export/total/selección siempre coinciden con lo
+// que se ve) y tope de PINTADO (los datos y el total usan el filtrado completo).
+let _fhDefaultAplicado = false;
+let _fhValorDefault = '';
+let _histLimite = 400;
+
 export function renderHistorial() {
   const el = document.getElementById('historial-lista');
   if (!el) return;
@@ -23,6 +30,17 @@ export function renderHistorial() {
   refreshHistProyectos();
   refreshHistPartidas();
   refreshHistSubPartidas();
+  // Primera pintada con MUCHOS registros: precargar "últimos 3 meses" en el
+  // input de fecha (el usuario lo ve y lo puede quitar con "Ver todo").
+  if (!_fhDefaultAplicado && state.historial.length > 800) {
+    _fhDefaultAplicado = true;
+    const fdInp = document.getElementById('fh-desde');
+    if (fdInp && !fdInp.value) {
+      const d = new Date(); d.setMonth(d.getMonth() - 3);
+      _fhValorDefault = d.toISOString().slice(0, 10);
+      fdInp.value = _fhValorDefault;
+    }
+  }
   if (!state.historial.length) {
     el.innerHTML = `<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">📋</div><div>Sin registros aún</div></div>`;
     document.getElementById('hist-subtitulo').textContent = '';
@@ -39,8 +57,12 @@ export function renderHistorial() {
   }
 
   const sub = document.getElementById('hist-subtitulo');
+  const _fdAct = document.getElementById('fh-desde')?.value || '';
+  const _esDefault = _fdAct && _fdAct === _fhValorDefault;
   if (fil.length !== state.historial.length) {
-    sub.textContent = `${fil.length} de ${state.historial.length} registros`;
+    sub.innerHTML = `${fil.length} de ${state.historial.length} registros`
+      + (_esDefault ? ' <span style="color:var(--muted);">(últimos 3 meses)</span>' : '')
+      + ` <a href="#" onclick="histVerTodo();return false;" style="color:var(--accent);">Ver todo</a>`;
   } else {
     sub.textContent = `${state.historial.length} registros`;
   }
@@ -51,18 +73,25 @@ export function renderHistorial() {
   }
 
   const TRUNC = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;';
-  el.innerHTML = fil.map(h => {
+  // Índice id→proveedor UNA sola vez (antes: .find() POR FILA = O(filas×proveedores)).
+  const provPorId = new Map(state.proveedores.map(p => [p.id, p]));
+  // Tope de PINTADO: solo se pintan las primeras N filas; el total, el export y
+  // la selección siguen usando `fil` completo (los datos jamás se recortan).
+  const filPintar = fil.length > _histLimite ? fil.slice(0, _histLimite) : fil;
+  el.innerHTML = filPintar.map(h => {
     const badgeColors = { 'Crédito': 'rgba(142,68,173,.15);color:#8e44ad', 'Pago': 'rgba(200,169,110,.15);color:var(--accent)', 'Préstamo': 'rgba(200,169,110,.15);color:var(--accent)', 'Aportación': 'rgba(39,174,96,.15);color:#27ae60', 'Traspaso': 'rgba(52,152,219,.15);color:#3498db' };
     const tipoLabel = h.tipo_registro === 'Crédito' ? 'Crédito' : h.tipo_registro !== 'Traspaso' ? 'Pago' : (h.tipo || 'Traspaso');
     const trBadge = `<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:600;background:${badgeColors[tipoLabel] || badgeColors['Pago']};">${tipoLabel}</span>`;
-    const prov = (h.proveedor_id && h.tipo_registro !== 'Traspaso' && h.tipo_registro !== 'Crédito') ? state.proveedores.find(p => p.id === parseInt(h.proveedor_id)) : null;
+    const prov = (h.proveedor_id && h.tipo_registro !== 'Traspaso' && h.tipo_registro !== 'Crédito') ? provPorId.get(parseInt(h.proveedor_id)) : null;
     const tipoProv = prov?.categoria || '—';
     const subcat = (prov?.categoria === 'Proveedor' && prov?.subcategoria) ? prov.subcategoria : '—';
     const partidaVal = h.partida || '—';
     const subPartidaVal = h.sub_partida || '—';
     const conceptoVal = h.concepto || '';
-    return `<div class="hist-row"><div style="text-align:center;"><input type="checkbox" class="req-admin" ${histSel.has(String(h.id)) ? 'checked' : ''} onclick="toggleHistSel('${String(h.id).replace(/'/g, "\\'")}', event)" style="cursor:pointer;" title="Seleccionar"></div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.proveedor_id || '—'}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.factura_id || '—'}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${fmtFecha(h.fecha)}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${escapeHtml(h.cuenta_origen || '')}">${escapeHtml(h.cuenta_origen || '—')}</div><div style="${TRUNC}"><div style="font-weight:500;font-size:12px;${TRUNC}" title="${escapeHtml(h.nombre)}">${escapeHtml(h.nombre)}</div><div style="font-size:11px;color:var(--muted);${TRUNC}">${escapeHtml(h.banco)} · ${escapeHtml(h.tipo)}</div></div><div>${trBadge}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${escapeHtml(tipoProv)}">${escapeHtml(tipoProv)}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${escapeHtml(subcat)}">${escapeHtml(subcat)}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${escapeHtml(partidaVal)}">${escapeHtml(partidaVal)}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${escapeHtml(subPartidaVal)}">${escapeHtml(subPartidaVal)}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${escapeHtml(conceptoVal)}">${escapeHtml(conceptoVal || '—')}</div><div style="font-family:'DM Mono',monospace;font-weight:500;color:var(--accent);text-align:right;">${fmt(h.importe)}</div><div>${proyTag(h.proyecto)}</div><div style="text-align:right;display:flex;gap:2px;justify-content:flex-end;"><button class="btn btn-ghost btn-sm" onclick="editarPartidaPago(${state.historial.indexOf(h)})" style="font-size:11px;padding:2px 5px;" title="Editar partida / sub-partida">✏️</button><button class="btn btn-ghost btn-sm" onclick="eliminarHistorial(${state.historial.indexOf(h)})" style="color:#e74c3c;font-size:11px;padding:2px 5px;" title="Eliminar">✕</button></div></div>`;
-  }).join('');
+    return `<div class="hist-row"><div style="text-align:center;"><input type="checkbox" class="req-admin" ${histSel.has(String(h.id)) ? 'checked' : ''} onclick="toggleHistSel('${String(h.id).replace(/'/g, "\\'")}', event)" style="cursor:pointer;" title="Seleccionar"></div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.proveedor_id || '—'}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${h.factura_id || '—'}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${fmtFecha(h.fecha)}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${escapeHtml(h.cuenta_origen || '')}">${escapeHtml(h.cuenta_origen || '—')}</div><div style="${TRUNC}"><div style="font-weight:500;font-size:12px;${TRUNC}" title="${escapeHtml(h.nombre)}">${escapeHtml(h.nombre)}</div><div style="font-size:11px;color:var(--muted);${TRUNC}">${escapeHtml(h.banco)} · ${escapeHtml(h.tipo)}</div></div><div>${trBadge}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${escapeHtml(tipoProv)}">${escapeHtml(tipoProv)}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${escapeHtml(subcat)}">${escapeHtml(subcat)}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${escapeHtml(partidaVal)}">${escapeHtml(partidaVal)}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${escapeHtml(subPartidaVal)}">${escapeHtml(subPartidaVal)}</div><div style="font-size:11px;color:var(--muted);${TRUNC}" title="${escapeHtml(conceptoVal)}">${escapeHtml(conceptoVal || '—')}</div><div style="font-family:'DM Mono',monospace;font-weight:500;color:var(--accent);text-align:right;">${fmt(h.importe)}</div><div>${proyTag(h.proyecto)}</div><div style="text-align:right;display:flex;gap:2px;justify-content:flex-end;"><button class="btn btn-ghost btn-sm" onclick="editarPartidaPago('${String(h.id).replace(/'/g, "\\'")}')" style="font-size:11px;padding:2px 5px;" title="Editar partida / sub-partida">✏️</button><button class="btn btn-ghost btn-sm" onclick="eliminarHistorial('${String(h.id).replace(/'/g, "\\'")}')" style="color:#e74c3c;font-size:11px;padding:2px 5px;" title="Eliminar">✕</button></div></div>`;
+  }).join('') + (fil.length > filPintar.length
+    ? `<div style="padding:14px;text-align:center;"><button class="btn btn-ghost btn-sm" onclick="histMostrarMas()">⬇ Mostrar más (${fil.length - filPintar.length} restantes — el total de arriba ya los incluye)</button></div>`
+    : '');
 
   // Borrado en bloque: descarta de la selección ids que ya no existen y refresca la barra.
   const idsActuales = new Set(state.historial.map(h => String(h.id)));
@@ -117,6 +146,12 @@ export function exportarHistorial() {
   if (!state.historial.length) { notify('Sin historial', 'error'); return; }
   const data = getFilteredHistorial();
   if (!data.length) { notify('Sin registros con los filtros actuales', 'error'); return; }
+  // El filtro de 3 meses por DEFECTO recorta el export sin que el usuario lo
+  // haya pedido: avisar para que no se lleve un CSV incompleto sin querer.
+  const _fdAct = document.getElementById('fh-desde')?.value || '';
+  if (data.length < state.historial.length && _fdAct && _fdAct === _fhValorDefault) {
+    if (!confirm(`Vas a exportar ${data.length} de ${state.historial.length} registros (está activo el filtro de "últimos 3 meses").\n\nAceptar = exportar solo esos · Cancelar = usa "Ver todo" para exportar completo.`)) return;
+  }
   let csv = 'ID Prov,ID Fact,Fecha,Origen,Beneficiario,Banco,Tipo Cuenta,Tipo,Categoria,Subcategoria,Partida,Sub-partida,Concepto,Importe,Proyecto\n';
   csv += data.map(h => {
     const prov = (h.proveedor_id && h.tipo_registro !== 'Traspaso' && h.tipo_registro !== 'Crédito') ? state.proveedores.find(p => p.id === parseInt(h.proveedor_id)) : null;
@@ -164,6 +199,19 @@ function getFilteredHistorial() {
     }
     return true;
   });
+}
+
+// "Ver todo": limpia el filtro de fechas (incluido el default de 3 meses).
+export function histVerTodo() {
+  const fd = document.getElementById('fh-desde'); if (fd) fd.value = '';
+  const fh2 = document.getElementById('fh-hasta'); if (fh2) fh2.value = '';
+  renderHistorial();
+}
+
+// "Mostrar más": sube el tope de PINTADO (los datos nunca estuvieron recortados).
+export function histMostrarMas() {
+  _histLimite += 400;
+  renderHistorial();
 }
 
 // ---- ELIMINAR REGISTRO DE HISTORIAL ----
@@ -214,10 +262,18 @@ export function parseFechaHist(fecha) {
   return '';
 }
 
-export function eliminarHistorial(idx) {
+// Por ID (no índice): con realtime moviendo el array, un índice del DOM viejo
+// borraría OTRO registro y revertiría el saldo equivocado.
+export function eliminarHistorial(id) {
+  const idx = state.historial.findIndex(x => String(x.id) === String(id));
+  if (idx < 0) { renderHistorial(); return; }   // ya no existe (otro usuario lo movió)
   const h = state.historial[idx];
-  if (!h) return;
   if (!confirm(`¿Eliminar este registro?\n${h.nombre} — $${fmt(h.importe)}`)) return;
+  // Revalidar tras el confirm (pudo llegar un evento realtime con el diálogo abierto).
+  if (state.historial[idx] !== h) {
+    const idx2 = state.historial.findIndex(x => String(x.id) === String(id));
+    if (idx2 < 0) { renderHistorial(); return; }
+  }
 
   const fechaISO = parseFechaHist(h.fecha);
   let saldoChanged = false;
@@ -313,10 +369,10 @@ function actualizarBarraSelHist() {
 // Objetivo del modal: { modo:'single'|'bulk', id? }.
 let _cpTarget = null;
 
-// Editar la partida/sub de UN pago (por índice en state.historial).
-export function editarPartidaPago(idx) {
-  const h = state.historial[idx];
-  if (!h) return;
+// Editar la partida/sub de UN pago (por ID estable — a prueba de realtime).
+export function editarPartidaPago(id) {
+  const h = state.historial.find(x => String(x.id) === String(id));
+  if (!h) { renderHistorial(); return; }
   _cpTarget = { modo: 'single', id: String(h.id) };
   const t = document.getElementById('cp-titulo');
   if (t) t.textContent = `Editar pago — ${h.nombre || ''}`;
