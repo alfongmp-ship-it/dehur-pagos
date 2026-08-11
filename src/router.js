@@ -8,20 +8,13 @@ const OBRA_PAGES = new Set(['facturas', 'factura-pagos', 'costos-fiscales']);
 // el resto de la app). Cualquier otra página los regresa a su inicio.
 const ROLES_ACOTADOS = new Set(['obra', 'facturas_obra']);
 
-export function showPage(name, el) {
-  if (ROLES_ACOTADOS.has(rol()) && !OBRA_PAGES.has(name)) {
-    // Cada perfil acotado regresa a SU inicio: 'facturas_obra' captura facturas;
-    // 'obra' (residente) revisa Costos por Unidad.
-    name = rol() === 'facturas_obra' ? 'facturas' : 'costos-fiscales';
-    el = document.getElementById('nav-' + name);
-  }
-  document.querySelectorAll('[id^="page-"]').forEach(p => p.style.display = 'none');
-  document.getElementById('page-' + name).style.display = '';
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  if (el) el.classList.add('active');
-  // Lazy-render pages on navigation
+// Render (lazy) de UNA página por nombre. Lo usan showPage al navegar y
+// renderPaginaActual tras cada carga de datos (finalizarCarga / 🔄 Refrescar):
+// así el arranque ya no renderiza las 15 páginas ocultas — solo la visible.
+function renderDePagina(name) {
   if (name === 'proveedores' && window.renderProveedores) window.renderProveedores();
   if (name === 'nomina' && window.renderNomina) window.renderNomina();
+  if (name === 'dispersion') { if (window.renderCuentaDispSelect) window.renderCuentaDispSelect(); if (window.renderCola) window.renderCola(); }
   if (name === 'confirmar' && window.renderConfirmarPagos) window.renderConfirmarPagos();
   if (name === 'historial' && window.renderHistorial) window.renderHistorial();
   if (name === 'solicitudes' && window.renderSolicitudes) window.renderSolicitudes();
@@ -49,4 +42,25 @@ export function showPage(name, el) {
   if (name === 'estrategia-simulador-caja' && window.renderSimuladorCaja) window.renderSimuladorCaja();
   // ACTIVIDAD (solo admin; el backstop real está en renderActividad + RLS)
   if (name === 'actividad' && window.renderActividad) window.renderActividad();
+}
+
+export function showPage(name, el) {
+  if (ROLES_ACOTADOS.has(rol()) && !OBRA_PAGES.has(name)) {
+    // Cada perfil acotado regresa a SU inicio: 'facturas_obra' captura facturas;
+    // 'obra' (residente) revisa Costos por Unidad.
+    name = rol() === 'facturas_obra' ? 'facturas' : 'costos-fiscales';
+    el = document.getElementById('nav-' + name);
+  }
+  document.querySelectorAll('[id^="page-"]').forEach(p => p.style.display = 'none');
+  document.getElementById('page-' + name).style.display = '';
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  if (el) el.classList.add('active');
+  renderDePagina(name);
+}
+
+// Re-render de la página actualmente VISIBLE (tras cargar/refrescar datos).
+export function renderPaginaActual() {
+  const visible = [...document.querySelectorAll('[id^="page-"]')]
+    .find(p => p.style.display !== 'none');
+  if (visible) renderDePagina(visible.id.replace('page-', ''));
 }

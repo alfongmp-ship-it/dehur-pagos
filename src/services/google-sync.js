@@ -776,24 +776,26 @@ async function finalizarCarga() {
     if (_sanadas) { gsSaveFacturas({ porFila: _pfFac }); if (window.renderFacturas) window.renderFacturas(); }
   }
 
-  // Re-render everything
-  if (window.renderCreditos) window.renderCreditos();
-  if (window.renderTraspasos) window.renderTraspasos();
-  if (window.renderResumenTraspasos) window.renderResumenTraspasos();
-  if (window.renderCuentasPropias) window.renderCuentasPropias();
-  if (window.renderProveedores) window.renderProveedores();
-  if (window.renderNomina) window.renderNomina();
-  if (window.renderHistorial) window.renderHistorial();
-  if (window.renderConfigProyectos) window.renderConfigProyectos();
-  if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
-  if (window.renderHeaderBadges) window.renderHeaderBadges();
-  if (window.refreshProyectosEnSelects) window.refreshProyectosEnSelects();
-  if (window.renderCostosFiscales) window.renderCostosFiscales();
-  if (window.renderConfigPartidas) window.renderConfigPartidas();
-  if (window.renderConfigPartidasObra) window.renderConfigPartidasObra();
-  const cH = document.getElementById('cnt-hist'); if (cH) cH.textContent = state.historial.length;
-  const cF = document.getElementById('cnt-fact'); if (cF) cF.textContent = state.facturas.length;
-  const cFP = document.getElementById('cnt-fp'); if (cFP) cFP.textContent = state.facturaPagos.length;
+  // Rendimiento: antes se renderizaban LAS 15 PÁGINAS con la mayoría oculta
+  // (display:none) — trabajo redundante porque el router YA re-renderiza cada
+  // página al navegar (lazy-render). Ahora: solo lo GLOBAL (header, selects de
+  // modales, contadores del nav) + la página actualmente VISIBLE.
+  if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();   // select de Dispersión (sin rama propia)
+  if (window.renderHeaderBadges) window.renderHeaderBadges();           // saldos del header (global)
+  if (window.refreshProyectosEnSelects) window.refreshProyectosEnSelects(); // selects de modales/filtros
+  // Contadores del nav (antes venían de pilón dentro de cada render de página).
+  const _cnt = (id, n) => { const el = document.getElementById(id); if (el) el.textContent = n; };
+  _cnt('cnt-hist', state.historial.length);
+  _cnt('cnt-fact', state.facturas.length);
+  _cnt('cnt-fp', state.facturaPagos.length);
+  _cnt('cnt-prov', state.proveedores.length);
+  _cnt('cnt-nom', state.empleados.length);
+  _cnt('cnt-cp', state.cuentasPropias.length);
+  _cnt('cnt-traspasos', state.traspasos.length);
+  _cnt('cnt-creditos', state.creditos.length);
+  _cnt('cnt-confirmar', state.pendientesConfirmacion.length);
+  // La página visible (la única cuyo render se ve ahora mismo).
+  if (window.renderPaginaActual) window.renderPaginaActual();
 }
 
 // Carga TODO el estado desde Supabase (Fase 2). Es el espejo inverso de los

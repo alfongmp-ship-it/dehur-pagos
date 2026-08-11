@@ -3,7 +3,7 @@
 
 import { state, rol } from './state.js';
 import { loadProyectos } from './config/proyectos.js';
-import { showPage } from './router.js';
+import { showPage, renderPaginaActual } from './router.js';
 import { setupModalCloseHandlers, cerrar } from './ui/modal.js';
 import { notify } from './ui/notify.js';
 import { renderHeaderBadges, renderCuentaDispSelect, actualizarDisplaySaldo } from './ui/header.js';
@@ -110,6 +110,7 @@ async function init() {
 
 // Router
 window.showPage = showPage;
+window.renderPaginaActual = renderPaginaActual;
 
 // UI
 window.cerrar = cerrar;
