@@ -381,7 +381,12 @@ export async function confirmarReclasificarHistorial() {
     c.h.partida = 'CONSTRUCCION';
   });
 
-  await gsSaveHistorial();
+  // POR FILA: antes esto espejaba el historial COMPLETO (DELETE+INSERT de miles
+  // de filas en Supabase = tormenta realtime para todo el equipo) por cambiar
+  // unas decenas. Ahora solo se upsertean las filas reclasificadas.
+  const porFila = esPorFila('historial');
+  await gsSaveHistorial({ porFila });
+  if (porFila) candidatos.forEach(c => sbGuardarFila('historial', c.h));
   cerrar('modal-reclasificar-historial');
   if (window.renderHistorial) window.renderHistorial();
   notify(`✓ ${candidatos.length} pago${candidatos.length === 1 ? '' : 's'} reclasificado${candidatos.length === 1 ? '' : 's'} en CONSTRUCCION`);
