@@ -12,9 +12,13 @@
 <link rel="stylesheet" href="./styles/responsive.css">
 <link rel="stylesheet" href="./styles/resumen-ejecutivo.css">
 <link rel="stylesheet" href="./styles/costos-fiscales.css">
-<script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- defer: no bloquean el pintado del HTML (antes ~1.4MB frenaban el primer render).
+     El orden de ejecución se preserva (defer corre en orden de documento, ANTES del
+     módulo main.js). ⚠️ NUNCA cambiar a async: rompería ese orden y supabase-js
+     debe existir cuando main.js se evalúa. -->
+<script defer src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
   // Aplicar tema antes del primer paint para evitar flash.
   (function(){
