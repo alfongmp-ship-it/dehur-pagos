@@ -31,7 +31,10 @@ const toNum = v => parseFloat(v) || 0;
 // - idField:  campo id del objeto en state (para encontrar/reemplazar)
 // - mapRow:   fila entrante de Supabase → objeto con la forma de state.*
 //             (DEBE calcar el mapeo de carga en sbLoadAll para que todo cuadre)
-// - rerender: qué re-pintar tras aplicar el cambio
+// - pinta:    nombres (window.*) de las funciones a repintar — se COALESCEN:
+//             una ráfaga de N eventos = 1 solo repintado por función (ver abajo)
+// - recalc:   (opcional) cálculo que MUTA state y debe correr SÍNCRONO por
+//             evento (no se difiere): hoy solo cobros→recalcularVentasDesdeCobros
 const RT = {
   proveedores: {
     tabla: 'proveedores',
@@ -44,12 +47,7 @@ const RT = {
       proyectos: Array.isArray(r.proyectos) ? r.proyectos : [], activo: r.activo !== false,
       bloqueada_para_pago: !!r.bloqueada_para_pago, aliases: Array.isArray(r.aliases) ? r.aliases : []
     }),
-    rerender: () => {
-      if (window.renderProveedores) window.renderProveedores();
-      if (window.refreshProyectosEnSelects) window.refreshProyectosEnSelects();
-      const c = document.getElementById('cnt-prov');
-      if (c) c.textContent = state.proveedores.length;
-    }
+    pinta: ['renderProveedores', 'refreshProyectosEnSelects']
   },
   empleados: {
     tabla: 'empleados',
@@ -60,11 +58,7 @@ const RT = {
       banco: r.banco || 'BBVA', tipo_cuenta: r.tipo_cuenta || '', cuenta: r.cuenta || '',
       clabe: r.clabe || '', rfc: r.rfc || '', activo: r.activo !== false
     }),
-    rerender: () => {
-      if (window.renderNomina) window.renderNomina();
-      const c = document.getElementById('cnt-nom');
-      if (c) c.textContent = state.empleados.length;
-    }
+    pinta: ['renderNomina']
   },
   partidasCatalogo: {
     tabla: 'partidas_catalogo',
@@ -76,7 +70,7 @@ const RT = {
       orden: toInt(r.orden), activa: r.activa !== false,
       visibleObra: r.visible_obra !== false
     }),
-    rerender: () => { if (window.renderConfigPartidas) window.renderConfigPartidas(); }
+    pinta: ['renderConfigPartidas']
   },
   partidasObra: {
     tabla: 'partidas_obra',
@@ -87,7 +81,7 @@ const RT = {
       partidaAdmin: r.partida_admin || '', subPartidaAdmin: r.sub_partida_admin || '',
       orden: toInt(r.orden), activa: r.activa !== false
     }),
-    rerender: () => { if (window.renderConfigPartidasObra) window.renderConfigPartidasObra(); }
+    pinta: ['renderConfigPartidasObra']
   },
   creditos: {
     tabla: 'creditos',
@@ -99,7 +93,7 @@ const RT = {
       tasa_base: toNum(r.tasa_base), proyecto: r.proyecto || '', cuenta_pago: r.cuenta_pago || '',
       estatus: r.estatus || 'Activo', activo: r.activo !== false
     }),
-    rerender: () => { if (window.renderCreditos) window.renderCreditos(); }
+    pinta: ['renderCreditos']
   },
   pagares: {
     tabla: 'pagares',
@@ -110,7 +104,7 @@ const RT = {
       monto: toNum(r.monto), fecha_disposicion: r.fecha_disposicion || '', fecha_vencimiento: r.fecha_vencimiento || '',
       tasa: toNum(r.tasa), estatus: r.estatus || 'Vigente', activo: r.activo !== false
     }),
-    rerender: () => { if (window.renderCreditos) window.renderCreditos(); }
+    pinta: ['renderCreditos']
   },
   // ⚠️ mapRow CALCA el loader de sbLoadAll campo por campo (incluido avance_fisico):
   // un campo omitido aquí se pondría en cero al recibir cualquier evento.
@@ -125,15 +119,7 @@ const RT = {
       costo_inicial: toNum(r.costo_inicial), notas: r.notas || '',
       avance_fisico: toNum(r.avance_fisico)
     }),
-    rerender: () => {
-      // No pisar una captura EN CURSO: guardar una celda de avance dispara el eco
-      // realtime del propio upsert ~0.5s después; re-renderizar aquí destruiría lo
-      // que el residente esté tecleando en la siguiente celda. El state ya quedó
-      // actualizado; la UI se refresca en el siguiente render natural.
-      const ae = document.activeElement;
-      if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'SELECT') && ae.closest('#page-costos-fiscales')) return;
-      if (window.renderCostosFiscales) window.renderCostosFiscales();
-    }
+    pinta: ['renderCostosFiscales']
   },
   unidades: {
     tabla: 'unidades',
@@ -148,7 +134,7 @@ const RT = {
         plano_x: plano(r.plano_x), plano_y: plano(r.plano_y), plano_w: plano(r.plano_w), plano_h: plano(r.plano_h)
       };
     },
-    rerender: () => { if (window.renderCostosFiscales) window.renderCostosFiscales(); }
+    pinta: ['renderCostosFiscales']
   },
   facturas: {
     tabla: 'facturas',
@@ -169,11 +155,7 @@ const RT = {
       nc_subtotal: toNum(r.nc_subtotal), nc_iva: toNum(r.nc_iva),
       rfc_emisor: r.rfc_emisor || '', estado_sat: r.estado_sat || 'Vigente', tipo_comprobante: r.tipo_comprobante || 'Factura'
     }),
-    rerender: () => {
-      if (window.renderFacturas) window.renderFacturas();
-      const c = document.getElementById('cnt-fact');
-      if (c) c.textContent = state.facturas.length;
-    }
+    pinta: ['renderFacturas']
   },
   facturaPagos: {
     tabla: 'factura_pagos',
@@ -184,11 +166,7 @@ const RT = {
       proveedor_id: toInt(r.proveedor_id), monto_aplicado: toNum(r.monto_aplicado), fecha_pago: r.fecha_pago || '',
       estatus: r.estatus || '', observaciones: r.observaciones || ''
     }),
-    rerender: () => {
-      if (window.renderFacturaPagos) window.renderFacturaPagos();
-      const c = document.getElementById('cnt-fp');
-      if (c) c.textContent = state.facturaPagos.length;
-    }
+    pinta: ['renderFacturaPagos']
   },
   traspasos: {
     tabla: 'traspasos',
@@ -203,12 +181,7 @@ const RT = {
       concepto: r.concepto || '', referencia: r.referencia || '', estatus: r.estatus || 'pendiente',
       fecha_registro: r.fecha_registro || ''
     }),
-    rerender: () => {
-      if (window.renderTraspasos) window.renderTraspasos();
-      if (window.renderResumenTraspasos) window.renderResumenTraspasos();
-      const c = document.getElementById('cnt-traspasos');
-      if (c) c.textContent = state.traspasos.length;
-    }
+    pinta: ['renderTraspasos', 'renderResumenTraspasos']
   },
   movimientosInternos: {
     tabla: 'movimientos_internos',
@@ -218,7 +191,7 @@ const RT = {
       id: toInt(r.id), fecha: r.fecha || '', tipo: r.tipo || '', origen: r.origen || '',
       destino: r.destino || '', monto: toNum(r.monto), concepto: r.concepto || '', referencia: r.referencia || ''
     }),
-    rerender: () => { if (window.renderFlujoSalida) window.renderFlujoSalida(); }
+    pinta: ['renderFlujoSalida']
   },
   // pendientesConfirmacion va SOLO en realtime (no en ENTIDADES_POR_FILA): el
   // guardado sigue siendo whole-table (es una tabla chica, la cola de pagos por
@@ -239,11 +212,7 @@ const RT = {
         partidaObra: r.partida_obra || ''
       };
     },
-    rerender: () => {
-      if (window.renderConfirmarPagos) window.renderConfirmarPagos();
-      const c = document.getElementById('cnt-confirmar');
-      if (c) c.textContent = state.pendientesConfirmacion.length;
-    }
+    pinta: ['renderConfirmarPagos']
   },
   // proyectos y cuentasPropias: tablas chicas. Sus ediciones de CONFIG van por
   // fila; los cambios de saldo por pagos (confirmar/traspasos/borrados) siguen
@@ -258,13 +227,7 @@ const RT = {
       saldo: (parseFloat(r.saldo) || 0), ultima_act_saldo: r.ultima_act_saldo || '',
       es_concentradora: !!r.es_concentradora
     }),
-    rerender: () => {
-      if (window.renderConfigProyectos) window.renderConfigProyectos();
-      if (window.renderCuentasPropias) window.renderCuentasPropias();
-      if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
-      if (window.renderHeaderBadges) window.renderHeaderBadges();
-      if (window.refreshProyectosEnSelects) window.refreshProyectosEnSelects();
-    }
+    pinta: ['renderConfigProyectos', 'renderCuentasPropias', 'renderCuentaDispSelect', 'renderHeaderBadges', 'refreshProyectosEnSelects']
   },
   cuentasPropias: {
     tabla: 'cuentas_propias',
@@ -276,11 +239,7 @@ const RT = {
       saldo: (parseFloat(r.saldo) || 0), ultima_actualizacion: r.ultima_actualizacion || '',
       activo: r.activo !== false
     }),
-    rerender: () => {
-      if (window.renderCuentasPropias) window.renderCuentasPropias();
-      if (window.renderCuentaDispSelect) window.renderCuentaDispSelect();
-      if (window.renderHeaderBadges) window.renderHeaderBadges();
-    }
+    pinta: ['renderCuentasPropias', 'renderCuentaDispSelect', 'renderHeaderBadges']
   },
   pagosPagare: {
     tabla: 'pagos_pagare',
@@ -291,10 +250,7 @@ const RT = {
       fecha_pago: r.fecha_pago || '', monto_intereses: toNum(r.monto_intereses), concepto: r.concepto || '',
       estatus: r.estatus || 'Pendiente', fecha_real_pago: r.fecha_real_pago || ''
     }),
-    rerender: () => {
-      if (window.renderCreditos) window.renderCreditos();
-      if (window.renderHistorial) window.renderHistorial();
-    }
+    pinta: ['renderCreditos', 'renderHistorial']
   },
   historial: {
     tabla: 'historial',
@@ -307,13 +263,7 @@ const RT = {
       tipo_registro: r.tipo_registro || 'Pago', partida: r.partida || '', sub_partida: r.sub_partida || '',
       id: r.id || ''
     }),
-    rerender: () => {
-      if (window.renderHistorial) window.renderHistorial();
-      if (window.renderCostosFiscales) window.renderCostosFiscales();
-      if (window.renderFlujoSalida) window.renderFlujoSalida();
-      const c = document.getElementById('cnt-hist');
-      if (c) c.textContent = state.historial.length;
-    }
+    pinta: ['renderHistorial', 'renderCostosFiscales', 'renderFlujoSalida']
   },
   // ===== INGRESOS (Fase 1) — mapRow CALCA sbLoadAll (ids con String, ventas con derivados) =====
   clientes: {
@@ -325,7 +275,7 @@ const RT = {
       nombre: r.nombre || '', rfc: r.rfc || '', telefono: r.telefono || '',
       email: r.email || '', observaciones: r.observaciones || '', activo: r.activo !== false
     }),
-    rerender: () => { if (window.renderClientes) window.renderClientes(); }
+    pinta: ['renderClientes']
   },
   ventas: {
     tabla: 'ventas',
@@ -343,10 +293,7 @@ const RT = {
       monto_cobrado: toNum(r.monto_cobrado), saldo_cliente: toNum(r.saldo_cliente),
       observaciones: r.observaciones || '', activo: r.activo !== false
     }),
-    rerender: () => {
-      if (window.renderVentas) window.renderVentas();
-      if (window.renderEstadoCuenta) window.renderEstadoCuenta();
-    }
+    pinta: ['renderVentas', 'renderEstadoCuenta']
   },
   cobros: {
     tabla: 'cobros',
@@ -360,14 +307,8 @@ const RT = {
       cuenta_destino_tipo: r.cuenta_destino_tipo || '', cuenta_destino_id: r.cuenta_destino_id != null ? String(r.cuenta_destino_id) : '',
       referencia: r.referencia || '', concepto: r.concepto || '', observaciones: r.observaciones || '', activo: r.activo !== false
     }),
-    rerender: () => {
-      // Un cobro entrante mueve el saldo de su venta: recomputar local (contra el
-      // race de orden de eventos) y re-pintar cobranza + ventas + estado de cuenta.
-      if (window.recalcularVentasDesdeCobros) window.recalcularVentasDesdeCobros();
-      if (window.renderCobros) window.renderCobros();
-      if (window.renderVentas) window.renderVentas();
-      if (window.renderEstadoCuenta) window.renderEstadoCuenta();
-    }
+    recalc: () => { if (window.recalcularVentasDesdeCobros) window.recalcularVentasDesdeCobros(); },
+    pinta: ['renderCobros', 'renderVentas', 'renderEstadoCuenta']
   },
   // ===== ESTRATEGIA (Fase 2) — mapRow CALCA sbLoadAll. Un cambio de config o de
   // marca re-pinta también el TABLERO (el ranking depende de ambos). =====
@@ -380,10 +321,7 @@ const RT = {
       valor: r.valor,                       // jsonb → JS nativo (igual que la carga)
       descripcion: r.descripcion || '', grupo: r.grupo || 'general'
     }),
-    rerender: () => {
-      if (window.renderEstrategiaConfig) window.renderEstrategiaConfig();
-      if (window.renderEstrategiaTablero) window.renderEstrategiaTablero();
-    }
+    pinta: ['renderEstrategiaConfig', 'renderEstrategiaTablero']
   },
   estrategiaFlags: {
     tabla: 'estrategia_flags_unidad',
@@ -395,14 +333,70 @@ const RT = {
       tipo: r.tipo || 'bloqueo', categoria: r.categoria || '',
       fecha_compromiso: r.fecha_compromiso || '', nota: r.nota || '', activo: r.activo !== false
     }),
-    rerender: () => {
-      if (window.renderEstrategiaFlags) window.renderEstrategiaFlags();
-      if (window.renderEstrategiaTablero) window.renderEstrategiaTablero();
-    }
+    pinta: ['renderEstrategiaFlags', 'renderEstrategiaTablero']
   }
 };
 
 let _canales = [];
+
+// ===== Coalescing de repintados (rendimiento) =====
+// Antes: CADA evento repintaba la página completa → confirmar 50 pagos = 50
+// renders en CADA navegador conectado (la app se "trababa cuando somos varios").
+// Ahora: el STATE se actualiza al instante por evento (y los `recalc` también),
+// pero el PINTADO se difiere ~200ms tras el último evento de la ráfaga y se
+// DEDUPLICA por función (renderCostosFiscales lo piden 3 entidades → corre 1 vez).
+// Guards del flush: con un modal abierto o el usuario escribiendo en un input se
+// REPROGRAMA (no se descarta) — ningún repintado vuelve a pisar una captura en
+// curso (esto corrige de paso el bug de unidades/historial pisando la captura
+// de obra). Al volver el foco/visibilidad, se pinta lo pendiente.
+const _pintasPendientes = new Set();
+let _flushTimer = null;
+
+function _programarPinta(def) {
+  (def.pinta || []).forEach(n => _pintasPendientes.add(n));
+  if (_flushTimer) clearTimeout(_flushTimer);
+  _flushTimer = setTimeout(_flushPintas, 200);
+}
+
+function _flushPintas() {
+  _flushTimer = null;
+  if (!_pintasPendientes.size) return;
+  const ae = document.activeElement;
+  const escribiendo = ae && (ae.tagName === 'INPUT' || ae.tagName === 'SELECT' || ae.tagName === 'TEXTAREA');
+  if (escribiendo || document.querySelector('.modal-overlay.open')) {
+    _flushTimer = setTimeout(_flushPintas, 500);   // reintentar, no descartar
+    return;
+  }
+  const nombres = [..._pintasPendientes];
+  _pintasPendientes.clear();
+  nombres.forEach(n => {
+    try { if (typeof window[n] === 'function') window[n](); }
+    catch (e) { console.warn('Realtime repintado falló:', n, e); }
+  });
+  _actualizarContadores();
+}
+
+// Los contadores del nav se recalculan del state en cada flush (antes vivían
+// dispersos dentro de cada rerender).
+function _actualizarContadores() {
+  const set = (id, n) => { const el = document.getElementById(id); if (el) el.textContent = n; };
+  set('cnt-prov', state.proveedores.length);
+  set('cnt-nom', state.empleados.length);
+  set('cnt-hist', state.historial.length);
+  set('cnt-fact', state.facturas.length);
+  set('cnt-fp', state.facturaPagos.length);
+  set('cnt-traspasos', state.traspasos.length);
+  set('cnt-creditos', state.creditos.length);
+  set('cnt-confirmar', state.pendientesConfirmacion.length);
+  set('cnt-cp', state.cuentasPropias.length);
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && _pintasPendientes.size && !_flushTimer) _flushPintas();
+});
+window.addEventListener('focus', () => {
+  if (_pintasPendientes.size && !_flushTimer) _flushPintas();
+});
 
 // Aplica un cambio entrante (INSERT/UPDATE/DELETE) al state. Idempotente: si es
 // el eco de tu propio cambio, reemplaza la misma fila por sí misma (inofensivo).
@@ -426,7 +420,10 @@ function aplicarCambio(def, payload) {
     if (i !== -1) arr[i] = obj;
     else arr.push(obj);
   }
-  try { def.rerender(); } catch (e) { console.warn('Realtime rerender falló:', e); }
+  // Recalc síncrono POR EVENTO (muta state; jamás se difiere — evita persistir
+  // saldos viejos si el usuario guarda dentro de la ventana de coalescing).
+  if (def.recalc) { try { def.recalc(); } catch (e) { console.warn('Realtime recalc falló:', e); } }
+  _programarPinta(def);
 }
 
 // Arranca las suscripciones para las entidades en ENTIDADES_REALTIME.
