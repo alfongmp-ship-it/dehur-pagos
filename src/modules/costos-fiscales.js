@@ -2092,6 +2092,10 @@ export async function guardarPresupuestoUnidad() {
 // el avance físico solo lo capturan admin/capturista/obra (control en el RENDER,
 // no con .req-obra: esa clase ocultaría a facturas/facturas_obra que sí deben VER).
 let cfObraMetrica = 'desv';   // 'desv' ($ por ejercer) | 'fin' (% financiero) | 'fis' (% físico)
+// 👷 Admin viendo la matriz COMO la ve el perfil de obra (solo partidas marcadas
+// "Visible para obra"; sin extras ni "Sin partida"): evita incongruencias al
+// comparar con el residente. Default prendido; desmarcar = detalle completo.
+let cfObraSoloVisibles = true;
 
 // Umbral del semáforo físico-vs-financiero: si el avance FINANCIERO (gastado /
 // presupuesto) supera al FÍSICO por más de estos puntos, va gastado por encima
@@ -2130,6 +2134,19 @@ function _ordenLlavesObra(dataKeys, etiquetas) {
   return [...enCat, ...extras.filter(k => !esSin(k)), ...extras.filter(esSin)];
 }
 
+// Replica la vista de los perfiles de obra para quien ve todo: deja SOLO las
+// llaves cuya partida está en el catálogo activo marcada visible (los perfiles
+// de obra ya vienen así desde _ordenLlavesObra, a ellos no les cambia nada).
+function _filtrarLlavesVistaObra(llaves) {
+  if (!_veTodasLasPartidas() || !cfObraSoloVisibles) return llaves;
+  const visibles = new Set(
+    (state.partidasCatalogo || [])
+      .filter(p => p.activa !== false && p.visibleObra !== false)
+      .map(p => _normPartCap(p.partida))
+  );
+  return llaves.filter(k => visibles.has(String(k).split('|')[0]));
+}
+
 function _lblLlave(etiquetas, k) {
   const e = etiquetas.get(k) || { partida: k, sub: '' };
   return e.sub ? `${e.partida} / ${e.sub}` : e.partida;
@@ -2142,9 +2159,14 @@ function renderControlObraTab(panel) {
     return;
   }
   const { porUnidad, totales, etiquetas } = desgloseAdminBatch(cfProyecto);
-  const llaves = _ordenLlavesObra(new Set(totales.keys()), etiquetas);
-  if (!llaves.length) {
+  const llavesTodas = _ordenLlavesObra(new Set(totales.keys()), etiquetas);
+  if (!llavesTodas.length) {
     panel.innerHTML = '<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🏗️</div><div>Aún no hay presupuesto ni costos clasificados en ' + escapeHtml(cfProyecto) + '. Captura el presupuesto en la pestaña 📋 Presupuestos.</div></div>';
+    return;
+  }
+  const llaves = _filtrarLlavesVistaObra(llavesTodas);
+  if (!llaves.length) {
+    panel.innerHTML = '<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">👷</div><div>Ninguna partida con datos está marcada "Visible para obra" en el catálogo.</div><button class="btn btn-ghost btn-sm" style="margin-top:10px;" onclick="cfObraToggleSoloVisibles(false)">Ver todas las partidas</button></div>';
     return;
   }
   const captura = puedeCapturarObra();
@@ -2193,7 +2215,10 @@ function renderControlObraTab(panel) {
         ${btnM('fin', '% Financiero', 'Gastado ÷ presupuesto por celda')}
         ${btnM('fis', '% Físico', 'Avance físico de obra por celda' + (captura ? ' — editable: captúralo aquí mismo' : ''))}
       </div>
-      <button class="btn btn-ghost btn-sm" onclick="exportarControlObraExcel()" title="Exporta los totales por partida y el detalle plano por casa (ideal para tablas dinámicas)">⬇ Excel</button>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        ${_veTodasLasPartidas() ? `<label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);cursor:pointer;white-space:nowrap;" title="Ver la matriz EXACTAMENTE como la ve el perfil de obra: solo partidas marcadas 'Visible para obra' en el catálogo (sin extras ni 'Sin partida'). Desmárcalo para el detalle completo. También aplica al Excel."><input type="checkbox" ${cfObraSoloVisibles ? 'checked' : ''} onchange="cfObraToggleSoloVisibles(this.checked)" style="accent-color:var(--accent);">👷 Solo partidas de obra</label>` : ''}
+        <button class="btn btn-ghost btn-sm" onclick="exportarControlObraExcel()" title="Exporta los totales por partida y el detalle plano por casa (ideal para tablas dinámicas)">⬇ Excel</button>
+      </div>
     </div>
     <div class="table-wrap cf-tabla-scroll" style="margin-bottom:20px;max-height:520px;">
       <table style="min-width:100%;">
@@ -2254,6 +2279,11 @@ export function cfObraSetMetrica(m) {
   renderPanel();
 }
 
+export function cfObraToggleSoloVisibles(v) {
+  cfObraSoloVisibles = !!v;
+  renderPanel();
+}
+
 // Captura de avance físico DIRECTO en la matriz (guardado por fila al cambiar).
 export async function cfObraAvanceCell(inp) {
   if (!puedeCapturarObra()) { notify('No tienes permiso para capturar avance', 'error'); return; }
@@ -2287,7 +2317,8 @@ export async function cfObraAvanceCell(inp) {
 export function exportarControlObraExcel() {
   if (!window.XLSX) { notify('Cargando la librería de Excel, intenta de nuevo en 2 segundos', 'error'); return; }
   const { porUnidad, totales, etiquetas } = desgloseAdminBatch(cfProyecto);
-  const llaves = _ordenLlavesObra(new Set(totales.keys()), etiquetas);
+  // El export respeta el checkbox 👷: exporta lo mismo que la matriz muestra.
+  const llaves = _filtrarLlavesVistaObra(_ordenLlavesObra(new Set(totales.keys()), etiquetas));
   if (!llaves.length) { notify('No hay datos que exportar en este proyecto', 'error'); return; }
   const unidades = unidadesDeProyecto();
   const hoyISO = new Date().toISOString().slice(0, 10);
