@@ -58,6 +58,18 @@ export async function sbUpsertRow(tabla, idCol, rowObj) {
   if (error) throw error;
 }
 
+// Inserta UNA fila SIN upsert: para tablas inmutables (solo INSERT en BD,
+// p.ej. presupuesto_cambios). Un upsert va como ON CONFLICT DO UPDATE y
+// Postgres exige privilegio UPDATE aunque nunca haya conflicto — privilegio
+// que en esas tablas a propósito no existe.
+export async function sbInsertRow(tabla, rowObj) {
+  const tid = tenantId();
+  if (!tid) throw new Error('Sin tenant en sesión Supabase; no se puede escribir.');
+  const client = getSupabaseClient();
+  const { error } = await client.from(tabla).insert({ ...rowObj, tenant_id: tid });
+  if (error) throw error;
+}
+
 // Borra UNA fila por (tenant_id, idCol = idValue).
 export async function sbDeleteRow(tabla, idCol, idValue) {
   const tid = tenantId();

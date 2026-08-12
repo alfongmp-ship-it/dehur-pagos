@@ -3,7 +3,7 @@ import { notify } from '../ui/notify.js';
 import { gsReadSheet, gsWriteRange, gsClearAndWrite, gsAppendRow } from './google-sheets.js';
 import { normalizeBanco } from '../config/bancos.js';
 import { SUB_PARTIDAS_CONSTRUCCION } from '../config/sub-partidas.js';
-import { sbReplaceTable, sbLoadTable, sbReady, sbUpsertRow, sbDeleteRow } from './supabase-data.js';
+import { sbReplaceTable, sbLoadTable, sbReady, sbUpsertRow, sbInsertRow, sbDeleteRow } from './supabase-data.js';
 
 // ============================================================================
 // BANDERA DE FUENTE DE LECTURA (Fase 2). Controla de dónde lee la app al cargar.
@@ -1786,7 +1786,9 @@ const SB_ENTIDADES = {
   unidades:           { tabla: 'unidades',            rows: _rowsUnidades, idCol: 'unidad_id', rowOne: _rowUnidad },
   presupuestoUnidad:  { tabla: 'presupuesto_unidad',  rows: _rowsPresupuestoUnidad, idCol: 'presupuesto_id', rowOne: _rowPresupuestoUnidad },
   fiscalMarcas:       { tabla: 'fiscal_marcas',       rows: _rowsFiscalMarcas, idCol: 'marca_id', rowOne: _rowFiscalMarca },
-  presupuestoCambios: { tabla: 'presupuesto_cambios', rows: _rowsPresupuestoCambios, idCol: 'cambio_id', rowOne: _rowPresupuestoCambio },
+  // soloInsert: la tabla es INMUTABLE en BD (sin privilegio UPDATE) — un upsert
+  // fallaría con "permission denied" porque ON CONFLICT DO UPDATE lo exige.
+  presupuestoCambios: { tabla: 'presupuesto_cambios', rows: _rowsPresupuestoCambios, idCol: 'cambio_id', rowOne: _rowPresupuestoCambio, soloInsert: true },
   costoAsignaciones:  { tabla: 'costo_asignaciones',  rows: _rowsCostoAsignaciones, idCol: 'asignacion_id', rowOne: _rowCostoAsignacion },
   partidasCatalogo:   { tabla: 'partidas_catalogo',   rows: _rowsPartidasCatalogo, idCol: 'partida_id', rowOne: _rowPartidaCatalogo },
   partidasObra:       { tabla: 'partidas_obra',       rows: _rowsPartidasObra, idCol: 'partida_obra_id', rowOne: _rowPartidaObra },
@@ -1827,7 +1829,8 @@ export async function sbGuardarFila(key, item) {
   const def = SB_ENTIDADES[key];
   if (!def || !def.rowOne || !def.idCol) return;
   try {
-    await sbUpsertRow(def.tabla, def.idCol, def.rowOne(item));
+    if (def.soloInsert) await sbInsertRow(def.tabla, def.rowOne(item));
+    else await sbUpsertRow(def.tabla, def.idCol, def.rowOne(item));
   } catch (e) {
     console.warn(`Guardar fila ${def.tabla} → Supabase falló:`, e);
     notify(`⚠ ${def.tabla}: no se guardó esa fila en Supabase: ` + (e.message || e), 'error');
