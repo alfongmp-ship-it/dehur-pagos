@@ -1773,6 +1773,8 @@ function renderPresupuestoGrid() {
       <button class="btn btn-ghost req-obra" onclick="cfAgregarPartidaPresup()">+ Agregar partida</button>
       <button class="btn btn-primary req-obra" onclick="guardarPresupuestoUnidad()">💾 Guardar presupuesto</button>
       <button class="btn btn-ghost" onclick="cfToggleVariaciones()" title="Libro inmutable de cambios del presupuesto: de dónde partimos, cada modificación con su motivo, y dónde vamos">📜 Variaciones</button>
+      ${esAdmin() ? `<label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);cursor:pointer;white-space:nowrap;margin-left:auto;" title="SOLO admin: el PRÓXIMO guardado no pedirá motivo ni quedará en el libro de variaciones — para borrar pruebas o corregir errores de captura. Se apaga solo después de guardar."><input type="checkbox" ${cfPresupSinRegistro ? 'checked' : ''} onchange="cfToggleSinRegistro(this.checked)" style="accent-color:var(--orange);">🧹 Corregir sin registrar</label>
+      <span id="cf-presup-aviso-sinreg" style="display:${cfPresupSinRegistro ? '' : 'none'};font-size:11px;color:var(--orange);font-weight:600;">⚠ El próximo guardado NO quedará en variaciones</span>` : ''}
     </div>
     <div style="font-size:11px;color:var(--muted);margin-top:8px;">
       Las partidas y sub-partidas son las del <strong>catálogo de admin</strong> — las mismas con que se clasifican facturas y pagos, para que el comparativo cruce directo.
@@ -1948,6 +1950,17 @@ export function exportarVariacionesExcel() {
 }
 
 let _ultimoGuardadoPresup = 0;
+// 🧹 Modo corrección (SOLO admin): el próximo guardado de presupuesto NO pide
+// motivo NI escribe en el libro de variaciones — para borrar pruebas o corregir
+// capturas erróneas sin ensuciar la historia. Se APAGA SOLO tras cada guardado:
+// cada uso es una decisión consciente; nadie deja el libro apagado por accidente.
+let cfPresupSinRegistro = false;
+export function cfToggleSinRegistro(v) {
+  cfPresupSinRegistro = !!v && esAdmin();
+  const av = document.getElementById('cf-presup-aviso-sinreg');
+  if (av) av.style.display = cfPresupSinRegistro ? '' : 'none';
+}
+
 export async function guardarPresupuestoUnidad() {
   if (!(puedeCapturarObra())) { notify('No tienes permiso para capturar presupuestos', 'error'); return; }
   if (state.cargado && state.cargado.presupuestoUnidad !== true) { notify('Los presupuestos aún no terminan de cargar; intenta en unos segundos', 'error'); return; }
@@ -2010,7 +2023,8 @@ export async function guardarPresupuestoUnidad() {
     }
   });
   let motivoVar = '';
-  if (variaciones.length) {
+  const sinRegistro = cfPresupSinRegistro && esAdmin();
+  if (variaciones.length && !sinRegistro) {
     if (state.cargado && state.cargado.presupuestoCambios === true) {
       const m = prompt(`Vas a modificar el PRESUPUESTO (${variaciones.length} partida(s) de esta casa).\n\nMotivo del cambio — obligatorio, queda en el libro de variaciones:`);
       if (m === null || !m.trim()) { notify('Cambio de presupuesto cancelado: el motivo es obligatorio', 'error'); return; }
@@ -2081,7 +2095,10 @@ export async function guardarPresupuestoUnidad() {
       sbGuardarFila('presupuestoCambios', c);
     });
   }
-  notify('Presupuesto guardado' + (variaciones.length && motivoVar ? ` · ${variaciones.length} variación(es) registrada(s)` : ''));
+  const sufijo = variaciones.length && motivoVar ? ` · ${variaciones.length} variación(es) registrada(s)`
+    : (variaciones.length && sinRegistro ? ` · 🧹 ${variaciones.length} cambio(s) SIN registrar (modo corrección)` : '');
+  notify('Presupuesto guardado' + sufijo);
+  if (sinRegistro) cfPresupSinRegistro = false;   // un guardado por uso: se apaga solo
   renderPresupuestoGrid();   // refleja canonicalización y orden estable
   renderVariaciones();
 }
