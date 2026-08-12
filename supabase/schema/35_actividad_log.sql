@@ -105,8 +105,11 @@ declare
   v_fid text;
 begin
   if v_uid is null then return null; end if;
-  select count(*), min(tenant_id) into v_n, v_tid from filas_borradas;
+  select count(*) into v_n from filas_borradas;
   if coalesce(v_n, 0) = 0 then return null; end if;
+  -- Sin agregado: Postgres no trae min(uuid) y su error ABORTA el delete entero.
+  -- Todas las filas borradas son del mismo tenant (RLS lo garantiza): basta una.
+  select tenant_id into v_tid from filas_borradas limit 1;
   -- Si fue UNA sola fila, registrar su id de negocio (TG_ARGV[0] = columna id).
   if v_n = 1 then
     execute format('select %I::text from filas_borradas limit 1', TG_ARGV[0]) into v_fid;
