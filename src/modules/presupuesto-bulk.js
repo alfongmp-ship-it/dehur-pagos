@@ -1,7 +1,7 @@
 // Captura masiva de presupuesto + costo inicial por unidad usando Excel.
 // Genera plantilla (descargar) y procesa subida con merge inteligente.
 
-import { state, puedeCapturarObra, nuevoPresupuestoId, rol } from '../state.js';
+import { state, puedeCapturarObra, nuevoPresupuestoId, nuevoCambioPresupId, rol } from '../state.js';
 import { notify } from '../ui/notify.js';
 import { gsSavePresupuestoUnidad, esPorFila, sbGuardarFila } from '../services/google-sync.js';
 
@@ -102,7 +102,7 @@ export function descargarPlantillaPresupuesto(proyecto) {
 
 // Procesa una hoja del Excel y aplica merge sobre state.presupuestoUnidad.
 // Devuelve { actualizadas, nuevas, omitidas, avisos }.
-function procesarHoja(rows, campo, proyecto, colsCat, tocadas) {
+function procesarHoja(rows, campo, proyecto, colsCat, tocadas, cambiosMonto) {
   let actualizadas = 0, nuevas = 0, omitidas = 0;
   const avisos = [];
   if (!rows || rows.length < 4) return { actualizadas, nuevas, omitidas, avisos: ['hoja vacía'] };
@@ -164,6 +164,10 @@ function procesarHoja(rows, campo, proyecto, colsCat, tocadas) {
       const existente = presupuestoExistente(unidad.unidad_id, partida, sub);
       if (existente) {
         if ((existente[campo] || 0) !== valor) {
+          // 📜 Variación de MONTO presupuestado: se registra con el motivo del batch.
+          if (campo === 'monto_presupuestado' && cambiosMonto) {
+            cambiosMonto.push({ pid: existente.presupuesto_id, unidad_id: unidad.unidad_id, partida, sub, antes: existente[campo] || 0, despues: valor });
+          }
           existente[campo] = valor;
           if (tocadas) tocadas.set(String(existente.presupuesto_id), existente);
         }
@@ -181,11 +185,46 @@ function procesarHoja(rows, campo, proyecto, colsCat, tocadas) {
         };
         state.presupuestoUnidad.push(nuevo);
         if (tocadas) tocadas.set(String(nuevo.presupuesto_id), nuevo);
+        if (campo === 'monto_presupuestado' && cambiosMonto && valor > 0) {
+          cambiosMonto.push({ pid: nuevo.presupuesto_id, unidad_id: unidad.unidad_id, partida, sub, antes: 0, despues: valor });
+        }
         nuevas++;
       }
     }
   }
   return { actualizadas, nuevas, omitidas, avisos };
+}
+
+// Detección EN SECO de cambios de monto presupuestado (sin mutar nada): para
+// pedir el motivo ANTES de aplicar la plantilla. Replica el recorrido de
+// procesarHoja para el campo monto, incluidas las columnas ocultas por rol.
+function _contarCambiosMonto(rows, proyecto, colsCat) {
+  if (!rows || rows.length < 4) return 0;
+  let n = 0;
+  const partidaCols = (rows[2] || []).slice(1).map(h => String(h || '').trim());
+  for (let i = 3; i < rows.length; i++) {
+    const row = rows[i] || [];
+    const nombreUnidad = String(row[0] || '').trim();
+    if (!nombreUnidad) continue;
+    const unidad = state.unidades.find(u => u.activo !== false && u.proyecto === proyecto && norm(u.nombre) === norm(nombreUnidad));
+    if (!unidad) continue;
+    for (let c = 0; c < partidaCols.length; c++) {
+      const colTxt = partidaCols[c];
+      if (!colTxt) continue;
+      const raw = row[c + 1];
+      if (raw === undefined || raw === null || raw === '') continue;
+      let valor = parseFloat(String(raw).replace(/[$,%\s]/g, ''));
+      if (!isFinite(valor)) continue;
+      const { partida, sub } = parseColumnaPresupuesto(colTxt, colsCat);
+      if (!_veTodasLasPartidas()) {
+        const cat = (state.partidasCatalogo || []).find(x => norm(x.partida) === norm(partida));
+        if (!cat || cat.visibleObra === false) continue;
+      }
+      const ex = presupuestoExistente(unidad.unidad_id, partida, sub);
+      if (ex ? (ex.monto_presupuestado || 0) !== valor : valor > 0) n++;
+    }
+  }
+  return n;
 }
 
 export async function subirPlantillaPresupuesto(file) {
@@ -239,9 +278,24 @@ export async function subirPlantillaPresupuesto(file) {
     }
 
     // Procesar
+    // 📜 Variaciones: si la plantilla CAMBIA montos presupuestados, el motivo es
+    // obligatorio ANTES de aplicar nada (cancelar = no se toca ni una celda).
+    const nCambiosMonto = _contarCambiosMonto(rowsPres, proyecto, colsCat);
+    let motivoVar = '';
+    if (nCambiosMonto > 0) {
+      if (state.cargado && state.cargado.presupuestoCambios === true) {
+        const m = prompt(`La plantilla modifica el MONTO presupuestado de ${nCambiosMonto} partida(s).\n\nMotivo del cambio — obligatorio, queda en el libro de variaciones:`);
+        if (m === null || !m.trim()) { notify('Carga cancelada: el motivo es obligatorio para cambios de presupuesto', 'error'); return; }
+        motivoVar = m.trim();
+      } else {
+        notify('⚠ Cambios de presupuesto SIN registrar — corre supabase/schema/39_presupuesto_cambios.sql', 'error');
+      }
+    }
+
     // Filas creadas/cambiadas por TODAS las hojas (por id) → guardado POR FILA (F3b).
     const tocadas = new Map();
-    const resPres = procesarHoja(rowsPres, 'monto_presupuestado', proyecto, colsCat, tocadas);
+    const cambiosMonto = [];
+    const resPres = procesarHoja(rowsPres, 'monto_presupuestado', proyecto, colsCat, tocadas, cambiosMonto);
     const resInic = procesarHoja(rowsInic, 'costo_inicial', proyecto, colsCat, tocadas);
     const resAv = rowsAv ? procesarHoja(rowsAv, 'avance_fisico', proyecto, colsCat, tocadas)
       : { actualizadas: 0, nuevas: 0, omitidas: 0, avisos: [] };
@@ -255,6 +309,20 @@ export async function subirPlantillaPresupuesto(file) {
     const porFila = esPorFila('presupuestoUnidad');
     await gsSavePresupuestoUnidad({ porFila });
     if (porFila) tocadas.forEach(p => sbGuardarFila('presupuestoUnidad', p));
+
+    // 📜 Registrar las variaciones del batch (inmutables; un motivo para todas).
+    if (cambiosMonto.length && motivoVar) {
+      const email = (state.session && state.session.email) || '';
+      cambiosMonto.forEach(v => {
+        const c = {
+          cambio_id: nuevoCambioPresupId(), presupuesto_id: String(v.pid || ''), unidad_id: v.unidad_id,
+          partida: v.partida, sub_partida: v.sub || '', monto_anterior: v.antes, monto_nuevo: v.despues,
+          motivo: motivoVar, usuario_email: email, origen: 'plantilla', created_at: new Date().toISOString()
+        };
+        state.presupuestoCambios.push(c);
+        sbGuardarFila('presupuestoCambios', c);
+      });
+    }
     if (window.renderCostosFiscales) window.renderCostosFiscales();
 
     const extra = totales.avisos.length ? ` · ⚠ ${totales.avisos.length} aviso(s)` : '';

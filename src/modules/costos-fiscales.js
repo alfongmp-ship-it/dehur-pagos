@@ -12,7 +12,7 @@ import { chartTheme } from '../ui/chart-theme.js';
 import { planoDeProyecto } from '../config/planos.js';
 import { parseFechaHist } from './historial.js';
 import { gsSaveUnidades, gsSavePresupuestoUnidad, gsSaveCostoAsignaciones, esPorFila, sbGuardarFila, sbBorrarFila } from '../services/google-sync.js';
-import { nuevoAsignacionId, nuevoPresupuestoId } from '../state.js';
+import { nuevoAsignacionId, nuevoPresupuestoId, nuevoCambioPresupId } from '../state.js';
 import { auditarRepartos, aplicarReparacionRepartos } from './confirmar-pagos.js';
 import { aplicarPagoAFactura, restantePago } from './facturas.js';
 
@@ -1736,12 +1736,14 @@ function renderPresupuestosTab(panel) {
       </select>
     </div>
     <div id="cf-presup-grid"></div>
+    <div id="cf-var-panel" style="margin-top:16px;"></div>
   `;
   document.getElementById('cf-presup-unidad').addEventListener('change', e => {
     cfUnidadDetalle = parseInt(e.target.value);
     renderPresupuestoGrid();
   });
   renderPresupuestoGrid();
+  renderVariaciones();
 }
 
 function renderPresupuestoGrid() {
@@ -1770,6 +1772,7 @@ function renderPresupuestoGrid() {
     <div style="display:flex;gap:8px;margin-top:12px;align-items:center;flex-wrap:wrap;">
       <button class="btn btn-ghost req-obra" onclick="cfAgregarPartidaPresup()">+ Agregar partida</button>
       <button class="btn btn-primary req-obra" onclick="guardarPresupuestoUnidad()">💾 Guardar presupuesto</button>
+      <button class="btn btn-ghost" onclick="cfToggleVariaciones()" title="Libro inmutable de cambios del presupuesto: de dónde partimos, cada modificación con su motivo, y dónde vamos">📜 Variaciones</button>
     </div>
     <div style="font-size:11px;color:var(--muted);margin-top:8px;">
       Las partidas y sub-partidas son las del <strong>catálogo de admin</strong> — las mismas con que se clasifican facturas y pagos, para que el comparativo cruce directo.
@@ -1829,6 +1832,121 @@ export function cfAgregarPartidaPresup() {
   tbody.insertAdjacentHTML('beforeend', presupuestoFilaHTML('', '', 0, 0, 0, tbody.children.length));
 }
 
+// ===== 📜 Libro de variaciones del presupuesto =====
+let cfVarVisible = false;
+
+function _cambiosPresupVisibles() {
+  const uids = new Set(unidadesDeProyecto(true).map(u => u.unidad_id));
+  return state.presupuestoCambios
+    .filter(c => uids.has(c.unidad_id) && _partidaVisiblePresup(c.partida))
+    .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+}
+
+export function cfToggleVariaciones() {
+  cfVarVisible = !cfVarVisible;
+  renderVariaciones();
+  if (cfVarVisible) document.getElementById('cf-var-panel')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+export function cfVarFiltrar() { renderVariaciones(); }
+
+function renderVariaciones() {
+  const cont = document.getElementById('cf-var-panel');
+  if (!cont) return;
+  if (!cfVarVisible) { cont.innerHTML = ''; return; }
+  const sinTabla = state.cargado && state.cargado.presupuestoCambios !== true;
+  const cambios = _cambiosPresupVisibles();
+  const uNombre = new Map(state.unidades.map(u => [u.unidad_id, u.nombre]));
+
+  // Cuadre: ACTUAL (filas visibles del proyecto) − Σ deltas = ORIGINAL.
+  const uids = new Set(unidadesDeProyecto(true).map(u => u.unidad_id));
+  const actual = state.presupuestoUnidad
+    .filter(p => uids.has(p.unidad_id) && _partidaVisiblePresup(p.partida))
+    .reduce((s, p) => s + (p.monto_presupuestado || 0), 0);
+  const deltaTot = cambios.reduce((s, c) => s + ((c.monto_nuevo || 0) - (c.monto_anterior || 0)), 0);
+  const original = actual - deltaTot;
+
+  const fCasaSel = document.getElementById('cf-var-casa');
+  const fQInp = document.getElementById('cf-var-q');
+  const fCasa = fCasaSel ? fCasaSel.value : '';
+  const q = (fQInp ? fQInp.value : '').trim().toLowerCase();
+  const filtrados = cambios.filter(c =>
+    (!fCasa || String(c.unidad_id) === fCasa) &&
+    (!q || `${c.motivo} ${c.partida} ${c.sub_partida} ${c.usuario_email}`.toLowerCase().includes(q)));
+
+  const fmtF = iso => { try { return new Date(iso).toLocaleString('es-MX', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' }); } catch (_) { return iso || ''; } };
+  const ORIGEN_LBL = { alta: '➕ alta', cambio: '✏️ cambio', baja: '🗑 baja', plantilla: '📤 plantilla' };
+
+  cont.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;">
+      <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;margin-bottom:12px;">📜 Variaciones del presupuesto — ${escapeHtml(cfProyecto)}</div>
+      ${sinTabla ? '<div style="background:rgba(224,122,58,.1);border:1px solid rgba(224,122,58,.35);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;">⚠ El registro NO está activo: corre <b>supabase/schema/39_presupuesto_cambios.sql</b> en Supabase. Los cambios de presupuesto que hagas mientras tanto no quedarán registrados.</div>' : ''}
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px;">
+        <div class="stat-card"><div class="stat-label">Presupuesto ORIGINAL</div><div class="stat-value">${fmt(original)}</div><div class="stat-sub">de donde partimos (actual − Σ cambios)</div></div>
+        <div class="stat-card"><div class="stat-label">Presupuesto ACTUAL</div><div class="stat-value" style="color:var(--accent);">${fmt(actual)}</div><div class="stat-sub">vigente hoy</div></div>
+        <div class="stat-card"><div class="stat-label">Δ acumulado</div><div class="stat-value" style="color:${deltaTot > 0 ? 'var(--red)' : deltaTot < 0 ? 'var(--green)' : 'var(--muted)'};">${deltaTot >= 0 ? '+' : ''}${fmt(deltaTot)}</div><div class="stat-sub">${original > 0 ? ((deltaTot / original) * 100).toFixed(1) + '% vs original' : '—'}</div></div>
+        <div class="stat-card"><div class="stat-label">Cambios registrados</div><div class="stat-value">${cambios.length}</div><div class="stat-sub">registro inmutable (solo se agrega)</div></div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+        <select id="cf-var-casa" class="filter-select" style="font-size:11px;" onchange="cfVarFiltrar()">
+          <option value="">Todas las casas</option>
+          ${unidadesDeProyecto(true).map(u => `<option value="${u.unidad_id}"${String(u.unidad_id) === fCasa ? ' selected' : ''}>${escapeHtml(u.nombre)}</option>`).join('')}
+        </select>
+        <input type="text" id="cf-var-q" value="${escapeHtml(q)}" placeholder="🔍 Motivo, partida, quién..." oninput="cfVarFiltrar()" style="width:240px;">
+        <button class="btn btn-ghost btn-sm" onclick="exportarVariacionesExcel()">⬇ Excel</button>
+      </div>
+      ${filtrados.length ? `
+      <div class="table-wrap cf-tabla-scroll" style="max-height:420px;">
+        <table>
+          <thead><tr><th>Cuándo</th><th>Quién</th><th>Casa</th><th>Partida</th><th style="text-align:right">Antes</th><th style="text-align:right">Después</th><th style="text-align:right">Δ</th><th>Motivo</th><th>Origen</th></tr></thead>
+          <tbody>${filtrados.map(c => {
+            const d = (c.monto_nuevo || 0) - (c.monto_anterior || 0);
+            return `<tr>
+              <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);white-space:nowrap;">${fmtF(c.created_at)}</td>
+              <td style="font-size:11px;color:var(--muted);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(c.usuario_email)}">${escapeHtml((c.usuario_email || '').split('@')[0])}</td>
+              <td style="font-size:12px;font-weight:600;">${escapeHtml(uNombre.get(c.unidad_id) || String(c.unidad_id))}</td>
+              <td style="font-size:11px;">${escapeHtml(c.partida)}${c.sub_partida ? ' / ' + escapeHtml(c.sub_partida) : ''}</td>
+              <td style="text-align:right;font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${fmt(c.monto_anterior)}</td>
+              <td style="text-align:right;font-family:'DM Mono',monospace;font-size:11px;">${fmt(c.monto_nuevo)}</td>
+              <td style="text-align:right;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:${d > 0 ? 'var(--red)' : 'var(--green)'};">${d >= 0 ? '+' : ''}${fmt(d)}</td>
+              <td style="font-size:11px;max-width:260px;">${escapeHtml(c.motivo)}</td>
+              <td style="font-size:10px;color:var(--muted);white-space:nowrap;">${ORIGEN_LBL[c.origen] || escapeHtml(c.origen)}</td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table>
+      </div>` : `<div style="color:var(--muted);font-size:12px;">${cambios.length ? 'Sin resultados con esos filtros.' : 'Aún no hay variaciones registradas — el registro empieza con el próximo cambio de monto (la línea base es el presupuesto actual).'}</div>`}
+    </div>`;
+}
+
+export function exportarVariacionesExcel() {
+  if (!window.XLSX) { notify('Cargando la librería de Excel, intenta de nuevo en 2 segundos', 'error'); return; }
+  const cambios = _cambiosPresupVisibles();
+  if (!cambios.length) { notify('No hay variaciones registradas que exportar', 'error'); return; }
+  const uNombre = new Map(state.unidades.map(u => [u.unidad_id, u.nombre]));
+  const hoyISO = new Date().toISOString().slice(0, 10);
+  const aoa = [
+    [`Variaciones del presupuesto — ${cfProyecto}`],
+    [`Generado: ${hoyISO} · ${cambios.length} cambio(s) · registro inmutable`],
+    [],
+    ['Fecha', 'Quién', 'Casa', 'Partida', 'Sub-partida', 'Monto anterior', 'Monto nuevo', 'Δ', 'Motivo', 'Origen']
+  ];
+  cambios.forEach(c => aoa.push([
+    c.created_at ? String(c.created_at).slice(0, 16).replace('T', ' ') : '', c.usuario_email || '',
+    uNombre.get(c.unidad_id) || String(c.unidad_id), c.partida, c.sub_partida || '',
+    c.monto_anterior || 0, c.monto_nuevo || 0, (c.monto_nuevo || 0) - (c.monto_anterior || 0), c.motivo || '', c.origen || ''
+  ]));
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{ wch: 16 }, { wch: 26 }, { wch: 14 }, { wch: 20 }, { wch: 22 }, { wch: 14 }, { wch: 14 }, { wch: 13 }, { wch: 40 }, { wch: 11 }];
+  for (let r = 4; r < aoa.length; r++) [5, 6, 7].forEach(cIdx => {
+    const ref = XLSX.utils.encode_cell({ r, c: cIdx });
+    if (ws[ref] && typeof ws[ref].v === 'number') ws[ref].z = '"$"#,##0.00';
+  });
+  XLSX.utils.book_append_sheet(wb, ws, 'Variaciones');
+  XLSX.writeFile(wb, `Variaciones_Presupuesto_${String(cfProyecto || 'proyecto').replace(/[\\/:*?"<>|\s]+/g, '_')}_${hoyISO}.xlsx`);
+  notify('✅ Excel de variaciones generado');
+}
+
 let _ultimoGuardadoPresup = 0;
 export async function guardarPresupuestoUnidad() {
   if (!(puedeCapturarObra())) { notify('No tienes permiso para capturar presupuestos', 'error'); return; }
@@ -1872,6 +1990,36 @@ export async function guardarPresupuestoUnidad() {
   const previas = state.presupuestoUnidad.filter(p =>
     p.unidad_id === cfUnidadDetalle && _partidaVisiblePresup(p.partida));
   const porLlave = new Map(previas.map(p => [llaveDe(p.partida, p.sub_partida), p]));
+
+  // 📜 Libro de variaciones: detectar cambios de MONTO presupuestado ANTES de
+  // tocar el state (solo monto_presupuestado — el avance físico y el costo
+  // inicial NO son cambios de presupuesto). Con cambios, el MOTIVO es
+  // obligatorio: cancelar = no se guarda NADA.
+  const variaciones = [];
+  filas.forEach(f => {
+    const ex = porLlave.get(llaveDe(f.partida, f.sub));
+    if (ex) {
+      if ((ex.monto_presupuestado || 0) !== f.monto) variaciones.push({ pid: ex.presupuesto_id, partida: f.partida, sub: f.sub, antes: ex.monto_presupuestado || 0, despues: f.monto, origen: 'cambio' });
+    } else if (f.monto > 0) {
+      variaciones.push({ pid: '', partida: f.partida, sub: f.sub, antes: 0, despues: f.monto, origen: 'alta' });
+    }
+  });
+  previas.forEach(p => {
+    if (!llaves.has(llaveDe(p.partida, p.sub_partida)) && (p.monto_presupuestado || 0) > 0) {
+      variaciones.push({ pid: p.presupuesto_id, partida: p.partida, sub: p.sub_partida || '', antes: p.monto_presupuestado || 0, despues: 0, origen: 'baja' });
+    }
+  });
+  let motivoVar = '';
+  if (variaciones.length) {
+    if (state.cargado && state.cargado.presupuestoCambios === true) {
+      const m = prompt(`Vas a modificar el PRESUPUESTO (${variaciones.length} partida(s) de esta casa).\n\nMotivo del cambio — obligatorio, queda en el libro de variaciones:`);
+      if (m === null || !m.trim()) { notify('Cambio de presupuesto cancelado: el motivo es obligatorio', 'error'); return; }
+      motivoVar = m.trim();
+    } else {
+      notify('⚠ Cambios de presupuesto SIN registrar — corre supabase/schema/39_presupuesto_cambios.sql', 'error');
+    }
+  }
+
   const tocadas = [], borradas = [];
   state.presupuestoUnidad = state.presupuestoUnidad.filter(p => {
     if (p.unidad_id !== cfUnidadDetalle) return true;
@@ -1916,8 +2064,26 @@ export async function guardarPresupuestoUnidad() {
     borradas.forEach(id => sbBorrarFila('presupuestoUnidad', id));
     tocadas.forEach(p => sbGuardarFila('presupuestoUnidad', p));
   }
-  notify('Presupuesto guardado');
+  // 📜 Registrar las variaciones (inmutables: solo se AGREGAN, jamás se editan).
+  if (variaciones.length && motivoVar) {
+    const email = (state.session && state.session.email) || '';
+    variaciones.forEach(v => {
+      if (v.origen === 'alta' && !v.pid) {
+        const row = state.presupuestoUnidad.find(p => p.unidad_id === cfUnidadDetalle && llaveDe(p.partida, p.sub_partida) === llaveDe(v.partida, v.sub));
+        if (row) v.pid = row.presupuesto_id;
+      }
+      const c = {
+        cambio_id: nuevoCambioPresupId(), presupuesto_id: String(v.pid || ''), unidad_id: cfUnidadDetalle,
+        partida: v.partida, sub_partida: v.sub, monto_anterior: v.antes, monto_nuevo: v.despues,
+        motivo: motivoVar, usuario_email: email, origen: v.origen, created_at: new Date().toISOString()
+      };
+      state.presupuestoCambios.push(c);
+      sbGuardarFila('presupuestoCambios', c);
+    });
+  }
+  notify('Presupuesto guardado' + (variaciones.length && motivoVar ? ` · ${variaciones.length} variación(es) registrada(s)` : ''));
   renderPresupuestoGrid();   // refleja canonicalización y orden estable
+  renderVariaciones();
 }
 
 // ========== TAB: CONTROL DE OBRA ==========

@@ -29,7 +29,7 @@ export const FUENTE_LECTURA = 'supabase';
 // supabase_realtime). El resto de entidades sigue en 'tabla' aunque MODO sea 'fila'.
 // ============================================================================
 export const MODO_GUARDADO = 'fila';
-export const ENTIDADES_POR_FILA = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos', 'proyectos', 'cuentasPropias', 'pagosPagare', 'historial', 'clientes', 'ventas', 'cobros', 'estrategiaConfig', 'estrategiaFlags', 'presupuestoUnidad', 'fiscalMarcas']);
+export const ENTIDADES_POR_FILA = new Set(['proveedores', 'empleados', 'partidasCatalogo', 'partidasObra', 'creditos', 'pagares', 'unidades', 'facturas', 'facturaPagos', 'traspasos', 'movimientosInternos', 'proyectos', 'cuentasPropias', 'pagosPagare', 'historial', 'clientes', 'ventas', 'cobros', 'estrategiaConfig', 'estrategiaFlags', 'presupuestoUnidad', 'fiscalMarcas', 'presupuestoCambios']);
 export const REALTIME_ON = true;
 
 // ============================================================================
@@ -824,7 +824,9 @@ export async function sbLoadAll() {
     // ESTRATEGIA (Fase 2)
     estrategia_config: 'clave', estrategia_flags_unidad: 'flag_id',
     // FISCAL (pestaña 🧾, solo-admin)
-    fiscal_marcas: 'marca_id'
+    fiscal_marcas: 'marca_id',
+    // 📜 Libro de variaciones del presupuesto
+    presupuesto_cambios: 'cambio_id'
   };
 
   async function cargar(tabla, entidad, fn) {
@@ -1102,6 +1104,20 @@ export async function sbLoadAll() {
       motivo: r.motivo || '',
       usuario_email: r.usuario_email || '',
       created_at: r.created_at || ''
+    }));
+  });
+
+  // 📜 Libro de variaciones del presupuesto (inmutable). Tolerante: si el SQL 39
+  // no se ha corrido, cargado=false y la vista avisa que no se está registrando.
+  P('presupuesto_cambios', 'presupuestoCambios', rows => {
+    state.presupuestoCambios = rows.map(r => ({
+      cambio_id: r.cambio_id != null ? String(r.cambio_id) : '',
+      presupuesto_id: r.presupuesto_id != null ? String(r.presupuesto_id) : '',
+      unidad_id: toInt(r.unidad_id),
+      partida: r.partida || '', sub_partida: r.sub_partida || '',
+      monto_anterior: toNum(r.monto_anterior), monto_nuevo: toNum(r.monto_nuevo),
+      motivo: r.motivo || '', usuario_email: r.usuario_email || '',
+      origen: r.origen || 'cambio', created_at: r.created_at || ''
     }));
   });
 
@@ -1656,6 +1672,17 @@ function _rowUnidad(u) {
 function _rowsUnidades() {
   return _dedupBy(state.unidades.map(_rowUnidad), 'unidad_id');
 }
+function _rowPresupuestoCambio(c) {
+  return {
+    cambio_id: _sbStr(c.cambio_id), presupuesto_id: _sbStr(c.presupuesto_id),
+    unidad_id: _sbNum(c.unidad_id), partida: _sbStr(c.partida), sub_partida: _sbStr(c.sub_partida),
+    monto_anterior: _sbNum(c.monto_anterior), monto_nuevo: _sbNum(c.monto_nuevo),
+    motivo: _sbStr(c.motivo), usuario_email: _sbStr(c.usuario_email), origen: _sbStr(c.origen)
+  };
+}
+function _rowsPresupuestoCambios() {
+  return _dedupBy(state.presupuestoCambios.map(_rowPresupuestoCambio), 'cambio_id');
+}
 function _rowFiscalMarca(m) {
   return {
     marca_id: _sbStr(m.marca_id), doc_tipo: _sbStr(m.doc_tipo), doc_id: _sbStr(m.doc_id),
@@ -1759,6 +1786,7 @@ const SB_ENTIDADES = {
   unidades:           { tabla: 'unidades',            rows: _rowsUnidades, idCol: 'unidad_id', rowOne: _rowUnidad },
   presupuestoUnidad:  { tabla: 'presupuesto_unidad',  rows: _rowsPresupuestoUnidad, idCol: 'presupuesto_id', rowOne: _rowPresupuestoUnidad },
   fiscalMarcas:       { tabla: 'fiscal_marcas',       rows: _rowsFiscalMarcas, idCol: 'marca_id', rowOne: _rowFiscalMarca },
+  presupuestoCambios: { tabla: 'presupuesto_cambios', rows: _rowsPresupuestoCambios, idCol: 'cambio_id', rowOne: _rowPresupuestoCambio },
   costoAsignaciones:  { tabla: 'costo_asignaciones',  rows: _rowsCostoAsignaciones, idCol: 'asignacion_id', rowOne: _rowCostoAsignacion },
   partidasCatalogo:   { tabla: 'partidas_catalogo',   rows: _rowsPartidasCatalogo, idCol: 'partida_id', rowOne: _rowPartidaCatalogo },
   partidasObra:       { tabla: 'partidas_obra',       rows: _rowsPartidasObra, idCol: 'partida_obra_id', rowOne: _rowPartidaObra },
@@ -1790,7 +1818,7 @@ export async function sbGuardarFila(key, item) {
   // Marcas fiscales: SOLO admin (la RLS también lo exige; esto evita el intento).
   if (key === 'fiscalMarcas' && !esAdmin()) return;
   const esFactKey = key === 'facturas' || key === 'facturaPagos' || key === 'historial';
-  const esObraKey = key === 'unidades' || key === 'presupuestoUnidad';
+  const esObraKey = key === 'unidades' || key === 'presupuestoUnidad' || key === 'presupuestoCambios';
   if (!puedeEditar() && !(esFactKey && puedeFacturas()) && !(esObraKey && puedeCapturarObra())) return;
   // Ligar/desligar pagos↔facturas es un permiso APARTE: 'facturas_obra' (Anahi)
   // captura facturas pero NO aplica pagos (backstop más profundo del vínculo).
@@ -1813,7 +1841,7 @@ export async function sbBorrarFila(key, idValue) {
   // Marcas fiscales: SOLO admin (la RLS también lo exige; esto evita el intento).
   if (key === 'fiscalMarcas' && !esAdmin()) return;
   const esFactKey = key === 'facturas' || key === 'facturaPagos' || key === 'historial';
-  const esObraKey = key === 'unidades' || key === 'presupuestoUnidad';
+  const esObraKey = key === 'unidades' || key === 'presupuestoUnidad' || key === 'presupuestoCambios';
   if (!puedeEditar() && !(esFactKey && puedeFacturas()) && !(esObraKey && puedeCapturarObra())) return;
   // Ligar/desligar pagos↔facturas es un permiso APARTE: 'facturas_obra' (Anahi)
   // captura facturas pero NO aplica pagos (backstop más profundo del vínculo).
@@ -1849,7 +1877,8 @@ export async function migrarTodoASupabase() {
     // INGRESOS (clientes/ventas/cobros) y ESTRATEGIA (config/flags) tampoco tienen hoja aún y solo
     // se cargan con su módulo activo → sobrescribirlos aquí desde un state vacío BORRARÍA la tabla.
     if (key === 'costoAsignaciones' || key === 'clientes' || key === 'ventas' || key === 'cobros'
-      || key === 'estrategiaConfig' || key === 'estrategiaFlags' || key === 'fiscalMarcas') continue;
+      || key === 'estrategiaConfig' || key === 'estrategiaFlags' || key === 'fiscalMarcas'
+      || key === 'presupuestoCambios') continue;
     const def = SB_ENTIDADES[key];
     try {
       const n = await sbReplaceTable(def.tabla, def.rows());

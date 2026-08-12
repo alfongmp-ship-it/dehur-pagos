@@ -32,6 +32,7 @@ export const state = {
   estrategiaConfig: [],
   estrategiaFlags: [],
   fiscalMarcas: [],        // pestaña 🧾 Fiscal (solo-admin): aprobaciones/exclusiones de deducibilidad
+  presupuestoCambios: [],  // 📜 libro de variaciones del presupuesto (inmutable: solo se agrega)
   // Catálogo editable de partidas y subpartidas
   // Cada item: { id, partida, subpartidas: [string], orden, activa }
   partidasCatalogo: [],
@@ -93,6 +94,13 @@ export function nuevoPresupuestoId() {
   try { if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID(); } catch (_) { /* fallback abajo */ }
   if (!_asigSalt) _asigSalt = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
   return 'p-' + _asigSalt + '-' + (_asigSeq++).toString(36);
+}
+
+// ID único global para un registro del libro de variaciones de presupuesto.
+export function nuevoCambioPresupId() {
+  try { if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID(); } catch (_) { /* fallback abajo */ }
+  if (!_asigSalt) _asigSalt = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+  return 'pc-' + _asigSalt + '-' + (_asigSeq++).toString(36);
 }
 
 // ID único global para una marca fiscal (aprobación/exclusión de deducibilidad).
