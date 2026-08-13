@@ -1025,7 +1025,7 @@ export function abrirLigarFactura(pagoId) {
     return `<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid var(--border);">
       <div style="flex:1;min-width:0;">
         <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Fac ${escapeHtml(String(f.factura_id))}${f.numero_factura ? ' · ' + escapeHtml(f.numero_factura) : ''} · ${escapeHtml(f.razon_social || f.nombre_proveedor || '')}</div>
-        <div style="font-size:11px;color:var(--muted);">${escapeHtml(f.proyecto || 'sin proyecto')} · total ${fmt(f.monto_total || 0)} · saldo ${fmt(saldo)} · ${repartida ? '<span style="color:var(--green);">repartida ✓</span>' : '<span style="color:var(--orange);">sin repartir</span>'}${warn ? ' · <span style="color:var(--orange);font-weight:700;">⚠ otro proyecto</span>' : ''}</div>
+        <div style="font-size:11px;color:var(--muted);">${f.fecha_factura ? fmtFecha(f.fecha_factura) + ' · ' : ''}${escapeHtml(f.proyecto || 'sin proyecto')} · total ${fmt(f.monto_total || 0)} · saldo ${fmt(saldo)} · ${repartida ? '<span style="color:var(--green);">repartida ✓</span>' : '<span style="color:var(--orange);">sin repartir</span>'}${warn ? ' · <span style="color:var(--orange);font-weight:700;">⚠ otro proyecto</span>' : ''}</div>
       </div>
       <input type="number" step="0.01" min="0" id="lf-m-${escapeHtml(String(f.factura_id))}" value="${Math.min(saldo, rest).toFixed(2)}" style="width:110px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;">
       <button class="btn btn-primary btn-sm" onclick="lfAplicar('${escapeHtml(String(f.factura_id))}')">Aplicar</button>
