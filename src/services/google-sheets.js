@@ -80,7 +80,7 @@ export async function gsInitSheets() {
         unidades: [['unidad_id', 'proyecto', 'nombre', 'tipo', 'indiviso_pct', 'superficie_m2', 'estatus', 'orden', 'activo', 'plano_x', 'plano_y', 'plano_w', 'plano_h']],
         presupuesto_unidad: [['presupuesto_id', 'unidad_id', 'partida', 'sub_partida', 'monto_presupuestado', 'costo_inicial', 'notas', 'avance_fisico']],
         costo_asignaciones: [['asignacion_id', 'pago_id', 'unidad_id', 'proyecto', 'metodo', 'monto_asignado', 'factor', 'fecha_asignacion', 'partida_override']],
-        partidas_catalogo: [['partida_id', 'partida', 'subpartidas', 'orden', 'activa', 'visible_obra']],
+        partidas_catalogo: [['partida_id', 'partida', 'subpartidas', 'orden', 'activa', 'visible_obra', 'cuenta_costos']],
         partidas_obra: [['partida_obra_id', 'nombre', 'proyecto', 'partida_admin', 'sub_partida_admin', 'orden', 'activa']],
         // INGRESOS (Fase 1) — mismos encabezados que gsSaveClientes/Ventas/Cobros.
         clientes: [['cliente_id', 'nombre', 'rfc', 'telefono', 'email', 'observaciones', 'activo']],

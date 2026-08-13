@@ -192,8 +192,11 @@ function costoAsignadoDesglose(unidadId) {
   const fc = _facturasCanceladasSet();
   const fe = _factExistSet(); const pe = _pagoExistSet();
   const pcap = _pagosCapitalSet();
+  const noC = _partidasNoCuentanSet();
+  const ppm = noC.size ? _pagoPartidaMap() : null;
   let devengado = 0, pagadoSinFactura = 0;
   asignacionesDeUnidad(unidadId).forEach(a => {
+    if (_asigNoCuenta(a, noC, ppm)) return;
     const t = _tipoAsignacion(a, pcf, fc, fe, pe, pcap);
     if (t === 'devengado') devengado += a.monto_asignado || 0;
     else if (t === 'pagado') pagadoSinFactura += a.monto_asignado || 0;
@@ -238,8 +241,11 @@ export function costosPresupuestosBatch() {
   const fc = _facturasCanceladasSet();
   const fe = _factExistSet(); const pe = _pagoExistSet();
   const pcap = _pagosCapitalSet();
+  const noC = _partidasNoCuentanSet();
+  const ppm = noC.size ? _pagoPartidaMap() : null;
   const asignado = new Map();
   state.costoAsignaciones.forEach(a => {
+    if (_asigNoCuenta(a, noC, ppm)) return;
     const t = _tipoAsignacion(a, pcf, fc, fe, pe, pcap);
     if (!t) return;
     const k = String(a.unidad_id);
@@ -281,6 +287,7 @@ export function desgloseAdminBatch(proyecto) {
   const fc = _facturasCanceladasSet();
   const fe = _factExistSet(); const pe = _pagoExistSet();
   const pcap = _pagosCapitalSet();
+  const noC = _partidasNoCuentanSet();
   const porUnidad = new Map(); const totales = new Map(); const etiquetas = new Map();
   const filaDe = (mapa, k) => {
     let f = mapa.get(k);
@@ -313,6 +320,7 @@ export function desgloseAdminBatch(proyecto) {
     const p = pagoById(a.pago_id);
     const partida = a.partida_override || (p && p.partida) || '';
     const sub = a.sub_partida_override || (p && p.sub_partida) || '';
+    if (noC.size && noC.has(_normPartCap(partida))) return;   // 🚫 partida excluida (config)
     reg(uid, partida, sub, f => {
       if (t === 'devengado') f.devengado += a.monto_asignado || 0;
       else f.pagadoSinFactura += a.monto_asignado || 0;
@@ -325,21 +333,50 @@ export function desgloseAdminBatch(proyecto) {
 }
 
 
+// 🚫 Partidas marcadas "No cuenta para Costos por Unidad" en el catálogo (solo
+// admin, Configuración → Partidas). CAPA post-filtro sobre la regla canónica
+// _tipoAsignacion (jamás dentro de ella). SOLO de vista: ninguna asignación se
+// borra; desmarcar la partida vuelve a contar todo al centavo. Fiscal y
+// Reporte JP NO usan esta capa (deducibilidad / gasto real ≠ costo por casa).
+function _partidasNoCuentanSet() {
+  const set = new Set();
+  (state.partidasCatalogo || []).forEach(p => { if (p.cuentaCostos === false) set.add(_normPartCap(p.partida)); });
+  return set;
+}
+// Mapa id→partida del historial: resuelve la partida efectiva de miles de
+// asignaciones sin un find por fila. Solo se construye si hay partidas marcadas.
+function _pagoPartidaMap() {
+  const m = new Map();
+  state.historial.forEach(h => { if (h.id) m.set(String(h.id), h.partida || ''); });
+  return m;
+}
+// Partida EFECTIVA de una asignación — MISMA resolución que desgloseAdminBatch:
+// override de la asignación ?? partida del pago (los repartos de factura la
+// llevan en partida_override).
+function _asigNoCuenta(a, noC, ppm) {
+  if (!noC || !noC.size) return false;
+  const p = a.partida_override || (ppm && ppm.get(String(a.pago_id))) || '';
+  return noC.has(_normPartCap(p));
+}
+
 // Un movimiento del historial cuenta como costo asignable a unidades.
 // Se EXCLUYEN: los Traspasos internos y Préstamos entre proyectos (no son costo
 // de construcción) y el CAPITAL de crédito (Crédito sin partida de intereses —
 // es pago de deuda, fiscalmente no es costo). Sí cuentan: Pagos, Aportaciones y
 // los INTERESES de crédito.
-function esCostoAsignable(h) {
+function esCostoAsignable(h, noC) {
   if (h.tipo_registro === 'Traspaso' && h.tipo !== 'Aportación') return false;
   if (_esCreditoNoInteres(h)) return false;
+  // 🚫 Partida marcada "no cuenta" en el catálogo (capa config, solo de vista).
+  if ((noC || _partidasNoCuentanSet()).has(_normPartCap(h.partida))) return false;
   return true;
 }
 
 function pagosSinAsignar() {
   const asignados = new Set(state.costoAsignaciones.map(a => String(a.pago_id)));
+  const noC = _partidasNoCuentanSet();
   return state.historial.filter(h =>
-    esCostoAsignable(h) && h.id &&
+    esCostoAsignable(h, noC) && h.id &&
     proyectoMatch(h.proyecto, cfProyecto) &&
     !asignados.has(String(h.id))
   );
@@ -347,8 +384,9 @@ function pagosSinAsignar() {
 
 function pagosAsignados() {
   const asignados = new Set(state.costoAsignaciones.map(a => String(a.pago_id)));
+  const noC = _partidasNoCuentanSet();
   return state.historial.filter(h =>
-    esCostoAsignable(h) && h.id &&
+    esCostoAsignable(h, noC) && h.id &&
     proyectoMatch(h.proyecto, cfProyecto) &&
     asignados.has(String(h.id))
   );
@@ -366,8 +404,9 @@ function estimadoIndivisoPorUnidad() {
   // facturaPagos por partes): su costo va por el devengado de la factura.
   const ligadosFp = new Set();
   (state.facturaPagos || []).forEach(fp => { if (String(fp.pago_id || '') !== '') ligadosFp.add(String(fp.pago_id)); });
+  const noC = _partidasNoCuentanSet();
   const pend = state.historial.filter(h =>
-    esCostoAsignable(h) && h.id &&
+    esCostoAsignable(h, noC) && h.id &&
     proyectoMatch(h.proyecto, cfProyecto) &&
     !asignados.has(String(h.id)) &&
     !(h.factura_id && String(h.factura_id) !== '') &&
@@ -874,6 +913,7 @@ function renderAsignarTab(panel) {
       <div class="stat-card" title="Pagos aplicados POR COMPLETO a facturas ya repartidas: su costo entra por el devengado de la factura, por eso no están pendientes"><div class="stat-label">Cubiertos por factura</div><div class="stat-value" style="color:var(--blue);">${cubiertos.length}</div><div class="stat-sub">${fmt(cubiertos.reduce((s, h) => s + (h.importe || 0), 0))}</div></div>
       <div class="stat-card"><div class="stat-label">Asignaciones huérfanas</div><div class="stat-value" style="color:${huerfanas.length ? 'var(--red)' : 'var(--muted)'};">${huerfanas.length}</div><div class="stat-sub">${huerfanas.length ? '<a href="#" class="req-editor" onclick="cfLimpiarHuerfanas();return false;" style="color:var(--accent);">Limpiar</a>' : 'Sin problemas'}</div></div>
     </div>
+    ${(() => { const nc = (state.partidasCatalogo || []).filter(p => p.cuentaCostos === false).map(p => p.partida); return nc.length ? `<div style="font-size:11px;color:var(--muted);margin-bottom:12px;" title="Marcadas en Configuración → Partidas. Sus pagos no aparecen como pendientes y sus repartos no suman al costo de las casas. Solo de vista: al desmarcarlas todo vuelve a contar.">🚫 <b>No cuentan para costos</b>: ${nc.map(escapeHtml).join(' · ')} <span style="opacity:.8;">— además, por tipo: traspasos, préstamos y capital de crédito.</span></div>` : ''; })()}
 
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
       <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;">Pendientes de asignar</div>

@@ -576,7 +576,8 @@ export async function gsLoadAll() {
         subpartidas: (r[2] || '').split('|').map(s => s.trim()).filter(Boolean),
         orden: parseInt(r[3]) || 0,
         activa: r[4] !== 'false' && r[4] !== 'FALSE' && r[4] !== false,
-        visibleObra: r[5] !== 'false' && r[5] !== 'FALSE' && r[5] !== false
+        visibleObra: r[5] !== 'false' && r[5] !== 'FALSE' && r[5] !== false,
+        cuentaCostos: r[6] !== 'false' && r[6] !== 'FALSE' && r[6] !== false
       }));
     }
     // Migración: si la hoja está vacía, sembrar con partidas únicas del
@@ -994,7 +995,8 @@ export async function sbLoadAll() {
       id: r.partida_id || '', partida: r.partida || '',
       subpartidas: Array.isArray(r.subpartidas) ? r.subpartidas : [],
       orden: toInt(r.orden), activa: r.activa !== false,
-      visibleObra: r.visible_obra !== false
+      visibleObra: r.visible_obra !== false,
+      cuentaCostos: r.cuenta_costos !== false
     }));
   });
 
@@ -1735,7 +1737,8 @@ function _rowPartidaCatalogo(p) {
   return {
     partida_id: _sbStr(p.id), partida: _sbStr(p.partida), subpartidas: p.subpartidas || [],
     orden: _sbNum(p.orden), activa: p.activa !== false,
-    visible_obra: p.visibleObra !== false
+    visible_obra: p.visibleObra !== false,
+    cuenta_costos: p.cuentaCostos !== false
   };
 }
 function _rowsPartidasCatalogo() {
@@ -2148,9 +2151,10 @@ export async function gsSavePartidasCatalogo(opts = {}) {
     const rows = state.partidasCatalogo.map(p => [
       p.id || '', p.partida || '', (p.subpartidas || []).join('|'),
       p.orden || 0, p.activa === false ? 'false' : 'true',
-      p.visibleObra === false ? 'false' : 'true'
+      p.visibleObra === false ? 'false' : 'true',
+      p.cuentaCostos === false ? 'false' : 'true'
     ]);
-    await gsClearAndWrite('partidas_catalogo', rows, ['partida_id', 'partida', 'subpartidas', 'orden', 'activa', 'visible_obra']);
+    await gsClearAndWrite('partidas_catalogo', rows, ['partida_id', 'partida', 'subpartidas', 'orden', 'activa', 'visible_obra', 'cuenta_costos']);
     if (!opts.porFila) await sbEspejar('partidasCatalogo');
   } catch (e) { console.error('gsSavePartidasCatalogo', e); }
 }

@@ -1272,6 +1272,10 @@
       <input type="checkbox" id="cat-partida-visible-obra" checked style="cursor:pointer;">
       👷 Visible para el perfil de obra
     </label>
+    <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin-top:8px;cursor:pointer;" title="Desmarcada: los pagos de esta partida NO aparecen como pendientes de reparto y sus repartos existentes DEJAN de sumar al costo de las casas (Costos por Unidad, Control de Obra, Avance). Es solo de vista: nada se borra y al volver a marcarla todo cuenta de nuevo. Fiscal y Reporte JP no cambian.">
+      <input type="checkbox" id="cat-partida-cuenta-costos" checked style="cursor:pointer;">
+      💰 Cuenta para Costos por Unidad
+    </label>
     <div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end;">
       <button class="btn btn-ghost" onclick="cerrar('modal-partida')">Cancelar</button>
       <button class="btn btn-primary" onclick="guardarPartidaCatalogo()">Guardar</button>

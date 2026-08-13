@@ -32,7 +32,7 @@ export function renderConfigPartidas() {
   div.innerHTML = cat.map(p => `
     <div style="display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--border);">
       <div style="flex:1;min-width:0;">
-        <div style="font-weight:600;font-size:13px;">${escapeHtml(p.partida)}${p.activa === false ? ' <span style="color:var(--muted);font-weight:400;">(inactiva)</span>' : ''}${p.visibleObra === false ? ' <span style="color:var(--orange);font-weight:400;font-size:10px;" title="Los perfiles de obra (Gustavo/Anahi) no la ven en Costos por Unidad">🚫 oculta a obra</span>' : ''}</div>
+        <div style="font-weight:600;font-size:13px;">${escapeHtml(p.partida)}${p.activa === false ? ' <span style="color:var(--muted);font-weight:400;">(inactiva)</span>' : ''}${p.visibleObra === false ? ' <span style="color:var(--orange);font-weight:400;font-size:10px;" title="Los perfiles de obra (Gustavo/Anahi) no la ven en Costos por Unidad">🚫 oculta a obra</span>' : ''}${p.cuentaCostos === false ? ' <span style="color:var(--orange);font-weight:400;font-size:10px;" title="Sus pagos no aparecen como pendientes de reparto y sus repartos NO suman al costo de las casas (solo de vista; reversible). Fiscal y Reporte JP no cambian.">🚫 no cuenta en costos</span>' : ''}</div>
         <div style="font-size:11px;color:var(--muted);margin-top:2px;">
           ${(p.subpartidas || []).length} subpartida${(p.subpartidas || []).length === 1 ? '' : 's'}
         </div>
@@ -57,6 +57,8 @@ export function abrirModalPartida(id) {
   inpNombre.oninput = actualizarAvisoSubpartidas;
   const chkVisObra = document.getElementById('cat-partida-visible-obra');
   if (chkVisObra) chkVisObra.checked = p ? p.visibleObra !== false : true;
+  const chkCuenta = document.getElementById('cat-partida-cuenta-costos');
+  if (chkCuenta) chkCuenta.checked = p ? p.cuentaCostos !== false : true;
   document.getElementById('cat-partida-sub-input').value = '';
   state._editSubpartidas = [...(p?.subpartidas || [])];
   renderEditSubpartidas();
@@ -132,6 +134,9 @@ export function guardarPartidaCatalogo() {
   const visibleObra = document.getElementById('cat-partida-visible-obra')
     ? document.getElementById('cat-partida-visible-obra').checked
     : true;
+  const cuentaCostos = document.getElementById('cat-partida-cuenta-costos')
+    ? document.getElementById('cat-partida-cuenta-costos').checked
+    : true;
   if (editId) {
     const idx = state.partidasCatalogo.findIndex(p => p.id === editId);
     if (idx >= 0) {
@@ -139,7 +144,8 @@ export function guardarPartidaCatalogo() {
         ...state.partidasCatalogo[idx],
         partida: nombre,
         subpartidas: subs,
-        visibleObra
+        visibleObra,
+        cuentaCostos
       };
     }
   } else {
@@ -150,7 +156,8 @@ export function guardarPartidaCatalogo() {
       subpartidas: subs,
       orden,
       activa: true,
-      visibleObra
+      visibleObra,
+      cuentaCostos
     });
   }
   // Fase 3: en modo 'fila' guarda solo la partida afectada (add o edit).

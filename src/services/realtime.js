@@ -68,7 +68,8 @@ const RT = {
       id: r.partida_id || '', partida: r.partida || '',
       subpartidas: Array.isArray(r.subpartidas) ? r.subpartidas : [],
       orden: toInt(r.orden), activa: r.activa !== false,
-      visibleObra: r.visible_obra !== false
+      visibleObra: r.visible_obra !== false,
+      cuentaCostos: r.cuenta_costos !== false
     }),
     pinta: ['renderConfigPartidas']
   },
