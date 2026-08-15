@@ -1838,6 +1838,10 @@
         <input type="radio" name="cf-metodo" value="indiviso" onchange="cfCambiarMetodo()">
         <span><strong>Área común</strong><br><small>Repartido por indiviso</small></span>
       </label>
+      <label class="cf-metodo-opt" style="grid-column:1/-1;" title="Para trabajos que tocaron solo algunas casas (contratistas): eliges las casas y el costo se reparte entre ellas en proporción a su indiviso, renormalizado para que sumen el 100% del importe.">
+        <input type="radio" name="cf-metodo" value="indiviso_sel" onchange="cfCambiarMetodo()">
+        <span><strong>Indiviso de las casas elegidas</strong><br><small>Solo entre las que marques, proporcional a su indiviso</small></span>
+      </label>
     </div>
     <div id="asignar-metodo-body"></div>
     <div id="asignar-preview"></div>

@@ -8,13 +8,16 @@ export const ESTATUS_UNIDAD = ['En obra', 'Terminada', 'Entregada', 'Vendida'];
 // - equitativo: el pago se divide en partes iguales entre N unidades.
 // - indiviso:   el pago se reparte entre TODAS las unidades del proyecto
 //               según su % de indiviso (costos de área común / indirectos).
+// - indiviso_sel: igual, pero SOLO entre las casas elegidas, con su indiviso
+//               renormalizado entre ellas (contratista que trabajó en algunas).
 // - custom:     proporción libre por unidad (preparado para uso futuro).
-export const METODOS_ASIGNACION = ['directo', 'equitativo', 'indiviso', 'custom'];
+export const METODOS_ASIGNACION = ['directo', 'equitativo', 'indiviso', 'indiviso_sel', 'custom'];
 
 export const METODO_LABEL = {
   directo: 'Directo a una unidad',
   equitativo: 'Dividido en partes iguales',
   indiviso: 'Área común (por indiviso)',
+  indiviso_sel: 'Indiviso entre casas elegidas',
   custom: 'Proporción personalizada',
 };
 

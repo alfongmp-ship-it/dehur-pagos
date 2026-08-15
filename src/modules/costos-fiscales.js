@@ -1413,6 +1413,27 @@ function renderMetodoBody() {
           </div>`).join('')}
       </div>
       <div class="cf-picker-count">${esPct ? 'Los porcentajes deben sumar <strong>100%</strong>' : 'Importe a repartir: <strong>' + fmt(cfImporteObjetivo()) + '</strong>'}</div>`;
+  } else if (metodo === 'indiviso_sel') {
+    // MISMO picker que "Partes iguales" (misma clase e ids ⇒ buscador, Todas/Ninguna y la
+    // reconstrucción de un reparto guardado funcionan sin tocarlos), pero mostrando el
+    // indiviso de cada casa: es el peso con el que se reparte entre las elegidas.
+    const fechaDoc = cfFechaObjetivo();
+    body.innerHTML = `
+      <div class="cf-picker-tools">
+        <input type="text" class="cf-picker-search" placeholder="🔍 Buscar casa..." oninput="cfFiltrarUnidades()">
+        <button type="button" class="btn btn-ghost btn-sm" onclick="cfSelTodas(true)">Todas</button>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="cfSelTodas(false)">Ninguna</button>
+      </div>
+      <div class="cf-picker cols" id="cf-picker-lista">
+        ${unidades.map(u => {
+          const fuera = !unidadEnIndivisoAFecha(u, fechaDoc);
+          return `<div class="cf-pick-row" data-nombre="${escapeHtml((u.nombre || '').toLowerCase().replace(/"/g, ''))}">
+            <input type="checkbox" class="cf-unidad-check" value="${u.unidad_id}" id="cfchk-${u.unidad_id}" onchange="cfPreviewReparto()">
+            <label for="cfchk-${u.unidad_id}">${escapeHtml(u.nombre)} <span style="color:var(--muted);font-family:'DM Mono',monospace;font-size:10px;">${(u.indiviso_pct || 0).toFixed(2)}%</span>${fuera ? ' <span style="color:var(--orange);font-size:10px;" title="Ya estaba terminada a la fecha del documento — solo se le reparte si la marcas a propósito">⚑</span>' : ''}</label>
+          </div>`;
+        }).join('')}
+      </div>
+      <div class="cf-picker-count" id="cf-picker-count"></div>`;
   } else if (metodo === 'indiviso') {
     // Mostrar el pool REAL (mismo criterio que calcularReparto): solo las casas que seguían
     // en obra a la fecha del documento. El texto debe coincidir con lo que de verdad reparte.
@@ -1454,7 +1475,7 @@ function cfReconstruirRepartoFactura(asigsF) {
   if (metodo === 'directo') {
     const sel = document.getElementById('asignar-unidad-directo');
     if (sel) sel.value = String(grupo[0].unidad_id);
-  } else if (metodo === 'equitativo') {
+  } else if (metodo === 'equitativo' || metodo === 'indiviso_sel') {
     grupo.forEach(a => { const c = document.getElementById('cfchk-' + a.unidad_id); if (c) c.checked = true; });
   } else if (metodo === 'custom') {
     grupo.forEach(a => {
@@ -1540,25 +1561,33 @@ function calcularReparto() {
     // Si ninguna calificó (fecha rara), cae a todas las activas para no perder el reparto.
     const fechaDoc = cfFechaObjetivo();
     const pool0 = unidades.filter(u => unidadEnIndivisoAFecha(u, fechaDoc));
-    const pool = pool0.length ? pool0 : unidades;
-    if (!pool.length) return [];
-    const totalPct = pool.reduce((s, u) => s + (u.indiviso_pct || 0), 0);
-    let arr;
-    if (totalPct <= 0) {
-      const n = pool.length;
-      const base = r2(importe / n);
-      arr = pool.map(u => ({ unidad_id: u.unidad_id, factor: 1 / n, monto: base }));
-    } else {
-      arr = pool.map(u => {
-        const factor = (u.indiviso_pct || 0) / totalPct;
-        return { unidad_id: u.unidad_id, factor, monto: r2(importe * factor) };
-      });
-    }
-    const suma = r2(arr.reduce((s, x) => s + x.monto, 0));
-    if (arr.length) arr[arr.length - 1].monto = r2(arr[arr.length - 1].monto + (importe - suma));
-    return arr;
+    return _repartoPorIndiviso(pool0.length ? pool0 : unidades, importe);
+  }
+  if (metodo === 'indiviso_sel') {
+    // Solo las casas ELEGIDAS, ponderadas por su indiviso renormalizado entre ellas.
+    // Aquí NO se filtra por fecha: el usuario eligió a mano (el picker marca con ⚑ las
+    // que ya estaban terminadas).
+    const sel = [...document.querySelectorAll('.cf-unidad-check:checked')].map(c => parseInt(c.value));
+    return _repartoPorIndiviso(sel.map(uid => unidadById(uid)).filter(Boolean), importe);
   }
   return [];
+}
+
+// Reparte `importe` dentro de un pool ponderando por el % de indiviso de cada casa,
+// RENORMALIZADO al pool (los factores suman 1, así que el total siempre cuadra).
+// Sin indiviso capturado cae a partes iguales. El redondeo se ajusta en la última casa.
+function _repartoPorIndiviso(pool, importe) {
+  if (!pool.length) return [];
+  const totalPct = pool.reduce((s, u) => s + (u.indiviso_pct || 0), 0);
+  const arr = totalPct > 0
+    ? pool.map(u => {
+        const factor = (u.indiviso_pct || 0) / totalPct;
+        return { unidad_id: u.unidad_id, factor, monto: r2(importe * factor) };
+      })
+    : pool.map(u => ({ unidad_id: u.unidad_id, factor: 1 / pool.length, monto: r2(importe / pool.length) }));
+  const suma = r2(arr.reduce((s, x) => s + x.monto, 0));
+  arr[arr.length - 1].monto = r2(arr[arr.length - 1].monto + (importe - suma));
+  return arr;
 }
 
 // Reparte el monto restante del pago en partes iguales entre las casas
@@ -1623,12 +1652,18 @@ export function cfRepartirRestoIndiviso() {
 }
 
 export function cfPreviewReparto() {
-  // Contador de selección (método equitativo)
+  // Contador de selección (métodos con picker de casas)
   const countEl = document.getElementById('cf-picker-count');
-  if (countEl && metodoSeleccionado() === 'equitativo') {
+  const metodoSel = metodoSeleccionado();
+  if (countEl && (metodoSel === 'equitativo' || metodoSel === 'indiviso_sel')) {
     const total = document.querySelectorAll('.cf-unidad-check').length;
-    const sel = document.querySelectorAll('.cf-unidad-check:checked').length;
-    countEl.textContent = `${sel} de ${total} casa${total !== 1 ? 's' : ''} seleccionada${sel !== 1 ? 's' : ''}`;
+    const chks = [...document.querySelectorAll('.cf-unidad-check:checked')];
+    let txt = `${chks.length} de ${total} casa${total !== 1 ? 's' : ''} seleccionada${chks.length !== 1 ? 's' : ''}`;
+    if (metodoSel === 'indiviso_sel' && chks.length) {
+      const sumInd = chks.reduce((s, c) => { const u = unidadById(parseInt(c.value)); return s + ((u && u.indiviso_pct) || 0); }, 0);
+      txt += ` · indiviso sumado ${sumInd.toFixed(2)}% → se reparte proporcional entre ellas`;
+    }
+    countEl.textContent = txt;
   }
   const cont = document.getElementById('asignar-preview');
   if (!cont) return;
