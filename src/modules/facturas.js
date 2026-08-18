@@ -107,6 +107,21 @@ export function renderFacturas() {
   // Suma del reparto (devengado) por factura, para mostrar completo / parcial / falta.
   const repartoSum = new Map();
   state.costoAsignaciones.forEach(a => { if (a.factura_id) repartoSum.set(String(a.factura_id), (repartoSum.get(String(a.factura_id)) || 0) + (a.monto_asignado || 0)); });
+  // Pagos VINCULADOS por factura (para el indicador de la columna Pagado, sin tener que
+  // abrir el detalle). Se cuentan las DOS vías de vínculo, igual que la regla canónica
+  // _facturasLigadasAPago de costos-fiscales: la tabla facturaPagos (aplicar por partes)
+  // y la bandera directa factura_id del pago (legacy). Set de pago_id por factura para no
+  // contar dos veces el pago que tenga ambas. UNA pasada — patrón batch.
+  const pagosVinc = new Map();   // factura_id → Set(pago_id)
+  const ligar = (fid, pid) => {
+    const k = String(fid);
+    if (!k || k === '0') return;
+    let s = pagosVinc.get(k);
+    if (!s) { s = new Set(); pagosVinc.set(k, s); }
+    s.add(String(pid));
+  };
+  (state.facturaPagos || []).forEach(fp => ligar(fp.factura_id, fp.pago_id));
+  state.historial.forEach(h => { if (h.factura_id != null && String(h.factura_id) !== '') ligar(h.factura_id, h.id); });
   tb.innerHTML = fil.map(f => {
     const provNombre = f.nombre_proveedor || f.razon_social || `ID ${f.proveedor_id}`;
     const estBadge = estatusBadge(f.estatus_factura);
@@ -125,6 +140,19 @@ export function renderFacturas() {
     const totalCell = ncTotal > 0.005
       ? `${fmt(f.monto_total)}<div style="font-size:9px;color:var(--muted);font-weight:400;">orig. ${fmt((f.monto_total || 0) + ncTotal)} · NC −${fmt(ncTotal)}</div>`
       : fmt(f.monto_total);
+    // Indicador de pago VINCULADO bajo el monto pagado: evita abrir el detalle para saberlo.
+    // El tooltip lista cada pago (fecha · monto aplicado). El caso "hay monto pagado pero
+    // ningún pago vinculado" se marca en ámbar: es justo el que descuadra la supresión de costo.
+    const nVinc = (pagosVinc.get(String(f.factura_id)) || new Set()).size;
+    let vincCell = '';
+    if (nVinc > 0) {
+      const det = (state.facturaPagos || [])
+        .filter(fp => String(fp.factura_id) === String(f.factura_id))
+        .map(fp => `${fmtFecha(fp.fecha_pago)} · ${fmt(fp.monto_aplicado)}`).join('\n');
+      vincCell = `<div style="font-size:9px;color:var(--green);font-weight:600;" title="${escapeHtml(det || 'Pago ligado a esta factura')}">✓ ${nVinc === 1 ? 'Pago vinculado' : nVinc + ' pagos vinculados'}</div>`;
+    } else if ((f.monto_pagado || 0) > 0.005) {
+      vincCell = '<div style="font-size:9px;color:var(--orange);font-weight:600;" title="La factura tiene monto pagado capturado, pero NINGÚN pago del historial está ligado a ella. Liga el pago con 📎 en Costos por Unidad para que su costo no se cuente doble.">⚠ Sin pago vinculado</div>';
+    }
     return `<tr ondblclick="abrirDetalleFactura(${f.factura_id})" style="cursor:pointer;" title="Doble click para ver el detalle y los pagos">
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${f.factura_id}</td>
       <td style="font-size:11px;"><span style="font-family:'DM Mono',monospace;" title="${escapeHtml(f.uuid)}">${escapeHtml((f.uuid || '').split('-')[0]) || '—'}</span><div style="font-size:9px;color:var(--muted);">Núm: ${escapeHtml(f.numero_factura) || '—'}</div></td>
@@ -132,7 +160,7 @@ export function renderFacturas() {
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${fmtFecha(f.fecha_factura)}</td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:${vColor};font-weight:${vColor !== 'var(--muted)' ? '600' : '400'};">${fmtFecha(f.fecha_vencimiento) || '—'} ${vBadge}</td>
       <td style="font-family:'DM Mono',monospace;font-weight:500;text-align:right;">${totalCell}</td>
-      <td style="font-family:'DM Mono',monospace;text-align:right;color:var(--green);">${fmt(f.monto_pagado)}</td>
+      <td style="font-family:'DM Mono',monospace;text-align:right;color:var(--green);">${fmt(f.monto_pagado)}${vincCell}</td>
       <td style="font-family:'DM Mono',monospace;font-weight:500;text-align:right;color:${f.saldo_pendiente > 0 ? 'var(--accent)' : 'var(--muted)'};">${fmt(f.saldo_pendiente)}</td>
       <td>${estBadge}</td>
       <td>${estadoSatBadge(f.estado_sat)}</td>
