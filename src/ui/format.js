@@ -1,5 +1,8 @@
+// Dinero SIEMPRE con 2 decimales. `maximumFractionDigits` es obligatorio: sin él
+// toLocaleString usa max(min, 3) y las SUMAS grandes salían con 3 decimales
+// ($20,242,075.572) por el arrastre de coma flotante — se veía como error de datos.
 export function fmt(n) {
-  return '$' + n.toLocaleString('es-MX', { minimumFractionDigits: 2 });
+  return '$' + n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 // Escapa texto para insertarlo con seguridad en innerHTML (contenido) o en
