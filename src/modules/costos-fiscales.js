@@ -555,6 +555,7 @@ function renderUnidadesTab(panel) {
         <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);cursor:pointer;" title="Reparte por indiviso (respetando fechas) los pagos sin factura ni reparto, SOLO para verlos. No crea asignaciones reales ni afecta el costo real.">
           <input type="checkbox" ${cfMostrarEstimado ? 'checked' : ''} onchange="cfToggleEstimado(this.checked)" style="cursor:pointer;"> Estimado por asignar
         </label>
+        <button class="btn btn-ghost btn-sm" onclick="exportarCostosUnitariosExcel()" title="Exporta el costo de cada casa (presupuesto, costo real y avance). Con el checkbox de estimado prendido, incluye además el estimado por asignar y el costo proyectado.">⬇ Excel</button>
         <button class="btn btn-ghost req-editor" onclick="abrirLoteUnidades()">+ Crear en lote</button>
         <button class="btn btn-primary req-editor" onclick="abrirNuevaUnidad()">+ Nueva Unidad</button>
       </div>
@@ -592,6 +593,63 @@ function renderUnidadesTab(panel) {
       </table>
     </div>` : `<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🏠</div><div>Sin unidades en ${escapeHtml(cfProyecto)}. Crea las casas para empezar.</div></div>`}
   `;
+}
+
+// Excel de COSTOS UNITARIOS: una fila por casa con presupuesto, costo real y avance.
+// Si el checkbox "Estimado por asignar" está prendido, agrega las 2 columnas del
+// estimado (lo pendiente repartido por indiviso) y el costo proyectado — igual que
+// la tabla en pantalla, para que el Excel diga exactamente lo que se está viendo.
+// Usa el motor BATCH (costosPresupuestosBatch: una pasada, misma regla canónica que
+// Costos por Unidad y Estrategia) — nunca los helpers por unidad en bucle.
+export function exportarCostosUnitariosExcel() {
+  if (!window.XLSX) { notify('Cargando la librería de Excel, intenta de nuevo en 2 segundos', 'error'); return; }
+  const unidades = unidadesDeProyecto(true);
+  if (!unidades.length) { notify('No hay unidades que exportar en este proyecto', 'error'); return; }
+  const batch = costosPresupuestosBatch();
+  const estim = cfMostrarEstimado ? estimadoIndivisoPorUnidad() : null;
+  const hoyISO = new Date().toISOString().slice(0, 10);
+
+  const enc = ['Casa', 'Tipo', '% Indiviso', 'Superficie m2', 'Estatus', 'Terminación',
+    'Presupuesto', 'Costo real', '% Avance financiero'];
+  if (estim) enc.push('Estimado por asignar', 'Costo proyectado');
+
+  const aoa = [
+    [`Costos por unidad — ${cfProyecto}`],
+    [`Generado: ${hoyISO}${estim ? ` · INCLUYE estimado: ${fmt(estim.total)} de ${estim.count} pago(s) pendientes repartidos por indiviso (NO es costo real)` : ''}`],
+    [],
+    enc
+  ];
+  let tPres = 0, tReal = 0, tEst = 0;
+  unidades.forEach(u => {
+    const b = batch.get(String(u.unidad_id)) || { real: 0, presupuesto: 0, avance: null };
+    const e = estim ? (estim.porUnidad.get(u.unidad_id) || 0) : 0;
+    tPres += b.presupuesto; tReal += b.real; tEst += e;
+    const fila = [
+      u.nombre, u.tipo || '', (u.indiviso_pct || 0) / 100, u.superficie_m2 || '',
+      u.activo === false ? (u.estatus || '') + ' (baja)' : (u.estatus || ''),
+      u.fecha_termino || '', b.presupuesto, b.real, b.avance === null ? '' : b.avance / 100
+    ];
+    if (estim) fila.push(e, b.real + e);
+    aoa.push(fila);
+  });
+  const filaTot = ['TOTAL', '', '', '', '', '', tPres, tReal,
+    tPres > 0 ? (tReal / tPres) : ''];
+  if (estim) filaTot.push(tEst, tReal + tEst);
+  aoa.push([], filaTot);
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{ wch: 16 }, { wch: 14 }, { wch: 11 }, { wch: 13 }, { wch: 13 }, { wch: 13 },
+    { wch: 15 }, { wch: 15 }, { wch: 16 }, { wch: 18 }, { wch: 16 }];
+  const colsPct = [2, 8];                                    // % indiviso y % avance
+  const colsMon = estim ? [6, 7, 9, 10] : [6, 7];             // presupuesto, real (+ estimado y proyectado)
+  for (let r = 3; r < aoa.length; r++) {
+    colsMon.forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (ws[ref] && typeof ws[ref].v === 'number') ws[ref].z = '"$"#,##0.00'; });
+    colsPct.forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (ws[ref] && typeof ws[ref].v === 'number') ws[ref].z = '0.00%'; });
+  }
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Costos por unidad');
+  XLSX.writeFile(wb, `Costos_Unitarios_${String(cfProyecto || 'proyecto').replace(/[\\/:*?"<>|\s]+/g, '_')}_${hoyISO}.xlsx`);
+  notify(`✅ Excel de costos unitarios generado${estim ? ' (con estimado por asignar)' : ''}`);
 }
 
 // Prende/apaga el estimado por indiviso de pagos sin asignar (solo display).
