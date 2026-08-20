@@ -398,6 +398,8 @@ function pagosAsignados() {
 // Devuelve { porUnidad: Map(unidad_id→monto), total, count }.
 function estimadoIndivisoPorUnidad() {
   const porUnidad = new Map();
+  const porLlave = new Map();     // llave partida|sub → Map(unidad_id → monto estimado)
+  const etiquetas = new Map();    // llave → { partida, sub }
   const asignados = new Set(state.costoAsignaciones.map(a => String(a.pago_id)));
   const activas = unidadesDeProyecto();
   // Excluir pagos ligados a factura por CUALQUIER vía (bandera directa o
@@ -428,13 +430,22 @@ function estimadoIndivisoPorUnidad() {
         poolCache.set(fIso, pool);
       }
       if (!pool.casas.length) return;
+      // Llave partida|sub del PAGO (misma que desgloseAdminBatch) para poder ver el
+      // estimado por partida en Control de Obra. Las FACTURAS sin repartir no entran
+      // aquí (ya se excluyeron arriba) y además no tienen partida hasta repartirse.
+      const k = _llaveObra(h.partida || '', h.sub_partida || '');
+      let mLl = porLlave.get(k);
+      if (!mLl) { mLl = new Map(); porLlave.set(k, mLl); }
+      if (!etiquetas.has(k)) etiquetas.set(k, { partida: (h.partida || '').trim() || 'Sin partida', sub: (h.sub_partida || '').trim() });
       pool.casas.forEach(u => {
         const factor = pool.sumInd > 0 ? (u.indiviso_pct || 0) / pool.sumInd : 1 / pool.casas.length;
-        porUnidad.set(u.unidad_id, (porUnidad.get(u.unidad_id) || 0) + imp * factor);
+        const parte = imp * factor;
+        porUnidad.set(u.unidad_id, (porUnidad.get(u.unidad_id) || 0) + parte);
+        mLl.set(u.unidad_id, (mLl.get(u.unidad_id) || 0) + parte);
       });
     });
   }
-  return { porUnidad, total, count: pend.length };
+  return { porUnidad, porLlave, etiquetas, total, count: pend.length };
 }
 
 function asignacionesHuerfanas() {
@@ -2246,6 +2257,12 @@ let cfObraMetrica = 'desv';   // 'desv' ($ por ejercer) | 'fin' (% financiero) |
 // "Visible para obra"; sin extras ni "Sin partida"): evita incongruencias al
 // comparar con el residente. Default prendido; desmarcar = detalle completo.
 let cfObraSoloVisibles = true;
+// 📊 Estimado por asignar DENTRO de Control de Obra (checkbox propio, independiente
+// del de la pestaña Unidades): reparte por indiviso los pagos pendientes y los
+// atribuye a SU partida, para que "Por ejercer" descuente también lo que viene en
+// camino. Las facturas sin repartir NO entran (una factura no tiene partida hasta
+// que se reparte). Es SOLO display: no crea asignaciones ni toca el costo real.
+let cfObraEstimado = false;
 
 // Umbral del semáforo físico-vs-financiero: si el avance FINANCIERO (gastado /
 // presupuesto) supera al FÍSICO por más de estos puntos, va gastado por encima
@@ -2309,7 +2326,23 @@ function renderControlObraTab(panel) {
     return;
   }
   const { porUnidad, totales, etiquetas } = desgloseAdminBatch(cfProyecto);
-  const llavesTodas = _ordenLlavesObra(new Set(totales.keys()), etiquetas);
+  // Estimado por asignar (opcional): se fusionan sus llaves con las que ya tienen
+  // presupuesto/costo, para que una partida que SOLO tiene pagos pendientes también
+  // aparezca (si no, ese dinero no se vería en ningún renglón).
+  const estimObra = cfObraEstimado ? estimadoIndivisoPorUnidad() : null;
+  const setLlaves = new Set(totales.keys());
+  const estLlave = new Map();   // llave → estimado total del proyecto
+  if (estimObra) {
+    estimObra.porLlave.forEach((m, k) => {
+      setLlaves.add(k);
+      if (!etiquetas.has(k) && estimObra.etiquetas.has(k)) etiquetas.set(k, estimObra.etiquetas.get(k));
+      let s = 0; m.forEach(v => { s += v; });
+      estLlave.set(k, s);
+    });
+  }
+  const estDe = k => estLlave.get(k) || 0;
+  const estCelda = (uid, k) => estimObra ? ((estimObra.porLlave.get(k) || new Map()).get(uid) || 0) : 0;
+  const llavesTodas = _ordenLlavesObra(setLlaves, etiquetas);
   if (!llavesTodas.length) {
     panel.innerHTML = '<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🏗️</div><div>Aún no hay presupuesto ni costos clasificados en ' + escapeHtml(cfProyecto) + '. Captura el presupuesto en la pestaña 📋 Presupuestos.</div></div>';
     return;
@@ -2334,7 +2367,12 @@ function renderControlObraTab(panel) {
 
   const celda = (uid, k) => {
     const f = (porUnidad.get(String(uid)) || new Map()).get(k);
-    if (!f) return '<td style="text-align:right;color:var(--border);font-size:10px;">—</td>';
+    const est = estCelda(uid, k);
+    if (!f) {
+      // Sin presupuesto ni costo, pero con pagos pendientes que caerán aquí.
+      if (est > 0.005 && cfObraMetrica === 'desv') return `<td style="text-align:right;font-family:'DM Mono',monospace;font-size:11px;color:var(--red);" title="Sin presupuesto capturado · estimado por asignar ${fmt(est)}">${fmt(-est)}</td>`;
+      return '<td style="text-align:right;color:var(--border);font-size:10px;">—</td>';
+    }
     const fin = avancePct(f.real, f.presupuestado);
     if (cfObraMetrica === 'fis') {
       const e = etiquetas.get(k) || {};
@@ -2348,11 +2386,11 @@ function renderControlObraTab(panel) {
       if (fin === null) return `<td style="text-align:right;font-size:10px;color:${f.real > 0 ? 'var(--orange)' : 'var(--muted)'};" ${f.real > 0 ? `title="Tiene costo (${fmt(f.real)}) sin presupuesto"` : ''}>${f.real > 0 ? '⚠ s/presup' : '—'}</td>`;
       return `<td style="text-align:right;font-family:'DM Mono',monospace;font-size:11px;color:${avanceColor(fin)};">${fin.toFixed(0)}%</td>`;
     }
-    // 'desv': por ejercer = presupuesto − real
+    // 'desv': por ejercer = presupuesto − real (− estimado por asignar, si está prendido)
     if (!(f.presupuestado > 0) && f.real > 0) return `<td style="text-align:right;font-family:'DM Mono',monospace;font-size:10px;color:var(--orange);" title="Costo sin presupuesto">⚠ ${fmt(f.real)}</td>`;
-    const d = (f.presupuestado || 0) - (f.real || 0);
+    const d = (f.presupuestado || 0) - (f.real || 0) - est;
     const col = d < 0 ? 'var(--red)' : (f.real > 0 ? 'var(--green)' : 'var(--muted)');
-    return `<td style="text-align:right;font-family:'DM Mono',monospace;font-size:11px;color:${col};" title="Presupuesto ${fmt(f.presupuestado)} · Real ${fmt(f.real)}">${fmt(d)}</td>`;
+    return `<td style="text-align:right;font-family:'DM Mono',monospace;font-size:11px;color:${col};" title="Presupuesto ${fmt(f.presupuestado)} · Real ${fmt(f.real)}${est > 0.005 ? ' · Estimado por asignar ' + fmt(est) : ''}">${fmt(d)}</td>`;
   };
 
   const stickyCss = 'position:sticky;left:0;background:var(--surface);z-index:1;';
@@ -2361,15 +2399,17 @@ function renderControlObraTab(panel) {
   panel.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
       <div style="display:flex;gap:6px;flex-wrap:wrap;">
-        ${btnM('desv', '$ Por ejercer', 'Presupuesto − costo real por celda (rojo = ya se pasó)')}
+        ${btnM('desv', cfObraEstimado ? '$ Por ejercer neto' : '$ Por ejercer', cfObraEstimado ? 'Presupuesto − costo real − estimado por asignar (rojo = ya se pasó)' : 'Presupuesto − costo real por celda (rojo = ya se pasó)')}
         ${btnM('fin', '% Financiero', 'Gastado ÷ presupuesto por celda')}
         ${btnM('fis', '% Físico', 'Avance físico de obra por celda' + (captura ? ' — editable: captúralo aquí mismo' : ''))}
       </div>
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);cursor:pointer;white-space:nowrap;" title="Reparte por indiviso los pagos PENDIENTES y los suma a su partida, para que 'Por ejercer' descuente lo que viene en camino. Estimado: no crea repartos ni cambia el costo real. Las facturas sin repartir no entran (no tienen partida hasta repartirse)."><input type="checkbox" ${cfObraEstimado ? 'checked' : ''} onchange="cfObraToggleEstimado(this.checked)" style="accent-color:var(--accent);">📊 Estimado por asignar</label>
         ${_veTodasLasPartidas() ? `<label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);cursor:pointer;white-space:nowrap;" title="Ver la matriz EXACTAMENTE como la ve el perfil de obra: solo partidas marcadas 'Visible para obra' en el catálogo (sin extras ni 'Sin partida'). Desmárcalo para el detalle completo. También aplica al Excel."><input type="checkbox" ${cfObraSoloVisibles ? 'checked' : ''} onchange="cfObraToggleSoloVisibles(this.checked)" style="accent-color:var(--accent);">👷 Solo partidas de obra</label>` : ''}
         <button class="btn btn-ghost btn-sm" onclick="exportarControlObraExcel()" title="Exporta los totales por partida y el detalle plano por casa (ideal para tablas dinámicas)">⬇ Excel</button>
       </div>
     </div>
+    ${estimObra && estimObra.total > 0 ? `<div style="font-size:12px;color:var(--accent);background:rgba(200,169,110,.08);border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:12px;">📊 Pendiente por asignar: <strong>${fmt(estimObra.total)}</strong> en ${estimObra.count} pago(s), repartido por indiviso y sumado a SU partida. "Por ejercer" ya lo descuenta. <span style="color:var(--muted);">No incluye facturas sin repartir (una factura no tiene partida hasta repartirse).</span></div>` : ''}
     <div class="table-wrap cf-tabla-scroll" style="margin-bottom:20px;max-height:520px;">
       <table style="min-width:100%;">
         <thead><tr>
@@ -2387,7 +2427,7 @@ function renderControlObraTab(panel) {
               const t = totales.get(k) || { presupuestado: 0, real: 0 };
               if (cfObraMetrica === 'fis') { const fp = fisPond.get(k); return `<td style="text-align:right;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;">${fp === null ? '—' : fp.toFixed(0) + '%'}</td>`; }
               if (cfObraMetrica === 'fin') { const fin = avancePct(t.real, t.presupuestado); return `<td style="text-align:right;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:${avanceColor(fin)};">${fin === null ? '—' : fin.toFixed(0) + '%'}</td>`; }
-              const d = (t.presupuestado || 0) - (t.real || 0);
+              const d = (t.presupuestado || 0) - (t.real || 0) - estDe(k);
               return `<td style="text-align:right;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:${d < 0 ? 'var(--red)' : 'var(--green)'};">${fmt(d)}</td>`;
             }).join('')}
           </tr>
@@ -2398,13 +2438,14 @@ function renderControlObraTab(panel) {
     <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;margin-bottom:8px;">Totales del proyecto por partida</div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Partida</th><th style="text-align:right">Presupuesto</th><th style="text-align:right">Devengado</th><th style="text-align:right">Pagado s/fact</th><th style="text-align:right">Costo real</th><th style="text-align:right">Por ejercer</th><th style="width:120px;">% Financiero</th><th style="text-align:right" title="Avance físico ponderado por presupuesto">% Físico</th><th></th></tr></thead>
+        <thead><tr><th>Partida</th><th style="text-align:right">Presupuesto</th><th style="text-align:right">Devengado</th><th style="text-align:right">Pagado s/fact</th><th style="text-align:right">Costo real</th>${estimObra ? '<th style="text-align:right" title="Pagos pendientes de repartir que caerán en esta partida (estimado por indiviso). No es costo real.">Estimado por asignar</th>' : ''}<th style="text-align:right"${estimObra ? ' title="Presupuesto − costo real − estimado por asignar"' : ''}>${estimObra ? 'Por ejercer neto' : 'Por ejercer'}</th><th style="width:120px;">% Financiero</th><th style="text-align:right" title="Avance físico ponderado por presupuesto">% Físico</th><th></th></tr></thead>
         <tbody>
           ${llaves.map(k => {
             const t = totales.get(k) || { presupuestado: 0, devengado: 0, pagadoSinFactura: 0, real: 0 };
             const fin = avancePct(t.real, t.presupuestado);
             const fp = fisPond.get(k);
-            const d = (t.presupuestado || 0) - (t.real || 0);
+            const est = estDe(k);
+            const d = (t.presupuestado || 0) - (t.real || 0) - est;
             const sinPres = !(t.presupuestado > 0) && t.real > 0;
             return `<tr${sinPres ? ' style="background:rgba(224,122,58,.05);"' : ''}>
               <td style="font-size:12px;">${escapeHtml(_lblLlave(etiquetas, k))}${sinPres ? ' <span style="font-size:9px;color:var(--orange);">⚠ sin presupuesto</span>' : ''}${t.presupuestado > 0 && !(t.real > 0) ? ' <span style="font-size:9px;color:var(--muted);">sin costo aún</span>' : ''}</td>
@@ -2412,6 +2453,7 @@ function renderControlObraTab(panel) {
               <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--blue);">${fmt(t.devengado)}</td>
               <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;">${fmt(t.pagadoSinFactura)}</td>
               <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--accent);">${fmt(t.real)}</td>
+              ${estimObra ? `<td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:${est > 0.005 ? 'var(--orange)' : 'var(--muted)'};">${est > 0.005 ? fmt(est) : '—'}</td>` : ''}
               <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:${d < 0 ? 'var(--red)' : 'var(--green)'};">${fmt(d)}</td>
               <td>${barraAvance(fin)}</td>
               <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;">${fp === null ? '—' : fp.toFixed(0) + '%'}</td>
@@ -2431,6 +2473,11 @@ export function cfObraSetMetrica(m) {
 
 export function cfObraToggleSoloVisibles(v) {
   cfObraSoloVisibles = !!v;
+  renderPanel();
+}
+
+export function cfObraToggleEstimado(v) {
+  cfObraEstimado = !!v;
   renderPanel();
 }
 
@@ -2467,18 +2514,34 @@ export async function cfObraAvanceCell(inp) {
 export function exportarControlObraExcel() {
   if (!window.XLSX) { notify('Cargando la librería de Excel, intenta de nuevo en 2 segundos', 'error'); return; }
   const { porUnidad, totales, etiquetas } = desgloseAdminBatch(cfProyecto);
-  // El export respeta el checkbox 👷: exporta lo mismo que la matriz muestra.
-  const llaves = _filtrarLlavesVistaObra(_ordenLlavesObra(new Set(totales.keys()), etiquetas));
+  // El export respeta los checkboxes 👷 y 📊: exporta lo mismo que la matriz muestra.
+  const estimObra = cfObraEstimado ? estimadoIndivisoPorUnidad() : null;
+  const setLl = new Set(totales.keys());
+  const estLlave = new Map();
+  if (estimObra) {
+    estimObra.porLlave.forEach((m, k) => {
+      setLl.add(k);
+      if (!etiquetas.has(k) && estimObra.etiquetas.has(k)) etiquetas.set(k, estimObra.etiquetas.get(k));
+      let s = 0; m.forEach(v => { s += v; });
+      estLlave.set(k, s);
+    });
+  }
+  const estDe = k => estLlave.get(k) || 0;
+  const estCelda = (uid, k) => estimObra ? ((estimObra.porLlave.get(k) || new Map()).get(uid) || 0) : 0;
+  const llaves = _filtrarLlavesVistaObra(_ordenLlavesObra(setLl, etiquetas));
   if (!llaves.length) { notify('No hay datos que exportar en este proyecto', 'error'); return; }
   const unidades = unidadesDeProyecto();
   const hoyISO = new Date().toISOString().slice(0, 10);
   const wb = XLSX.utils.book_new();
 
+  const enc1 = ['Partida', 'Sub-partida', 'Presupuesto', 'Devengado', 'Pagado s/fact', 'Costo inicial', 'Costo real'];
+  if (estimObra) enc1.push('Estimado por asignar');
+  enc1.push(estimObra ? 'Por ejercer neto' : 'Por ejercer', '% Financiero', '% Físico (pond.)');
   const aoa1 = [
     [`Control de Obra — ${cfProyecto} — Totales por partida`],
-    [`Generado: ${hoyISO}`],
+    [`Generado: ${hoyISO}${estimObra ? ` · INCLUYE estimado por asignar: ${fmt(estimObra.total)} en ${estimObra.count} pago(s) repartidos por indiviso (NO es costo real; "Por ejercer neto" ya lo descuenta)` : ''}`],
     [],
-    ['Partida', 'Sub-partida', 'Presupuesto', 'Devengado', 'Pagado s/fact', 'Costo inicial', 'Costo real', 'Por ejercer', '% Financiero', '% Físico (pond.)']
+    enc1
   ];
   llaves.forEach(k => {
     const e = etiquetas.get(k) || { partida: k, sub: '' };
@@ -2486,21 +2549,29 @@ export function exportarControlObraExcel() {
     const fin = avancePct(t.real, t.presupuestado);
     let sp = 0, s = 0;
     porUnidad.forEach(m => { const f = m.get(k); if (f && f.presupuestado > 0) { sp += (f.avanceFisico || 0) * f.presupuestado; s += f.presupuestado; } });
-    aoa1.push([e.partida, e.sub, t.presupuestado, t.devengado, t.pagadoSinFactura, t.costoInicial, t.real,
-      (t.presupuestado || 0) - (t.real || 0), fin === null ? '' : fin / 100, s > 0 ? (sp / s) / 100 : '']);
+    const est = estDe(k);
+    const fila = [e.partida, e.sub, t.presupuestado, t.devengado, t.pagadoSinFactura, t.costoInicial, t.real];
+    if (estimObra) fila.push(est);
+    fila.push((t.presupuestado || 0) - (t.real || 0) - est, fin === null ? '' : fin / 100, s > 0 ? (sp / s) / 100 : '');
+    aoa1.push(fila);
   });
   const ws1 = XLSX.utils.aoa_to_sheet(aoa1);
-  ws1['!cols'] = [{ wch: 22 }, { wch: 24 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 13 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 12 }];
+  ws1['!cols'] = [{ wch: 22 }, { wch: 24 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 13 }, { wch: 14 }, { wch: 18 }, { wch: 15 }, { wch: 12 }, { wch: 12 }];
+  const monA = estimObra ? [2, 3, 4, 5, 6, 7, 8] : [2, 3, 4, 5, 6, 7];
+  const pctA = estimObra ? [9, 10] : [8, 9];
   for (let r = 4; r < aoa1.length; r++) {
-    [2, 3, 4, 5, 6, 7].forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (ws1[ref] && typeof ws1[ref].v === 'number') ws1[ref].z = '"$"#,##0.00'; });
-    [8, 9].forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (ws1[ref] && typeof ws1[ref].v === 'number') ws1[ref].z = '0.0%'; });
+    monA.forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (ws1[ref] && typeof ws1[ref].v === 'number') ws1[ref].z = '"$"#,##0.00'; });
+    pctA.forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (ws1[ref] && typeof ws1[ref].v === 'number') ws1[ref].z = '0.0%'; });
   }
   XLSX.utils.book_append_sheet(wb, ws1, 'Por partida');
 
+  const enc2 = ['Casa', 'Partida', 'Sub-partida', 'Presupuesto', 'Devengado', 'Pagado s/fact', 'Costo inicial', 'Costo real'];
+  if (estimObra) enc2.push('Estimado por asignar');
+  enc2.push(estimObra ? 'Por ejercer neto' : 'Por ejercer', '% Financiero', '% Físico');
   const aoa2 = [
     [`Control de Obra — ${cfProyecto} — Detalle por casa (una fila por casa × partida)`],
     [],
-    ['Casa', 'Partida', 'Sub-partida', 'Presupuesto', 'Devengado', 'Pagado s/fact', 'Costo inicial', 'Costo real', 'Por ejercer', '% Financiero', '% Físico']
+    enc2
   ];
   unidades.forEach(u => {
     const m = porUnidad.get(String(u.unidad_id));
@@ -2510,15 +2581,20 @@ export function exportarControlObraExcel() {
       if (!f) return;
       const e = etiquetas.get(k) || { partida: k, sub: '' };
       const fin = avancePct(f.real, f.presupuestado);
-      aoa2.push([u.nombre, e.partida, e.sub, f.presupuestado, f.devengado, f.pagadoSinFactura, f.costoInicial, f.real,
-        (f.presupuestado || 0) - (f.real || 0), fin === null ? '' : fin / 100, (f.avanceFisico || 0) / 100]);
+      const est = estCelda(u.unidad_id, k);
+      const fila = [u.nombre, e.partida, e.sub, f.presupuestado, f.devengado, f.pagadoSinFactura, f.costoInicial, f.real];
+      if (estimObra) fila.push(est);
+      fila.push((f.presupuestado || 0) - (f.real || 0) - est, fin === null ? '' : fin / 100, (f.avanceFisico || 0) / 100);
+      aoa2.push(fila);
     });
   });
   const ws2 = XLSX.utils.aoa_to_sheet(aoa2);
-  ws2['!cols'] = [{ wch: 14 }, { wch: 22 }, { wch: 24 }, { wch: 13 }, { wch: 13 }, { wch: 13 }, { wch: 12 }, { wch: 13 }, { wch: 13 }, { wch: 12 }, { wch: 10 }];
+  ws2['!cols'] = [{ wch: 14 }, { wch: 22 }, { wch: 24 }, { wch: 13 }, { wch: 13 }, { wch: 13 }, { wch: 12 }, { wch: 13 }, { wch: 18 }, { wch: 15 }, { wch: 12 }, { wch: 10 }];
+  const monB = estimObra ? [3, 4, 5, 6, 7, 8, 9] : [3, 4, 5, 6, 7, 8];
+  const pctB = estimObra ? [10, 11] : [9, 10];
   for (let r = 3; r < aoa2.length; r++) {
-    [3, 4, 5, 6, 7, 8].forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (ws2[ref] && typeof ws2[ref].v === 'number') ws2[ref].z = '"$"#,##0.00'; });
-    [9, 10].forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (ws2[ref] && typeof ws2[ref].v === 'number') ws2[ref].z = '0.0%'; });
+    monB.forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (ws2[ref] && typeof ws2[ref].v === 'number') ws2[ref].z = '"$"#,##0.00'; });
+    pctB.forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (ws2[ref] && typeof ws2[ref].v === 'number') ws2[ref].z = '0.0%'; });
   }
   XLSX.utils.book_append_sheet(wb, ws2, 'Detalle por casa');
 
