@@ -399,6 +399,7 @@ function pagosAsignados() {
 function estimadoIndivisoPorUnidad() {
   const porUnidad = new Map();
   const porLlave = new Map();     // llave partida|sub → Map(unidad_id → monto estimado)
+  const countLlave = new Map();   // llave → cuántos pagos pendientes caen ahí
   const etiquetas = new Map();    // llave → { partida, sub }
   const asignados = new Set(state.costoAsignaciones.map(a => String(a.pago_id)));
   const activas = unidadesDeProyecto();
@@ -436,6 +437,7 @@ function estimadoIndivisoPorUnidad() {
       const k = _llaveObra(h.partida || '', h.sub_partida || '');
       let mLl = porLlave.get(k);
       if (!mLl) { mLl = new Map(); porLlave.set(k, mLl); }
+      countLlave.set(k, (countLlave.get(k) || 0) + 1);
       if (!etiquetas.has(k)) etiquetas.set(k, { partida: (h.partida || '').trim() || 'Sin partida', sub: (h.sub_partida || '').trim() });
       pool.casas.forEach(u => {
         const factor = pool.sumInd > 0 ? (u.indiviso_pct || 0) / pool.sumInd : 1 / pool.casas.length;
@@ -445,7 +447,7 @@ function estimadoIndivisoPorUnidad() {
       });
     });
   }
-  return { porUnidad, porLlave, etiquetas, total, count: pend.length };
+  return { porUnidad, porLlave, countLlave, etiquetas, total, count: pend.length };
 }
 
 function asignacionesHuerfanas() {
@@ -2354,6 +2356,21 @@ function renderControlObraTab(panel) {
   }
   const captura = puedeCapturarObra();
 
+  // El aviso del estimado debe hablar SOLO de lo que la tabla muestra: si el filtro
+  // 👷 (o el rol de obra) esconde partidas, su estimado no aparece en ninguna columna
+  // y anunciar el total completo sería una cifra que no cuadra con nada en pantalla.
+  // A quien ve TODO se le dice cuánto quedó fuera y cómo verlo; a los perfiles de obra
+  // no se les menciona (para ellos esas partidas no existen, igual que en el resto de
+  // la vista).
+  let estMostrado = 0, nMostrado = 0, estOculto = 0;
+  if (estimObra) {
+    const vistas = new Set(llaves);
+    estLlave.forEach((v, k) => {
+      if (vistas.has(k)) { estMostrado += v; nMostrado += (estimObra.countLlave.get(k) || 0); }
+      else if (_veTodasLasPartidas()) estOculto += v;
+    });
+  }
+
   // % físico ponderado por presupuesto (totales por llave, desde las filas por unidad)
   const fisPond = new Map();
   llaves.forEach(k => {
@@ -2409,7 +2426,7 @@ function renderControlObraTab(panel) {
         <button class="btn btn-ghost btn-sm" onclick="exportarControlObraExcel()" title="Exporta los totales por partida y el detalle plano por casa (ideal para tablas dinámicas)">⬇ Excel</button>
       </div>
     </div>
-    ${estimObra && estimObra.total > 0 ? `<div style="font-size:12px;color:var(--accent);background:rgba(200,169,110,.08);border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:12px;">📊 Pendiente por asignar: <strong>${fmt(estimObra.total)}</strong> en ${estimObra.count} pago(s), repartido por indiviso y sumado a SU partida. "Por ejercer" ya lo descuenta. <span style="color:var(--muted);">No incluye facturas sin repartir (una factura no tiene partida hasta repartirse).</span></div>` : ''}
+    ${estimObra && (estMostrado > 0.005 || estOculto > 0.005) ? `<div style="font-size:12px;color:var(--accent);background:rgba(200,169,110,.08);border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:12px;">📊 Pendiente por asignar <strong>en las partidas de esta vista</strong>: <strong>${fmt(estMostrado)}</strong> en ${nMostrado} pago(s), repartido por indiviso y sumado a SU partida. "Por ejercer" ya lo descuenta.${estOculto > 0.005 ? ` <span style="color:var(--orange);">Otros <strong>${fmt(estOculto)}</strong> caen en partidas que este filtro oculta — desmarca "👷 Solo partidas de obra" para verlas.</span>` : ''} <span style="color:var(--muted);">No incluye facturas sin repartir (una factura no tiene partida hasta repartirse).</span></div>` : ''}
     <div class="table-wrap cf-tabla-scroll" style="margin-bottom:20px;max-height:520px;">
       <table style="min-width:100%;">
         <thead><tr>
@@ -2530,6 +2547,15 @@ export function exportarControlObraExcel() {
   const estCelda = (uid, k) => estimObra ? ((estimObra.porLlave.get(k) || new Map()).get(uid) || 0) : 0;
   const llaves = _filtrarLlavesVistaObra(_ordenLlavesObra(setLl, etiquetas));
   if (!llaves.length) { notify('No hay datos que exportar en este proyecto', 'error'); return; }
+  // El encabezado solo puede prometer el estimado que de verdad va en las columnas.
+  let estExportado = 0, nExportado = 0, estFuera = 0;
+  if (estimObra) {
+    const vistas = new Set(llaves);
+    estLlave.forEach((v, k) => {
+      if (vistas.has(k)) { estExportado += v; nExportado += (estimObra.countLlave.get(k) || 0); }
+      else if (_veTodasLasPartidas()) estFuera += v;
+    });
+  }
   const unidades = unidadesDeProyecto();
   const hoyISO = new Date().toISOString().slice(0, 10);
   const wb = XLSX.utils.book_new();
@@ -2539,7 +2565,7 @@ export function exportarControlObraExcel() {
   enc1.push(estimObra ? 'Por ejercer neto' : 'Por ejercer', '% Financiero', '% Físico (pond.)');
   const aoa1 = [
     [`Control de Obra — ${cfProyecto} — Totales por partida`],
-    [`Generado: ${hoyISO}${estimObra ? ` · INCLUYE estimado por asignar: ${fmt(estimObra.total)} en ${estimObra.count} pago(s) repartidos por indiviso (NO es costo real; "Por ejercer neto" ya lo descuenta)` : ''}`],
+    [`Generado: ${hoyISO}${estimObra ? ` · INCLUYE estimado por asignar de las partidas de este archivo: ${fmt(estExportado)} en ${nExportado} pago(s) repartidos por indiviso (NO es costo real; "Por ejercer neto" ya lo descuenta)${estFuera > 0.005 ? ` · Otros ${fmt(estFuera)} caen en partidas que el filtro "Solo partidas de obra" dejó fuera` : ''}` : ''}`],
     [],
     enc1
   ];
