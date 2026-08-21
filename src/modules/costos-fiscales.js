@@ -2559,13 +2559,68 @@ export function exportarControlObraExcel() {
   const unidades = unidadesDeProyecto();
   const hoyISO = new Date().toISOString().slice(0, 10);
   const wb = XLSX.utils.book_new();
+  const notaEst = estimObra
+    ? ` · INCLUYE estimado por asignar de las partidas de este archivo: ${fmt(estExportado)} en ${nExportado} pago(s) repartidos por indiviso (NO es costo real; "Por ejercer neto" ya lo descuenta)${estFuera > 0.005 ? ` · Otros ${fmt(estFuera)} caen en partidas que el filtro "Solo partidas de obra" dejó fuera` : ''}`
+    : '';
+
+  // ---- Hoja 1: RESUMEN POR CASA (una fila por casa, solo las partidas de esta vista) ----
+  // Responde "¿cuánto lleva esta casa EN OBRA?": suma sobre `llaves`, que ya viene filtrada
+  // por el checkbox 👷 y por el rol. Va primero para que el archivo abra en el resumen.
+  const enc0 = ['Casa', '% Indiviso', 'Superficie m2', 'Estatus', 'Presupuesto', 'Costo inicial',
+    'Devengado', 'Pagado s/fact', 'Costo real'];
+  if (estimObra) enc0.push('Estimado por asignar');
+  enc0.push(estimObra ? 'Por ejercer neto' : 'Por ejercer', '% Financiero', '% Físico (pond.)');
+  const aoa0 = [
+    [`Control de Obra — ${cfProyecto} — Resumen por casa (solo partidas de esta vista)`],
+    [`Generado: ${hoyISO}${notaEst}`],
+    [],
+    enc0
+  ];
+  const tot0 = { pres: 0, ini: 0, dev: 0, pag: 0, real: 0, est: 0, spFis: 0, sFis: 0 };
+  unidades.forEach(u => {
+    const m = porUnidad.get(String(u.unidad_id)) || new Map();
+    let pres = 0, ini = 0, dev = 0, pag = 0, real = 0, est = 0, spFis = 0, sFis = 0;
+    llaves.forEach(k => {
+      const f = m.get(k);
+      if (f) {
+        pres += f.presupuestado || 0; ini += f.costoInicial || 0;
+        dev += f.devengado || 0; pag += f.pagadoSinFactura || 0; real += f.real || 0;
+        if (f.presupuestado > 0) { spFis += (f.avanceFisico || 0) * f.presupuestado; sFis += f.presupuestado; }
+      }
+      est += estCelda(u.unidad_id, k);
+    });
+    tot0.pres += pres; tot0.ini += ini; tot0.dev += dev; tot0.pag += pag; tot0.real += real;
+    tot0.est += est; tot0.spFis += spFis; tot0.sFis += sFis;
+    const fin = avancePct(real, pres);
+    const fila = [u.nombre, (u.indiviso_pct || 0) / 100, u.superficie_m2 || '', u.estatus || '',
+      pres, ini, dev, pag, real];
+    if (estimObra) fila.push(est);
+    fila.push(pres - real - est, fin === null ? '' : fin / 100, sFis > 0 ? (spFis / sFis) / 100 : '');
+    aoa0.push(fila);
+  });
+  const finT = avancePct(tot0.real, tot0.pres);
+  const filaT = ['TOTAL', '', '', '', tot0.pres, tot0.ini, tot0.dev, tot0.pag, tot0.real];
+  if (estimObra) filaT.push(tot0.est);
+  filaT.push(tot0.pres - tot0.real - tot0.est, finT === null ? '' : finT / 100,
+    tot0.sFis > 0 ? (tot0.spFis / tot0.sFis) / 100 : '');
+  aoa0.push([], filaT);
+  const ws0 = XLSX.utils.aoa_to_sheet(aoa0);
+  ws0['!cols'] = [{ wch: 14 }, { wch: 11 }, { wch: 13 }, { wch: 12 }, { wch: 15 }, { wch: 13 },
+    { wch: 14 }, { wch: 14 }, { wch: 15 }, { wch: 18 }, { wch: 16 }, { wch: 12 }, { wch: 14 }];
+  const mon0 = estimObra ? [4, 5, 6, 7, 8, 9, 10] : [4, 5, 6, 7, 8, 9];
+  const pct0 = estimObra ? [1, 11, 12] : [1, 10, 11];
+  for (let r = 3; r < aoa0.length; r++) {
+    mon0.forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (ws0[ref] && typeof ws0[ref].v === 'number') ws0[ref].z = '"$"#,##0.00'; });
+    pct0.forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (ws0[ref] && typeof ws0[ref].v === 'number') ws0[ref].z = '0.0%'; });
+  }
+  XLSX.utils.book_append_sheet(wb, ws0, 'Resumen por casa');
 
   const enc1 = ['Partida', 'Sub-partida', 'Presupuesto', 'Devengado', 'Pagado s/fact', 'Costo inicial', 'Costo real'];
   if (estimObra) enc1.push('Estimado por asignar');
   enc1.push(estimObra ? 'Por ejercer neto' : 'Por ejercer', '% Financiero', '% Físico (pond.)');
   const aoa1 = [
     [`Control de Obra — ${cfProyecto} — Totales por partida`],
-    [`Generado: ${hoyISO}${estimObra ? ` · INCLUYE estimado por asignar de las partidas de este archivo: ${fmt(estExportado)} en ${nExportado} pago(s) repartidos por indiviso (NO es costo real; "Por ejercer neto" ya lo descuenta)${estFuera > 0.005 ? ` · Otros ${fmt(estFuera)} caen en partidas que el filtro "Solo partidas de obra" dejó fuera` : ''}` : ''}`],
+    [`Generado: ${hoyISO}${notaEst}`],
     [],
     enc1
   ];
