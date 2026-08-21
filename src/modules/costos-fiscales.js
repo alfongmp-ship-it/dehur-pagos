@@ -2615,6 +2615,42 @@ export function exportarControlObraExcel() {
   }
   XLSX.utils.book_append_sheet(wb, ws0, 'Resumen por casa');
 
+  // ---- Hoja 2: MATRIZ casa × partida (mismo layout que la pantalla) ----
+  // Una columna por CADA partida de la vista (todas las marcadas "Visible para obra":
+  // construcción, supervisión, indirectos, IMSS, licencias… lo que esté marcado), para
+  // ver de dónde sale el total de cada casa sin armar una tabla dinámica.
+  const encM = ['Casa', ...llaves.map(k => _lblLlave(etiquetas, k)), 'TOTAL casa'];
+  const aoaM = [
+    [`Control de Obra — ${cfProyecto} — Costo real por casa y partida`],
+    [`Generado: ${hoyISO} · ${llaves.length} partida(s) de la vista${estimObra ? ' · el estimado por asignar NO va en estas celdas (ver hoja "Resumen por casa")' : ''}`],
+    [],
+    encM
+  ];
+  const totPart = new Array(llaves.length).fill(0);
+  unidades.forEach(u => {
+    const m = porUnidad.get(String(u.unidad_id)) || new Map();
+    let tCasa = 0;
+    const fila = [u.nombre];
+    llaves.forEach((k, i) => {
+      const v = (m.get(k) || {}).real || 0;
+      totPart[i] += v; tCasa += v;
+      fila.push(v);
+    });
+    fila.push(tCasa);
+    aoaM.push(fila);
+  });
+  aoaM.push([], ['TOTAL', ...totPart, totPart.reduce((s, v) => s + v, 0)]);
+  const wsM = XLSX.utils.aoa_to_sheet(aoaM);
+  wsM['!cols'] = [{ wch: 14 }, ...llaves.map(() => ({ wch: 16 })), { wch: 16 }];
+  wsM['!freeze'] = { xSplit: 1, ySplit: 4 };
+  for (let r = 3; r < aoaM.length; r++) {
+    for (let c = 1; c <= llaves.length + 1; c++) {
+      const ref = XLSX.utils.encode_cell({ r, c });
+      if (wsM[ref] && typeof wsM[ref].v === 'number') wsM[ref].z = '"$"#,##0.00';
+    }
+  }
+  XLSX.utils.book_append_sheet(wb, wsM, 'Matriz casa x partida');
+
   const enc1 = ['Partida', 'Sub-partida', 'Presupuesto', 'Devengado', 'Pagado s/fact', 'Costo inicial', 'Costo real'];
   if (estimObra) enc1.push('Estimado por asignar');
   enc1.push(estimObra ? 'Por ejercer neto' : 'Por ejercer', '% Financiero', '% Físico (pond.)');
