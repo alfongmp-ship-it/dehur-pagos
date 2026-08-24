@@ -358,6 +358,57 @@ const RT = {
 };
 
 let _canales = [];
+// ===== Detector de "sesión sorda" ==========================================
+// Realtime NO repone eventos perdidos: si el socket muere (suspensión de la
+// laptop, cambio de red, error del canal), lo que otros capturaron en ese lapso
+// JAMÁS llega y la pestaña se queda mostrando datos viejos sin ningún síntoma
+// (incidente 2026-08-24: una factura subida días atrás "no existía" hasta
+// refrescar). Detección en 3 frentes:
+//   1. Estatus malo del canal (CHANNEL_ERROR / TIMED_OUT / CLOSED).
+//   2. RE-suscripción: un segundo SUBSCRIBED del mismo canal = hubo reconexión,
+//      y lo transmitido en medio ya se perdió.
+//   3. Brinco del reloj entre latidos = la máquina estuvo suspendida.
+// En cualquiera: banner PERSISTENTE (no toast que se desvanece) con botón que
+// reconecta canales y recarga datos (reusa window.refrescarDatos).
+let _rtGen = 0;                  // generación de canales: callbacks de canales viejos se ignoran
+let _rtDegradado = false;
+const _rtSuscritos = new Set();  // tablas con SUBSCRIBED logrado en la generación actual
+let _ultimoLatido = Date.now();
+
+function _marcarDegradado(motivo) {
+  console.warn('⚠ Realtime degradado:', motivo);
+  if (_rtDegradado) return;
+  _rtDegradado = true;
+  if (document.getElementById('rt-stale-banner')) return;
+  const bar = document.createElement('div');
+  bar.id = 'rt-stale-banner';
+  bar.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:99998;display:flex;align-items:center;justify-content:center;gap:12px;padding:10px 16px;background:#b96b1f;color:#fff;font-size:13px;font-weight:600;box-shadow:0 -2px 12px rgba(0,0,0,.35);flex-wrap:wrap;text-align:center;';
+  bar.innerHTML =
+    '<span>⚠ Se interrumpió la conexión en tiempo real (¿se suspendió la computadora?). Puede haber capturas de otros usuarios que NO estás viendo.</span>' +
+    '<button onclick="window.refrescarDatos && window.refrescarDatos()" style="padding:6px 14px;border:none;border-radius:6px;background:#fff;color:#1a1a1a;font-weight:700;cursor:pointer;">🔄 Traer lo más nuevo</button>';
+  document.body.appendChild(bar);
+}
+
+// Reinicia los canales y limpia el aviso. Lo llama refrescarDatos (main.js):
+// así CUALQUIER refresco (botón del header o del banner) deja la sesión sana —
+// canales frescos + datos completos, sin hueco entre ambos.
+export async function rtReiniciar() {
+  detenerRealtime();
+  _rtDegradado = false;
+  document.getElementById('rt-stale-banner')?.remove();
+  await iniciarRealtime();
+}
+
+// Latido: si este intervalo "durmió" mucho más de lo programado, la máquina
+// estuvo suspendida y el socket pudo morir sin avisar. Umbral 5 min: el
+// throttling normal de pestañas en segundo plano (~1 tick/min) no lo dispara.
+setInterval(() => {
+  const brinco = Date.now() - _ultimoLatido;
+  _ultimoLatido = Date.now();
+  if (brinco > 5 * 60 * 1000 && _canales.length) {
+    _marcarDegradado(`suspensión detectada (~${Math.round(brinco / 60000)} min sin latido)`);
+  }
+}, 30000);
 
 // ===== Coalescing de repintados (rendimiento) =====
 // Antes: CADA evento repintaba la página completa → confirmar 50 pagos = 50
@@ -475,6 +526,7 @@ export async function iniciarRealtime() {
     if (session && session.access_token) client.realtime.setAuth(session.access_token);
   } catch (e) { console.warn('Realtime setAuth falló:', e); }
 
+  const gen = _rtGen;
   for (const key of ENTIDADES_REALTIME) {
     const def = RT[key];
     if (!def) { console.warn('Realtime: sin definición para', key); continue; }
@@ -483,7 +535,16 @@ export async function iniciarRealtime() {
       .on('postgres_changes',
         { event: '*', schema: 'public', table: def.tabla, filter: `tenant_id=eq.${tid}` },
         payload => aplicarCambio(def, payload))
-      .subscribe(status => console.log(`Realtime ${def.tabla}:`, status));
+      .subscribe(status => {
+        if (gen !== _rtGen) return;   // canal de una generación anterior (reinicio/logout): ignorar
+        console.log(`Realtime ${def.tabla}:`, status);
+        if (status === 'SUBSCRIBED') {
+          if (_rtSuscritos.has(def.tabla)) _marcarDegradado(`reconexión de ${def.tabla} — lo transmitido en medio se perdió`);
+          else _rtSuscritos.add(def.tabla);
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          _marcarDegradado(`${def.tabla}: ${status}`);
+        }
+      });
     _canales.push(canal);
   }
   console.log('✓ Realtime iniciado para:', [...ENTIDADES_REALTIME].join(', ') || '(ninguna)');
@@ -491,6 +552,8 @@ export async function iniciarRealtime() {
 
 // Cierra las suscripciones (para revertir o al cerrar sesión).
 export function detenerRealtime() {
+  _rtGen++;                // los callbacks de los canales que se cierran quedan mudos
+  _rtSuscritos.clear();
   try {
     const client = getSupabaseClient();
     _canales.forEach(c => { try { client.removeChannel(c); } catch (e) {} });

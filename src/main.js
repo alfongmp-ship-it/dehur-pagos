@@ -42,7 +42,7 @@ import { renderActividad, actSetVentana, actDepurar } from './modules/actividad.
 import { gsLogin, gsLogout, renderAuthStatus, checkOAuthCallback } from './services/google-auth.js';
 import { iniciarChequeoVersion } from './services/version-check.js';
 import { gsLoadAll, gsSaveProveedores, gsSaveEmpleados, gsSaveProyectos, gsSaveAlias, gsSaveCuentasPropias, gsSaveTraspasos, gsSaveCreditos, gsSavePagares, gsSavePagosPagare, gsSaveMovimientosInternos, migrarTodoASupabase, respaldarTodoASheets, cargarDatos, REALTIME_ON } from './services/google-sync.js';
-import { iniciarRealtime } from './services/realtime.js';
+import { iniciarRealtime, rtReiniciar } from './services/realtime.js';
 
 // ===== INICIALIZACIÓN =====
 async function init() {
@@ -439,6 +439,10 @@ window.respaldarTodoASheets = respaldarTodoASheets;
 // revierte la bandera FUENTE_LECTURA). Sirve para ver lo último (multiusuario).
 window.refrescarDatos = async function refrescarDatos() {
   notify('Refrescando datos...');
+  // Reconectar los canales de realtime ANTES de recargar: si la sesión estaba
+  // "sorda" (suspensión/red caída), canales frescos primero = sin hueco entre lo
+  // que se carga ahora y lo que llegue después. También quita el banner de aviso.
+  if (REALTIME_ON) { try { await rtReiniciar(); } catch (e) { console.warn('rtReiniciar falló:', e); } }
   const fuente = await cargarDatos();
   notify(`✓ Actualizado desde ${fuente === 'supabase' ? 'Supabase' : 'Sheets'}: ${state.historial.length} pagos · ${state.proveedores.length} proveedores`, 'success');
 };
