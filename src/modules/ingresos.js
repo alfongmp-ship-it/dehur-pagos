@@ -15,6 +15,7 @@ import { ingresosActivo, estrategiaActivo, esPorFila, sbGuardarFila, sbBorrarFil
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { fmt, fmtFecha, dl, escapeHtml } from '../ui/format.js';
+import { proyTag } from '../ui/badges.js';
 
 // Páginas por espacio de trabajo (el resto es Pagos).
 const PAGINAS_INGRESOS = new Set(['clientes', 'ventas', 'cobros', 'estado-cuenta']);
@@ -126,25 +127,78 @@ function _emptyState(icon, titulo, sub) {
 }
 
 // ---- Clientes (Etapa 3) -----------------------------------------------------
+// ===== Proyecto(s) de cada cliente — DERIVADO de sus ventas =================
+// No se captura: la venta ya trae proyecto, y un campo a mano se desactualiza.
+// Un cliente con ventas en dos proyectos trae los dos chips solo. Se cuentan
+// las ventas no dadas de baja (canceladas incluidas: la relación histórica con
+// el proyecto sigue siendo real). UNA pasada sobre ventas — patrón batch.
+function _proyectosDeCliente() {
+  const m = new Map();   // String(cliente_id) → Set(proyecto)
+  (state.ventas || []).forEach(v => {
+    if (v.activo === false || !v.proyecto) return;
+    const k = String(v.cliente_id);
+    let s = m.get(k);
+    if (!s) { s = new Set(); m.set(k, s); }
+    s.add(v.proyecto);
+  });
+  return m;
+}
+const _chipsProyectos = set => (set && set.size)
+  ? [...set].map(p => proyTag(p)).join(' ')
+  : '<span style="font-size:10px;color:var(--muted);">sin venta aún</span>';
+
+let cliFiltroProy = '';   // '' todos · '__sin__' sin venta · nombre de proyecto
+let vtaFiltroProy = '';
+
+export function cliSetFiltroProy(v) { cliFiltroProy = v || ''; renderClientes(); }
+export function vtaSetFiltroProy(v) { vtaFiltroProy = v || ''; renderVentas(); }
+
+function _selectProyectos(id, valor, onchange, conSinVenta) {
+  const ops = state.proyectos.filter(p => p.activo !== false).map(p =>
+    `<option value="${escapeHtml(p.nombre)}"${valor === p.nombre ? ' selected' : ''}>${escapeHtml(p.nombre)}</option>`).join('');
+  return `<select id="${id}" class="filter-select" onchange="${onchange}(this.value)" style="font-size:12px;">
+    <option value="">Todos los proyectos</option>${ops}
+    ${conSinVenta ? `<option value="__sin__"${valor === '__sin__' ? ' selected' : ''}>Sin venta aún</option>` : ''}
+  </select>`;
+}
+
 export function renderClientes() {
   actualizarContadoresIngresos();
-  const s = document.getElementById('sub-clientes'); if (s) s.textContent = `${state.clientes.length} registros`;
   const el = document.getElementById('lista-clientes');
   if (!el) return;
   if (!state.clientes.length) {
+    const s0 = document.getElementById('sub-clientes'); if (s0) s0.textContent = '0 registros';
     el.innerHTML = _emptyState('🧑‍💼', 'Sin clientes aún', 'Usa "+ Nuevo" para dar de alta el primero.');
     return;
   }
-  const filas = state.clientes.map(c => {
+  const proyDe = _proyectosDeCliente();
+  const visibles = state.clientes.filter(c => {
+    if (!cliFiltroProy) return true;
+    const s = proyDe.get(String(c.cliente_id));
+    if (cliFiltroProy === '__sin__') return !s || !s.size;
+    return !!(s && s.has(cliFiltroProy));
+  });
+  const s = document.getElementById('sub-clientes');
+  if (s) s.textContent = cliFiltroProy ? `${visibles.length} de ${state.clientes.length} registros` : `${state.clientes.length} registros`;
+
+  const filas = visibles.map(c => {
     const inact = c.activo === false ? ' <span style="font-size:10px;color:var(--muted);">(inactivo)</span>' : '';
     const id = String(c.cliente_id).replace(/'/g, "\\'");
     return `<tr><td><div class="name-cell">${escapeHtml(c.nombre)}${inact}</div>${c.email ? `<div class="name-sub">${escapeHtml(c.email)}</div>` : ''}</td>` +
+      `<td style="white-space:nowrap;">${_chipsProyectos(proyDe.get(String(c.cliente_id)))}</td>` +
       `<td style="font-size:12px;">${escapeHtml(c.rfc || '—')}</td>` +
       `<td style="font-size:12px;">${escapeHtml(c.telefono || '—')}</td>` +
       `<td style="font-size:12px;color:var(--muted);${'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:280px;'}" title="${escapeHtml(c.observaciones || '')}">${escapeHtml(c.observaciones || '—')}</td>` +
       `<td><div style="display:flex;gap:6px;justify-content:flex-end;"><button class="btn btn-ghost btn-sm req-editor" onclick="editarCliente('${id}')">Editar</button><button class="btn btn-ghost btn-sm req-editor danger" onclick="eliminarCliente('${id}')">✕</button></div></td></tr>`;
   }).join('');
-  el.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Cliente</th><th>RFC</th><th>Teléfono</th><th>Observaciones</th><th style="text-align:right">Acciones</th></tr></thead><tbody>${filas}</tbody></table></div>`;
+  el.innerHTML = `
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+      ${_selectProyectos('cli-filtro-proy', cliFiltroProy, 'cliSetFiltroProy', true)}
+      <span style="font-size:11px;color:var(--muted);" title="El proyecto de un cliente se deduce de sus ventas: puede estar en varios">proyecto según sus ventas</span>
+    </div>
+    ${visibles.length
+      ? `<div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Proyecto(s)</th><th>RFC</th><th>Teléfono</th><th>Observaciones</th><th style="text-align:right">Acciones</th></tr></thead><tbody>${filas}</tbody></table></div>`
+      : _emptyState('🔍', 'Sin clientes con ese filtro', cliFiltroProy === '__sin__' ? 'Todos los clientes tienen al menos una venta.' : `Nadie tiene ventas en ${escapeHtml(cliFiltroProy)}.`)}`;
 }
 
 export function abrirNuevoCliente() {
@@ -165,6 +219,12 @@ export function editarCliente(id) {
   document.getElementById('c-email').value = c.email || '';
   document.getElementById('c-observaciones').value = c.observaciones || '';
   document.getElementById('c-activo').value = c.activo === false ? 'false' : 'true';
+  // Etiqueta informativa: en qué proyecto(s) está este cliente, según sus ventas.
+  const info = document.getElementById('c-proyectos-info');
+  if (info) {
+    const proys = _proyectosDeCliente().get(String(c.cliente_id));
+    info.innerHTML = `<span style="font-size:11px;color:var(--muted);">Proyecto(s):</span> ${_chipsProyectos(proys)} <span style="font-size:10px;color:var(--muted);">(según sus ventas)</span>`;
+  }
   document.getElementById('modal-cliente').classList.add('open');
 }
 
@@ -173,6 +233,7 @@ function limpiarFormCliente() {
     const el = document.getElementById(id); if (el) el.value = '';
   });
   const a = document.getElementById('c-activo'); if (a) a.value = 'true';
+  const info = document.getElementById('c-proyectos-info'); if (info) info.innerHTML = '';
 }
 
 export function guardarCliente() {
@@ -237,14 +298,17 @@ function _clienteLabel(clienteId) {
 
 export function renderVentas() {
   actualizarContadoresIngresos();
-  const s = document.getElementById('sub-ventas'); if (s) s.textContent = `${state.ventas.length} registros`;
   const el = document.getElementById('lista-ventas');
   if (!el) return;
   if (!state.ventas.length) {
+    const s0 = document.getElementById('sub-ventas'); if (s0) s0.textContent = '0 registros';
     el.innerHTML = _emptyState('🏘️', 'Sin ventas aún', 'Usa "+ Nueva venta" para registrar la primera.');
     return;
   }
-  const filas = state.ventas.map(v => {
+  const visibles = state.ventas.filter(v => !vtaFiltroProy || v.proyecto === vtaFiltroProy);
+  const s = document.getElementById('sub-ventas');
+  if (s) s.textContent = vtaFiltroProy ? `${visibles.length} de ${state.ventas.length} registros` : `${state.ventas.length} registros`;
+  const filas = visibles.map(v => {
     const id = String(v.venta_id).replace(/'/g, "\\'");
     const est = v.estatus_comercial || 'apartada';
     const badge = `<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:600;background:${_ESTATUS_COLOR[est] || _ESTATUS_COLOR.apartada};">${escapeHtml(est)}</span>`;
@@ -257,7 +321,13 @@ export function renderVentas() {
       `<td>${badge}</td>` +
       `<td><div style="display:flex;gap:6px;justify-content:flex-end;"><button class="btn btn-ghost btn-sm req-editor" onclick="editarVenta('${id}')">Editar</button><button class="btn btn-ghost btn-sm req-editor danger" onclick="eliminarVenta('${id}')">✕</button></div></td></tr>`;
   }).join('');
-  el.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Unidad</th><th>Cliente</th><th style="text-align:right">Precio</th><th style="text-align:right">Cobrado</th><th style="text-align:right">Saldo</th><th>Estatus</th><th style="text-align:right">Acciones</th></tr></thead><tbody>${filas}</tbody></table></div>`;
+  el.innerHTML = `
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+      ${_selectProyectos('vta-filtro-proy', vtaFiltroProy, 'vtaSetFiltroProy', false)}
+    </div>
+    ${visibles.length
+      ? `<div class="table-wrap"><table><thead><tr><th>Unidad</th><th>Cliente</th><th style="text-align:right">Precio</th><th style="text-align:right">Cobrado</th><th style="text-align:right">Saldo</th><th>Estatus</th><th style="text-align:right">Acciones</th></tr></thead><tbody>${filas}</tbody></table></div>`
+      : _emptyState('🔍', 'Sin ventas con ese filtro', `No hay ventas registradas en ${escapeHtml(vtaFiltroProy)}.`)}`;
 }
 
 // Puebla los selects de proyecto y cliente del modal (activos).

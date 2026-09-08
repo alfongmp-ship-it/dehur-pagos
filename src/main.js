@@ -38,7 +38,7 @@ import { renderFlujoSalida, fsAbrirDetalle, fsCerrarDetalle } from './modules/fl
 import { renderResumenEjecutivo } from './modules/resumen-ejecutivo.js';
 import { renderCostosFiscales, abrirNuevaUnidad, editarUnidad, guardarUnidad, toggleUnidad, setFechaTermino, setEstatusUnidad, abrirLoteUnidades, guardarLoteUnidades, cfLimpiarHuerfanas, abrirAsignarCosto, reasignarCosto, eliminarAsignacionCosto, cfCambiarMetodo, cfPreviewReparto, cfRepartirResto, cfRepartirRestoIndiviso, cfCustomSetModo, cfFiltrarUnidades, cfSelTodas, cfFiltrarPendientes, cfFiltrarAsignados, guardarAsignacionCosto, cfAgregarPartidaPresup, guardarPresupuestoUnidad, cfPresupPartidaChange, cfObraSetMetrica, cfObraAvanceCell, exportarControlObraExcel, cfVerUnidad, abrirRepartirFactura, cfLimpiarRepartoFactura, cfFacturaPartidaChange, cfToggleEstimado, revisarRepartos, abrirLigarFactura, lfAplicar, exportarPendientesExcel, fiscalMarcarPago, fiscalMarcarFactura, fiscalFiltrarPagos, fiscalExportar, cfAvNav, cfToggleVariaciones, cfVarFiltrar, exportarVariacionesExcel, cfObraToggleSoloVisibles, cfToggleSinRegistro, exportarCostosUnitariosExcel, cfObraToggleEstimado } from './modules/costos-fiscales.js';
 import { renderCreditos, seleccionarCredito, abrirNuevoCredito, editarCredito, guardarCredito, abrirNuevaDisposicion, guardarDisposicion, editarPagare, togglePagare, abrirNuevaFechaPago, editarFechaPago, guardarFechaPago, marcarPagoPagado, eliminarPagoPagare } from './modules/creditos.js';
-import { initIngresosUI, setWorkspace, renderClientes, renderVentas, renderCobros, renderEstadoCuenta, abrirNuevoCliente, editarCliente, guardarCliente, eliminarCliente, abrirNuevaVenta, editarVenta, guardarVenta, eliminarVenta, vPoblarUnidades, abrirNuevoCobro, editarCobro, guardarCobro, eliminarCobro, exportarEstadoCuentaCSV, recalcularVentasDesdeCobros } from './modules/ingresos.js';
+import { initIngresosUI, setWorkspace, renderClientes, renderVentas, renderCobros, renderEstadoCuenta, abrirNuevoCliente, editarCliente, guardarCliente, eliminarCliente, abrirNuevaVenta, editarVenta, guardarVenta, eliminarVenta, vPoblarUnidades, abrirNuevoCobro, editarCobro, guardarCobro, eliminarCobro, exportarEstadoCuentaCSV, recalcularVentasDesdeCobros, cliSetFiltroProy, vtaSetFiltroProy } from './modules/ingresos.js';
 import { renderEstrategiaTablero, renderEstrategiaFlags, renderEstrategiaConfig, guardarConfigEstrategia, restaurarConfigEstrategia, abrirNuevoFlag, editarFlag, guardarFlag, eliminarFlag, efPoblarUnidades, efTipoChange, estToggleDesglose, renderSimuladorCaja, simToggleProyecto } from './modules/estrategia.js';
 import { renderActividad, actSetVentana, actDepurar, actAplicarRango, actToggleUsuario, actReportePDF } from './modules/actividad.js';
 import { gsLogin, gsLogout, renderAuthStatus, checkOAuthCallback } from './services/google-auth.js';
@@ -363,6 +363,8 @@ window.gsSavePagosPagare = gsSavePagosPagare;
 window.setWorkspace = setWorkspace;
 window.renderClientes = renderClientes;
 window.renderVentas = renderVentas;
+window.cliSetFiltroProy = cliSetFiltroProy;
+window.vtaSetFiltroProy = vtaSetFiltroProy;
 window.renderCobros = renderCobros;
 window.renderEstadoCuenta = renderEstadoCuenta;
 window.abrirNuevoCliente = abrirNuevoCliente;
