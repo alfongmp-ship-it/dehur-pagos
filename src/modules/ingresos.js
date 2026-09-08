@@ -410,7 +410,7 @@ const _TIPO_COBRO_LABEL = { enganche: 'Enganche', mensualidad: 'Mensualidad', li
 // DERIVADO: re-suma los cobros activos de una venta → monto_cobrado + saldo_cliente.
 // Única fuente de verdad de esos campos (se llama en cada alta/edición/baja de cobro
 // y al guardar la venta). Sin acumulador incremental → sin drift.
-function recalcularVenta(venta) {
+export function recalcularVenta(venta) {
   if (!venta) return;
   const cobrado = state.cobros
     .filter(c => String(c.venta_id) === String(venta.venta_id) && c.activo !== false)
