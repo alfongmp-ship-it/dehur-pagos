@@ -143,9 +143,17 @@ function _proyectosDeCliente() {
   });
   return m;
 }
-const _chipsProyectos = set => (set && set.size)
-  ? [...set].map(p => proyTag(p)).join(' ')
-  : '<span style="font-size:10px;color:var(--muted);">sin venta aún</span>';
+// Chips combinadas: proyecto con VENTA (aunque esté cancelada) = chip normal;
+// proyecto SOLO de interés capturado = chip atenuado. Hechos vs intención, sin
+// dos columnas. El interés vive en cliente.proyectos_interes (SQL 42) y es la
+// memoria comercial del prospecto que no compró — sirve para recontactarlo.
+function _chipsCliente(c, proyVentas) {
+  const venta = proyVentas || new Set();
+  const interes = (Array.isArray(c.proyectos_interes) ? c.proyectos_interes : []).filter(p => !venta.has(p));
+  if (!venta.size && !interes.length) return '<span style="font-size:10px;color:var(--muted);">sin proyecto</span>';
+  return [...venta].map(p => proyTag(p)).join(' ') +
+    interes.map(p => ` <span style="opacity:.55;" title="Interés capturado — sin venta en este proyecto">${proyTag(p)}</span>`).join('');
+}
 
 let cliFiltroProy = '';   // '' todos · '__sin__' sin venta · nombre de proyecto
 let vtaFiltroProy = '';
@@ -158,7 +166,7 @@ function _selectProyectos(id, valor, onchange, conSinVenta) {
     `<option value="${escapeHtml(p.nombre)}"${valor === p.nombre ? ' selected' : ''}>${escapeHtml(p.nombre)}</option>`).join('');
   return `<select id="${id}" class="filter-select" onchange="${onchange}(this.value)" style="font-size:12px;">
     <option value="">Todos los proyectos</option>${ops}
-    ${conSinVenta ? `<option value="__sin__"${valor === '__sin__' ? ' selected' : ''}>Sin venta aún</option>` : ''}
+    ${conSinVenta ? `<option value="__sin__"${valor === '__sin__' ? ' selected' : ''}>Sin proyecto</option>` : ''}
   </select>`;
 }
 
@@ -175,8 +183,9 @@ export function renderClientes() {
   const visibles = state.clientes.filter(c => {
     if (!cliFiltroProy) return true;
     const s = proyDe.get(String(c.cliente_id));
-    if (cliFiltroProy === '__sin__') return !s || !s.size;
-    return !!(s && s.has(cliFiltroProy));
+    const interes = Array.isArray(c.proyectos_interes) ? c.proyectos_interes : [];
+    if (cliFiltroProy === '__sin__') return (!s || !s.size) && !interes.length;
+    return !!(s && s.has(cliFiltroProy)) || interes.includes(cliFiltroProy);
   });
   const s = document.getElementById('sub-clientes');
   if (s) s.textContent = cliFiltroProy ? `${visibles.length} de ${state.clientes.length} registros` : `${state.clientes.length} registros`;
@@ -185,7 +194,7 @@ export function renderClientes() {
     const inact = c.activo === false ? ' <span style="font-size:10px;color:var(--muted);">(inactivo)</span>' : '';
     const id = String(c.cliente_id).replace(/'/g, "\\'");
     return `<tr><td><div class="name-cell">${escapeHtml(c.nombre)}${inact}</div>${c.email ? `<div class="name-sub">${escapeHtml(c.email)}</div>` : ''}</td>` +
-      `<td style="white-space:nowrap;">${_chipsProyectos(proyDe.get(String(c.cliente_id)))}</td>` +
+      `<td style="white-space:nowrap;">${_chipsCliente(c, proyDe.get(String(c.cliente_id)))}</td>` +
       `<td style="font-size:12px;">${escapeHtml(c.rfc || '—')}</td>` +
       `<td style="font-size:12px;">${escapeHtml(c.telefono || '—')}</td>` +
       `<td style="font-size:12px;color:var(--muted);${'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:280px;'}" title="${escapeHtml(c.observaciones || '')}">${escapeHtml(c.observaciones || '—')}</td>` +
@@ -194,16 +203,27 @@ export function renderClientes() {
   el.innerHTML = `
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
       ${_selectProyectos('cli-filtro-proy', cliFiltroProy, 'cliSetFiltroProy', true)}
-      <span style="font-size:11px;color:var(--muted);" title="El proyecto de un cliente se deduce de sus ventas: puede estar en varios">proyecto según sus ventas</span>
+      <span style="font-size:11px;color:var(--muted);" title="Chip normal = tiene venta en ese proyecto. Chip atenuado = interés capturado (prospecto), sirve para recontactarlo aunque no haya comprado.">chip sólido = venta · atenuado = interés</span>
     </div>
     ${visibles.length
       ? `<div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Proyecto(s)</th><th>RFC</th><th>Teléfono</th><th>Observaciones</th><th style="text-align:right">Acciones</th></tr></thead><tbody>${filas}</tbody></table></div>`
-      : _emptyState('🔍', 'Sin clientes con ese filtro', cliFiltroProy === '__sin__' ? 'Todos los clientes tienen al menos una venta.' : `Nadie tiene ventas en ${escapeHtml(cliFiltroProy)}.`)}`;
+      : _emptyState('🔍', 'Sin clientes con ese filtro', cliFiltroProy === '__sin__' ? 'Todos los clientes tienen venta o interés en algún proyecto.' : `Nadie tiene ventas ni interés en ${escapeHtml(cliFiltroProy)}.`)}`;
+}
+
+// Checkboxes de "Proyectos de interés" del modal (un checkbox por proyecto activo).
+function _poblarInteresCliente(seleccion) {
+  const cont = document.getElementById('c-proyectos-interes');
+  if (!cont) return;
+  const sel = new Set(Array.isArray(seleccion) ? seleccion : []);
+  cont.innerHTML = state.proyectos.filter(p => p.activo !== false).map(p =>
+    `<label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;white-space:nowrap;"><input type="checkbox" class="c-interes-chk" value="${escapeHtml(p.nombre)}"${sel.has(p.nombre) ? ' checked' : ''} style="accent-color:var(--accent);">${escapeHtml(p.nombre)}</label>`
+  ).join('') || '<span style="font-size:11px;color:var(--muted);">Sin proyectos activos</span>';
 }
 
 export function abrirNuevoCliente() {
   state.editClienteId = null;
   limpiarFormCliente();
+  _poblarInteresCliente([]);
   const t = document.getElementById('modal-cliente-title'); if (t) t.textContent = 'Nuevo Cliente';
   document.getElementById('modal-cliente').classList.add('open');
 }
@@ -219,11 +239,12 @@ export function editarCliente(id) {
   document.getElementById('c-email').value = c.email || '';
   document.getElementById('c-observaciones').value = c.observaciones || '';
   document.getElementById('c-activo').value = c.activo === false ? 'false' : 'true';
-  // Etiqueta informativa: en qué proyecto(s) está este cliente, según sus ventas.
+  _poblarInteresCliente(c.proyectos_interes);
+  // Etiqueta informativa: en qué proyecto(s) está este cliente (ventas + interés).
   const info = document.getElementById('c-proyectos-info');
   if (info) {
     const proys = _proyectosDeCliente().get(String(c.cliente_id));
-    info.innerHTML = `<span style="font-size:11px;color:var(--muted);">Proyecto(s):</span> ${_chipsProyectos(proys)} <span style="font-size:10px;color:var(--muted);">(según sus ventas)</span>`;
+    info.innerHTML = `<span style="font-size:11px;color:var(--muted);">Proyecto(s):</span> ${_chipsCliente(c, proys)} <span style="font-size:10px;color:var(--muted);">(sólido = venta · atenuado = interés)</span>`;
   }
   document.getElementById('modal-cliente').classList.add('open');
 }
@@ -241,6 +262,12 @@ export function guardarCliente() {
   const nombre = document.getElementById('c-nombre').value.trim();
   if (!nombre) { notify('El nombre del cliente es obligatorio', 'error'); return; }
   const existing = state.editClienteId ? state.clientes.find(c => String(c.cliente_id) === String(state.editClienteId)) : null;
+  // Proyectos de interés: lo marcado en los checkboxes; si el bloque no existe
+  // en el DOM (no debería), se conserva lo que el cliente ya tenía.
+  const chks = document.querySelectorAll('.c-interes-chk');
+  const proyectosInteres = chks.length
+    ? [...document.querySelectorAll('.c-interes-chk:checked')].map(x => x.value)
+    : (existing && Array.isArray(existing.proyectos_interes) ? existing.proyectos_interes : []);
   const obj = {
     cliente_id: existing ? existing.cliente_id : nuevoClienteId(),
     nombre,
@@ -248,7 +275,8 @@ export function guardarCliente() {
     telefono: document.getElementById('c-telefono').value.trim(),
     email: document.getElementById('c-email').value.trim(),
     observaciones: document.getElementById('c-observaciones').value.trim(),
-    activo: document.getElementById('c-activo').value === 'true'
+    activo: document.getElementById('c-activo').value === 'true',
+    proyectos_interes: proyectosInteres
   };
   if (existing) {
     const i = state.clientes.findIndex(c => String(c.cliente_id) === String(state.editClienteId));
@@ -467,9 +495,25 @@ export function eliminarVenta(id) {
   const conCobros = state.cobros.some(c => String(c.venta_id) === String(id) && c.activo !== false);
   if (conCobros) { notify('No se puede eliminar: la venta tiene cobros registrados.', 'error'); return; }
   if (!confirm(`¿Eliminar la venta de "${_unidadLabel(v.unidad_id)}"?`)) return;
+  // 🛟 Anti-fuga: borrar la venta NO debe borrar la relación cliente↔proyecto.
+  // Se conserva como "interés" en el cliente (memoria comercial para recontactar
+  // al prospecto si sale un producto similar). Cancelar la venta ya la conserva
+  // por el derivado; este blindaje cubre el borrado duro.
+  let interesGuardado = false;
+  const cli = state.clientes.find(c => String(c.cliente_id) === String(v.cliente_id));
+  if (cli && v.proyecto) {
+    if (!Array.isArray(cli.proyectos_interes)) cli.proyectos_interes = [];
+    if (!cli.proyectos_interes.includes(v.proyecto)) {
+      cli.proyectos_interes.push(v.proyecto);
+      interesGuardado = true;
+      const pfC = esPorFila('clientes');
+      gsSaveClientes({ porFila: pfC });
+      if (pfC) sbGuardarFila('clientes', cli);
+    }
+  }
   state.ventas = state.ventas.filter(x => String(x.venta_id) !== String(id));
   renderVentas();
-  notify('Venta eliminada');
+  notify('Venta eliminada' + (interesGuardado ? ' · la relación con el proyecto se conservó como interés del cliente' : ''));
   const porFila = esPorFila('ventas');
   gsSaveVentas({ porFila });
   if (porFila) sbBorrarFila('ventas', id);

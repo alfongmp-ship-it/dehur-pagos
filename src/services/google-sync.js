@@ -662,7 +662,8 @@ export async function gsLoadAll() {
         if (clRows && clRows.length > 1) {
           state.clientes = clRows.slice(1).filter(r => r[0]).map(r => ({
             cliente_id: String(r[0] || ''), nombre: r[1] || '', rfc: r[2] || '', telefono: r[3] || '',
-            email: r[4] || '', observaciones: r[5] || '', activo: r[6] !== 'FALSE' && r[6] !== 'false'
+            email: r[4] || '', observaciones: r[5] || '', activo: r[6] !== 'FALSE' && r[6] !== 'false',
+            proyectos_interes: String(r[7] || '').split('|').filter(Boolean)
           }));
         }
         const veRows = await leerHoja('ventas', 'ventas');
@@ -1032,7 +1033,8 @@ export async function sbLoadAll() {
       state.clientes = rows.map(r => ({
         cliente_id: r.cliente_id != null ? String(r.cliente_id) : '',
         nombre: r.nombre || '', rfc: r.rfc || '', telefono: r.telefono || '',
-        email: r.email || '', observaciones: r.observaciones || '', activo: r.activo !== false
+        email: r.email || '', observaciones: r.observaciones || '', activo: r.activo !== false,
+        proyectos_interes: Array.isArray(r.proyectos_interes) ? r.proyectos_interes : []
       }));
     });
     await cargar('ventas', 'ventas', rows => {
@@ -1448,7 +1450,8 @@ function _rowCliente(c) {
   return {
     cliente_id: _sbStr(c.cliente_id), nombre: _sbStr(c.nombre), rfc: _sbStr(c.rfc),
     telefono: _sbStr(c.telefono), email: _sbStr(c.email), observaciones: _sbStr(c.observaciones),
-    activo: c.activo !== false
+    activo: c.activo !== false,
+    proyectos_interes: Array.isArray(c.proyectos_interes) ? c.proyectos_interes : []
   };
 }
 function _rowsClientes() {
@@ -1951,8 +1954,8 @@ export async function gsSaveClientes(opts = {}) {
   if (!puedeEditar()) return;
   if (!guardarPermitido('clientes', state.clientes)) return;
   try {
-    const rows = state.clientes.map(c => [c.cliente_id, c.nombre, c.rfc || '', c.telefono || '', c.email || '', c.observaciones || '', c.activo !== false]);
-    await gsClearAndWrite('clientes', rows, ['cliente_id', 'nombre', 'rfc', 'telefono', 'email', 'observaciones', 'activo']);
+    const rows = state.clientes.map(c => [c.cliente_id, c.nombre, c.rfc || '', c.telefono || '', c.email || '', c.observaciones || '', c.activo !== false, (Array.isArray(c.proyectos_interes) ? c.proyectos_interes : []).join('|')]);
+    await gsClearAndWrite('clientes', rows, ['cliente_id', 'nombre', 'rfc', 'telefono', 'email', 'observaciones', 'activo', 'proyectos_interes']);
     if (!opts.porFila) await sbEspejar('clientes');
   } catch (e) { console.error('gsSaveClientes', e); }
 }

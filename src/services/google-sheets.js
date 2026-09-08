@@ -83,7 +83,7 @@ export async function gsInitSheets() {
         partidas_catalogo: [['partida_id', 'partida', 'subpartidas', 'orden', 'activa', 'visible_obra', 'cuenta_costos']],
         partidas_obra: [['partida_obra_id', 'nombre', 'proyecto', 'partida_admin', 'sub_partida_admin', 'orden', 'activa']],
         // INGRESOS (Fase 1) — mismos encabezados que gsSaveClientes/Ventas/Cobros.
-        clientes: [['cliente_id', 'nombre', 'rfc', 'telefono', 'email', 'observaciones', 'activo']],
+        clientes: [['cliente_id', 'nombre', 'rfc', 'telefono', 'email', 'observaciones', 'activo', 'proyectos_interes']],
         ventas: [['venta_id', 'unidad_id', 'proyecto', 'cliente_id', 'precio_venta', 'tipo_credito', 'estatus_comercial', 'fecha_apartado', 'fecha_escritura_estimada', 'fecha_escritura_real', 'valor_liberacion', 'credito_id', 'monto_cobrado', 'saldo_cliente', 'observaciones', 'activo']],
         cobros: [['cobro_id', 'venta_id', 'cliente_id', 'proyecto', 'fecha', 'monto', 'tipo_cobro', 'metodo', 'cuenta_destino_tipo', 'cuenta_destino_id', 'referencia', 'concepto', 'observaciones', 'activo']],
         // ESTRATEGIA (Fase 2) — mismos encabezados que gsSaveEstrategiaConfig/Flags.

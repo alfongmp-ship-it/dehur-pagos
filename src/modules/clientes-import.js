@@ -21,6 +21,7 @@ export const clientesImporter = createExcelImporter({
     { key: 'rfc', label: 'RFC', width: 16 },
     { key: 'telefono', label: 'Telefono', width: 16 },
     { key: 'email', label: 'Email', width: 26 },
+    { key: 'proyectos_interes', label: 'Proyectos de interes (separados por |)', width: 26 },
     { key: 'observaciones', label: 'Observaciones', width: 30 },
     { key: 'activo', label: 'Activo (true/false)', width: 12 }
   ],
@@ -32,10 +33,17 @@ export const clientesImporter = createExcelImporter({
     { key: 'email', label: 'Email', css: '1.2fr' }
   ],
 
-  ejemplos: () => ([
-    { nombre: 'Juan Perez Lopez', rfc: 'PELJ800101AAA', telefono: '5512345678', email: 'juan@correo.com', observaciones: '', activo: 'true' },
-    { nombre: 'Inmobiliaria Ejemplo S.A. de C.V.', rfc: 'IEJ123456789', telefono: '', email: '', observaciones: 'Compra 2 casas', activo: 'true' }
+  referencia: () => ([
+    { header: 'Proyectos activos', valores: (state.proyectos || []).filter(p => p.activo !== false).map(p => p.nombre) }
   ]),
+
+  ejemplos: () => {
+    const proy = (state.proyectos || []).find(p => p.activo !== false);
+    return [
+      { nombre: 'Juan Perez Lopez', rfc: 'PELJ800101AAA', telefono: '5512345678', email: 'juan@correo.com', proyectos_interes: proy ? proy.nombre : '', observaciones: '', activo: 'true' },
+      { nombre: 'Inmobiliaria Ejemplo S.A. de C.V.', rfc: 'IEJ123456789', telefono: '', email: '', proyectos_interes: '', observaciones: 'Compra 2 casas', activo: 'true' }
+    ];
+  },
 
   validar: (raw) => {
     const nombre = String(raw.nombre || '').trim();
@@ -51,6 +59,16 @@ export const clientesImporter = createExcelImporter({
       avisos.push(`RFC con longitud inusual (${rfc.length}); se importa igual — revisa "${nombre}"`);
     }
 
+    // Proyectos de interés: se canonicaliza el nombre si coincide con un proyecto;
+    // uno desconocido se importa tal cual con aviso (no bloquea al prospecto).
+    const proyectosInteres = [];
+    String(raw.proyectos_interes || '').split(/[|,;]/).map(s => s.trim()).filter(Boolean).forEach(px => {
+      const p = (state.proyectos || []).find(p2 => norm(p2.nombre) === norm(px));
+      const nombreCanon = p ? p.nombre : px;
+      if (!p) avisos.push(`Proyecto de interés desconocido "${px}" (cliente "${nombre}") — se importa tal cual`);
+      if (!proyectosInteres.includes(nombreCanon)) proyectosInteres.push(nombreCanon);
+    });
+
     return {
       registro: {
         cliente_id: '',            // se acuña en insertar (UUID)
@@ -59,7 +77,8 @@ export const clientesImporter = createExcelImporter({
         telefono: String(raw.telefono || '').trim(),
         email: String(raw.email || '').trim(),
         observaciones: String(raw.observaciones || '').trim(),
-        activo
+        activo,
+        proyectos_interes: proyectosInteres
       },
       avisos
     };
