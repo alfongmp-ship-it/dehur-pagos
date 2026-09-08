@@ -170,14 +170,14 @@ export async function sbRpc(nombre, args) {
   return client.rpc(nombre, args);
 }
 
-export async function sbActividadReciente(limite = 50) {
+export async function sbActividadReciente(limite = 50, desde = null, hasta = null) {
   const client = getSupabaseClient();
   const tid = tenantId();
   if (!client || !tid) return { data: null, error: new Error('Sin sesión de Supabase') };
-  return client.from('actividad_log').select('*')
-    .eq('tenant_id', tid)
-    .order('ocurrido_en', { ascending: false })
-    .limit(limite);
+  let q = client.from('actividad_log').select('*').eq('tenant_id', tid);
+  if (desde) q = q.gte('ocurrido_en', desde);
+  if (hasta) q = q.lt('ocurrido_en', hasta);
+  return q.order('ocurrido_en', { ascending: false }).limit(limite);
 }
 
 export async function sbActividadDepurar(dias = 90) {
