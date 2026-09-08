@@ -392,6 +392,11 @@ export function abrirNuevaVenta() {
   state.editVentaId = null;
   _poblarSelectsVenta();
   limpiarFormVenta();
+  // Bloque "cobrado anteriormente": SOLO al crear (cartera existente). Al editar
+  // se oculta — los cobros ya viven en Cobranza y aquí se duplicarían.
+  const ap = document.getElementById('v-apertura-bloque'); if (ap) ap.style.display = '';
+  const am = document.getElementById('v-cobrado-inicial'); if (am) am.value = '';
+  const af = document.getElementById('v-cobrado-inicial-fecha'); if (af) af.value = '';
   const t = document.getElementById('modal-venta-title'); if (t) t.textContent = 'Nueva Venta';
   document.getElementById('modal-venta').classList.add('open');
 }
@@ -416,6 +421,7 @@ export function editarVenta(id) {
   set('v-valor-liberacion', v.valor_liberacion != null ? v.valor_liberacion : '');
   set('v-credito', String(v.credito_id || ''));
   set('v-obs', v.observaciones || '');
+  const ap = document.getElementById('v-apertura-bloque'); if (ap) ap.style.display = 'none';
   document.getElementById('modal-venta').classList.add('open');
 }
 
@@ -472,7 +478,31 @@ export function guardarVenta() {
     observaciones: document.getElementById('v-obs').value.trim(),
     activo: existing ? existing.activo !== false : true
   };
-  recalcularVenta(obj);   // re-suma los cobros existentes de esta venta (0 si es nueva)
+  // 💰 Cobrado anteriormente (SOLO venta nueva, cartera existente): se registra
+  // como UN cobro de apertura — así el saldo/estado de cuenta lo derivan igual
+  // que cualquier cobro y se puede corregir en Cobranza. Nunca en edición
+  // (el bloque va oculto), para no duplicar.
+  let cobroApertura = null;
+  if (!existing) {
+    const montoAp = parseFloat((document.getElementById('v-cobrado-inicial') || {}).value) || 0;
+    if (montoAp > 0) {
+      if (montoAp > precio_venta + 0.005 &&
+          !confirm(`Lo cobrado anteriormente (${fmt(montoAp)}) excede el precio de venta (${fmt(precio_venta)}). ¿Registrarlo de todos modos?`)) return;
+      const fechaAp = (document.getElementById('v-cobrado-inicial-fecha') || {}).value ||
+        obj.fecha_apartado || new Date().toISOString().slice(0, 10);
+      cobroApertura = {
+        cobro_id: nuevoCobroId(),
+        venta_id: String(obj.venta_id), cliente_id: obj.cliente_id || '', proyecto: obj.proyecto || '',
+        fecha: fechaAp, monto: montoAp,
+        tipo_cobro: 'abono', metodo: '',
+        cuenta_destino_tipo: '', cuenta_destino_id: '',   // Fase 1: sin efecto en saldo (diferido)
+        referencia: '', concepto: 'Saldo de apertura — pagos anteriores a la captura',
+        observaciones: '', activo: true
+      };
+      state.cobros.push(cobroApertura);
+    }
+  }
+  recalcularVenta(obj);   // re-suma los cobros de esta venta (incluye el de apertura si lo hay)
   if (existing) {
     const i = state.ventas.findIndex(v => String(v.venta_id) === String(state.editVentaId));
     state.ventas[i] = obj;
@@ -481,10 +511,16 @@ export function guardarVenta() {
   }
   cerrar('modal-venta');
   renderVentas();
-  notify(existing ? 'Venta actualizada' : 'Venta registrada');
+  notify(existing ? 'Venta actualizada' : ('Venta registrada' + (cobroApertura ? ` · cobro de apertura de ${fmt(cobroApertura.monto)} registrado` : '')));
   const porFila = esPorFila('ventas');
   gsSaveVentas({ porFila });
   if (porFila) sbGuardarFila('ventas', obj);
+  if (cobroApertura) {
+    const pfC = esPorFila('cobros');
+    gsSaveCobros({ porFila: pfC });
+    if (pfC) sbGuardarFila('cobros', cobroApertura);
+    actualizarContadoresIngresos();
+  }
 }
 
 export function eliminarVenta(id) {

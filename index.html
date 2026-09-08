@@ -1547,6 +1547,13 @@
       <div class="field"><label>Escritura estimada</label><input type="date" id="v-fecha-escritura-estimada"></div>
       <div class="field"><label>Escritura real</label><input type="date" id="v-fecha-escritura-real"></div>
       <div class="field"><label>Crédito puente <span style="color:var(--muted);font-weight:400;font-size:11px;">(opcional)</span></label><select id="v-credito"></select></div>
+      <div class="field span2" id="v-apertura-bloque" style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;">
+        <label>💰 Cobrado anteriormente <span style="color:var(--muted);font-weight:400;font-size:11px;">(opcional — cartera existente: anticipo y pagos previos; se registra como UN cobro de apertura en Cobranza)</span></label>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;">
+          <input type="number" id="v-cobrado-inicial" step="0.01" placeholder="0.00" style="font-family:'DM Mono',monospace;width:160px;">
+          <input type="date" id="v-cobrado-inicial-fecha" title="Fecha del cobrado anterior (vacío = fecha de apartado, o hoy)">
+        </div>
+      </div>
       <div class="field span2"><label>Observaciones</label><textarea id="v-obs" rows="3" placeholder="Opcional"></textarea></div>
     </div>
     <div class="form-actions"><button class="btn btn-ghost" onclick="cerrar('modal-venta')">Cancelar</button><button class="btn btn-primary" onclick="guardarVenta()">Guardar</button></div>

@@ -13,8 +13,8 @@
 // Referencia inexistente (proyecto/casa/cliente) = se BLOQUEA toda la carga: media
 // cartera cargada es peor que ninguna, porque no se ve a simple vista qué faltó.
 
-import { state, nuevoVentaId } from '../state.js';
-import { gsSaveVentas, esPorFila, sbGuardarFila } from '../services/google-sync.js';
+import { state, nuevoVentaId, nuevoCobroId } from '../state.js';
+import { gsSaveVentas, gsSaveCobros, esPorFila, sbGuardarFila } from '../services/google-sync.js';
 import { createExcelImporter, parseImporte, normalizarFechaDDMMYYYY } from '../services/excel-import.js';
 import { recalcularVenta } from './ingresos.js';
 
@@ -27,6 +27,7 @@ const TIPOS_CREDITO = ['contado', 'bancario', 'infonavit', 'fovissste', 'cofinan
 // Referencias no resueltas del archivo → bloqueoGlobal. Se reinicia en existingKeyset,
 // que el framework llama UNA vez por parseo, antes de validar (patrón facturas-import).
 let _refErrores;
+let _creoCobros = false;   // el lote creó cobros de apertura → save también persiste cobros
 
 export const ventasImporter = createExcelImporter({
   key: 'ventas',
@@ -45,6 +46,8 @@ export const ventasImporter = createExcelImporter({
     { key: 'fecha_escritura_estimada', label: 'Escritura estimada (DD/MM/YYYY)', width: 22, text: true },
     { key: 'fecha_escritura_real', label: 'Escritura real (DD/MM/YYYY)', width: 20, text: true },
     { key: 'valor_liberacion', label: 'Valor de liberacion', width: 16 },
+    { key: 'cobrado_anterior', label: 'Cobrado anteriormente', width: 18 },
+    { key: 'fecha_cobrado_anterior', label: 'Fecha de lo cobrado (DD/MM/YYYY)', width: 22, text: true },
     { key: 'observaciones', label: 'Observaciones', width: 28 },
     { key: 'activo', label: 'Activo (true/false)', width: 12 }
   ],
@@ -54,6 +57,7 @@ export const ventasImporter = createExcelImporter({
     { key: '_unidadNombre', label: 'Casa', css: '90px' },
     { key: '_clienteNombre', label: 'Cliente', css: '1.4fr' },
     { key: 'precio_venta', label: 'Precio', css: '120px', style: 'font-family:\'DM Mono\',monospace;font-size:10px;text-align:right;' },
+    { key: '_cobradoAnt', label: 'Cobrado ant.', css: '110px', style: 'font-family:\'DM Mono\',monospace;font-size:10px;text-align:right;' },
     { key: 'estatus_comercial', label: 'Estatus', css: '110px' }
   ],
 
@@ -84,6 +88,8 @@ export const ventasImporter = createExcelImporter({
       fecha_escritura_estimada: '30/09/2026',
       fecha_escritura_real: '',
       valor_liberacion: '',
+      cobrado_anterior: '350000',
+      fecha_cobrado_anterior: '15/03/2026',
       observaciones: '',
       activo: 'true'
     }];
@@ -139,6 +145,20 @@ export const ventasImporter = createExcelImporter({
     const activoRaw = String(raw.activo || 'true').trim().toLowerCase();
     const activo = !(activoRaw === 'false' || activoRaw === '0' || activoRaw === 'no');
 
+    // 💰 Cobrado anteriormente (cartera existente) → se convierte en UN cobro de
+    // apertura al importar. Cobrado > precio = casi seguro un dedazo: error de fila.
+    const cobradoAnt = parseImporte(raw.cobrado_anterior) || 0;
+    if (cobradoAnt < 0) return { omit: 'El cobrado anterior no puede ser negativo' };
+    if (cobradoAnt > precio + 0.005) {
+      return { omit: `Cobrado anterior (${cobradoAnt}) mayor que el precio de venta (${precio}) — revisa la fila` };
+    }
+    let cobradoAntFecha = '';
+    if (cobradoAnt > 0) {
+      cobradoAntFecha = raw.fecha_cobrado_anterior ? normalizarFechaDDMMYYYY(raw.fecha_cobrado_anterior) : '';
+      if (raw.fecha_cobrado_anterior && !cobradoAntFecha) avisos.push(`Fecha de lo cobrado no legible en la casa ${unidadTxt}; se usa la de apartado (o hoy)`);
+      if (!cobradoAntFecha) cobradoAntFecha = fApartado || new Date().toISOString().slice(0, 10);
+    }
+
     return {
       registro: {
         venta_id: '',                       // se acuña en insertar (UUID)
@@ -157,9 +177,11 @@ export const ventasImporter = createExcelImporter({
         saldo_cliente: 0,
         observaciones: String(raw.observaciones || '').trim(),
         activo,
-        // Solo para la vista previa (se eliminan antes de guardar)
+        // Transitorios: preview + cobro de apertura (se eliminan antes de guardar)
         _unidadNombre: unidad.nombre,
-        _clienteNombre: cliente.nombre
+        _clienteNombre: cliente.nombre,
+        _cobradoAnt: cobradoAnt,
+        _cobradoAntFecha: cobradoAntFecha
       },
       avisos
     };
@@ -181,16 +203,39 @@ export const ventasImporter = createExcelImporter({
 
   insertar: (registros) => {
     const porFila = esPorFila('ventas');
+    const porFilaCobros = esPorFila('cobros');
+    _creoCobros = false;
     registros.forEach(r => {
+      const cobradoAnt = r._cobradoAnt || 0;
+      const cobradoAntFecha = r._cobradoAntFecha || '';
       delete r._unidadNombre; delete r._clienteNombre;   // solo eran para el preview
+      delete r._cobradoAnt; delete r._cobradoAntFecha;
       r.venta_id = nuevoVentaId();
+      // Cobro de apertura ANTES del recálculo, para que el saldo nazca correcto.
+      if (cobradoAnt > 0) {
+        const c = {
+          cobro_id: nuevoCobroId(),
+          venta_id: String(r.venta_id), cliente_id: r.cliente_id || '', proyecto: r.proyecto || '',
+          fecha: cobradoAntFecha, monto: cobradoAnt,
+          tipo_cobro: 'abono', metodo: '',
+          cuenta_destino_tipo: '', cuenta_destino_id: '',   // Fase 1: sin efecto en saldo (diferido)
+          referencia: '', concepto: 'Saldo de apertura — pagos anteriores a la captura',
+          observaciones: '', activo: true
+        };
+        state.cobros.push(c);
+        _creoCobros = true;
+        if (porFilaCobros) sbGuardarFila('cobros', c);
+      }
       recalcularVenta(r);        // única fuente de verdad de monto_cobrado / saldo_cliente
       state.ventas.push(r);
       if (porFila) sbGuardarFila('ventas', r);
     });
   },
 
-  save: async () => { await gsSaveVentas({ porFila: esPorFila('ventas') }); },
+  save: async () => {
+    await gsSaveVentas({ porFila: esPorFila('ventas') });
+    if (_creoCobros) await gsSaveCobros({ porFila: esPorFila('cobros') });
+  },
 
   postCommit: () => {
     if (window.renderVentas) window.renderVentas();
