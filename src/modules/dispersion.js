@@ -55,6 +55,8 @@ export function abrirPagoRapido(src, id) {
   cargarSeleccionado();
   document.getElementById('pago-concepto').value = '';
   document.getElementById('pago-importe').value = '';
+  _poblarCuentaOrigenPago();   // sin esto, la cuenta del pago ANTERIOR se quedaba pegada
+  checkCuentaOrigenPago();
   document.getElementById('modal-pago').classList.add('open');
   if (window.showPage) window.showPage('dispersion', document.getElementById('nav-dispersion'));
 }
@@ -70,27 +72,59 @@ export function abrirModalPago() {
   refreshPagoPartidaSelect();
   document.getElementById('pago-partida').value = '';
   togglePagoSubPartida();
-  // Poblar cuenta origen: proyectos BBVA + cuentas adicionales
-  const sel = document.getElementById('pago-cuenta-origen');
-  if (sel) {
-    const proyOpts = state.proyectos.filter(p => p.activo !== false && p.cuenta).map(p =>
-      `<option value="proy:${escapeHtml(p.nombre)}" data-tipo="bbva">${escapeHtml(p.nombre)} – BBVA ···${escapeHtml(p.cuenta.slice(-4))}</option>`
-    ).join('');
-    const extraOpts = state.cuentasPropias.filter(c => c.activo !== false).map(c =>
-      `<option value="extra:${escapeHtml(c.nombre)}" data-tipo="otro">${escapeHtml(c.nombre)} – ${escapeHtml(c.banco)}${c.numero_cuenta ? ' ···' + escapeHtml(c.numero_cuenta.slice(-4)) : ''}</option>`
-    ).join('');
-    sel.innerHTML = proyOpts + extraOpts;
-  }
+  _poblarCuentaOrigenPago();
   checkCuentaOrigenPago();
   document.getElementById('modal-pago').classList.add('open');
+}
+
+// Puebla el select de cuenta origen SIN default: obliga a elegir en cada pago.
+// Antes la cuenta se quedaba en la primera opción (o pegada del pago anterior en
+// Pago rápido) y así un pago de Entorno se registró en la Concentradora sin que
+// nadie lo viera hasta el historial. El proyecto del pago SE DERIVA de esta
+// cuenta, así que elegirla mal registra el costo en el proyecto equivocado.
+function _poblarCuentaOrigenPago() {
+  const sel = document.getElementById('pago-cuenta-origen');
+  if (!sel) return;
+  const proyOpts = state.proyectos.filter(p => p.activo !== false && p.cuenta).map(p =>
+    `<option value="proy:${escapeHtml(p.nombre)}" data-tipo="bbva">${escapeHtml(p.nombre)} – BBVA ···${escapeHtml(p.cuenta.slice(-4))}</option>`
+  ).join('');
+  const extraOpts = state.cuentasPropias.filter(c => c.activo !== false).map(c =>
+    `<option value="extra:${escapeHtml(c.nombre)}" data-tipo="otro">${escapeHtml(c.nombre)} – ${escapeHtml(c.banco)}${c.numero_cuenta ? ' ···' + escapeHtml(c.numero_cuenta.slice(-4)) : ''}</option>`
+  ).join('');
+  sel.innerHTML = '<option value="">— Elige la cuenta origen —</option>' + proyOpts + extraOpts;
+  sel.value = '';
 }
 
 export function checkCuentaOrigenPago() {
   const sel = document.getElementById('pago-cuenta-origen');
   const btn = document.getElementById('btn-pago-action');
   const info = document.getElementById('pago-info-no-bbva');
+  const dest = document.getElementById('pago-proyecto-destino');
   if (!sel || !btn) return;
   const val = sel.value || '';
+  // Sin cuenta elegida no hay acción posible (candado a prueba de prisas).
+  if (!val) {
+    btn.textContent = 'Elige la cuenta origen';
+    btn.disabled = true;
+    btn.onclick = null;
+    if (info) info.style.display = 'none';
+    if (dest) dest.innerHTML = '<span style="color:var(--muted);">Elige la cuenta para ver a qué proyecto se registrará el pago.</span>';
+    return;
+  }
+  btn.disabled = false;
+  // Decir EN VIVO a qué proyecto quedará el pago (misma regla que el guardado:
+  // el proyecto se deriva de la cuenta; la concentradora no tiene proyecto).
+  if (dest) {
+    const cuentaNombre = val.replace(/^proy:|^extra:/, '');
+    if (esConcentradora(cuentaNombre)) {
+      dest.innerHTML = '<span style="color:var(--orange);font-weight:600;">⚠ Concentradora: el pago quedará SIN proyecto — no contará al costo de ninguna casa.</span>';
+    } else {
+      const proy = state.proyectos.find(x => x.nombre === cuentaNombre);
+      const extra = state.cuentasPropias.find(x => x.nombre === cuentaNombre);
+      const proyectoReal = proy ? proy.nombre : ((extra && extra.proyecto) || cuentaNombre);
+      dest.innerHTML = `Se registrará en el proyecto: <strong style="color:var(--accent);">${escapeHtml(proyectoReal)}</strong>`;
+    }
+  }
   const esBBVA = val.startsWith('proy:');
   if (esBBVA) {
     btn.textContent = 'Agregar a Cola ⚡';
@@ -142,6 +176,7 @@ export function agregarACola() {
   const partida = document.getElementById('pago-partida')?.value.trim() || '';
   const sub_partida = document.getElementById('pago-sub-partida')?.value || '';
   const ctaVal = document.getElementById('pago-cuenta-origen')?.value || '';
+  if (!ctaVal) { notify('Elige la cuenta origen del pago', 'error'); return; }
   const proyecto = ctaVal.replace(/^proy:|^extra:/, '');
   if (!concepto) { notify('El concepto es obligatorio', 'error'); return; }
   if (!importe || importe <= 0) { notify('Ingresa un importe válido', 'error'); return; }
@@ -161,6 +196,7 @@ export function confirmarPagoDirecto() {
   const partida = document.getElementById('pago-partida')?.value.trim() || '';
   const sub_partida = document.getElementById('pago-sub-partida')?.value || '';
   const ctaVal = document.getElementById('pago-cuenta-origen')?.value || '';
+  if (!ctaVal) { notify('Elige la cuenta origen del pago', 'error'); return; }
   const cuentaNombre = ctaVal.replace(/^proy:|^extra:/, '');
   if (!concepto) { notify('El concepto es obligatorio', 'error'); return; }
   if (!importe || importe <= 0) { notify('Ingresa un importe válido', 'error'); return; }
