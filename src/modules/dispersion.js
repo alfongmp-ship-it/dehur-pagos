@@ -388,8 +388,14 @@ export function generarArchivo() {
   }
   const fecha = document.getElementById('fecha-disp').value || new Date().toISOString().split('T')[0];
   const proyId = document.getElementById('cuenta-disp').value;
-  const proySel = state.proyectos.find(p => p.id === proyId) || state.proyectos[0];
+  // SIN fallback silencioso a proyectos[0]: eso mandaba la corrida completa a la
+  // cuenta de la Concentradora cuando nadie eligió. Sin cuenta = no hay archivo.
+  const proySel = state.proyectos.find(p => p.id === proyId);
+  if (!proySel || !proySel.cuenta) { notify('Elige la cuenta origen del archivo (panel "Generar Archivo")', 'error'); return; }
   const cargo = proySel.cuenta;
+  // Confirmación final NOMBRANDO la cuenta: este archivo mueve dinero real.
+  const totalCola = state.cola.reduce((s, i) => s + (Number(i.importe) || 0), 0);
+  if (!confirm(`Archivo BBVA con CARGO a: ${proySel.nombre} – BBVA ···${cargo.slice(-4)}\n${state.cola.length} pago(s) · total ${fmt(totalCola)}\n\n¿Generar el archivo?`)) return;
   const fechaFn = fecha.replace(/-/g, '');
 
   // Límite de caracteres para el campo "DETALLE DEL PAGO" del archivo BBVA.

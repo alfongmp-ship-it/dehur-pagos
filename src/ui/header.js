@@ -6,6 +6,10 @@ export function actualizarDisplaySaldo() {
   if (!el) return;
   const sel = document.getElementById('cuenta-disp');
   const proyId = sel ? sel.value : null;
+  // Recordar la última cuenta elegida: el select ya no trae default (candado
+  // anti "todo se carga a la Concentradora por inercia"), y restaurar la última
+  // evita la fricción de elegirla cada sesión.
+  if (proyId) { try { localStorage.setItem('dt-cuenta-disp', proyId); } catch (_) { /* ignore */ } }
   const p = proyId ? state.proyectos.find(x => x.id === proyId) : null;
   if (p && p.saldo) {
     el.style.display = '';
@@ -41,10 +45,16 @@ export function renderCuentaDispSelect() {
   const sel = document.getElementById('cuenta-disp');
   if (!sel) return;
   const cur = sel.value;
-  sel.innerHTML = state.proyectos.filter(p => p.activo).map(p =>
+  // SIN preselección del primer proyecto: esta cuenta es la CUENTA CARGO de todo
+  // el archivo BBVA — un default silencioso mandaba corridas completas a la
+  // Concentradora. Se restaura lo elegido antes (DOM o localStorage) si sigue
+  // siendo válido; si no, obliga a elegir.
+  sel.innerHTML = '<option value="">— Elige la cuenta —</option>' + state.proyectos.filter(p => p.activo).map(p =>
     `<option value="${p.id}">${escapeHtml(p.nombre)} – BBVA ···${p.cuenta.slice(-4)}</option>`
   ).join('');
-  if (cur && state.proyectos.find(p => p.id === cur)) sel.value = cur;
+  let quiere = cur;
+  if (!quiere) { try { quiere = localStorage.getItem('dt-cuenta-disp') || ''; } catch (_) { quiere = ''; } }
+  sel.value = (quiere && state.proyectos.find(p => p.id === quiere && p.activo)) ? quiere : '';
   actualizarDisplaySaldo();
 }
 
