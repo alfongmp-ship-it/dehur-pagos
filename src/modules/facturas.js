@@ -834,8 +834,15 @@ export function abrirBuscadorPagosFactura() {
   if (panel) panel.style.display = '';
   const inp = document.getElementById('fact-pagos-buscar');
   if (inp) inp.value = '';
+  _fpVerTodosProv = false; // cada apertura del panel regresa al corte de 25
   filtrarPagosParaFactura();
 }
+
+// "Del mismo proveedor" se corta en 25; este flag lo expande a TODOS. Sobrevive al
+// tecleo del buscador y al re-render tras vincular (misma factura); se resetea al
+// reabrir el panel. Solo vista: no cambia candidatos ni montos.
+let _fpVerTodosProv = false;
+export function fpMostrarTodosProv() { _fpVerTodosProv = true; filtrarPagosParaFactura(); }
 
 export function filtrarPagosParaFactura() {
   const cont = document.getElementById('fact-pagos-result');
@@ -872,7 +879,9 @@ export function filtrarPagosParaFactura() {
     });
   const ordenar = arr => arr.sort((a, b) => (a.montoDiff - b.montoDiff) || (a.fechaDiff - b.fechaDiff));
   // Del mismo proyecto (o sin proyecto definido): el flujo normal, separando mismo/otro proveedor.
-  const mismoProv = ordenar(base.filter(x => x.mismoProy && x.mismoProv)).slice(0, 25);
+  const mismoProvTodos = ordenar(base.filter(x => x.mismoProy && x.mismoProv));
+  const mismoProv = _fpVerTodosProv ? mismoProvTodos : mismoProvTodos.slice(0, 25);
+  const provOcultos = mismoProvTodos.length - mismoProv.length;
   const otros = ordenar(base.filter(x => x.mismoProy && !x.mismoProv && x.cercano)).slice(0, 10);
   // De OTRO proyecto: NO se esconden — van hasta ABAJO con aviso (para no errar al vincular y
   // para cachar pagos mal clasificados a otro proyecto). Prioriza los del mismo proveedor (señal
@@ -911,7 +920,12 @@ export function filtrarPagosParaFactura() {
   const header = txt => `<div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:6px 10px;background:var(--surface2);border-bottom:1px solid var(--border);">${txt}</div>`;
   const headerWarn = txt => `<div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--orange);font-weight:700;padding:6px 10px;background:rgba(224,122,58,.10);border-top:1px solid rgba(224,122,58,.35);border-bottom:1px solid var(--border);">${txt}</div>`;
   let html = '';
-  if (mismoProv.length) html += header('Del mismo proveedor (más probables arriba)') + mismoProv.map(fila).join('');
+  if (mismoProv.length) {
+    html += header('Del mismo proveedor (más probables arriba)') + mismoProv.map(fila).join('');
+    if (provOcultos > 0) html += `<div style="padding:6px 10px;border-bottom:1px solid var(--border);">
+      <button class="btn btn-ghost" style="width:100%;padding:6px;font-size:11px;color:var(--muted);" onclick="fpMostrarTodosProv()">▾ Mostrar los ${provOcultos} pagos restantes de este proveedor</button>
+    </div>`;
+  }
   if (otros.length) html += header('Otros con el mismo monto (otro proveedor)') + otros.map(fila).join('');
   if (otroProy.length) html += headerWarn('⚠ De OTRO proyecto — revisa si algún pago quedó mal clasificado') + otroProy.map(fila).join('');
   cont.innerHTML = html;
