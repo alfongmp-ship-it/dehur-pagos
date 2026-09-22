@@ -117,7 +117,8 @@ function refreshHistPartidas() {
   const enHistorial = [...new Set(state.historial.map(h => h.partida).filter(Boolean))];
   const opts = getPartidasParaSelect(enHistorial);
   sel.innerHTML = '<option value="">Todas las partidas</option>' +
-    opts.map(o => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`).join('');
+    opts.map(o => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`).join('') +
+    '<option value="__sin__">(Sin partida)</option>';   // pagos capturados sin clasificar
   sel.value = val;
 }
 
@@ -180,7 +181,8 @@ function getFilteredHistorial() {
       const qNum = q.replace(/[$,\s]/g, '');
       const esNum = /^\d+(\.\d+)?$/.test(qNum);
       const matchMonto = esNum && String(+h.importe || 0).includes(qNum);
-      const matchBase = /^\d+$/.test(q) ? String(h.proveedor_id) === q : h.nombre.toLowerCase().includes(q);
+      const matchBase = /^\d+$/.test(q) ? String(h.proveedor_id) === q
+        : (h.nombre.toLowerCase().includes(q) || String(h.concepto || '').toLowerCase().includes(q));
       if (!matchBase && !matchMonto) return false;
     }
     if (ft) {
@@ -190,8 +192,13 @@ function getFilteredHistorial() {
       if (tipoLabel !== ft) return false;
     }
     if (fp && !proyectoMatch(h.proyecto, fp)) return false;
-    if (fpart && (h.partida || '') !== fpart) return false;
-    if (fsub && (h.sub_partida || '') !== fsub) return false;
+    if (fpart === '__sin__') {
+      // "(Sin partida)": pagos sin clasificar — antes eran IMPOSIBLES de filtrar.
+      if (String(h.partida || '').trim()) return false;
+    } else {
+      if (fpart && (h.partida || '') !== fpart) return false;
+      if (fsub && (h.sub_partida || '') !== fsub) return false;
+    }
     if (fd || fh2) {
       const iso = parseFechaHist(h.fecha);
       if (fd && iso < fd) return false;

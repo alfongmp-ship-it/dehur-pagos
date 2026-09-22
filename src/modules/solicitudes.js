@@ -830,6 +830,11 @@ export function enviarACola() {
   const validos = sel.filter(s => !s._facturaError);
   if (!validos.length) { notify('⛔ Todos los pagos seleccionados tienen problemas de factura. Revisa las advertencias.', 'error'); return; }
 
+  // Aviso (no bloqueo): pagos sin partida no quedan clasificados en costos y solo
+  // se encuentran con el filtro "(Sin partida)" del historial hasta corregirlos.
+  const _sinPartida = validos.filter(s => !String(s.partida || '').trim());
+  if (_sinPartida.length && !confirm(`⚠ ${_sinPartida.length} pago(s) de este lote van SIN partida — no quedarán clasificados en costos hasta corregirlos.\n\n¿Enviar a la cola de todos modos?`)) return;
+
   // Dedup DURO (evita el doble pago de RAÍZ): NO se envían a la cola pagos idénticos entre sí,
   // ni que ya estén en la cola (mismo proveedor + importe + factura + concepto). Antes esto solo
   // se AVISABA con un confirm y los duplicados se colaban igual → una factura quedaba pagada al

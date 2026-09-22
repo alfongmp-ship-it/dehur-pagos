@@ -181,6 +181,9 @@ export function agregarACola() {
   if (!concepto) { notify('El concepto es obligatorio', 'error'); return; }
   if (!importe || importe <= 0) { notify('Ingresa un importe válido', 'error'); return; }
   if (subPartidaObligatoria(partida) && !sub_partida) { notify('La sub-partida es obligatoria para CONSTRUCCION', 'error'); return; }
+  // Aviso (no bloqueo): un pago sin partida no queda clasificado en costos y solo
+  // se encuentra con el filtro "(Sin partida)" hasta que alguien lo corrija.
+  if (!partida && !confirm('¿Agregar este pago SIN partida?\n\nNo quedará clasificado en costos y aparecerá como "Sin partida" hasta corregirlo.')) return;
   state.cola.push({ id: Date.now(), proveedor: state.pagoP, concepto, importe, proyecto, partida, sub_partida, proveedor_id: String(state.pagoP.id || ''), factura_id: '' });
   cerrar('modal-pago');
   renderCola();
@@ -201,6 +204,8 @@ export function confirmarPagoDirecto() {
   if (!concepto) { notify('El concepto es obligatorio', 'error'); return; }
   if (!importe || importe <= 0) { notify('Ingresa un importe válido', 'error'); return; }
   if (subPartidaObligatoria(partida) && !sub_partida) { notify('La sub-partida es obligatoria para CONSTRUCCION', 'error'); return; }
+  // Aviso (no bloqueo): mismo criterio que agregarACola.
+  if (!partida && !confirm('¿Registrar este pago SIN partida?\n\nNo quedará clasificado en costos y aparecerá como "Sin partida" hasta corregirlo.')) return;
 
   // Buscar el proyecto real de la cuenta
   const proy = state.proyectos.find(x => x.nombre === cuentaNombre);
