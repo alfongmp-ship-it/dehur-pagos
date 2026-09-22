@@ -27,6 +27,8 @@ function renderDePagina(name) {
   if (name === 'flujo-salida' && window.renderFlujoSalida) window.renderFlujoSalida();
   if (name === 'resumen-ejecutivo' && window.renderResumenEjecutivo) window.renderResumenEjecutivo();
   if (name === 'costos-fiscales' && window.renderCostosFiscales) window.renderCostosFiscales();
+  // FISCAL (admin + contabilidad; backstop real en renderFiscal + RLS de fiscal_marcas)
+  if (name === 'fiscal' && window.renderFiscal) window.renderFiscal();
   if (name === 'traspasos' && window.renderTraspasos) window.renderTraspasos();
   if (name === 'resumen-traspasos' && window.renderResumenTraspasos) window.renderResumenTraspasos();
   if (name === 'creditos' && window.renderCreditos) window.renderCreditos();

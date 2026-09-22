@@ -198,6 +198,14 @@ export function esAdmin() {
   return rol() === 'admin';
 }
 
+// Página 🧾 Fiscal: la VEN solo el dueño y contabilidad (Ericka). Es un permiso de
+// LECTURA — marcar deducibilidad sigue siendo esAdmin(); contabilidad solo consulta
+// y exporta. (RLS espejo: SQL 44 abre el select de fiscal_marcas a contabilidad.)
+export function puedeFiscal() {
+  const r = rol();
+  return r === 'admin' || r === 'contabilidad';
+}
+
 // Etiqueta amigable del rol para el badge de usuario.
 const ROL_LABEL = {
   admin: 'Admin', capturista: 'Capturista', contabilidad: 'Contabilidad',

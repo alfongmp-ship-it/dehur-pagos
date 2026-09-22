@@ -219,6 +219,10 @@ body {
 /* El bloqueo REAL está en los handlers + backstop de guardado; esto es solo UX. */
 /* .req-admin → solo el admin (borrado en bloque, configuración, Google/respaldo). */
 body:not([data-rol="admin"]) .req-admin { display: none !important; }
+/* .req-fiscal → admin y contabilidad (Ericka): página 🧾 Fiscal (deducibilidad y
+   estimados). Solo LECTURA para contabilidad — los botones de marcar dentro de la
+   página llevan .req-admin. Backstop en renderFiscal (puedeFiscal). */
+body:not([data-rol="admin"]):not([data-rol="contabilidad"]) .req-fiscal { display: none !important; }
 /* .req-editor → admin y capturista (capturar/editar); los perfiles de solo-ver lo ocultan.
    'facturas' también lo oculta: ese rol edita SOLO facturas (vía .req-facturas), no el resto. */
 body[data-rol="lector"] .req-editor,

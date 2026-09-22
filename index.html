@@ -184,6 +184,7 @@
     <div class="nav-item" id="nav-creditos" onclick="showPage('creditos',this)">
       <span>🏛</span> Créditos <span class="nav-count" id="cnt-creditos">0</span>
     </div>
+    <div class="nav-item req-fiscal" id="nav-fiscal" onclick="showPage('fiscal',this)"><span>🧾</span> Fiscal</div>
     <div class="nav-item req-admin" id="nav-actividad" onclick="showPage('actividad',this)"><span>📈</span> Actividad del equipo</div>
     <div class="nav-item" id="nav-config" onclick="showPage('config',this)"><span>⚙</span> Configuración</div>
   </nav>
@@ -1100,6 +1101,21 @@
       <div id="cf-empty" class="empty-state" style="display:none;">
         <div style="font-size:32px;margin-bottom:10px;opacity:.4">🔒</div>
         <div>Conecta Google Sheets para usar el control de costos por unidad</div>
+      </div>
+    </div>
+
+    <!-- ===== FISCAL (solo admin y contabilidad) ===== -->
+    <div id="page-fiscal" style="display:none">
+      <div class="page-header">
+        <div>
+          <div class="page-title">🧾 Fiscal</div>
+          <div class="page-subtitle">Deducibilidad y estimados — solo admin y contabilidad</div>
+        </div>
+      </div>
+      <div id="fiscal-contenido">
+        <div id="fiscal-proy-tabs" class="re-tabs"></div>
+        <div id="fiscal-tabs" class="cf-subtabs"></div>
+        <div id="fiscal-panel"></div>
       </div>
     </div>
 
