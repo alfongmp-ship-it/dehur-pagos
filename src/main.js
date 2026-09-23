@@ -24,7 +24,7 @@ import { fetchMantenimiento, setMantenimiento } from './services/supabase.js';
 import { renderConfirmarPagos, toggleConfPago, toggleAllConf, confirmarPagos, eliminarPendiente } from './modules/confirmar-pagos.js';
 import { renderCola, abrirPagoRapido, abrirModalPago, buscarModal, selPago, agregarACola, confirmarPagoDirecto, checkCuentaOrigenPago, abrirModalNominaDisp, filtrarNomDisp, agregarNominaACola, qDel, limpiarCola, buscarRapido, quickAdd, generarArchivo, togglePagoSubPartida } from './modules/dispersion.js';
 import { handleSolDrop, handleSolFile, descargarPlantilla, parsearSolicitud, renderSolicitudes, toggleSol, seleccionarTodosSol, nuevaSolicitud, abrirVincular, renderVincBusqueda, seleccionarProvExistente, renderVincTipo, validarVincCuenta, confirmarNuevoProv, enviarACola } from './modules/solicitudes.js';
-import { renderFacturas, renderFacturaPagos, abrirNuevaFactura, editarFactura, abrirDetalleFactura, guardarFactura, filtrarProvFactura, selProvFactura, eliminarPagoFactura, abrirBuscadorPagosFactura, filtrarPagosParaFactura, fpMostrarTodosProv, vincularPagoAFactura, recalcularTotalFactura, eliminarFactura, exportarFacturasExcel, cambiarBuscarPorFactura } from './modules/facturas.js';
+import { renderFacturas, renderFacturaPagos, abrirNuevaFactura, editarFactura, abrirDetalleFactura, guardarFactura, filtrarProvFactura, selProvFactura, eliminarPagoFactura, abrirBuscadorPagosFactura, filtrarPagosParaFactura, fpMostrarTodosProv, vincularPagoAFactura, recalcularTotalFactura, eliminarFactura, exportarFacturasExcel, cambiarBuscarPorFactura, toggleFactSel, toggleFactSelAll, abrirEmpresaBulk, aplicarEmpresaBulk } from './modules/facturas.js';
 import { renderTraspasos, abrirNuevoTraspaso, editarTraspaso, guardarTraspaso, eliminarTraspaso, actualizarTipoDetectado, togglePartidaTraspaso, sincronizarAportacionesATraspasos, toggleTrasSel, toggleTrasSelAll, eliminarTraspasosBulk, limpiarFiltrosTraspasos } from './modules/traspasos.js';
 import { renderResumenTraspasos, filtrarResumen } from './modules/resumen-traspasos.js';
 import { calcularClabeProy, selColor, abrirModalProyecto, guardarProyecto, toggleProyecto, renderConfigProyectos } from './modules/config-page.js';
@@ -161,6 +161,10 @@ window.recalcularTotalFactura = recalcularTotalFactura;
 window.eliminarFactura = eliminarFactura;
 window.exportarFacturasExcel = exportarFacturasExcel;
 window.cambiarBuscarPorFactura = cambiarBuscarPorFactura;
+window.toggleFactSel = toggleFactSel;
+window.toggleFactSelAll = toggleFactSelAll;
+window.abrirEmpresaBulk = abrirEmpresaBulk;
+window.aplicarEmpresaBulk = aplicarEmpresaBulk;
 
 // Traspasos y Préstamos
 window.renderTraspasos = renderTraspasos;

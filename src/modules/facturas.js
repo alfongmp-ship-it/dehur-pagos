@@ -1,4 +1,4 @@
-import { state, datosListos, puedeBorrarFacturas, puedeLigarPagos, nuevoFacturaPagoId } from '../state.js';
+import { state, datosListos, puedeBorrarFacturas, puedeLigarPagos, esAdmin, nuevoFacturaPagoId } from '../state.js';
 import { fmt, fmtFecha, hoyFecha, escapeHtml } from '../ui/format.js';
 import { proyTag } from '../ui/badges.js';
 import { notify } from '../ui/notify.js';
@@ -78,7 +78,7 @@ export function renderFacturas() {
   if (!tb) return;
 
   if (!datosListos()) {
-    tb.innerHTML = '<tr><td colspan="12"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔒</div><div>Conecta Google Sheets para ver esta información</div></div></td></tr>';
+    tb.innerHTML = '<tr><td colspan="13"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔒</div><div>Conecta Google Sheets para ver esta información</div></div></td></tr>';
     const sub = document.getElementById('fact-subtitulo'); if (sub) sub.textContent = '';
     const cnt = document.getElementById('cnt-fact'); if (cnt) cnt.textContent = '0';
     return;
@@ -89,7 +89,7 @@ export function renderFacturas() {
   renderFactStats();
 
   if (!state.facturas.length) {
-    tb.innerHTML = '<tr><td colspan="12"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🧾</div><div>Sin facturas registradas</div></div></td></tr>';
+    tb.innerHTML = '<tr><td colspan="13"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🧾</div><div>Sin facturas registradas</div></div></td></tr>';
     document.getElementById('fact-subtitulo').textContent = '';
     return;
   }
@@ -101,7 +101,7 @@ export function renderFacturas() {
     : `${state.facturas.length} facturas`;
 
   if (!fil.length) {
-    tb.innerHTML = '<tr><td colspan="12"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔍</div><div>Sin resultados con los filtros actuales</div></div></td></tr>';
+    tb.innerHTML = '<tr><td colspan="13"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔍</div><div>Sin resultados con los filtros actuales</div></div></td></tr>';
     return;
   }
 
@@ -155,6 +155,7 @@ export function renderFacturas() {
       vincCell = '<div style="font-size:9px;color:var(--orange);font-weight:600;" title="La factura tiene monto pagado capturado, pero NINGÚN pago del historial está ligado a ella. Liga el pago con 📎 en Costos por Unidad para que su costo no se cuente doble.">⚠ Sin pago vinculado</div>';
     }
     return `<tr ondblclick="abrirDetalleFactura(${f.factura_id})" style="cursor:pointer;" title="Doble click para ver el detalle y los pagos">
+      <td style="text-align:center;"><input type="checkbox" class="req-admin" ${factSel.has(String(f.factura_id)) ? 'checked' : ''} onclick="toggleFactSel('${f.factura_id}', event)" style="cursor:pointer;" title="Seleccionar"></td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${f.factura_id}</td>
       <td style="font-size:11px;"><span style="font-family:'DM Mono',monospace;" title="${escapeHtml(f.uuid)}">${escapeHtml((f.uuid || '').split('-')[0]) || '—'}</span><div style="font-size:9px;color:var(--muted);">Núm: ${escapeHtml(f.numero_factura) || '—'}</div></td>
       <td><div style="font-weight:500;font-size:12px;">${escapeHtml(provNombre)}</div><div style="font-size:10px;color:var(--muted);">${f.razon_social && f.nombre_proveedor ? escapeHtml(f.razon_social) : ''}</div></td>
@@ -169,6 +170,13 @@ export function renderFacturas() {
       <td style="text-align:right;white-space:nowrap;">${btnRepartir} <button class="btn btn-ghost req-facturas" style="padding:4px 8px;font-size:11px;" onclick="editarFactura(${f.factura_id})">Editar</button></td>
     </tr>`;
   }).join('');
+
+  // Depura ids que ya no existen (borrados desde otra pestaña vía realtime) para que
+  // el contador del botón no mienta, y sincroniza el checkbox maestro.
+  const idsActuales = new Set(state.facturas.map(f => String(f.factura_id)));
+  [...factSel].forEach(id => { if (!idsActuales.has(id)) factSel.delete(id); });
+  actualizarBarraSelFact();
+  _syncSelAllFact(fil);
 }
 
 // Cambia el campo de búsqueda (Todo/ID/N°/UUID) y ajusta el placeholder de ayuda.
@@ -182,6 +190,43 @@ export function cambiarBuscarPorFactura() {
       : 'Buscar por ID, folio o proveedor…';
   }
   renderFacturas();
+}
+
+// ===== Selección múltiple (solo admin) para acciones en bloque =====
+// Guarda factura_id como String (NO índices): con realtime moviendo el array, un
+// índice viejo apuntaría a otra factura. Se depura en cada render.
+const factSel = new Set();
+
+export function toggleFactSel(id, ev) {
+  if (ev) ev.stopPropagation();          // la fila tiene ondblclick (abrir detalle)
+  const k = String(id);
+  if (factSel.has(k)) factSel.delete(k); else factSel.add(k);
+  actualizarBarraSelFact();
+  _syncSelAllFact(getFilteredFacturas());
+}
+
+export function toggleFactSelAll(check) {
+  const fil = getFilteredFacturas();     // solo las VISIBLES con los filtros actuales
+  fil.forEach(f => {
+    const k = String(f.factura_id);
+    if (check) factSel.add(k); else factSel.delete(k);
+  });
+  renderFacturas();
+}
+
+function actualizarBarraSelFact() {
+  const n = factSel.size;
+  const btn = document.getElementById('fact-bulk-empresa');
+  if (btn) {
+    btn.style.display = n > 0 ? '' : 'none';
+    btn.textContent = `🏢 Cambiar empresa (${n})`;
+  }
+}
+
+// El maestro queda marcado solo si TODAS las visibles están seleccionadas.
+function _syncSelAllFact(fil) {
+  const cb = document.getElementById('fact-sel-all');
+  if (cb) cb.checked = fil.length > 0 && fil.every(f => factSel.has(String(f.factura_id)));
 }
 
 // ===== Lotes de carga (derivados de observaciones, sin campo nuevo en la base) =====
@@ -300,6 +345,47 @@ export function exportarFacturasExcel() {
   XLSX.utils.book_append_sheet(wb, ws, 'Facturas');
   XLSX.writeFile(wb, `facturas_dehur_${hoyFecha().replace(/\//g, '-')}.xlsx`);
   notify(`Reporte exportado (${fil.length} factura${fil.length !== 1 ? 's' : ''})`);
+}
+
+// ===== Acción en bloque: Empresa facturada (solo admin) =====
+// Pensada para cargas masivas que entraron sin empresa (el importador no la trae).
+// Solo toca el campo `empresa`: ningún motor de costos ni el fiscal lo usan.
+export function abrirEmpresaBulk() {
+  if (!esAdmin()) { notify('Solo el admin puede cambiar la empresa en bloque', 'error'); return; }
+  if (!factSel.size) { notify('Selecciona al menos una factura', 'error'); return; }
+  const sel = document.getElementById('eb-empresa');
+  if (sel) {
+    // Empresa de la primera seleccionada como valor inicial (si todas comparten una).
+    const objetivos = state.facturas.filter(f => factSel.has(String(f.factura_id)));
+    const actuales = new Set(objetivos.map(f => f.empresa || ''));
+    sel.innerHTML = '<option value="">— Sin especificar —</option>'
+      + EMPRESAS_FACTURA.map(e => `<option>${escapeHtml(e)}</option>`).join('');
+    sel.value = actuales.size === 1 ? [...actuales][0] : '';
+  }
+  const tit = document.getElementById('eb-titulo');
+  if (tit) tit.textContent = `Empresa facturada — ${factSel.size} factura(s) seleccionada(s)`;
+  document.getElementById('modal-empresa-bulk').classList.add('open');
+}
+
+export function aplicarEmpresaBulk() {
+  if (!esAdmin()) { notify('Solo el admin puede cambiar la empresa en bloque', 'error'); return; }
+  const objetivos = state.facturas.filter(f => factSel.has(String(f.factura_id)));
+  if (!objetivos.length) { notify('No hay facturas seleccionadas', 'error'); return; }
+  const valor = document.getElementById('eb-empresa')?.value || '';
+  const etiqueta = valor || '(sin especificar)';
+  if (!confirm(`¿Poner la empresa "${etiqueta}" a ${objetivos.length} factura(s)?\n\nSe reemplaza la que tengan actualmente.`)) return;
+
+  objetivos.forEach(f => { f.empresa = valor; });
+  // Guardado POR FILA: N upserts, nunca el espejo completo de la tabla (evita la
+  // tormenta de eventos realtime que rebota la UI de todos).
+  const porFila = esPorFila('facturas');
+  gsSaveFacturas({ porFila });
+  if (porFila) objetivos.forEach(f => sbGuardarFila('facturas', f));
+
+  factSel.clear();
+  cerrar('modal-empresa-bulk');
+  renderFacturas();
+  notify(`✓ ${objetivos.length} factura(s) actualizada(s) — empresa: ${etiqueta}`);
 }
 
 function refreshFactProyectos() {

@@ -503,11 +503,12 @@
         <select class="filter-select" id="ff-lote" onchange="renderFacturas()" style="display:none;" title="Lotes de carga marcados en observaciones (ej. conciliación con contabilidad)">
           <option value="">Todos los lotes</option>
         </select>
+        <button id="fact-bulk-empresa" class="btn btn-ghost btn-sm req-admin" onclick="abrirEmpresaBulk()" style="display:none;color:var(--accent);border-color:var(--accent);font-size:11px;padding:3px 10px;margin-left:auto;">🏢 Cambiar empresa (0)</button>
       </div>
       <div id="fact-subtitulo" style="font-size:11px;color:var(--muted);margin-bottom:6px;"></div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th style="width:50px">ID</th><th>UUID · Núm.</th><th>Proveedor</th><th>Fecha</th><th>Vencimiento</th><th style="text-align:right">Total</th><th style="text-align:right">Pagado</th><th style="text-align:right">Saldo</th><th>Estatus</th><th>Estado SAT</th><th>Proyecto</th><th style="text-align:right">Acciones</th></tr></thead>
+          <thead><tr><th style="width:34px;text-align:center;"><input type="checkbox" id="fact-sel-all" class="req-admin" onclick="toggleFactSelAll(this.checked)" title="Seleccionar todas las visibles" style="cursor:pointer;"></th><th style="width:50px">ID</th><th>UUID · Núm.</th><th>Proveedor</th><th>Fecha</th><th>Vencimiento</th><th style="text-align:right">Total</th><th style="text-align:right">Pagado</th><th style="text-align:right">Saldo</th><th>Estatus</th><th>Estado SAT</th><th>Proyecto</th><th style="text-align:right">Acciones</th></tr></thead>
           <tbody id="tbody-fact"></tbody>
         </table>
       </div>
@@ -1204,6 +1205,26 @@
     <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px;">
       <button class="btn btn-ghost" onclick="cerrar('modal-cambiar-partida')">Cancelar</button>
       <button class="btn btn-primary" onclick="aplicarCambiarPartida()">Aplicar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Cambiar "Empresa facturada" en bloque (solo admin) -->
+<div class="modal-overlay" id="modal-empresa-bulk">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-header">
+      <div class="modal-title" id="eb-titulo">Cambiar empresa facturada</div>
+      <button class="modal-close" onclick="cerrar('modal-empresa-bulk')">✕</button>
+    </div>
+    <div class="form-grid">
+      <div class="field span2">
+        <label>Empresa facturada <span style="color:var(--muted);font-weight:400;font-size:11px;">(a nombre de quién se emitió el CFDI)</span></label>
+        <select id="eb-empresa"></select>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px;">
+      <button class="btn btn-ghost" onclick="cerrar('modal-empresa-bulk')">Cancelar</button>
+      <button class="btn btn-primary" onclick="aplicarEmpresaBulk()">Aplicar</button>
     </div>
   </div>
 </div>
