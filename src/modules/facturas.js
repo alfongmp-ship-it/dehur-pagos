@@ -85,6 +85,7 @@ export function renderFacturas() {
   }
 
   refreshFactProyectos();
+  _refreshLotesFactura();
   renderFactStats();
 
   if (!state.facturas.length) {
@@ -183,12 +184,47 @@ export function cambiarBuscarPorFactura() {
   renderFacturas();
 }
 
+// ===== Lotes de carga (derivados de observaciones, sin campo nuevo en la base) =====
+// Una carga masiva marcada (ej. "Conciliación Ericka ENE-MAY 2026 · FEB · …") deja su
+// etiqueta en observaciones; el filtro la DERIVA leyendo el primer segmento antes del
+// '·'. Si alguien reescribe esa observación, la factura simplemente sale del lote.
+function _loteDeFactura(f) {
+  const obs = String(f.observaciones || '');
+  if (!obs) return '';
+  const plano = obs.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  if (!plano.includes('concilia')) return '';
+  return obs.split('·')[0].trim();
+}
+
+// Repinta las opciones del select de lotes (UNA pasada sobre state.facturas) y
+// preserva lo elegido. Si no hay lotes, esconde el select para no ensuciar la barra.
+function _refreshLotesFactura() {
+  const sel = document.getElementById('ff-lote');
+  if (!sel) return;
+  const cuenta = new Map();
+  let sinLote = 0;
+  state.facturas.forEach(f => {
+    const lote = _loteDeFactura(f);
+    if (lote) cuenta.set(lote, (cuenta.get(lote) || 0) + 1);
+    else sinLote++;
+  });
+  if (!cuenta.size) { sel.style.display = 'none'; sel.value = ''; return; }
+  sel.style.display = '';
+  const prev = sel.value;
+  const lotes = [...cuenta.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1));
+  sel.innerHTML = '<option value="">Todos los lotes</option>'
+    + lotes.map(([l, n]) => `<option value="${escapeHtml(l)}">${escapeHtml(l)} (${n})</option>`).join('')
+    + `<option value="__sin__">— Sin lote (captura normal) (${sinLote}) —</option>`;
+  if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
+}
+
 function getFilteredFacturas() {
   const q = (document.getElementById('buscar-fact')?.value || '').trim().toLowerCase();
   const modo = document.getElementById('ff-buscar-por')?.value || 'todo';
   const fe = document.getElementById('ff-estatus')?.value || '';
   const fes = document.getElementById('ff-estado-sat')?.value || '';
   const fp = document.getElementById('ff-proy')?.value || '';
+  const fl = document.getElementById('ff-lote')?.value || '';
   const fil = state.facturas.filter(f => {
     if (q) {
       // Búsqueda por CAMPO elegido → así un número no se confunde entre ID, N° de
@@ -208,6 +244,11 @@ function getFilteredFacturas() {
     if (fe && f.estatus_factura !== fe) return false;
     if (fes && (f.estado_sat || 'Vigente') !== fes) return false;
     if (fp && !proyectoMatch(f.proyecto, fp)) return false;
+    if (fl) {
+      const lote = _loteDeFactura(f);
+      if (fl === '__sin__') { if (lote) return false; }
+      else if (lote !== fl) return false;
+    }
     return true;
   });
   // Orden: primero las que AÚN requieren acción (pendiente/parcial) — por VENCIMIENTO ascendente

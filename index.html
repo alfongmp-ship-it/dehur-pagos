@@ -500,6 +500,9 @@
         <select class="filter-select" id="ff-proy" onchange="renderFacturas()">
           <option value="">Todos los proyectos</option>
         </select>
+        <select class="filter-select" id="ff-lote" onchange="renderFacturas()" style="display:none;" title="Lotes de carga marcados en observaciones (ej. conciliación con contabilidad)">
+          <option value="">Todos los lotes</option>
+        </select>
       </div>
       <div id="fact-subtitulo" style="font-size:11px;color:var(--muted);margin-bottom:6px;"></div>
       <div class="table-wrap">
