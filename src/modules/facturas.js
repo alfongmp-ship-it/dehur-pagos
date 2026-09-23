@@ -202,7 +202,7 @@ function getFilteredFacturas() {
       } else {
         const prov = state.proveedores.find(p => p.id === f.proveedor_id);
         const provNombre = prov ? prov.nombre.toLowerCase() : '';
-        if (!(/^\d+$/.test(q) ? String(f.factura_id) === q || String(f.proveedor_id) === q : provNombre.includes(q) || (f.numero_factura || '').toLowerCase().includes(q) || (f.nombre_proveedor || '').toLowerCase().includes(q) || (f.rfc_emisor || '').toLowerCase().includes(q) || (f.uuid || '').toLowerCase().includes(q))) return false;
+        if (!(/^\d+$/.test(q) ? String(f.factura_id) === q || String(f.proveedor_id) === q : provNombre.includes(q) || (f.numero_factura || '').toLowerCase().includes(q) || (f.nombre_proveedor || '').toLowerCase().includes(q) || (f.rfc_emisor || '').toLowerCase().includes(q) || (f.uuid || '').toLowerCase().includes(q) || (f.observaciones || '').toLowerCase().includes(q))) return false;
       }
     }
     if (fe && f.estatus_factura !== fe) return false;
