@@ -3,7 +3,8 @@ import { notify } from '../ui/notify.js';
 import { gsReadSheet, gsWriteRange, gsClearAndWrite, gsAppendRow } from './google-sheets.js';
 import { normalizeBanco } from '../config/bancos.js';
 import { SUB_PARTIDAS_CONSTRUCCION } from '../config/sub-partidas.js';
-import { sbReplaceTable, sbLoadTable, sbReady, sbUpsertRow, sbInsertRow, sbDeleteRow } from './supabase-data.js';
+import { sbReplaceTable, sbLoadTable, sbReady, sbUpsertRow, sbUpsertRows, sbInsertRow, sbDeleteRow } from './supabase-data.js';
+import { partirEnLotes } from './lotes-asignaciones.js';
 
 // ============================================================================
 // BANDERA DE FUENTE DE LECTURA (Fase 2). Controla de dónde lee la app al cargar.
@@ -1425,14 +1426,20 @@ export async function gsSaveCostoAsignaciones(opts = {}) {
     }
     const borrar = []; // ids que estaban guardados y ya NO están en local → delete (quita de ESTA sesión)
     for (const id of _caSnapshot.keys()) { if (!curIds.has(id)) borrar.push(id); }
+    // Subida por LOTES (un request por lote, ≤100 filas, cortados en frontera de
+    // factura/pago y sin ids repetidos — ver lotes-asignaciones.js): 1,000 filas
+    // pasan de ~1,000 requests en serie (minutos) a ~10 (segundos). Un lote que
+    // falle nunca deja una factura a medias; se para ahí y se reporta lo pendiente.
+    const lotes = partirEnLotes(cambios, 100);
+    cambios = lotes.flat();   // tras dedup: el conteo real que se va a subir
     _guardadoInfo = { k: 0, n: cambios.length, pendientes: cambios.length };
-    // Snapshot INCREMENTAL tras cada operación exitosa (nada de reconstruirlo
+    // Snapshot INCREMENTAL tras cada lote exitoso (nada de reconstruirlo
     // completo al final: con realtime, los eventos ajenos ya lo van actualizando
     // por su cuenta vía caSnapshotAplicar/Quitar — reconstruirlo pisaría eso).
-    for (const row of cambios) {
-      await sbUpsertRow('costo_asignaciones', 'asignacion_id', row);
-      _caSnapshot.set(String(row.asignacion_id), JSON.stringify(row));
-      subidas++;
+    for (const lote of lotes) {
+      await sbUpsertRows('costo_asignaciones', 'asignacion_id', lote);
+      for (const row of lote) _caSnapshot.set(String(row.asignacion_id), JSON.stringify(row));
+      subidas += lote.length;
       _guardadoInfo.k = subidas; _guardadoInfo.pendientes = cambios.length - subidas;
       if (onProgress) { try { onProgress(subidas, cambios.length); } catch (_) { /* la UI nunca frena el guardado */ } }
     }

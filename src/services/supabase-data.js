@@ -58,6 +58,20 @@ export async function sbUpsertRow(tabla, idCol, rowObj) {
   if (error) throw error;
 }
 
+// Upsert de VARIAS filas en un solo request (mismo onConflict que sbUpsertRow).
+// RLS y triggers de auditoría siguen siendo por fila. El llamador debe garantizar
+// que no haya dos filas con el mismo id en el arreglo (Postgres lo rechaza).
+export async function sbUpsertRows(tabla, idCol, rows) {
+  if (!rows || !rows.length) return;
+  const tid = tenantId();
+  if (!tid) throw new Error('Sin tenant en sesión Supabase; no se puede escribir.');
+  const client = getSupabaseClient();
+  const { error } = await client
+    .from(tabla)
+    .upsert(rows.map(r => ({ ...r, tenant_id: tid })), { onConflict: 'tenant_id,' + idCol });
+  if (error) throw error;
+}
+
 // Inserta UNA fila SIN upsert: para tablas inmutables (solo INSERT en BD,
 // p.ej. presupuesto_cambios). Un upsert va como ON CONFLICT DO UPDATE y
 // Postgres exige privilegio UPDATE aunque nunca haya conflicto — privilegio

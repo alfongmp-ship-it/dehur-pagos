@@ -25,6 +25,7 @@ const UUID_RE = /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/
 let _uuidExist, _folioProvExist, _mfpExist;
 let _uuidLote, _folioProvLote, _mfpLote;
 let _repartoErrores;   // si hay reparto mal escrito, se BLOQUEA toda la carga (bloqueoGlobal)
+let _creoAsig = false; // insertar() creó asignaciones → save() las sube con await y avisa si falla
 
 export const facturasImporter = createExcelImporter({
   key: 'facturas',
@@ -297,11 +298,22 @@ export const facturasImporter = createExcelImporter({
     });
     const cnt = document.getElementById('cnt-fact');
     if (cnt) cnt.textContent = state.facturas.length;
-    if (creoAsig) gsSaveCostoAsignaciones();
+    _creoAsig = creoAsig;   // el guardado de asignaciones va en save(), con await
   },
 
   save: async () => {
     await gsSaveFacturas({ porFila: esPorFila('facturas') });
+    // Antes se disparaba sin await desde insertar(): el modal anunciaba "✓ Importados"
+    // mientras las asignaciones seguían subiendo (y un fallo pasaba en silencio).
+    // Un fallo aquí se LANZA: el framework lo atrapa y lo muestra como MENSAJE FINAL
+    // persistente (un notify propio quedaría pisado por el toast de éxito).
+    if (_creoAsig) {
+      _creoAsig = false;
+      const r = await gsSaveCostoAsignaciones();
+      if (!r || !r.ok) {
+        throw new Error(`las facturas se importaron, pero ${r ? r.pendientes : '?'} asignaciones del reparto NO se guardaron (${(r && (r.error || r.motivo)) || 'sin respuesta'}). No recargues: abre "📊 Repartir" en Facturas y pulsa "Reintentar guardado".`);
+      }
+    }
   },
 
   postCommit: () => {
