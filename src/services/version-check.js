@@ -15,7 +15,7 @@
 // (try/catch) y todo sigue igual. Totalmente reversible (quitar import + llamada).
 // ============================================================================
 
-export const APP_VERSION = '2026.09.28-014558';
+export const APP_VERSION = '2026.09.28-023400';
 
 let _avisado = false;
 
@@ -41,7 +41,14 @@ function mostrarBanner() {
     '<button id="vb-update" style="background:#1a1a1a;color:#fff;border:none;border-radius:6px;padding:5px 14px;font-size:12px;font-weight:600;cursor:pointer;">Actualizar</button>' +
     '<button id="vb-later" style="background:transparent;color:#1a1a1a;border:1px solid rgba(0,0,0,.35);border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;">Después</button>';
   document.body.appendChild(bar);
-  document.getElementById('vb-update').addEventListener('click', () => location.reload());
+  document.getElementById('vb-update').addEventListener('click', () => {
+    // Con un guardado de repartos en curso (o filas sin subir), recargar los perdería.
+    const g = (typeof window.estadoGuardadoAsignaciones === 'function') ? window.estadoGuardadoAsignaciones() : null;
+    if (g && (g.enCurso || g.pendientes > 0)) {
+      if (!confirm(`Hay un guardado de repartos ${g.enCurso ? 'en curso' : 'incompleto'} (${g.pendientes} asignaciones sin subir). Si actualizas ahora se pierden.\n\n¿Actualizar de todos modos?`)) return;
+    }
+    location.reload();
+  });
   document.getElementById('vb-later').addEventListener('click', () => bar.remove());
 }
 

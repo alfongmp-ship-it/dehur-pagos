@@ -134,6 +134,9 @@ export function renderFacturas() {
     let repTxt, repTit, repCss;
     if (sumR <= 0.01) { repTxt = '⚠ Repartir'; repTit = 'Falta repartir el costo a unidades'; repCss = 'color:var(--orange);'; }
     else if (sumR < totalR - 0.5) { repTxt = `Parcial ${Math.round(sumR / totalR * 100)}%`; repTit = `Repartido ${fmt(sumR)} de ${fmt(totalR)} — falta ${fmt(totalR - sumR)}`; repCss = 'color:var(--orange);'; }
+    // Sobre-repartida: suma de asignaciones MAYOR al total (dos repartos a la misma
+    // factura). Antes se veía como "Reparto ✓" y el devengado iba al doble sin aviso.
+    else if (sumR > totalR + 0.5) { repTxt = `⚠ ${Math.round(sumR / totalR * 100)}%`; repTit = `SOBRE-REPARTIDA: ${fmt(sumR)} asignados contra ${fmt(totalR)} de factura — hay reparto duplicado; límpialo y reparte de nuevo`; repCss = 'color:var(--red);font-weight:700;'; }
     else { repTxt = 'Reparto ✓'; repTit = 'Reparto del costo (devengado) completo'; repCss = ''; }
     const btnRepartir = `<button class="btn btn-ghost req-facturas" style="padding:4px 8px;font-size:11px;${repCss}" onclick="abrirRepartirFactura(${f.factura_id})" title="${repTit}">${repTxt}</button>`;
     // Total: si hay nota de crédito, monto_total ya es el NETO (factura − NC). Mostramos el
@@ -403,6 +406,42 @@ export function aplicarEmpresaBulk() {
 const RB_MAX = 30;   // tope por tanda: el guardado sube fila por fila y con
                      // indiviso cada factura son ~30-40 filas (tiempo y realtime)
 const _rbR2 = x => Math.round((x + Number.EPSILON) * 100) / 100;
+let _bulkEnCurso = false;   // guardado en curso: bloquea abrir/aplicar otra tanda
+let _rbReintento = null;    // { partes } cuando el guardado quedó INCOMPLETO (filas aún en memoria)
+
+// Guarda lo que ya está en state con progreso en el modal. El modal se queda ABIERTO
+// hasta terminar (invita a no navegar); si falla, se queda abierto en modo
+// "Reintentar guardado": las filas pendientes siguen en memoria y el diff del
+// guardado sube SOLO lo que falta. Nada se pierde mientras no se recargue la app.
+async function _rbGuardar(partesBase) {
+  const btn = document.getElementById('rb-aplicar');
+  const prog = document.getElementById('rb-progreso');
+  _bulkEnCurso = true;
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando…'; }
+  if (prog) prog.innerHTML = '<span style="color:var(--accent);">Guardando… no cierres ni recargues la app</span>';
+  try {
+    const res = await gsSaveCostoAsignaciones({
+      onProgress: (k, n) => { if (prog) prog.innerHTML = `<span style="color:var(--accent);">Guardando <b>${k}</b> de <b>${n}</b> asignaciones… no cierres ni recargues la app</span>`; }
+    });
+    if (res && res.ok) {
+      _rbReintento = null;
+      if (prog) prog.textContent = '';
+      cerrar('modal-reparto-bulk');
+      renderFacturas();
+      notify([...partesBase, `${res.subidas} asignaciones guardadas`].join(' · '));
+    } else {
+      const motivo = res ? (res.error || res.motivo || 'error desconocido') : 'sin respuesta';
+      const pend = res ? res.pendientes : '?';
+      _rbReintento = { partes: partesBase };
+      if (prog) prog.innerHTML = `<span style="color:var(--red);font-weight:600;">⛔ ${pend} asignaciones NO se guardaron (${escapeHtml(String(motivo))}). Revisa tu conexión y pulsa "Reintentar guardado". No recargues la app: lo pendiente solo vive en memoria.</span>`;
+      renderFacturas();
+      notify(`⛔ ${pend} asignaciones NO se guardaron en Supabase (${motivo}). No recargues: abre "📊 Repartir" y pulsa "Reintentar guardado".`, 'error');
+    }
+  } finally {
+    _bulkEnCurso = false;
+    if (btn) { btn.disabled = false; btn.textContent = _rbReintento ? 'Reintentar guardado' : 'Repartir'; }
+  }
+}
 
 const RB_AYUDA = {
   indiviso: '',
@@ -434,7 +473,21 @@ export function rbPartidaChange() {
 
 export function abrirRepartoBulk() {
   if (!esAdmin()) { notify('Solo el admin puede repartir en bloque', 'error'); return; }
+  if (_bulkEnCurso) { notify('Hay un reparto guardándose; espera a que termine', 'error'); return; }
+  // Guardado anterior incompleto: el modal se abre en modo reintento (sin nueva tanda).
+  if (_rbReintento) {
+    const prog = document.getElementById('rb-progreso');
+    if (prog) prog.innerHTML = '<span style="color:var(--red);font-weight:600;">⛔ Hay asignaciones del reparto anterior sin guardar. Pulsa "Reintentar guardado" antes de repartir otra tanda.</span>';
+    const btn = document.getElementById('rb-aplicar');
+    if (btn) { btn.disabled = false; btn.textContent = 'Reintentar guardado'; }
+    const res = document.getElementById('rb-resumen');
+    if (res) res.textContent = '';
+    document.getElementById('modal-reparto-bulk').classList.add('open');
+    return;
+  }
   if (!factSel.size) { notify('Selecciona al menos una factura', 'error'); return; }
+  const progLimpio = document.getElementById('rb-progreso'); if (progLimpio) progLimpio.textContent = '';
+  const btnLimpio = document.getElementById('rb-aplicar'); if (btnLimpio) { btnLimpio.disabled = false; btnLimpio.textContent = 'Repartir'; }
   const objetivos = state.facturas.filter(f => factSel.has(String(f.factura_id)));
   const proys = new Set(objetivos.map(f => f.proyecto || ''));
   const total = objetivos.reduce((s, f) => s + (f.monto_total || 0), 0);
@@ -451,6 +504,8 @@ export function abrirRepartoBulk() {
 
 export async function aplicarRepartoBulk() {
   if (!esAdmin()) { notify('Solo el admin puede repartir en bloque', 'error'); return; }
+  if (_bulkEnCurso) { notify('Hay un guardado en curso; espera a que termine', 'error'); return; }
+  if (_rbReintento) { await _rbGuardar(_rbReintento.partes); return; }   // solo reintenta lo pendiente
   const objetivos = state.facturas.filter(f => factSel.has(String(f.factura_id)));
   if (!objetivos.length) { notify('No hay facturas seleccionadas', 'error'); return; }
 
@@ -514,14 +569,18 @@ export async function aplicarRepartoBulk() {
     repartidasOk++;
   });
 
-  if (filasNuevas) await gsSaveCostoAsignaciones();
-  factSel.clear();
-  cerrar('modal-reparto-bulk');
-  renderFacturas();
-  const partes = [`✓ ${repartidasOk} factura(s) repartida(s) (${filasNuevas} asignaciones)`];
+  const partes = [`✓ ${repartidasOk} factura(s) repartida(s)`];
   if (saltosTxt) partes.push(`saltadas: ${saltosTxt}`);
   if (conError.length) partes.push(`con error: ${conError.length} (${conError[0]}${conError.length > 1 ? '…' : ''})`);
-  notify(partes.join(' · '), conError.length ? 'error' : undefined);
+  factSel.clear();          // antes del guardado: el botón "Repartir (N)" ya no invita a repetir
+  actualizarBarraSelFact();
+  if (!filasNuevas) {
+    cerrar('modal-reparto-bulk');
+    renderFacturas();
+    notify(partes.join(' · '), 'error');
+    return;
+  }
+  await _rbGuardar(partes);   // modal abierto con progreso; cierra solo si todo subió
 }
 
 function refreshFactProyectos() {

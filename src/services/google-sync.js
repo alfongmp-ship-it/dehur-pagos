@@ -1390,10 +1390,26 @@ export async function gsSavePresupuestoUnidad(opts = {}) {
 // completa → imposible pisar el reparto de otra sesión (admin + facturas a la vez). NO escribe a
 // Sheets por-save (era lento y, sin realtime, dejaba la hoja incompleta; el respaldo a Sheets
 // queda por "Respaldar a Sheets"). Si Supabase falla, no actualiza el snapshot → reintenta luego.
-export async function gsSaveCostoAsignaciones() {
-  if (!puedeEditar() && !puedeFacturas()) return;   // rol 'facturas' reparte facturas (devengado)
-  if (!guardarPermitido('costoAsignaciones', state.costoAsignaciones)) return;
-  if (!sbReady()) return;
+// Estado del guardado de asignaciones para la UI: cuántas van, cuántas faltan y si
+// hay uno en curso (guard de recarga en main.js: lo pendiente vive SOLO en memoria).
+let _guardadoEnCurso = 0;
+let _guardadoInfo = { k: 0, n: 0, pendientes: 0 };
+export function estadoGuardadoAsignaciones() {
+  return { enCurso: _guardadoEnCurso > 0, k: _guardadoInfo.k, n: _guardadoInfo.n, pendientes: _guardadoInfo.pendientes };
+}
+
+// Devuelve SIEMPRE un resultado { ok, subidas, pendientes, borradas, error, motivo } y
+// nunca lanza: los llamadores viejos lo ignoran sin romperse; los nuevos (reparto en
+// bloque) lo usan para avisar de verdad. opts.onProgress(k, n) tras cada fila subida.
+export async function gsSaveCostoAsignaciones(opts = {}) {
+  const onProgress = typeof opts.onProgress === 'function' ? opts.onProgress : null;
+  const nada = motivo => ({ ok: false, motivo, subidas: 0, pendientes: 0, borradas: 0, error: null });
+  if (!puedeEditar() && !puedeFacturas()) return nada('sin-permiso');   // rol 'facturas' reparte facturas (devengado)
+  if (!guardarPermitido('costoAsignaciones', state.costoAsignaciones)) return nada('no-cargado');
+  if (!sbReady()) return nada('sin-sesion');
+  let subidas = 0, borradas = 0;
+  let cambios = [];     // filas nuevas o modificadas → upsert
+  _guardadoEnCurso++;
   try {
     // FOTO de la lista ANTES de los await: los eventos realtime pueden mutar
     // state.costoAsignaciones DURANTE los await; el diff y el snapshot deben
@@ -1401,7 +1417,6 @@ export async function gsSaveCostoAsignaciones() {
     // que se mueve (evita la "fila fantasma": UI con filas que ya no existen).
     const filas = state.costoAsignaciones.slice();
     const curIds = new Set();
-    const cambios = [];   // filas nuevas o modificadas → upsert
     for (const a of filas) {
       const id = String(a.asignacion_id);
       curIds.add(id);
@@ -1410,18 +1425,32 @@ export async function gsSaveCostoAsignaciones() {
     }
     const borrar = []; // ids que estaban guardados y ya NO están en local → delete (quita de ESTA sesión)
     for (const id of _caSnapshot.keys()) { if (!curIds.has(id)) borrar.push(id); }
+    _guardadoInfo = { k: 0, n: cambios.length, pendientes: cambios.length };
     // Snapshot INCREMENTAL tras cada operación exitosa (nada de reconstruirlo
     // completo al final: con realtime, los eventos ajenos ya lo van actualizando
     // por su cuenta vía caSnapshotAplicar/Quitar — reconstruirlo pisaría eso).
     for (const row of cambios) {
       await sbUpsertRow('costo_asignaciones', 'asignacion_id', row);
       _caSnapshot.set(String(row.asignacion_id), JSON.stringify(row));
+      subidas++;
+      _guardadoInfo.k = subidas; _guardadoInfo.pendientes = cambios.length - subidas;
+      if (onProgress) { try { onProgress(subidas, cambios.length); } catch (_) { /* la UI nunca frena el guardado */ } }
     }
     for (const id of borrar) {
       await sbDeleteRow('costo_asignaciones', 'asignacion_id', id);
       _caSnapshot.delete(String(id));
+      borradas++;
     }
-  } catch (e) { console.error('gsSaveCostoAsignaciones (por fila)', e); }
+    _guardadoInfo.pendientes = 0;
+    return { ok: true, motivo: null, subidas, pendientes: 0, borradas, error: null };
+  } catch (e) {
+    console.error('gsSaveCostoAsignaciones (por fila)', e);
+    const pendientes = Math.max(0, cambios.length - subidas);
+    _guardadoInfo.pendientes = pendientes;
+    return { ok: false, motivo: 'error', subidas, pendientes, borradas, error: (e && e.message) || String(e) };
+  } finally {
+    _guardadoEnCurso--;
+  }
 }
 
 // ===== Espejo a Supabase (Etapa B — Fase 1: dual-write) =====
