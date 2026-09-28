@@ -504,6 +504,7 @@
           <option value="">Todos los lotes</option>
         </select>
         <button id="fact-bulk-empresa" class="btn btn-ghost btn-sm req-admin" onclick="abrirEmpresaBulk()" style="display:none;color:var(--accent);border-color:var(--accent);font-size:11px;padding:3px 10px;margin-left:auto;">🏢 Cambiar empresa (0)</button>
+        <button id="fact-bulk-reparto" class="btn btn-ghost btn-sm req-admin" onclick="abrirRepartoBulk()" style="display:none;color:var(--accent);border-color:var(--accent);font-size:11px;padding:3px 10px;">📊 Repartir (0)</button>
       </div>
       <div id="fact-subtitulo" style="font-size:11px;color:var(--muted);margin-bottom:6px;"></div>
       <div class="table-wrap">
@@ -1205,6 +1206,46 @@
     <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px;">
       <button class="btn btn-ghost" onclick="cerrar('modal-cambiar-partida')">Cancelar</button>
       <button class="btn btn-primary" onclick="aplicarCambiarPartida()">Aplicar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Repartir facturas en bloque (solo admin): misma partida/sub y método para N facturas
+     SIN reparto. Las que ya tengan asignaciones se saltan (verificado al aplicar). -->
+<div class="modal-overlay" id="modal-reparto-bulk">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-header">
+      <div class="modal-title" id="rb-titulo">Repartir en bloque</div>
+      <button class="modal-close" onclick="cerrar('modal-reparto-bulk')">✕</button>
+    </div>
+    <div id="rb-resumen" style="font-size:12px;color:var(--muted);margin-bottom:12px;"></div>
+    <div class="form-grid">
+      <div class="field span2">
+        <label>Método de reparto</label>
+        <select id="rb-metodo" onchange="rbMetodoChange()">
+          <option value="indiviso">Indiviso — todas las casas en obra por su % (a la fecha de cada factura)</option>
+          <option value="directo">Directo — una sola casa</option>
+          <option value="equitativo">Equitativo — partes iguales entre casas elegidas</option>
+          <option value="custom">Personalizado — casa:% (ej. A-1:60/A-2:40)</option>
+        </select>
+      </div>
+      <div class="field span2" id="rb-unidades-wrap" style="display:none;">
+        <label>Unidades <span id="rb-unidades-ayuda" style="color:var(--muted);font-weight:400;font-size:11px;"></span></label>
+        <input type="text" id="rb-unidades" placeholder="">
+      </div>
+      <div class="field span2">
+        <label>Partida *</label>
+        <select id="rb-partida" onchange="rbPartidaChange()"></select>
+      </div>
+      <div class="field span2" id="rb-sub-wrap" style="display:none;">
+        <label>Sub-partida *</label>
+        <select id="rb-subpartida"></select>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:10px;">Solo se reparten facturas <b>sin reparto previo</b> (las que ya tengan se saltan y se te avisa). No cambia ningún monto: solo crea las asignaciones de devengado.</div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+      <button class="btn btn-ghost" onclick="cerrar('modal-reparto-bulk')">Cancelar</button>
+      <button class="btn btn-primary" onclick="aplicarRepartoBulk()">Repartir</button>
     </div>
   </div>
 </div>

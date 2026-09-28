@@ -1,4 +1,5 @@
-import { state, datosListos, puedeBorrarFacturas, puedeLigarPagos, esAdmin, nuevoFacturaPagoId } from '../state.js';
+import { state, datosListos, puedeBorrarFacturas, puedeLigarPagos, esAdmin, nuevoFacturaPagoId, nuevoAsignacionId } from '../state.js';
+import { parseReparto } from './solicitudes.js';
 import { fmt, fmtFecha, hoyFecha, escapeHtml } from '../ui/format.js';
 import { proyTag } from '../ui/badges.js';
 import { notify } from '../ui/notify.js';
@@ -221,6 +222,11 @@ function actualizarBarraSelFact() {
     btn.style.display = n > 0 ? '' : 'none';
     btn.textContent = `🏢 Cambiar empresa (${n})`;
   }
+  const btnR = document.getElementById('fact-bulk-reparto');
+  if (btnR) {
+    btnR.style.display = n > 0 ? '' : 'none';
+    btnR.textContent = `📊 Repartir (${n})`;
+  }
 }
 
 // El maestro queda marcado solo si TODAS las visibles están seleccionadas.
@@ -386,6 +392,136 @@ export function aplicarEmpresaBulk() {
   cerrar('modal-empresa-bulk');
   renderFacturas();
   notify(`✓ ${objetivos.length} factura(s) actualizada(s) — empresa: ${etiqueta}`);
+}
+
+// ===== Acción en bloque: REPARTIR facturas (solo admin) =====
+// Misma partida/sub-partida y método para N facturas SIN reparto. Reusa la
+// aritmética probada del importador (parseReparto, con la fecha de CADA factura
+// para el pool de indiviso) y el guardado con foto de costoAsignaciones. Las
+// facturas que YA tengan asignaciones se saltan — verificado AL APLICAR, no al
+// seleccionar — así dos personas no pueden duplicar el devengado de una factura.
+const RB_MAX = 30;   // tope por tanda: el guardado sube fila por fila y con
+                     // indiviso cada factura son ~30-40 filas (tiempo y realtime)
+const _rbR2 = x => Math.round((x + Number.EPSILON) * 100) / 100;
+
+const RB_AYUDA = {
+  indiviso: '',
+  directo: '(un código de casa, ej. A-1)',
+  equitativo: '(códigos separados por /, ej. A-1/A-2/A-3)',
+  custom: '(código:% separados por /, ej. A-1:60/A-2:40 — usa INDIVISO como código para mandar ese % por indiviso)',
+};
+
+export function rbMetodoChange() {
+  const metodo = document.getElementById('rb-metodo')?.value || 'indiviso';
+  const wrap = document.getElementById('rb-unidades-wrap');
+  if (wrap) wrap.style.display = metodo === 'indiviso' ? 'none' : '';
+  const ayuda = document.getElementById('rb-unidades-ayuda');
+  if (ayuda) ayuda.textContent = RB_AYUDA[metodo] || '';
+  const inp = document.getElementById('rb-unidades');
+  if (inp) inp.placeholder = (RB_AYUDA[metodo] || '').replace(/[()]/g, '');
+}
+
+export function rbPartidaChange() {
+  const partida = document.getElementById('rb-partida')?.value || '';
+  const cat = (state.partidasCatalogo || []).find(p => p.activa !== false && p.partida === partida);
+  const subs = (cat && Array.isArray(cat.subpartidas)) ? cat.subpartidas : [];
+  const wrap = document.getElementById('rb-sub-wrap');
+  const sel = document.getElementById('rb-subpartida');
+  if (!wrap || !sel) return;
+  wrap.style.display = subs.length ? '' : 'none';
+  sel.innerHTML = subs.map(s => `<option>${escapeHtml(s)}</option>`).join('');
+}
+
+export function abrirRepartoBulk() {
+  if (!esAdmin()) { notify('Solo el admin puede repartir en bloque', 'error'); return; }
+  if (!factSel.size) { notify('Selecciona al menos una factura', 'error'); return; }
+  const objetivos = state.facturas.filter(f => factSel.has(String(f.factura_id)));
+  const proys = new Set(objetivos.map(f => f.proyecto || ''));
+  const total = objetivos.reduce((s, f) => s + (f.monto_total || 0), 0);
+  const res = document.getElementById('rb-resumen');
+  if (res) res.innerHTML = `<b>${objetivos.length}</b> factura(s) seleccionada(s) · ${fmt(total)} · proyecto: <b>${[...proys].map(escapeHtml).join(', ') || '—'}</b>`
+    + (proys.size > 1 ? ' <span style="color:var(--red);font-weight:600;">⛔ hay varios proyectos: deselecciona hasta dejar uno</span>' : '');
+  const selP = document.getElementById('rb-partida');
+  if (selP) selP.innerHTML = '<option value="">— Elige la partida —</option>'
+    + (state.partidasCatalogo || []).filter(p => p.activa !== false).map(p => `<option>${escapeHtml(p.partida)}</option>`).join('');
+  rbPartidaChange();
+  rbMetodoChange();
+  document.getElementById('modal-reparto-bulk').classList.add('open');
+}
+
+export async function aplicarRepartoBulk() {
+  if (!esAdmin()) { notify('Solo el admin puede repartir en bloque', 'error'); return; }
+  const objetivos = state.facturas.filter(f => factSel.has(String(f.factura_id)));
+  if (!objetivos.length) { notify('No hay facturas seleccionadas', 'error'); return; }
+
+  // Un solo proyecto por tanda: los códigos de casa y el pool de indiviso son por proyecto.
+  const proys = new Set(objetivos.map(f => f.proyecto || ''));
+  if (proys.size > 1) { notify('Las seleccionadas son de VARIOS proyectos; reparte un proyecto por tanda', 'error'); return; }
+
+  const metodo = document.getElementById('rb-metodo')?.value || 'indiviso';
+  const unidadesTxt = document.getElementById('rb-unidades')?.value || '';
+  const partida = document.getElementById('rb-partida')?.value || '';
+  const cat = (state.partidasCatalogo || []).find(p => p.activa !== false && p.partida === partida);
+  if (!cat) { notify('Elige una partida válida del catálogo', 'error'); return; }
+  const subs = Array.isArray(cat.subpartidas) ? cat.subpartidas : [];
+  const subOv = subs.length ? (document.getElementById('rb-subpartida')?.value || '') : '';
+  if (subs.length && !subOv) { notify(`La partida "${cat.partida}" requiere sub-partida`, 'error'); return; }
+
+  // Clasificación AL MOMENTO de aplicar (no al seleccionar): si alguien repartió
+  // una de estas facturas hace 10 segundos, aquí se salta.
+  const repartidas = new Set(state.costoAsignaciones.filter(a => a.factura_id).map(a => String(a.factura_id)));
+  const saltos = { repartida: 0, cancelada: 0, tipo: 0, sinMonto: 0 };
+  const elegibles = objetivos.filter(f => {
+    if (repartidas.has(String(f.factura_id))) { saltos.repartida++; return false; }
+    if (f.estatus_factura === 'cancelada' || f.estado_sat === 'Cancelada') { saltos.cancelada++; return false; }
+    if ((f.tipo_comprobante || 'Factura') !== 'Factura') { saltos.tipo++; return false; }
+    if (!(f.monto_total > 0)) { saltos.sinMonto++; return false; }
+    return true;
+  });
+  const saltosTxt = Object.entries({ 'ya con reparto': saltos.repartida, canceladas: saltos.cancelada, 'no facturas (NC/otro)': saltos.tipo, 'sin monto': saltos.sinMonto })
+    .filter(([, n]) => n).map(([k, n]) => `${n} ${k}`).join(', ');
+  if (!elegibles.length) { notify(`Nada que repartir — ${saltosTxt || 'sin elegibles'}`, 'error'); return; }
+  if (elegibles.length > RB_MAX) { notify(`Máximo ${RB_MAX} facturas por tanda (hay ${elegibles.length} elegibles). Hazlo en tandas para no saturar el guardado.`, 'error'); return; }
+
+  const totalElegible = _rbR2(elegibles.reduce((s, f) => s + (f.monto_total || 0), 0));
+  if (!confirm(`¿Repartir ${elegibles.length} factura(s) por ${fmt(totalElegible)}?\n\nMétodo: ${metodo}\nPartida: ${cat.partida}${subOv ? ' / ' + subOv : ''}${saltosTxt ? `\nSe saltan: ${saltosTxt}` : ''}\n\nSolo crea asignaciones de devengado; ningún monto cambia.`)) return;
+
+  const hoyISO = new Date().toISOString().slice(0, 10);
+  const conError = [];
+  let repartidasOk = 0, filasNuevas = 0;
+  elegibles.forEach(f => {
+    // El pool de indiviso depende de la FECHA de cada factura (casas en obra ese día).
+    const pr = parseReparto(metodo, unidadesTxt, f.proyecto, f.fecha_factura);
+    const asigs = (pr.errores && pr.errores.length) ? [] : (pr.asignaciones || []).filter(a => a.unidad_id);
+    if (!asigs.length) { conError.push(`Fac ${f.factura_id}: ${(pr.errores && pr.errores[0]) || 'sin unidades válidas'}`); return; }
+    asigs.forEach(a => {
+      state.costoAsignaciones.push({
+        asignacion_id: nuevoAsignacionId(),
+        pago_id: '',
+        factura_id: String(f.factura_id),
+        unidad_id: a.unidad_id,
+        proyecto: f.proyecto,
+        metodo: pr.metodo,
+        monto_asignado: _rbR2((f.monto_total || 0) * (a.pct / 100)),
+        factor: a.pct / 100,
+        fecha_asignacion: hoyISO,
+        partida_override: cat.partida,
+        sub_partida_override: subOv,
+        partida_obra: ''
+      });
+      filasNuevas++;
+    });
+    repartidasOk++;
+  });
+
+  if (filasNuevas) await gsSaveCostoAsignaciones();
+  factSel.clear();
+  cerrar('modal-reparto-bulk');
+  renderFacturas();
+  const partes = [`✓ ${repartidasOk} factura(s) repartida(s) (${filasNuevas} asignaciones)`];
+  if (saltosTxt) partes.push(`saltadas: ${saltosTxt}`);
+  if (conError.length) partes.push(`con error: ${conError.length} (${conError[0]}${conError.length > 1 ? '…' : ''})`);
+  notify(partes.join(' · '), conError.length ? 'error' : undefined);
 }
 
 function refreshFactProyectos() {
