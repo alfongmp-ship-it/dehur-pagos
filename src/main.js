@@ -44,7 +44,7 @@ import { renderEstrategiaTablero, renderEstrategiaFlags, renderEstrategiaConfig,
 import { renderActividad, actSetVentana, actDepurar, actAplicarRango, actToggleUsuario, actReportePDF } from './modules/actividad.js';
 import { gsLogin, gsLogout, renderAuthStatus, checkOAuthCallback } from './services/google-auth.js';
 import { iniciarChequeoVersion } from './services/version-check.js';
-import { gsLoadAll, gsSaveProveedores, gsSaveEmpleados, gsSaveProyectos, gsSaveAlias, gsSaveCuentasPropias, gsSaveTraspasos, gsSaveCreditos, gsSavePagares, gsSavePagosPagare, gsSaveMovimientosInternos, migrarTodoASupabase, respaldarTodoASheets, cargarDatos, REALTIME_ON } from './services/google-sync.js';
+import { gsLoadAll, gsSaveProveedores, gsSaveEmpleados, gsSaveProyectos, gsSaveAlias, gsSaveCuentasPropias, gsSaveTraspasos, gsSaveCreditos, gsSavePagares, gsSavePagosPagare, gsSaveMovimientosInternos, migrarTodoASupabase, respaldarTodoASheets, cargarDatos, REALTIME_ON, estadoGuardadoAsignaciones } from './services/google-sync.js';
 import { iniciarRealtime, rtReiniciar } from './services/realtime.js';
 
 // ===== INICIALIZACIÓN =====
@@ -464,7 +464,20 @@ window.migrarTodoASupabase = migrarTodoASupabase;
 window.respaldarTodoASheets = respaldarTodoASheets;
 // Refrescar datos desde la FUENTE ACTIVA (Supabase en Fase 2; Sheets si se
 // revierte la bandera FUENTE_LECTURA). Sirve para ver lo último (multiusuario).
+// Guard de recarga: las asignaciones pendientes de subir viven SOLO en memoria.
+// Si hay un guardado en curso (o filas que no alcanzaron a subir), el navegador
+// pregunta antes de cerrar/recargar y 🔄 Refrescar se niega (recargar el state a
+// mitad resetea el snapshot y puede dejar una factura con reparto parcial).
+window.estadoGuardadoAsignaciones = estadoGuardadoAsignaciones;
+window.addEventListener('beforeunload', e => {
+  const g = estadoGuardadoAsignaciones();
+  if (g.enCurso || g.pendientes > 0) { e.preventDefault(); e.returnValue = ''; }
+});
+
 window.refrescarDatos = async function refrescarDatos() {
+  const g = estadoGuardadoAsignaciones();
+  if (g.enCurso) { notify(`Espera: hay un guardado de repartos en curso (${g.k} de ${g.n}). Refresca cuando termine.`, 'error'); return; }
+  if (g.pendientes > 0) { notify(`Hay ${g.pendientes} asignaciones sin guardar. Abre "📊 Repartir" y pulsa "Reintentar guardado" antes de refrescar.`, 'error'); return; }
   notify('Refrescando datos...');
   // Reconectar los canales de realtime ANTES de recargar: si la sesión estaba
   // "sorda" (suspensión/red caída), canales frescos primero = sin hueco entre lo
