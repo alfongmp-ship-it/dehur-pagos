@@ -2,16 +2,20 @@
 // Detector de identificadores USADOS pero nunca declarados ni importados.
 //   node scripts/check-globales.mjs
 //
-// Existe por un bug real (2026-09-29): un script de parche dejó `${NL}` literal
-// en costos-fiscales.js. `NL` no existía → ReferenceError en el navegador: el
-// Excel se generaba y el confirm nunca aparecía. `node --check` NO lo atrapa,
-// porque es sintaxis perfectamente válida.
+// Existe por TRES bugs reales del 2026-09-29, todos invisibles para
+// `node --check` porque son sintaxis válida y solo revientan en el navegador:
+//   1. `setIndivisoUnidad` llamada desde un onchange sin registrarse en window
+//      (eso lo caza la otra auditoría: handlers inline vs window.*).
+//   2. `${NL}` dejado literal por un script de parche → ReferenceError: el
+//      Excel se generaba y el confirm nunca aparecía.
+//   3. `puedeRepartirCostos()` usada como gate en google-sync.js sin estar en
+//      el import → TODO guardado de repartos tronaba con ReferenceError.
 //
-// Mira SOLO los identificadores sueltos dentro de interpolaciones `${...}` de
-// template literals, que es donde caen estos errores. Conservador a propósito:
-// prefiere callar a gritar en falso (un falso positivo vuelve inútil al detector).
-//
-// Complementa —no sustituye— la auditoría de handlers inline vs window.*.
+// Dos chequeos por módulo, sobre el código con comentarios/strings/regex
+// REMOVIDOS por un mini-lexer (sin él, "rgba(" en un string o "DD(" en un
+// comentario generan cientos de falsos positivos y matan al detector):
+//   A. identificadores sueltos en interpolaciones `${nombre}`
+//   B. llamadas sueltas `nombre(` (los métodos `obj.metodo(` no cuentan)
 // ============================================================================
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -22,14 +26,27 @@ const raiz = join(dirname(fileURLToPath(import.meta.url)), '..', 'src');
 // Globales de plataforma y librerías por CDN que sí existen en tiempo de ejecución.
 const GLOBALES = new Set([
   'window', 'document', 'console', 'Math', 'JSON', 'Date', 'Number', 'String', 'Boolean',
-  'Array', 'Object', 'Set', 'Map', 'WeakMap', 'Promise', 'Error', 'RegExp', 'Intl', 'Symbol',
+  'Array', 'Object', 'Set', 'Map', 'WeakMap', 'WeakSet', 'Promise', 'Error', 'TypeError',
+  'RangeError', 'RegExp', 'Intl', 'Symbol', 'Proxy', 'Reflect', 'BigInt', 'Uint8Array',
   'parseInt', 'parseFloat', 'isNaN', 'isFinite', 'encodeURIComponent', 'decodeURIComponent',
-  'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame',
-  'fetch', 'alert', 'confirm', 'prompt', 'localStorage', 'sessionStorage', 'location',
-  'navigator', 'crypto', 'Blob', 'File', 'FileReader', 'URL', 'FormData', 'Headers',
-  'XLSX', 'Chart', 'supabase', 'google', 'gapi', 'structuredClone', 'queueMicrotask',
-  'Infinity', 'NaN', 'undefined', 'globalThis', 'this', 'arguments', 'true', 'false', 'null',
-  'typeof', 'new', 'await', 'void', 'delete', 'in', 'instanceof', 'if', 'else', 'return',
+  'encodeURI', 'decodeURI', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval',
+  'requestAnimationFrame', 'cancelAnimationFrame', 'fetch', 'alert', 'confirm', 'prompt',
+  'localStorage', 'sessionStorage', 'location', 'history', 'navigator', 'crypto',
+  'Blob', 'File', 'FileReader', 'URL', 'URLSearchParams', 'FormData', 'Headers', 'Request',
+  'Response', 'AbortController', 'Event', 'CustomEvent', 'MutationObserver', 'ResizeObserver',
+  'IntersectionObserver', 'DOMParser', 'Image', 'Audio', 'Option', 'atob', 'btoa',
+  'structuredClone', 'queueMicrotask', 'getComputedStyle', 'matchMedia', 'open', 'print',
+  'XLSX', 'Chart', 'supabase', 'google', 'gapi',
+  'Infinity', 'NaN', 'undefined', 'globalThis',
+]);
+
+// Palabras clave que pueden preceder a `(` o vivir en una interpolación.
+const KEYWORDS = new Set([
+  'function', 'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'default', 'catch',
+  'try', 'finally', 'return', 'typeof', 'new', 'await', 'async', 'yield', 'void', 'delete',
+  'in', 'of', 'instanceof', 'throw', 'break', 'continue', 'const', 'let', 'var', 'class',
+  'extends', 'super', 'this', 'arguments', 'import', 'export', 'from', 'static', 'get',
+  'set', 'true', 'false', 'null',
 ]);
 
 function archivos(dir) {
@@ -42,50 +59,155 @@ function archivos(dir) {
   return out;
 }
 
-// Todo lo que el archivo declara de alguna forma. Amplio a propósito: pasar por
-// alto una declaración solo cuesta un falso positivo, y esos matan al detector.
+// ---------------------------------------------------------------------------
+// Mini-lexer: reemplaza comentarios, strings y regex literales por espacios,
+// CONSERVANDO longitud (los números de línea siguen válidos), los saltos de
+// línea, y el código de las interpolaciones `${...}` (incluido su `${`/`}`).
+// Heurística estándar para regex-vs-división: un `/` inicia regex si el último
+// token significativo es un operador/apertura o una palabra clave.
+// ---------------------------------------------------------------------------
+function soloCodigo(src) {
+  const out = src.split('');
+  const borra = (i) => { if (out[i] !== '\n') out[i] = ' '; };
+  // Pila de marcos: el fondo es código global; 'tpl' = dentro de un template
+  // literal; {prof} = código dentro de una interpolación `${…}` (cuenta llaves).
+  // La pila es lo que permite templates ANIDADOS (`${x ? `a${y}` : 'b'}`), que
+  // esta app usa por todos lados y que desincronizaban la versión anterior.
+  const pila = [{ tipo: 'code' }];
+  let i = 0, ultimo = '';     // último char significativo del CÓDIGO emitido
+  const RE_ANTES = /[([{=,;:!&|?+\-*%^~<>]/;
+  const KW_ANTES = new Set(['return', 'typeof', 'case', 'in', 'of', 'do', 'else', 'void', 'delete', 'new', 'await', 'yield', 'instanceof']);
+
+  const esRegex = () => {
+    if (ultimo === '') return true;
+    if (RE_ANTES.test(ultimo)) return true;
+    const m = src.slice(0, i).match(/([A-Za-z_$][\w$]*)\s*$/);
+    return !!(m && KW_ANTES.has(m[1]));
+  };
+
+  while (i < src.length) {
+    const marco = pila[pila.length - 1];
+    const c = src[i], d = src[i + 1];
+
+    if (marco.tipo === 'tpl') {                      // dentro de un template: borrar
+      if (c === '\\') { borra(i++); borra(i++); continue; }
+      if (c === '`') { borra(i++); pila.pop(); ultimo = "'"; continue; }
+      if (c === '$' && d === '{') {                  // interpolación: conservar `${`
+        i += 2; pila.push({ tipo: 'code', prof: 1 });
+        continue;
+      }
+      borra(i++);
+      continue;
+    }
+
+    // marco de código (global o interpolación)
+    if (c === '/' && d === '/') {
+      while (i < src.length && src[i] !== '\n') borra(i++);
+      continue;
+    }
+    if (c === '/' && d === '*') {
+      borra(i++); borra(i++);
+      while (i < src.length && !(src[i] === '*' && src[i + 1] === '/')) borra(i++);
+      if (i < src.length) { borra(i++); borra(i++); }
+      continue;
+    }
+    if (c === "'" || c === '"') {
+      borra(i++);
+      while (i < src.length && src[i] !== c) { if (src[i] === '\\') borra(i++); borra(i++); }
+      borra(i++);
+      ultimo = "'";                                  // un string es "valor": / después = división
+      continue;
+    }
+    if (c === '`') { borra(i++); pila.push({ tipo: 'tpl' }); continue; }
+    if (c === '/' && esRegex()) {
+      borra(i++);
+      let enClase = false;
+      while (i < src.length) {
+        const cc = src[i];
+        if (cc === '\\') { borra(i++); borra(i++); continue; }
+        if (cc === '[') enClase = true;
+        else if (cc === ']') enClase = false;
+        else if (cc === '/' && !enClase) break;
+        else if (cc === '\n') break;                 // regex nunca cruza línea: abortar
+        borra(i++);
+      }
+      borra(i++);
+      while (i < src.length && /[a-z]/i.test(src[i])) borra(i++);  // flags
+      ultimo = "'";
+      continue;
+    }
+    if (marco.prof !== undefined) {                  // código de una interpolación
+      if (c === '{') marco.prof++;
+      else if (c === '}') {
+        marco.prof--;
+        if (marco.prof === 0) { i++; pila.pop(); continue; }  // conservar el `}`
+      }
+    }
+    if (!/\s/.test(c)) ultimo = c;
+    i++;
+  }
+  return out.join('');
+}
+
+// Todo lo que el archivo declara o importa. Amplio a propósito para variables…
 function declarados(txt) {
   const d = new Set();
   const add = (t) => {
-    // Las interpolaciones `${...}` son USOS, no declaraciones: si se contaran,
-    // una variable inexistente se "declararía" a sí misma y nunca se detectaría.
+    // Las interpolaciones `${...}` son USOS, no declaraciones.
     const limpio = String(t || '').replace(/\$\{[^}]*\}/g, ' ');
-    const ids = limpio.match(/[A-Za-z_$][\w$]*/g) || [];
-    for (const n of ids) d.add(n);
+    for (const n of limpio.match(/[A-Za-z_$][\w$]*/g) || []) d.add(n);
   };
-  // const/let/var: toma TODO hasta el `;` (hasta 1200 chars, saltos incluidos) →
-  // cubre listas con valores (`let a = 0, b = 0`), destructuring multilínea
-  // (`const {\n key,\n titulo\n} = config`) y arrays (`const [d, m, y] = …`).
-  // Capturar de más solo nos hace perder una detección; capturar de menos genera
-  // falsos positivos, que es lo que vuelve inútil a un detector.
-  for (const m of txt.matchAll(/\b(?:const|let|var)\s+([\s\S]{0,1200}?);/g)) add(m[1]);
-  // Parámetros: function nombre(...), métodos y arrows (...) =>  ·  x =>
+  for (const m of txt.matchAll(/\b(?:const|let|var)\s+([\s\S]{0,20000}?);/g)) add(m[1]);
   for (const m of txt.matchAll(/\bfunction\s*\*?\s*([A-Za-z_$][\w$]*)?\s*\(([^)]*)\)/g)) { add(m[1]); add(m[2]); }
   for (const m of txt.matchAll(/\(([^()]*)\)\s*=>/g)) add(m[1]);
   for (const m of txt.matchAll(/([A-Za-z_$][\w$]*)\s*=>/g)) add(m[1]);
-  // class · catch(e) · for (… of/in …) · imports
   for (const m of txt.matchAll(/\bclass\s+([A-Za-z_$][\w$]*)/g)) add(m[1]);
   for (const m of txt.matchAll(/\bcatch\s*\(\s*([A-Za-z_$][\w$]*)/g)) add(m[1]);
   for (const m of txt.matchAll(/\bfor\s*\(\s*(?:const|let|var)?\s*([^;)]+?)\s+(?:of|in)\s/g)) add(m[1]);
-  for (const m of txt.matchAll(/import\s+([^;]+?)\s+from/g)) add(m[1]);
-  // Cualquier identificador seguido de `(`: funciones y métodos del propio archivo.
-  for (const m of txt.matchAll(/([A-Za-z_$][\w$]*)\s*\(/g)) d.add(m[1]);
+  for (const m of txt.matchAll(/import\s+([\s\S]{0,600}?)\s+from/g)) add(m[1]);
+  return d;
+}
+
+// …y lo que puede LLAMARSE: lo declarado + asignaciones a función/arrow +
+// propiedades de objeto `{ x: fn }` usadas vía shorthand. Separado a propósito:
+// si toda llamada "se declarara a sí misma", una función jamás importada nunca
+// se detectaría (bug real nº 3).
+function declaradosParaLlamadas(txt) {
+  const d = declarados(txt);
+  for (const m of txt.matchAll(/([A-Za-z_$][\w$]*)\s*[:=]\s*(?:async\s*)?(?:function\b|\()/g)) d.add(m[1]);
+  // Métodos shorthand de objeto/clase: `{ validar(filas) { … } }` — en JS válido
+  // una LLAMADA nunca va seguida de `{`, así que `nombre(args) {` declara.
+  for (const m of txt.matchAll(/([A-Za-z_$][\w$]*)\s*\(([^()]*)\)\s*\{/g)) {
+    d.add(m[1]);
+    for (const p of m[2].match(/[A-Za-z_$][\w$]*/g) || []) d.add(p);
+  }
   return d;
 }
 
 let fallos = 0, revisados = 0;
 for (const f of archivos(raiz)) {
-  const txt = readFileSync(f, 'utf8');
+  const src = readFileSync(f, 'utf8');
   revisados++;
+  const txt = soloCodigo(src);
   const conocidos = declarados(txt);
+  const llamables = declaradosParaLlamadas(txt);
   const vistos = new Set();
-  for (const m of txt.matchAll(/\$\{\s*([A-Za-z_$][\w$]*)\s*\}/g)) {
-    const n = m[1];
-    if (GLOBALES.has(n) || conocidos.has(n) || vistos.has(n)) continue;
+  const reporta = (n, idx, uso) => {
+    if (vistos.has(n)) return;
     vistos.add(n);
-    const linea = txt.slice(0, m.index).split('\n').length;
-    console.error(`⛔ ${f.replace(/.*[\\/]src[\\/]/, 'src/')}:${linea} — \`${n}\` se usa pero no está declarada ni importada`);
+    const linea = txt.slice(0, idx).split('\n').length;
+    console.error(`⛔ ${f.replace(/.*[\\/]src[\\/]/, 'src/')}:${linea} — \`${n}\` ${uso} pero no está declarada ni importada`);
     fallos++;
+  };
+  // A. Identificadores sueltos en interpolaciones `${NL}`.
+  for (const m of txt.matchAll(/\$\{\s*([A-Za-z_$][\w$]*)\s*\}/g)) {
+    if (!GLOBALES.has(m[1]) && !KEYWORDS.has(m[1]) && !conocidos.has(m[1])) reporta(m[1], m.index, 'se usa');
+  }
+  // B. Llamadas sueltas `nombre(` — sin `.` antes (los métodos no cuentan).
+  for (const m of txt.matchAll(/(^|[^.\w$])([A-Za-z_$][\w$]*)\s*\(/gm)) {
+    const n = m[2];
+    if (GLOBALES.has(n) || KEYWORDS.has(n) || llamables.has(n)) continue;
+    reporta(n, m.index + m[1].length, 'se llama');
   }
 }
 console.log(`\n${revisados} módulo(s) revisados · ${fallos} identificador(es) sin declarar`);
