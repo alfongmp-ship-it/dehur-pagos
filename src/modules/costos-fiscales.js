@@ -42,6 +42,8 @@ const ESTATUS_COLOR = {
 
 // ---------- utilidades ----------
 function r2(x) { return Math.round((x + Number.EPSILON) * 100) / 100; }
+// Indivisos de escritura viven en el 4o decimal (0.6420%): r2 los colapsaria.
+function r4(x) { return Math.round((x + Number.EPSILON) * 10000) / 10000; }
 
 // `proyecto` opcional para llamadores EXTERNOS (fiscal.js); adentro sigue cfProyecto.
 export function unidadesDeProyecto(incluirInactivas = false, proyecto = cfProyecto) {
@@ -588,8 +590,8 @@ function renderUnidadesTab(panel) {
             <td style="font-weight:600;">${escapeHtml(u.nombre)}</td>
             <td style="color:var(--muted);">${escapeHtml(u.tipo) || '—'}</td>
             <td style="text-align:right;font-family:'DM Mono',monospace;">${puedeEditarUnidades()
-              ? `<input type="number" step="0.01" min="0" max="100" id="ind-u-${u.unidad_id}" value="${(u.indiviso_pct || 0).toFixed(2)}" onchange="setIndivisoUnidad(${u.unidad_id}, this.value)" title="% de indiviso (de la escritura). Se guarda al salir del campo." style="width:72px;text-align:right;font-family:'DM Mono',monospace;font-size:11px;padding:2px 4px;">`
-              : `${(u.indiviso_pct || 0).toFixed(2)}%`}</td>
+              ? `<input type="number" step="0.0001" min="0" max="100" id="ind-u-${u.unidad_id}" value="${(u.indiviso_pct || 0).toFixed(4)}" onchange="setIndivisoUnidad(${u.unidad_id}, this.value)" title="% de indiviso (de la escritura). Se guarda al salir del campo." style="width:86px;text-align:right;font-family:'DM Mono',monospace;font-size:11px;padding:2px 4px;">`
+              : `${(u.indiviso_pct || 0).toFixed(4)}%`}</td>
             <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--muted);">${u.superficie_m2 ? u.superficie_m2 + ' m²' : '—'}</td>
             <td>${puedeEditarUnidades()
               ? `<select id="estatus-u-${u.unidad_id}" onchange="setEstatusUnidad(${u.unidad_id}, this.value)" title="Estatus de la casa" style="font-size:11px;padding:2px 4px;">${ESTATUS_UNIDAD.map(e => `<option${(u.estatus || 'En obra') === e ? ' selected' : ''}>${e}</option>`).join('')}</select>`
@@ -705,7 +707,7 @@ export async function guardarUnidad() {
   if (!puedeEditarUnidades()) { notify('Solo el admin puede crear o editar casas (indiviso, nombre, fechas)', 'error'); return; }
   const nombre = document.getElementById('un-nombre').value.trim();
   if (!nombre) { notify('El nombre es obligatorio', 'error'); return; }
-  const indiviso = parseFloat(document.getElementById('un-indiviso').value) || 0;
+  const indiviso = r4(parseFloat(document.getElementById('un-indiviso').value) || 0);
   const obj = {
     nombre,
     tipo: document.getElementById('un-tipo').value.trim(),
@@ -960,8 +962,8 @@ export async function setIndivisoUnidad(id, value) {
   const v = parseFloat(value);
   if (!isFinite(v) || v < 0 || v > 100) { notify('Indiviso inválido (0 a 100)', 'error'); return; }
   const antes = u.indiviso_pct || 0;
-  if (Math.abs(antes - v) < 0.0001) return;   // sin cambio real: no molestar
-  u.indiviso_pct = r2(v);
+  if (Math.abs(antes - v) < 0.00001) return;   // sin cambio real: no molestar
+  u.indiviso_pct = r4(v);
   const porFila = esPorFila('unidades');
   await gsSaveUnidades({ porFila });
   if (porFila) sbGuardarFila('unidades', u);
@@ -975,7 +977,7 @@ export async function setIndivisoUnidad(id, value) {
     const nota = document.getElementById('cf-suma-indiviso-nota');
     if (nota) nota.textContent = ok ? '' : ' (debería ser 100%)';
   }
-  notify(`${u.nombre}: indiviso ${antes.toFixed(2)}% → ${u.indiviso_pct.toFixed(2)}%`);
+  notify(`${u.nombre}: indiviso ${antes.toFixed(4)}% → ${u.indiviso_pct.toFixed(4)}%`);
 }
 
 export async function setFechaTermino(id, value) {
@@ -1023,7 +1025,7 @@ export async function guardarLoteUnidades() {
   const existentes = unidadesDeProyecto(true).length;
   // Reparte 100% entre el total de unidades activas resultante
   const totalFinal = existentes + cantidad;
-  const indivisoCada = autoIndiviso ? r2(100 / totalFinal) : 0;
+  const indivisoCada = autoIndiviso ? r4(100 / totalFinal) : 0;
 
   const nuevas = new Set();
   for (let i = 0; i < cantidad; i++) {
