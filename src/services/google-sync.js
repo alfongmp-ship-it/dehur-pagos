@@ -1405,7 +1405,7 @@ export function estadoGuardadoAsignaciones() {
 export async function gsSaveCostoAsignaciones(opts = {}) {
   const onProgress = typeof opts.onProgress === 'function' ? opts.onProgress : null;
   const nada = motivo => ({ ok: false, motivo, subidas: 0, pendientes: 0, borradas: 0, error: null });
-  if (!puedeEditar() && !puedeFacturas()) return nada('sin-permiso');   // rol 'facturas' reparte facturas (devengado)
+  if (!puedeRepartirCostos()) return nada('sin-permiso');   // 'facturas'/'facturas_obra' reparten devengado; 'conciliacion' NO
   if (!guardarPermitido('costoAsignaciones', state.costoAsignaciones)) return nada('no-cargado');
   if (!sbReady()) return nada('sin-sesion');
   let subidas = 0, borradas = 0;

@@ -166,7 +166,7 @@ export function puedeEditar() {
 // además de los que ya editan. 'contabilidad' (Ericka) queda solo-ver.
 export function puedeFacturas() {
   const r = rol();
-  return r === 'admin' || r === 'capturista' || r === 'facturas' || r === 'facturas_obra';
+  return r === 'admin' || r === 'capturista' || r === 'facturas' || r === 'facturas_obra' || r === 'conciliacion';
 }
 
 // Borrar facturas (corregir errores): solo admin y los roles de facturas.
@@ -189,7 +189,16 @@ export function puedeCapturarObra() {
 // 'facturas_obra' (Anahi) y 'obra' (Gustavo) NO ligan — solo capturan/consultan.
 export function puedeLigarPagos() {
   const r = rol();
-  return r === 'admin' || r === 'capturista' || r === 'facturas';
+  return r === 'admin' || r === 'capturista' || r === 'facturas' || r === 'conciliacion';
+}
+
+// REPARTIR costos a casas (asignaciones de pago y devengado de factura). Lista
+// EXPLÍCITA: equivale a lo que permitía `puedeEditar() || puedeFacturas()` antes
+// de existir 'conciliacion' (Diana), que captura/liga facturas pero NO reparte:
+// el reparto es el dato más difícil de reconstruir si se equivoca.
+export function puedeRepartirCostos() {
+  const r = rol();
+  return r === 'admin' || r === 'capturista' || r === 'facturas' || r === 'facturas_obra';
 }
 
 // Solo el admin: borrado EN BLOQUE, configuración (proyectos/partidas/cuentas),
@@ -210,7 +219,8 @@ export function puedeFiscal() {
 const ROL_LABEL = {
   admin: 'Admin', capturista: 'Capturista', contabilidad: 'Contabilidad',
   lector: 'Lector', aprobador: 'Aprobador', solo_lectura: 'Solo lectura',
-  facturas: 'Facturas', obra: 'Obra', facturas_obra: 'Facturas (obra)'
+  facturas: 'Facturas', obra: 'Obra', facturas_obra: 'Facturas (obra)',
+  conciliacion: 'Conciliación'
 };
 export function rolLabel() {
   return ROL_LABEL[rol()] || rol();

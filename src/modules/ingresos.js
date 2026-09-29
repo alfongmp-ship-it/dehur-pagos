@@ -29,12 +29,12 @@ const _ultimaPagina = { pagos: PAGINA_DEFAULT.pagos, ingresos: PAGINA_DEFAULT.in
 
 // Espacios ACTIVOS ahora (Pagos siempre; los demás según su bandera+candado).
 function _wsActivos() {
-  // Los perfiles ACOTADOS (obra, facturas_obra) solo viven en Pagos: sus 3 páginas
+  // Los perfiles ACOTADOS (obra, facturas_obra, conciliacion) solo viven en Pagos: sus páginas
   // están ahí. Devolver solo 'pagos' evita que el switcher se les inyecte y que
   // queden atrapados con la barra lateral vacía (además desactiva un
   // localStorage['dt-workspace'] viejo que apuntara a Ingresos/Estrategia).
   const r = rol();
-  if (r === 'obra' || r === 'facturas_obra') return ['pagos'];
+  if (r === 'obra' || r === 'facturas_obra' || r === 'conciliacion') return ['pagos'];
   const a = ['pagos'];
   if (ingresosActivo()) a.push('ingresos');
   if (estrategiaActivo()) a.push('estrategia');

@@ -280,6 +280,19 @@ body[data-rol="facturas_obra"] .nav-item:not(.nav-obra),
 body[data-rol="facturas_obra"] .nav-label,
 body[data-rol="facturas_obra"] #header-badges { display: none !important; }
 
+/* .conciliacion → Diana (contabilidad): CONCILIA pagos con facturas. Ve 4 páginas
+   (Historial .nav-conc + las 3 .nav-obra) y conserva .req-facturas y
+   .req-ligar-pagos (su trabajo: capturar/corregir facturas y ligar pagos).
+   NO edita pagos (.req-editor), NO borra facturas, NO captura obra y NO reparte
+   costos (.req-repartir; backstop real en puedeRepartirCostos). */
+body[data-rol="conciliacion"] .req-editor,
+body[data-rol="conciliacion"] .req-obra,
+body[data-rol="conciliacion"] .req-borrar-factura,
+body[data-rol="conciliacion"] .req-repartir { display: none !important; }
+body[data-rol="conciliacion"] .nav-item:not(.nav-obra):not(.nav-conc),
+body[data-rol="conciliacion"] .nav-label,
+body[data-rol="conciliacion"] #header-badges { display: none !important; }
+
 /* ===================================================================== */
 /* ===== PASE PREMIUM — elevación tema oscuro + motion safety ========== */
 /* (solo estilos; el tema claro conserva su elevación por especificidad) */

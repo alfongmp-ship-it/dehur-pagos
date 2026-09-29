@@ -1,12 +1,19 @@
 import { state, rol } from './state.js';
 
-// El rol 'obra' (residente) solo navega a estas páginas; cualquier otra lo regresa a
-// Costos por Unidad. Es UX/defensa; el bloqueo de escritura real está en los guardados.
-const OBRA_PAGES = new Set(['facturas', 'factura-pagos', 'costos-fiscales']);
-// Roles con el menú ACOTADO a esas 3 páginas: 'obra' (residente, solo-lectura) y
-// 'facturas_obra' (Anahi: mismos poderes de facturas que 'facturas', pero sin ver
-// el resto de la app). Cualquier otra página los regresa a su inicio.
-const ROLES_ACOTADOS = new Set(['obra', 'facturas_obra']);
+// Páginas que puede navegar cada perfil ACOTADO (los demás roles navegan libre).
+// Es UX/defensa; el bloqueo de escritura real está en los guardados por rol.
+//   'obra' (Gustavo, residente, solo-lectura) y 'facturas_obra' (Anahi: poderes de
+//   facturas sin ver el resto) → las 3 de siempre.
+//   'conciliacion' (Diana) → esas 3 + Historial de Pagos: concilia pagos↔facturas.
+// Es un mapa POR ROL a propósito: un Set compartido abriría la página nueva de un
+// perfil a todos los demás acotados.
+const PAGINAS_POR_ROL = {
+  obra:          new Set(['facturas', 'factura-pagos', 'costos-fiscales']),
+  facturas_obra: new Set(['facturas', 'factura-pagos', 'costos-fiscales']),
+  conciliacion:  new Set(['historial', 'facturas', 'factura-pagos', 'costos-fiscales']),
+};
+// Página de inicio de cada perfil acotado (a donde lo regresa si intenta salirse).
+export const INICIO_POR_ROL = { obra: 'costos-fiscales', facturas_obra: 'facturas', conciliacion: 'historial' };
 
 // Render (lazy) de UNA página por nombre. Lo usan showPage al navegar y
 // renderPaginaActual tras cada carga de datos (finalizarCarga / 🔄 Refrescar):
@@ -47,10 +54,10 @@ function renderDePagina(name) {
 }
 
 export function showPage(name, el) {
-  if (ROLES_ACOTADOS.has(rol()) && !OBRA_PAGES.has(name)) {
-    // Cada perfil acotado regresa a SU inicio: 'facturas_obra' captura facturas;
-    // 'obra' (residente) revisa Costos por Unidad.
-    name = rol() === 'facturas_obra' ? 'facturas' : 'costos-fiscales';
+  const permitidas = PAGINAS_POR_ROL[rol()];
+  if (permitidas && !permitidas.has(name)) {
+    // Cada perfil acotado regresa a SU inicio.
+    name = INICIO_POR_ROL[rol()] || 'costos-fiscales';
     el = document.getElementById('nav-' + name);
   }
   document.querySelectorAll('[id^="page-"]').forEach(p => p.style.display = 'none');

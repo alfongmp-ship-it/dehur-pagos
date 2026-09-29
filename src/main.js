@@ -3,7 +3,7 @@
 
 import { state, rol } from './state.js';
 import { loadProyectos } from './config/proyectos.js';
-import { showPage, renderPaginaActual } from './router.js';
+import { showPage, renderPaginaActual, INICIO_POR_ROL } from './router.js';
 import { setupModalCloseHandlers, cerrar } from './ui/modal.js';
 import { notify } from './ui/notify.js';
 import { renderHeaderBadges, renderCuentaDispSelect, actualizarDisplaySaldo } from './ui/header.js';
@@ -540,11 +540,8 @@ function aplicarPermisosUI() {
   document.body.dataset.rol = rol();
   // Perfiles acotados: solo ven Facturas / Pagos a Facturas / Costos por Unidad
   // (el CSS oculta el resto). Cada uno aterriza en su página de inicio.
-  if (rol() === 'obra') {
-    showPage('costos-fiscales', document.getElementById('nav-costos-fiscales'));
-  } else if (rol() === 'facturas_obra') {
-    showPage('facturas', document.getElementById('nav-facturas'));
-  }
+  const inicio = INICIO_POR_ROL[rol()];
+  if (inicio) showPage(inicio, document.getElementById('nav-' + inicio));
 }
 window.aplicarPermisosUI = aplicarPermisosUI;
 

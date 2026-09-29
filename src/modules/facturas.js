@@ -138,7 +138,7 @@ export function renderFacturas() {
     // factura). Antes se veía como "Reparto ✓" y el devengado iba al doble sin aviso.
     else if (sumR > totalR + 0.5) { repTxt = `⚠ ${Math.round(sumR / totalR * 100)}%`; repTit = `SOBRE-REPARTIDA: ${fmt(sumR)} asignados contra ${fmt(totalR)} de factura — hay reparto duplicado; límpialo y reparte de nuevo`; repCss = 'color:var(--red);font-weight:700;'; }
     else { repTxt = 'Reparto ✓'; repTit = 'Reparto del costo (devengado) completo'; repCss = ''; }
-    const btnRepartir = `<button class="btn btn-ghost req-facturas" style="padding:4px 8px;font-size:11px;${repCss}" onclick="abrirRepartirFactura(${f.factura_id})" title="${repTit}">${repTxt}</button>`;
+    const btnRepartir = `<button class="btn btn-ghost req-facturas req-repartir" style="padding:4px 8px;font-size:11px;${repCss}" onclick="abrirRepartirFactura(${f.factura_id})" title="${repTit}">${repTxt}</button>`;
     // Total: si hay nota de crédito, monto_total ya es el NETO (factura − NC). Mostramos el
     // neto y, debajo, el total ORIGINAL (antes de NC) + el monto de la NC, solo informativo.
     const ncTotal = (f.nc_subtotal || 0) + (f.nc_iva || 0);

@@ -2,7 +2,7 @@
 // Capa nueva y aislada: asigna los pagos del historial a unidades (casas)
 // para conocer el costo real por casa. No toca el flujo de pagos existente.
 
-import { state, datosListos, puedeEditar, puedeLigarPagos, puedeFacturas, puedeCapturarObra, esAdmin, rol } from '../state.js';
+import { state, datosListos, puedeEditar, puedeLigarPagos, puedeFacturas, puedeRepartirCostos, puedeCapturarObra, esAdmin, rol } from '../state.js';
 import { fmt, fmtFecha, escapeHtml } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
@@ -1303,7 +1303,7 @@ export function reasignarCosto(pagoId) {
 // Devengado (Fase B): reparte el costo de una FACTURA (sobre su monto_total) a las
 // casas de su proyecto. Reusa el mismo modal que el reparto de pagos.
 export function abrirRepartirFactura(facturaId) {
-  if (!(puedeFacturas())) { notify('Tu perfil no puede repartir facturas', 'error'); return; }
+  if (!(puedeRepartirCostos())) { notify('Tu perfil no puede repartir facturas', 'error'); return; }
   const f = facturaById(facturaId);
   if (!f) { notify('Factura no encontrada', 'error'); return; }
   if (!f.proyecto) { notify('La factura no tiene proyecto; asígnale uno para repartir su costo', 'error'); return; }
@@ -1412,7 +1412,7 @@ export async function eliminarAsignacionCosto(pagoId) {
 // Borra TODO el reparto (todas las partes/sub-partidas) de la factura abierta, para
 // rehacerlo desde cero. Refresca el modal (restante vuelve al total).
 export async function cfLimpiarRepartoFactura() {
-  if (!(puedeFacturas())) { notify('Tu perfil no puede repartir facturas', 'error'); return; }
+  if (!(puedeRepartirCostos())) { notify('Tu perfil no puede repartir facturas', 'error'); return; }
   if (!cfEsFactura()) return;
   if (!confirm('¿Borrar TODO el reparto de costos de esta factura para rehacerlo?')) return;
   const fid = cfFacturaAsignar;
@@ -1764,7 +1764,7 @@ export function cfPreviewReparto() {
 }
 
 export async function guardarAsignacionCosto() {
-  if (!(puedeEditar() || puedeFacturas())) { notify('No tienes permiso para repartir costos', 'error'); return; }
+  if (!(puedeRepartirCostos())) { notify('No tienes permiso para repartir costos', 'error'); return; }
   if (!cfObjetivoValido()) return;
   const esFact = cfEsFactura();
   const reparto = calcularReparto();
