@@ -883,10 +883,18 @@ export async function revisarIndivisoAplanado() {
     `${res.documentos.length} documento(s) por ${fmt(res.total)} se repartieron parejo (indiviso aplanado).`,
     sube ? `La que mas SUBE: ${sube.nombre} ${fmt(sube.dif)}${sube.pct !== null ? ` (${sube.pct.toFixed(1)}%)` : ''}` : '',
     baja ? `La que mas BAJA: ${baja.nombre} ${fmt(baja.dif)}${baja.pct !== null ? ` (${baja.pct.toFixed(1)}%)` : ''}` : '',
-  ].filter(Boolean).join(NL);
+  ].filter(Boolean).join('\n');
   notify(`\ud83d\udd0d ${res.documentos.length} documento(s) por ${fmt(res.total)} \u2014 revisa el Excel descargado y la consola (F12)`);
 
-  if (!confirm(`\ud83d\udd0d Repartos hechos con el indiviso aplanado en ${cfProyecto}:${NL}${NL}${resumen}${NL}${NL}Se descargo un Excel con el detalle y el estado ACTUAL (respaldo).${NL}${NL}Al corregir: el TOTAL de cada pago y factura NO cambia; solo se redistribuye entre las mismas casas con los indivisos reales y las fechas de terminacion de cada documento.${NL}${NL}\u00bfCorregir los ${res.documentos.length} documento(s)?`)) return;
+  if (!confirm(`\ud83d\udd0d Repartos hechos con el indiviso aplanado en ${cfProyecto}:
+
+${resumen}
+
+Se descargo un Excel con el detalle y el estado ACTUAL (respaldo).
+
+Al corregir: el TOTAL de cada pago y factura NO cambia; solo se redistribuye entre las mismas casas con los indivisos reales y las fechas de terminacion de cada documento.
+
+\u00bfCorregir los ${res.documentos.length} documento(s)?`)) return;
 
   const btn = document.getElementById('cf-btn-indivisos');
   if (btn) { btn.disabled = true; btn.textContent = 'Corrigiendo\u2026'; }
