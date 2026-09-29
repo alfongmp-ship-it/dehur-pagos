@@ -2,7 +2,7 @@
 // Capa nueva y aislada: asigna los pagos del historial a unidades (casas)
 // para conocer el costo real por casa. No toca el flujo de pagos existente.
 
-import { state, datosListos, puedeEditar, puedeLigarPagos, puedeFacturas, puedeRepartirCostos, puedeCapturarObra, esAdmin, rol } from '../state.js';
+import { state, datosListos, puedeEditar, puedeLigarPagos, puedeFacturas, puedeRepartirCostos, puedeCapturarObra, puedeEditarUnidades, esAdmin, rol } from '../state.js';
 import { fmt, fmtFecha, escapeHtml } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
@@ -562,16 +562,15 @@ function renderUnidadesTab(panel) {
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
       <div style="font-size:12px;color:var(--muted);">
         ${unidades.length} unidad${unidades.length !== 1 ? 'es' : ''} ·
-        Suma indiviso: <strong style="color:${indOk ? 'var(--green)' : 'var(--orange)'};">${sumaInd.toFixed(2)}%</strong>
-        ${indOk ? '' : ' (debería ser 100%)'}
+        Suma indiviso: <strong id="cf-suma-indiviso" style="color:${indOk ? 'var(--green)' : 'var(--orange)'};">${sumaInd.toFixed(2)}%</strong><span id="cf-suma-indiviso-nota">${indOk ? '' : ' (debería ser 100%)'}</span>
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);cursor:pointer;" title="Reparte por indiviso (respetando fechas) los pagos sin factura ni reparto, SOLO para verlos. No crea asignaciones reales ni afecta el costo real.">
           <input type="checkbox" ${cfMostrarEstimado ? 'checked' : ''} onchange="cfToggleEstimado(this.checked)" style="cursor:pointer;"> Estimado por asignar
         </label>
         <button class="btn btn-ghost btn-sm" onclick="exportarCostosUnitariosExcel()" title="Exporta el costo de cada casa (presupuesto, costo real y avance). Con el checkbox de estimado prendido, incluye además el estimado por asignar y el costo proyectado.">⬇ Excel</button>
-        <button class="btn btn-ghost req-editor" onclick="abrirLoteUnidades()">+ Crear en lote</button>
-        <button class="btn btn-primary req-editor" onclick="abrirNuevaUnidad()">+ Nueva Unidad</button>
+        <button class="btn btn-ghost req-admin" onclick="abrirLoteUnidades()">+ Crear en lote</button>
+        <button class="btn btn-primary req-admin" onclick="abrirNuevaUnidad()">+ Nueva Unidad</button>
       </div>
     </div>
     ${estim ? `<div style="font-size:12px;color:var(--accent);background:rgba(200,169,110,.08);border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:12px;">📊 Pendiente por asignar: <strong>${fmt(estim.total)}</strong> en ${estim.count} pago(s) — repartido por indiviso (estimado; no afecta el costo real)</div>` : ''}
@@ -588,19 +587,21 @@ function renderUnidadesTab(panel) {
           return `<tr style="${u.activo === false ? 'opacity:.5;' : ''}">
             <td style="font-weight:600;">${escapeHtml(u.nombre)}</td>
             <td style="color:var(--muted);">${escapeHtml(u.tipo) || '—'}</td>
-            <td style="text-align:right;font-family:'DM Mono',monospace;">${(u.indiviso_pct || 0).toFixed(2)}%</td>
+            <td style="text-align:right;font-family:'DM Mono',monospace;">${puedeEditarUnidades()
+              ? `<input type="number" step="0.01" min="0" max="100" id="ind-u-${u.unidad_id}" value="${(u.indiviso_pct || 0).toFixed(2)}" onchange="setIndivisoUnidad(${u.unidad_id}, this.value)" title="% de indiviso (de la escritura). Se guarda al salir del campo." style="width:72px;text-align:right;font-family:'DM Mono',monospace;font-size:11px;padding:2px 4px;">`
+              : `${(u.indiviso_pct || 0).toFixed(2)}%`}</td>
             <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--muted);">${u.superficie_m2 ? u.superficie_m2 + ' m²' : '—'}</td>
-            <td>${puedeCapturarObra()
+            <td>${puedeEditarUnidades()
               ? `<select id="estatus-u-${u.unidad_id}" onchange="setEstatusUnidad(${u.unidad_id}, this.value)" title="Estatus de la casa" style="font-size:11px;padding:2px 4px;">${ESTATUS_UNIDAD.map(e => `<option${(u.estatus || 'En obra') === e ? ' selected' : ''}>${e}</option>`).join('')}</select>`
               : `<span id="estatus-u-${u.unidad_id}" style="font-size:11px;color:var(--muted);">${escapeHtml(u.estatus) || '—'}</span>`}</td>
-            <td>${puedeCapturarObra()
+            <td>${puedeEditarUnidades()
               ? `<input type="date" id="fecha-u-${u.unidad_id}" value="${escapeHtml(u.fecha_termino || '')}" onchange="setFechaTermino(${u.unidad_id}, this.value)" title="Fecha en que la casa salió del indiviso (vacío = sigue en obra)" style="font-size:11px;padding:2px 4px;width:130px;">`
               : `<span style="font-size:11px;color:var(--muted);">${escapeHtml(u.fecha_termino) || '—'}</span>`}</td>
             <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--accent);">${fmt(real)}</td>
             ${estim ? `<td style="text-align:right;font-family:'DM Mono',monospace;color:var(--muted);">${fmt(estim.porUnidad.get(u.unidad_id) || 0)}</td><td style="text-align:right;font-family:'DM Mono',monospace;font-weight:700;color:var(--green);">${fmt(real + (estim.porUnidad.get(u.unidad_id) || 0))}</td>` : ''}
             <td style="text-align:right;white-space:nowrap;">
-              <button class="btn btn-ghost btn-sm req-editor" onclick="editarUnidad(${u.unidad_id})">Editar</button>
-              <button class="btn btn-ghost btn-sm req-editor" onclick="toggleUnidad(${u.unidad_id})" style="color:${u.activo === false ? 'var(--green)' : 'var(--red)'};">${u.activo === false ? 'Activar' : 'Baja'}</button>
+              <button class="btn btn-ghost btn-sm req-admin" onclick="editarUnidad(${u.unidad_id})">Editar</button>
+              <button class="btn btn-ghost btn-sm req-admin" onclick="toggleUnidad(${u.unidad_id})" style="color:${u.activo === false ? 'var(--green)' : 'var(--red)'};">${u.activo === false ? 'Activar' : 'Baja'}</button>
             </td>
           </tr>`;
         }).join('')}</tbody>
@@ -673,6 +674,7 @@ export function cfToggleEstimado(on) {
 }
 
 export function abrirNuevaUnidad() {
+  if (!puedeEditarUnidades()) { notify('Solo el admin puede crear casas', 'error'); return; }
   if (!cfProyecto) { notify('Selecciona un proyecto', 'error'); return; }
   state.editUnidadId = null;
   document.getElementById('modal-unidad-title').textContent = 'Nueva Unidad · ' + cfProyecto;
@@ -700,7 +702,7 @@ export function editarUnidad(id) {
 }
 
 export async function guardarUnidad() {
-  if (!(puedeEditar())) { notify('No tienes permiso para esta accion', 'error'); return; }
+  if (!puedeEditarUnidades()) { notify('Solo el admin puede crear o editar casas (indiviso, nombre, fechas)', 'error'); return; }
   const nombre = document.getElementById('un-nombre').value.trim();
   if (!nombre) { notify('El nombre es obligatorio', 'error'); return; }
   const indiviso = parseFloat(document.getElementById('un-indiviso').value) || 0;
@@ -740,9 +742,27 @@ export async function guardarUnidad() {
 }
 
 export async function toggleUnidad(id) {
-  if (!(puedeEditar())) { notify('No tienes permiso para esta accion', 'error'); return; }
+  if (!puedeEditarUnidades()) { notify('Solo el admin puede dar de alta o baja una casa', 'error'); return; }
   const u = unidadById(id);
   if (!u) return;
+  // Dar de BAJA una casa con repartos saca su costo de Fiscal/Obra/Reportes (pero no
+  // de la pestaña Unidades) y ♻️ redistribuiría sus pagos entre las demás: se avisa
+  // con el monto en juego. Si la casa TERMINÓ, lo correcto es la fecha, no la baja.
+  if (u.activo !== false) {
+    const asigs = state.costoAsignaciones.filter(a => String(a.unidad_id) === String(id));
+    const total = asigs.reduce((s2, a) => s2 + (a.monto_asignado || 0), 0);
+    if (asigs.length && !confirm(
+      `⚠️ "${u.nombre}" tiene ${asigs.length} reparto(s) de costo por ${fmt(total)}.
+
+` +
+      `Al darla de BAJA ese costo DEJA de contarse en la vista Fiscal, Control de Obra y ` +
+      `Reportes, y "♻️ Revisar repartos" podría redistribuir sus pagos entre las demás casas.
+
+` +
+      `Si la casa TERMINÓ, usa la fecha de terminación — NO la baja.
+
+¿Dar de baja de todos modos?`)) return;
+  }
   u.activo = u.activo === false;
   const porFila = esPorFila('unidades');
   await gsSaveUnidades({ porFila });
@@ -835,7 +855,7 @@ export function revisarRepartos() {
 // Estatus de la casa (En obra → Terminada → Entregada → Vendida). Captura de OBRA:
 // se edita en línea, sin abrir el modal de unidad (que tocaría indiviso y nombre).
 export async function setEstatusUnidad(id, value) {
-  if (!puedeCapturarObra()) { notify('No tienes permiso para cambiar el estatus', 'error'); return; }
+  if (!puedeEditarUnidades()) { notify('Solo el admin cambia el estatus de la casa (va ligado a la fecha de terminación)', 'error'); return; }
   const u = unidadById(id);
   if (!u || !ESTATUS_UNIDAD.includes(value)) return;
   const inpFecha = document.getElementById('fecha-u-' + id);
@@ -869,8 +889,37 @@ export async function setEstatusUnidad(id, value) {
   notify(`${u.nombre}: ${value}${aviso}`);
 }
 
+// Captura rápida del % de indiviso desde la tabla (recapturar decenas de casas sin
+// abrir el modal ni perder el scroll). Guarda SOLO esa casa y refresca el rótulo de
+// la suma al vuelo. Los repartos YA hechos conservan su % (foto congelada): el aviso
+// de recálculo vive en el bloque C.
+export async function setIndivisoUnidad(id, value) {
+  if (!puedeEditarUnidades()) { notify('Solo el admin puede cambiar el indiviso', 'error'); return; }
+  const u = unidadById(id);
+  if (!u) return;
+  const v = parseFloat(value);
+  if (!isFinite(v) || v < 0 || v > 100) { notify('Indiviso inválido (0 a 100)', 'error'); return; }
+  const antes = u.indiviso_pct || 0;
+  if (Math.abs(antes - v) < 0.0001) return;   // sin cambio real: no molestar
+  u.indiviso_pct = r2(v);
+  const porFila = esPorFila('unidades');
+  await gsSaveUnidades({ porFila });
+  if (porFila) sbGuardarFila('unidades', u);
+  // Rótulo "Suma indiviso" al vuelo (sin re-render: se pierde el scroll al capturar en serie).
+  const sp = document.getElementById('cf-suma-indiviso');
+  if (sp) {
+    const suma = unidadesDeProyecto().reduce((s, x) => s + (x.indiviso_pct || 0), 0);
+    const ok = Math.abs(suma - 100) < 0.01;
+    sp.textContent = suma.toFixed(2) + '%';
+    sp.style.color = ok ? 'var(--green)' : 'var(--orange)';
+    const nota = document.getElementById('cf-suma-indiviso-nota');
+    if (nota) nota.textContent = ok ? '' : ' (debería ser 100%)';
+  }
+  notify(`${u.nombre}: indiviso ${antes.toFixed(2)}% → ${u.indiviso_pct.toFixed(2)}%`);
+}
+
 export async function setFechaTermino(id, value) {
-  if (!puedeCapturarObra()) { notify('No tienes permiso para capturar la fecha de terminación', 'error'); return; }
+  if (!puedeEditarUnidades()) { notify('Solo el admin captura la fecha de terminación (decide quién sale del indiviso)', 'error'); return; }
   const u = unidadById(id);
   if (!u) return;
   const fechaAntes = u.fecha_termino || '';
@@ -894,16 +943,17 @@ export async function setFechaTermino(id, value) {
 }
 
 export function abrirLoteUnidades() {
+  if (!puedeEditarUnidades()) { notify('Solo el admin puede crear casas en lote', 'error'); return; }
   if (!cfProyecto) { notify('Selecciona un proyecto', 'error'); return; }
   document.getElementById('lote-prefijo').value = 'Casa ';
   document.getElementById('lote-desde').value = '1';
   document.getElementById('lote-cantidad').value = '10';
-  document.getElementById('lote-indiviso-auto').checked = true;
+  document.getElementById('lote-indiviso-auto').checked = false;   // NUNCA por default: re-nivela las casas existentes
   document.getElementById('modal-unidades-lote').classList.add('open');
 }
 
 export async function guardarLoteUnidades() {
-  if (!(puedeEditar())) { notify('No tienes permiso para esta accion', 'error'); return; }
+  if (!puedeEditarUnidades()) { notify('Solo el admin puede crear casas en lote', 'error'); return; }
   const prefijo = document.getElementById('lote-prefijo').value;
   const desde = parseInt(document.getElementById('lote-desde').value) || 1;
   const cantidad = parseInt(document.getElementById('lote-cantidad').value) || 0;
@@ -915,7 +965,9 @@ export async function guardarLoteUnidades() {
   const totalFinal = existentes + cantidad;
   const indivisoCada = autoIndiviso ? r2(100 / totalFinal) : 0;
 
+  const nuevas = new Set();
   for (let i = 0; i < cantidad; i++) {
+    nuevas.add(state.nextUnidadId);
     state.unidades.push({
       unidad_id: state.nextUnidadId++,
       proyecto: cfProyecto,
@@ -928,9 +980,24 @@ export async function guardarLoteUnidades() {
       activo: true,
     });
   }
-  // Si auto-indiviso, re-nivelar también las unidades previas para que sume 100
+  // Si auto-indiviso, re-nivelar también las unidades previas para que sume 100.
+  // OJO: esto DESTRUYE los indivisos por tamaño (pasó una vez en producción), así
+  // que se pregunta nombrando cuántas casas existentes cambiarían y desde qué %.
   if (autoIndiviso) {
-    unidadesDeProyecto(true).forEach(u => { u.indiviso_pct = indivisoCada; });
+    const previas = unidadesDeProyecto(true).filter(u => !nuevas.has(u.unidad_id));
+    const distintos = [...new Set(previas.map(u => (u.indiviso_pct || 0).toFixed(2)))];
+    const ok = !previas.length || confirm(
+      `⚠️ Vas a REESCRIBIR el % de indiviso de ${previas.length} casa(s) que ya existen.
+
+` +
+      `Pasarían de ${distintos.length > 1 ? `${distintos.length} valores distintos (${distintos.slice(0, 4).join('%, ')}%…)` : `${distintos[0]}%`} ` +
+      `a ${indivisoCada}% TODAS.
+
+Si tus casas tienen indiviso por tamaño/escritura, esto lo BORRA y no se puede deshacer.
+
+` +
+      `¿Re-nivelar de todos modos? (Cancelar = crear las nuevas sin tocar las existentes)`);
+    if (ok) unidadesDeProyecto(true).forEach(u => { u.indiviso_pct = indivisoCada; });
   }
   cerrar('modal-unidades-lote');
   await gsSaveUnidades();

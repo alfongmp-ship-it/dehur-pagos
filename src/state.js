@@ -201,6 +201,16 @@ export function puedeRepartirCostos() {
   return r === 'admin' || r === 'capturista' || r === 'facturas' || r === 'facturas_obra';
 }
 
+// UNIDADES (casas): alta/baja, nombre, INDIVISO, fecha de terminación y estatus.
+// Decisión del dueño (2026-09-30): "mover unidades, indivisos y fechas es solo el
+// admin" — el indiviso viene de escrituras y un cambio suyo mueve TODOS los repartos
+// futuros; la fecha de terminación decide quién sale del pool de indiviso.
+// (Los PRESUPUESTOS por partida siguen en puedeCapturarObra: el residente los captura.
+//  Ubicar casas en el plano también sigue siendo captura de obra.)
+export function puedeEditarUnidades() {
+  return rol() === 'admin';
+}
+
 // Solo el admin: borrado EN BLOQUE, configuración (proyectos/partidas/cuentas),
 // conectar Google + "Respaldar a Sheets".
 export function esAdmin() {
