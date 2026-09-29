@@ -23,7 +23,7 @@ import { getPartidasParaSelect } from '../config/sub-partidas.js';
 import { proyectoMatch } from '../config/proyectos.js';
 import { parseFechaHist } from './historial.js';
 import { costosPresupuestosBatch } from './costos-fiscales.js';
-import { esGastoRealJP } from './resumen-costos.js';
+import { esGastoRealJP, partidasActivasJP } from './resumen-costos.js';
 import { calcularSaldosNetosPrestamos } from './resumen-ejecutivo.js';
 import { rankearUnidades } from './estrategia-score.js';
 import { proyectarCaja, sugerirFondeo } from './simulador-caja.js';
@@ -492,8 +492,9 @@ function _mesesUltimos(n) {
 function _gastoRealPorProyectoMes(mesesYm, canon) {
   const meses = new Set(mesesYm);
   const out = new Map();
+  const activasJP = partidasActivasJP();   // una vez para todo el recorrido
   state.historial.forEach(h => {
-    if (!esGastoRealJP(h)) return;
+    if (!esGastoRealJP(h, activasJP)) return;
     const iso = parseFechaHist(h.fecha);
     if (!iso) return;
     const ym = iso.slice(0, 7);

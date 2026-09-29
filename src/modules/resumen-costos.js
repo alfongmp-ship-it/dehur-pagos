@@ -546,29 +546,55 @@ function renderTabla(data) {
    Para el flujo que lleva Juan Pablo. Pivote: partidas en filas,
    un mes por columna, columna Total por partida y fila TOTAL general.
 
-   Regla de QUÉ CUENTA (definida por el usuario):
-     • Pagos (tipo_registro='Pago')                  → SIEMPRE
-     • Aportaciones (Traspaso + tipo 'Aportación')   → SIEMPRE
+   Regla de QUÉ CUENTA (definida por el usuario, revisada 2026-09-29):
+     • Pagos (tipo_registro='Pago')                  → SÍ
+     • Aportaciones (Traspaso + tipo 'Aportación')   → SÍ
      • Créditos SOLO si la partida es de intereses   → SÍ
-     • Traspasos, Préstamos y el resto de Créditos
-       (incluido "Pago de Deuda" de crédito)          → NO
-   (Un "Pago de Deuda" que sea Pago o Aportación SÍ cuenta;
-    sólo se excluye cuando viene de un Crédito.)
+     • Traspasos, Préstamos y el resto de Créditos   → NO
+   …y ADEMÁS, sin importar el tipo, quedan FUERA:
+     • Las partidas de MOVER DEUDA: "Pago de Deuda" y
+       "Préstamos / Financiamiento" — mover dinero prestado no
+       es gastarlo. (Antes sí entraban cuando venían de un Pago
+       o una Aportación; el dueño lo corrigió.)
+     • Las partidas LEGACY: las que ya no están activas en el
+       catálogo. Si una partida se dio de baja, su gasto viejo
+       no debe reaparecer en el reporte.
    ============================================================ */
 const _normJP = s => String(s || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 const _MESES_JP = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
-function _cuentaJP(h) {
+// Partidas que NUNCA son gasto real, venga el movimiento de donde venga: mover
+// deuda (pagarla o recibirla) no es gastar. Se comparan normalizadas y con los
+// espacios de la barra colapsados, para que "Préstamos / Financiamiento",
+// "Prestamos/Financiamiento" y demás variantes de captura caigan igual.
+const _PARTIDAS_FUERA_JP = ['pago de deuda', 'prestamos/financiamiento'];
+const _llaveP = s => _normJP(s).replace(/\s*\/\s*/g, '/').replace(/\s+/g, ' ');
+
+// Partidas ACTIVAS del catálogo. Lo que no esté aquí es legacy (partida dada de
+// baja, o nombre suelto de una captura vieja) y queda fuera del reporte.
+export function partidasActivasJP() {
+  return new Set((state.partidasCatalogo || [])
+    .filter(p => p.activa !== false)
+    .map(p => _llaveP(p.partida)));
+}
+
+// `activas` es opcional: quien recorre muchas filas lo construye UNA vez y lo
+// pasa (armarlo por fila recorrería el catálogo miles de veces).
+function _cuentaJP(h, activas) {
+  const p = _llaveP(h.partida);
+  if (_PARTIDAS_FUERA_JP.includes(p)) return false;     // mover deuda ≠ gastar
+  const cat = activas || partidasActivasJP();
+  if (!cat.has(p)) return false;                        // legacy, o sin partida
   if (h.tipo_registro === 'Pago') return true;
   if (h.tipo_registro === 'Aportación') return true;                              // forma legacy directa
   if (h.tipo_registro === 'Traspaso' && h.tipo === 'Aportación') return true;     // forma normalizada
-  if (h.tipo_registro === 'Crédito' && _normJP(h.partida).includes('interes')) return true;
+  if (h.tipo_registro === 'Crédito' && p.includes('interes')) return true;   // solo intereses/fees
   return false;
 }
 
 // Export aditivo (única fuente de verdad de la regla): la usa el Presupuesto de
 // caja (estrategia.js) para "gasto real por mes". No cambia nada de este módulo.
-export function esGastoRealJP(h) { return _cuentaJP(h); }
+export function esGastoRealJP(h, activas) { return _cuentaJP(h, activas); }
 
 export function abrirReporteJuanPablo() {
   const desde = document.getElementById('rc-desde')?.value || '';
@@ -608,7 +634,7 @@ function _aoaReporteJP(filas, meses, scopeLabel, desde, hasta) {
   const aoa = [];
   aoa.push([`Reporte Juan Pablo — ${scopeLabel}`]);
   aoa.push([`Periodo: ${fmtFecha(desde)} a ${fmtFecha(hasta)}`]);
-  aoa.push(['Incluye Pagos, Aportaciones e intereses de crédito. Excluye traspasos, préstamos y pago de deuda.']);
+  aoa.push(['Incluye Pagos y Aportaciones de partidas activas, más los intereses de crédito. Excluye traspasos, préstamos, Pago de Deuda, Préstamos / Financiamiento y partidas dadas de baja.']);
   aoa.push([]);
   aoa.push(['Partida', ...meses.map(etiqueta), ...(multiMes ? ['Total'] : [])]);
 
@@ -644,8 +670,9 @@ export function generarReporteJuanPablo() {
   if (desde > hasta) { notify('La fecha "Desde" no puede ser mayor que la fecha "Hasta"', 'error'); return; }
 
   // 1) Filas que cuentan (regla de Juan Pablo) dentro del rango.
+  const activasJP = partidasActivasJP();   // una vez para todo el recorrido
   let filas = state.historial.filter(h => {
-    if (!_cuentaJP(h)) return false;
+    if (!_cuentaJP(h, activasJP)) return false;
     const iso = parseFechaHist(h.fecha);
     return iso && iso >= desde && iso <= hasta;
   });
