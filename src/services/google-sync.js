@@ -1,4 +1,4 @@
-import { state, puedeEditar, esAdmin, puedeFacturas, puedeLigarPagos, puedeCapturarObra, puedeRepartirCostos } from '../state.js';
+import { state, puedeEditar, esAdmin, puedeFacturas, puedeLigarPagos, puedeCapturarObra, puedeRepartirCostos, puedeBorrarFacturas } from '../state.js';
 import { notify } from '../ui/notify.js';
 import { gsReadSheet, gsWriteRange, gsClearAndWrite, gsAppendRow } from './google-sheets.js';
 import { normalizeBanco } from '../config/bancos.js';
@@ -1188,7 +1188,7 @@ export async function purgarAsignacionesDePago(pagoId) {
   const antes = state.costoAsignaciones.length;
   state.costoAsignaciones = state.costoAsignaciones.filter(a => a.factura_id || String(a.pago_id) !== String(pagoId));
   if (state.costoAsignaciones.length !== antes) {
-    await gsSaveCostoAsignaciones();
+    await gsSaveCostoAsignaciones({ cascadaBorrado: true });
   }
 }
 
@@ -1232,7 +1232,7 @@ export async function purgarAsignacionesDeFactura(facturaId) {
   const antes = state.costoAsignaciones.length;
   state.costoAsignaciones = state.costoAsignaciones.filter(a => String(a.factura_id) !== String(facturaId));
   if (state.costoAsignaciones.length !== antes) {
-    await gsSaveCostoAsignaciones();
+    await gsSaveCostoAsignaciones({ cascadaBorrado: true });
   }
 }
 
@@ -1405,7 +1405,12 @@ export function estadoGuardadoAsignaciones() {
 export async function gsSaveCostoAsignaciones(opts = {}) {
   const onProgress = typeof opts.onProgress === 'function' ? opts.onProgress : null;
   const nada = motivo => ({ ok: false, motivo, subidas: 0, pendientes: 0, borradas: 0, error: null });
-  if (!puedeRepartirCostos()) return nada('sin-permiso');   // 'facturas'/'facturas_obra' reparten devengado; 'conciliacion' NO
+  // 'facturas'/'facturas_obra' reparten devengado; 'conciliacion' NO.
+  // Excepción: la CASCADA de borrar un documento arrastra su devengado. Quien puede
+  // borrar el documento debe poder completar ese borrado, o las asignaciones quedan
+  // huérfanas en Supabase (fuera de su pantalla, pero vivas para los demás).
+  const permitido = opts.cascadaBorrado ? (puedeRepartirCostos() || puedeBorrarFacturas()) : puedeRepartirCostos();
+  if (!permitido) return nada('sin-permiso');
   if (!guardarPermitido('costoAsignaciones', state.costoAsignaciones)) return nada('no-cargado');
   if (!sbReady()) return nada('sin-sesion');
   let subidas = 0, borradas = 0;

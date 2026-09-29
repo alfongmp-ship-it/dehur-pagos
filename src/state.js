@@ -171,9 +171,11 @@ export function puedeFacturas() {
 
 // Borrar facturas (corregir errores): solo admin y los roles de facturas.
 // Capturista NO — es una acción destructiva acotada a quienes manejan facturas.
+// 'conciliacion' (Diana) SÍ desde 2026-09-29: captura facturas al conciliar con el
+// SAT y necesita deshacer sus propios errores (decisión del dueño).
 export function puedeBorrarFacturas() {
   const r = rol();
-  return r === 'admin' || r === 'facturas' || r === 'facturas_obra';
+  return r === 'admin' || r === 'facturas' || r === 'facturas_obra' || r === 'conciliacion';
 }
 
 // CAPTURA DE OBRA: datos que el residente sí administra — fecha de terminación y

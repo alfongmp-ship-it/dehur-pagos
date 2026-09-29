@@ -287,8 +287,8 @@ body[data-rol="facturas_obra"] #header-badges { display: none !important; }
    costos (.req-repartir; backstop real en puedeRepartirCostos). */
 body[data-rol="conciliacion"] .req-editor,
 body[data-rol="conciliacion"] .req-obra,
-body[data-rol="conciliacion"] .req-borrar-factura,
 body[data-rol="conciliacion"] .req-repartir { display: none !important; }
+/* .req-borrar-factura NO se oculta: crea, edita y borra facturas (2026-09-29). */
 body[data-rol="conciliacion"] .nav-item:not(.nav-obra):not(.nav-conc),
 body[data-rol="conciliacion"] .nav-label,
 body[data-rol="conciliacion"] #header-badges { display: none !important; }

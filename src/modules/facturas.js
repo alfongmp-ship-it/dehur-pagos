@@ -989,7 +989,13 @@ export function eliminarFactura() {
   const aviso = fps.length
     ? `Esta factura tiene ${fps.length} pago(s) aplicados: se DESVINCULARÁN (los pagos del historial se conservan).\n\n`
     : '';
-  if (!confirm(`${aviso}¿Eliminar la factura ${fact.numero_factura || ''} (#${id})? No se puede deshacer.`)) return;
+  // El devengado se va con la factura: que quien borra vea cuánto costo pierden
+  // las casas (importa sobre todo desde que 'conciliacion' también puede borrar).
+  const asigs = state.costoAsignaciones.filter(a => String(a.factura_id) === String(id));
+  const avisoRep = asigs.length
+    ? `Esta factura tiene reparto a ${asigs.length} casa(s) por ${fmt(asigs.reduce((s, a) => s + (a.monto_asignado || 0), 0))}: ese costo se BORRARÁ de esas casas.\n\n`
+    : '';
+  if (!confirm(`${aviso}${avisoRep}¿Eliminar la factura ${fact.numero_factura || ''} (#${id})? No se puede deshacer.`)) return;
 
   const porFilaF = esPorFila('facturas');
   const porFilaFp = esPorFila('facturaPagos');
