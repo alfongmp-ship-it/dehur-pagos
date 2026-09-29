@@ -25,6 +25,8 @@ let cfPagoAsignar = null;   // pago_id en proceso de asignación
 let cfFacturaAsignar = null; // factura_id en proceso de reparto (devengado)
 let cfFacturaRestante = 0;   // monto que falta por repartir de la factura (reparto por partes/sub-partidas)
 let cfMostrarEstimado = false; // toggle: ver estimado por indiviso de pagos sin asignar (SOLO display)
+let cfSoloFacturado = false;   // toggle 💼 (admin+contabilidad): costo por casa SOLO con facturas
+                               // elegibles fiscalmente (devengado SAT) — pagos ignorados, display puro
 let cfCustomModo = 'pct';   // método Personalizado: 'pct' (%) | 'monto' ($). Default %.
 let cfChartUnidad = null;
 let cfPlanoModo = 'vista';      // 'vista' | 'editor'
@@ -453,6 +455,109 @@ function estimadoIndivisoPorUnidad() {
   return { porUnidad, porLlave, countLlave, etiquetas, total, count: pend.length };
 }
 
+// ===== MODO 💼 SOLO FACTURADO (fiscal) =====
+// El costo que se reporta al SAT es el DEVENGADO: todas las facturas registradas,
+// pagadas o no. Este modo pinta el costo por casa contando SOLO asignaciones de
+// facturas ELEGIBLES; los pagos se ignoran por completo. Display puro: no toca
+// asignaciones ni el modo gerencial.
+const _normEmpresa = s => String(s || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ');
+
+// Elegibilidad fiscal de una factura (pura, testeable):
+//  - Cancelada → NO cuenta.
+//  - Comprobante que no es Factura (NC / complemento / otro) → NO (doble conteo).
+//  - Excluida a mano en 🧾 Fiscal (fiscal_marcas 🚫) → NO.
+//  - EMPRESA CRUZADA: si la factura y el proyecto tienen empresa capturada y
+//    difieren (p.ej. Home Depot a "Dehur" en un proyecto de "Dehur Territorial"),
+//    el SAT no la acepta para esa empresa → NO. Empresa vacía en cualquiera de
+//    los dos = compatible (no se inventan exclusiones).
+export function facturaElegibleFiscal(f, empresaProyNorm, factExcluidas) {
+  if (!f) return false;
+  if (f.estado_sat === 'Cancelada' || f.estatus_factura === 'cancelada') return false;
+  if (((f.tipo_comprobante) || 'Factura') !== 'Factura') return false;
+  if (factExcluidas && factExcluidas.has(String(f.factura_id))) return false;
+  const fe = _normEmpresa(f.empresa);
+  if (empresaProyNorm && fe && fe !== empresaProyNorm) return false;
+  return true;
+}
+
+// Marcas 🚫 de factura (calca _marcasFiscales de fiscal.js; no se importa de ahí
+// para no crear un ciclo fiscal.js → costos-fiscales.js).
+function _factExcluidasFiscal() {
+  const out = new Set();
+  (state.fiscalMarcas || []).forEach(m => {
+    if (m.doc_tipo === 'factura' && m.incluir === false) out.add(String(m.doc_id));
+  });
+  return out;
+}
+
+// Facturas del proyecto activo clasificadas para el modo fiscal (una pasada).
+function _facturasFiscalProyecto() {
+  const proy = (state.proyectos || []).find(p => proyectoMatch(cfProyecto, p.nombre))
+            || (state.proyectos || []).find(p => p.nombre === cfProyecto);
+  const empresaProyNorm = _normEmpresa(proy && proy.empresa);
+  const excl = _factExcluidasFiscal();
+  const elegibles = new Set();
+  let nCruzadas = 0, nExcluidas = 0;
+  (state.facturas || []).forEach(f => {
+    if (!proyectoMatch(f.proyecto, cfProyecto)) return;
+    if (facturaElegibleFiscal(f, empresaProyNorm, excl)) { elegibles.add(String(f.factura_id)); return; }
+    const fe = _normEmpresa(f.empresa);
+    if (empresaProyNorm && fe && fe !== empresaProyNorm) nCruzadas++;
+    else if (excl.has(String(f.factura_id))) nExcluidas++;
+  });
+  return { elegibles, nCruzadas, nExcluidas, sinEmpresaProyecto: !empresaProyNorm };
+}
+
+// Costo FACTURADO por casa: asignaciones con factura_id elegible. Una pasada.
+function costoFacturadoPorUnidad() {
+  const info = _facturasFiscalProyecto();
+  const porUnidad = new Map();
+  let total = 0;
+  state.costoAsignaciones.forEach(a => {
+    if (!a.factura_id || !info.elegibles.has(String(a.factura_id))) return;
+    const m = a.monto_asignado || 0;
+    porUnidad.set(a.unidad_id, (porUnidad.get(a.unidad_id) || 0) + m);
+    total += m;
+  });
+  return { porUnidad, total, ...info };
+}
+
+// Estimado del modo fiscal: facturas ELEGIBLES sin reparto, repartidas por
+// indiviso con el pool a la fecha de CADA factura (mismo criterio que el
+// estimado de pagos). Solo display.
+function estimadoFacturadoPorUnidad() {
+  const info = _facturasFiscalProyecto();
+  const repartidas = _facturasRepartidasSet();
+  const activas = unidadesDeProyecto();
+  const porUnidad = new Map();
+  let total = 0, count = 0;
+  const poolCache = new Map();
+  (state.facturas || []).forEach(f => {
+    if (!info.elegibles.has(String(f.factura_id)) || repartidas.has(String(f.factura_id))) return;
+    const imp = f.monto_total || 0;
+    if (!imp || !activas.length) return;
+    count++; total += imp;
+    const fIso = parseFechaHist(f.fecha_factura) || '';
+    let pool = poolCache.get(fIso);
+    if (!pool) {
+      const inObra = activas.filter(u => unidadEnIndivisoAFecha(u, fIso));
+      const casas = inObra.length ? inObra : activas;
+      pool = { casas, sumInd: casas.reduce((s, u) => s + (u.indiviso_pct || 0), 0) };
+      poolCache.set(fIso, pool);
+    }
+    pool.casas.forEach(u => {
+      const factor = pool.sumInd > 0 ? (u.indiviso_pct || 0) / pool.sumInd : 1 / pool.casas.length;
+      porUnidad.set(u.unidad_id, (porUnidad.get(u.unidad_id) || 0) + imp * factor);
+    });
+  });
+  return { porUnidad, total, count };
+}
+
+export function cfToggleSoloFacturado(on) {
+  cfSoloFacturado = on === true || on === 'true' || on === '1';
+  renderCostosFiscales();
+}
+
 function asignacionesHuerfanas() {
   const ids = historialIdSet();
   const factIds = new Set((state.facturas || []).map(f => String(f.factura_id)).filter(Boolean));
@@ -558,7 +663,18 @@ function renderUnidadesTab(panel) {
   }
   const sumaInd = unidades.filter(u => u.activo !== false).reduce((s, u) => s + (u.indiviso_pct || 0), 0);
   const indOk = Math.abs(sumaInd - 100) < 0.05;
-  const estim = cfMostrarEstimado ? estimadoIndivisoPorUnidad() : null;
+  // Modo 💼: el costo por casa cambia a SOLO facturas elegibles, y el estimado
+  // pasa a simular las facturas elegibles sin reparto (en vez de pagos sueltos).
+  const fisc = cfSoloFacturado ? costoFacturadoPorUnidad() : null;
+  const estim = cfMostrarEstimado ? (fisc ? estimadoFacturadoPorUnidad() : estimadoIndivisoPorUnidad()) : null;
+  const bandaFiscal = !fisc ? '' : `
+    <div style="margin-bottom:12px;padding:9px 12px;border:1px solid var(--accent);border-radius:8px;font-size:12px;background:color-mix(in srgb, var(--accent) 8%, transparent);">
+      <strong>💼 FISCAL: solo facturado</strong> — costo por casa contando únicamente facturas vigentes
+      (pagadas o no); los pagos no cuentan aquí.
+      ${fisc.nCruzadas ? ` · <span style="color:var(--red);font-weight:600;">${fisc.nCruzadas} factura(s) de EMPRESA CRUZADA excluidas</span>` : ''}
+      ${fisc.nExcluidas ? ` · ${fisc.nExcluidas} excluida(s) a mano en 🧾 Fiscal` : ''}
+      ${fisc.sinEmpresaProyecto ? ` · <span style="color:var(--orange);">⚠ Este proyecto no tiene EMPRESA capturada (Configuración → Proyectos): sin eso no se filtran las facturas de empresa cruzada.</span>` : ''}
+    </div>`;
 
   panel.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
@@ -567,7 +683,10 @@ function renderUnidadesTab(panel) {
         Suma indiviso: <strong id="cf-suma-indiviso" style="color:${indOk ? 'var(--green)' : 'var(--orange)'};">${sumaInd.toFixed(2)}%</strong><span id="cf-suma-indiviso-nota">${indOk ? '' : ' (debería ser 100%)'}</span>
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-        <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);cursor:pointer;" title="Reparte por indiviso (respetando fechas) los pagos sin factura ni reparto, SOLO para verlos. No crea asignaciones reales ni afecta el costo real.">
+        <label class="req-fiscal" style="display:flex;align-items:center;gap:5px;font-size:12px;color:${cfSoloFacturado ? 'var(--accent)' : 'var(--muted)'};cursor:pointer;font-weight:${cfSoloFacturado ? '700' : '400'};" title="Vista FISCAL: el costo por casa cuenta SOLO facturas vigentes (pagadas o no) — el devengado que se reporta al SAT. Excluye canceladas, notas de crédito, las excluidas en 🧾 Fiscal y las de empresa cruzada. Los pagos no cuentan en este modo. Solo para ver: no cambia ningún dato.">
+          <input type="checkbox" ${cfSoloFacturado ? 'checked' : ''} onchange="cfToggleSoloFacturado(this.checked)" style="cursor:pointer;"> 💼 Solo facturado
+        </label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);cursor:pointer;" title="${cfSoloFacturado ? 'Reparte por indiviso (respetando fechas) las FACTURAS elegibles sin reparto, SOLO para verlas. No crea asignaciones reales.' : 'Reparte por indiviso (respetando fechas) los pagos sin factura ni reparto, SOLO para verlos. No crea asignaciones reales ni afecta el costo real.'}">
           <input type="checkbox" ${cfMostrarEstimado ? 'checked' : ''} onchange="cfToggleEstimado(this.checked)" style="cursor:pointer;"> Estimado por asignar
         </label>
         <button class="btn btn-ghost btn-sm" onclick="exportarCostosUnitariosExcel()" title="Exporta el costo de cada casa (presupuesto, costo real y avance). Con el checkbox de estimado prendido, incluye además el estimado por asignar y el costo proyectado.">⬇ Excel</button>
@@ -575,17 +694,18 @@ function renderUnidadesTab(panel) {
         <button class="btn btn-primary req-admin" onclick="abrirNuevaUnidad()">+ Nueva Unidad</button>
       </div>
     </div>
-    ${estim ? `<div style="font-size:12px;color:var(--accent);background:rgba(200,169,110,.08);border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:12px;">📊 Pendiente por asignar: <strong>${fmt(estim.total)}</strong> en ${estim.count} pago(s) — repartido por indiviso (estimado; no afecta el costo real)</div>` : ''}
+    ${bandaFiscal}
+    ${estim ? `<div style="font-size:12px;color:var(--accent);background:rgba(200,169,110,.08);border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:12px;">📊 Pendiente por asignar: <strong>${fmt(estim.total)}</strong> en ${estim.count} ${fisc ? 'factura(s) elegible(s) sin repartir' : 'pago(s)'} — repartido por indiviso (estimado; no afecta el costo real)</div>` : ''}
     ${unidades.length ? `
     <div class="table-wrap">
       <table>
         <thead><tr>
           <th>Unidad</th><th>Tipo</th><th style="text-align:right">% Indiviso</th>
           <th style="text-align:right">Superficie</th><th>Estatus</th><th>Terminación</th>
-          <th style="text-align:right">Costo real</th>${estim ? '<th style="text-align:right">Estimado (por asignar)</th><th style="text-align:right" title="Costo real + estimado por asignar: lo que costará la casa cuando se reparta todo lo pendiente (si se reparte por indiviso)">Costo proyectado</th>' : ''}<th style="text-align:right">Acciones</th>
+          <th style="text-align:right">${fisc ? '💼 Costo facturado' : 'Costo real'}</th>${estim ? '<th style="text-align:right">Estimado (por asignar)</th><th style="text-align:right" title="Costo ' + (fisc ? 'facturado' : 'real') + ' + estimado por asignar: lo que costará la casa cuando se reparta todo lo pendiente (si se reparte por indiviso)">Costo proyectado</th>' : ''}<th style="text-align:right">Acciones</th>
         </tr></thead>
         <tbody>${unidades.map(u => {
-          const real = costoRealUnidad(u.unidad_id);
+          const real = fisc ? (fisc.porUnidad.get(u.unidad_id) || 0) : costoRealUnidad(u.unidad_id);
           return `<tr style="${u.activo === false ? 'opacity:.5;' : ''}">
             <td style="font-weight:600;">${escapeHtml(u.nombre)}</td>
             <td style="color:var(--muted);">${escapeHtml(u.tipo) || '—'}</td>
@@ -623,22 +743,29 @@ export function exportarCostosUnitariosExcel() {
   const unidades = unidadesDeProyecto(true);
   if (!unidades.length) { notify('No hay unidades que exportar en este proyecto', 'error'); return; }
   const batch = costosPresupuestosBatch();
-  const estim = cfMostrarEstimado ? estimadoIndivisoPorUnidad() : null;
+  // Modo 💼: el Excel dice EXACTAMENTE lo que la pantalla — costo solo de
+  // facturas elegibles y estimado de facturas sin repartir (no de pagos).
+  const fisc = cfSoloFacturado ? costoFacturadoPorUnidad() : null;
+  const estim = cfMostrarEstimado ? (fisc ? estimadoFacturadoPorUnidad() : estimadoIndivisoPorUnidad()) : null;
   const hoyISO = new Date().toISOString().slice(0, 10);
 
   const enc = ['Casa', 'Tipo', '% Indiviso', 'Superficie m2', 'Estatus', 'Terminación',
-    'Presupuesto', 'Costo real', '% Avance financiero'];
+    'Presupuesto', fisc ? 'Costo facturado (fiscal)' : 'Costo real', '% Avance financiero'];
   if (estim) enc.push('Estimado por asignar', 'Costo proyectado');
 
   const aoa = [
-    [`Costos por unidad — ${cfProyecto}`],
-    [`Generado: ${hoyISO}${estim ? ` · INCLUYE estimado: ${fmt(estim.total)} de ${estim.count} pago(s) pendientes repartidos por indiviso (NO es costo real)` : ''}`],
+    [`Costos por unidad — ${cfProyecto}${fisc ? ' — 💼 FISCAL: SOLO FACTURADO' : ''}`],
+    [`Generado: ${hoyISO}${fisc ? ` · Solo facturas vigentes (pagadas o no); pagos NO cuentan${fisc.nCruzadas ? ` · ${fisc.nCruzadas} factura(s) de empresa cruzada excluidas` : ''}${fisc.nExcluidas ? ` · ${fisc.nExcluidas} excluida(s) en Fiscal` : ''}` : ''}${estim ? ` · INCLUYE estimado: ${fmt(estim.total)} de ${estim.count} ${fisc ? 'factura(s) elegible(s) sin repartir' : 'pago(s) pendientes'} repartido por indiviso (NO es costo real)` : ''}`],
     [],
     enc
   ];
   let tPres = 0, tReal = 0, tEst = 0;
   unidades.forEach(u => {
-    const b = batch.get(String(u.unidad_id)) || { real: 0, presupuesto: 0, avance: null };
+    const b0 = batch.get(String(u.unidad_id)) || { real: 0, presupuesto: 0, avance: null };
+    const b = fisc
+      ? { ...b0, real: fisc.porUnidad.get(u.unidad_id) || 0,
+          avance: b0.presupuesto > 0 ? ((fisc.porUnidad.get(u.unidad_id) || 0) / b0.presupuesto) * 100 : null }
+      : b0;
     const e = estim ? (estim.porUnidad.get(u.unidad_id) || 0) : 0;
     tPres += b.presupuesto; tReal += b.real; tEst += e;
     const fila = [

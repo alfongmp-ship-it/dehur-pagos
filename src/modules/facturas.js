@@ -114,6 +114,17 @@ export function renderFacturas() {
   // _facturasLigadasAPago de costos-fiscales: la tabla facturaPagos (aplicar por partes)
   // y la bandera directa factura_id del pago (legacy). Set de pago_id por factura para no
   // contar dos veces el pago que tenga ambas. UNA pasada — patrón batch.
+  // Empresa cruzada: resolver memoizado + contador para el checkbox del filtro
+  // (visible solo cuando hay al menos una — si no hay, no estorba).
+  const empresaDeProyecto = _empresasProyectosMap();
+  const nCruzadas = state.facturas.reduce((n, f) => n + (_esEmpresaCruzada(f, empresaDeProyecto) ? 1 : 0), 0);
+  const wrapEC = document.getElementById('ff-emp-cruzada-wrap');
+  if (wrapEC) {
+    wrapEC.style.display = nCruzadas ? 'inline-flex' : 'none';
+    if (!nCruzadas) { const chk = document.getElementById('ff-emp-cruzada'); if (chk) chk.checked = false; }
+    wrapEC.lastChild.textContent = ` ⚠ Empresa cruzada (${nCruzadas})`;
+  }
+
   const pagosVinc = new Map();   // factura_id → Set(pago_id)
   const ligar = (fid, pid) => {
     const k = String(fid);
@@ -170,7 +181,7 @@ export function renderFacturas() {
       <td style="font-family:'DM Mono',monospace;font-weight:500;text-align:right;color:${f.saldo_pendiente > 0 ? 'var(--accent)' : 'var(--muted)'};">${fmt(f.saldo_pendiente)}</td>
       <td>${estBadge}</td>
       <td>${estadoSatBadge(f.estado_sat)}</td>
-      <td>${proyTag(f.proyecto)}</td>
+      <td>${proyTag(f.proyecto)}${_esEmpresaCruzada(f, empresaDeProyecto) ? `<div style="font-size:9px;color:var(--red);font-weight:700;" title="La factura está a ${escapeHtml(f.empresa)} pero el proyecto es de otra empresa: NO cuenta para el costo fiscal de este proyecto. Si es un error de captura, corrígela con 🏢 Cambiar empresa.">⚠ ${escapeHtml(f.empresa)}</div>` : ''}</td>
       <td style="text-align:right;white-space:nowrap;">${btnRepartir} <button class="btn btn-ghost req-facturas" style="padding:4px 8px;font-size:11px;" onclick="editarFactura(${f.factura_id})">Editar</button></td>
     </tr>`;
   }).join('');
@@ -272,6 +283,31 @@ function _refreshLotesFactura() {
   if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
 }
 
+// ===== EMPRESA CRUZADA =====
+// Factura cuya empresa NO coincide con la empresa del proyecto (ej. Home Depot
+// facturada a "Dehur" en un proyecto de "Dehur Territorial"). El SAT no la
+// acepta para esa empresa: se rotula aquí y el modo 💼 fiscal la excluye. Solo
+// cuenta como cruzada si AMBAS empresas están capturadas.
+const _normEmpF = s => String(s || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ');
+function _empresasProyectosMap() {
+  // f.proyecto (texto libre) → empresa del proyecto, resuelto con proyectoMatch
+  // y memoizado por nombre crudo para no re-buscar en cada fila.
+  const memo = new Map();
+  return (proyectoCrudo) => {
+    const k = proyectoCrudo || '';
+    if (memo.has(k)) return memo.get(k);
+    const p = (state.proyectos || []).find(pp => proyectoMatch(k, pp.nombre));
+    const emp = _normEmpF(p && p.empresa);
+    memo.set(k, emp);
+    return emp;
+  };
+}
+function _esEmpresaCruzada(f, empresaDeProyecto) {
+  const ep = empresaDeProyecto(f.proyecto);
+  const ef = _normEmpF(f.empresa);
+  return !!(ep && ef && ep !== ef);
+}
+
 function getFilteredFacturas() {
   const q = (document.getElementById('buscar-fact')?.value || '').trim().toLowerCase();
   const modo = document.getElementById('ff-buscar-por')?.value || 'todo';
@@ -279,7 +315,10 @@ function getFilteredFacturas() {
   const fes = document.getElementById('ff-estado-sat')?.value || '';
   const fp = document.getElementById('ff-proy')?.value || '';
   const fl = document.getElementById('ff-lote')?.value || '';
+  const fx = document.getElementById('ff-emp-cruzada')?.checked || false;
+  const empresaDeProyecto = _empresasProyectosMap();
   const fil = state.facturas.filter(f => {
+    if (fx && !_esEmpresaCruzada(f, empresaDeProyecto)) return false;
     if (q) {
       // Búsqueda por CAMPO elegido → así un número no se confunde entre ID, N° de
       // factura y UUID. 'todo' conserva el buscador amplio de siempre.

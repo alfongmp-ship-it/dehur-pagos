@@ -503,6 +503,9 @@
         <select class="filter-select" id="ff-lote" onchange="renderFacturas()" style="display:none;" title="Lotes de carga marcados en observaciones (ej. conciliación con contabilidad)">
           <option value="">Todos los lotes</option>
         </select>
+        <label id="ff-emp-cruzada-wrap" style="display:none;align-items:center;gap:5px;font-size:12px;color:var(--red);cursor:pointer;white-space:nowrap;" title="Facturas cuya EMPRESA no coincide con la empresa del proyecto (ej. Home Depot a Dehur en un proyecto de Dehur Territorial). No cuentan para el costo fiscal de ese proyecto. Corrige las mal capturadas con 🏢 Cambiar empresa.">
+          <input type="checkbox" id="ff-emp-cruzada" onchange="renderFacturas()" style="cursor:pointer;"> ⚠ Empresa cruzada
+        </label>
         <button id="fact-bulk-empresa" class="btn btn-ghost btn-sm req-admin" onclick="abrirEmpresaBulk()" style="display:none;color:var(--accent);border-color:var(--accent);font-size:11px;padding:3px 10px;margin-left:auto;">🏢 Cambiar empresa (0)</button>
         <button id="fact-bulk-reparto" class="btn btn-ghost btn-sm req-admin" onclick="abrirRepartoBulk()" style="display:none;color:var(--accent);border-color:var(--accent);font-size:11px;padding:3px 10px;">📊 Repartir (0)</button>
       </div>
