@@ -293,6 +293,103 @@ export function auditarRepartosFacturas() {
   return res;
 }
 
+// ===== REPARTOS HECHOS CON EL INDIVISO APLANADO =====
+// Incidente 2026-09: el checkbox del alta en lote reescribio el indiviso de TODAS
+// las casas de un proyecto dejandolas parejas. Los repartos hechos mientras tanto
+// distribuyeron por partes iguales en vez de por tamano. La HUELLA es inconfundible:
+// un reparto por indiviso donde TODAS las casas tienen el mismo factor, cuando los
+// indivisos reales (ya recapturados) son distintos.
+// Solo mira metodo 'indiviso': un 'equitativo' pudo elegirse a proposito.
+const _MISMA_F = 0.0001;   // los factores se consideran iguales dentro de esto
+
+function _docsDelProyecto(proyecto) {
+  const docs = new Map();   // clave -> { tipo, ref, asigs }
+  state.costoAsignaciones.forEach(a => {
+    if ((a.proyecto || '') !== proyecto) return;
+    const esFact = !!a.factura_id;
+    const ref = String(esFact ? a.factura_id : a.pago_id);
+    if (!ref) return;
+    const k = (esFact ? 'F' : 'P') + ref;
+    if (!docs.has(k)) docs.set(k, { tipo: esFact ? 'factura' : 'pago', ref, asigs: [] });
+    docs.get(k).asigs.push(a);
+  });
+  return docs;
+}
+
+// Preview SIN tocar nada: que documentos traen la huella y como quedaria cada casa.
+// Devuelve { documentos:[...], porCasa: Map(unidad_id -> {actual, correcto}), total }
+export function auditarIndivisoAplanado(proyecto) {
+  const documentos = [], porCasa = new Map();
+  let total = 0;
+  for (const d of _docsDelProyecto(proyecto).values()) {
+    if (d.asigs.length < 2) continue;
+    if (d.asigs.some(a => (a.metodo || '') !== 'indiviso')) continue;
+    // Huella: todos los factores iguales entre si.
+    const f0 = d.asigs[0].factor || 0;
+    if (d.asigs.some(a => Math.abs((a.factor || 0) - f0) > _MISMA_F)) continue;
+
+    let esperado = null, fecha = '', monto = 0, doc = null;
+    if (d.tipo === 'pago') {
+      doc = state.historial.find(h => String(h.id) === d.ref);
+      if (!doc || _cubiertoPorFactura(doc)) continue;
+      fecha = doc.fecha; monto = doc.importe || 0;
+      esperado = _repartoEsperado(doc);
+    } else {
+      doc = (state.facturas || []).find(f => String(f.factura_id) === d.ref);
+      if (!doc) continue;
+      if (doc.estado_sat === 'Cancelada' || doc.estatus_factura === 'cancelada') continue;
+      fecha = doc.fecha_factura; monto = doc.monto_total || 0;
+      esperado = _repartoEsperadoFactura(doc);
+    }
+    if (!esperado || esperado.sinPool || !esperado.filas || !esperado.filas.length) continue;
+
+    // Si el recalculo da lo mismo que ya esta guardado, no hay nada que corregir.
+    const porU = new Map(d.asigs.map(a => [String(a.unidad_id), a]));
+    const igual = d.asigs.length === esperado.filas.length && esperado.filas.every(x => {
+      const a = porU.get(String(x.unidad_id));
+      return a && Math.abs((a.factor || 0) - x.factor) <= _MISMA_F;
+    });
+    if (igual) continue;
+
+    documentos.push({ tipo: d.tipo, ref: d.ref, doc, fecha, monto, asigs: d.asigs, esperado });
+    total += monto;
+    // Acumulado por casa: lo que tiene hoy vs lo que le tocaria.
+    d.asigs.forEach(a => {
+      const k = String(a.unidad_id);
+      if (!porCasa.has(k)) porCasa.set(k, { actual: 0, correcto: 0 });
+      porCasa.get(k).actual += a.monto_asignado || 0;
+    });
+    esperado.filas.forEach(x => {
+      const k = String(x.unidad_id);
+      if (!porCasa.has(k)) porCasa.set(k, { actual: 0, correcto: 0 });
+      porCasa.get(k).correcto += x.monto;
+    });
+  }
+  return { documentos, porCasa, total };
+}
+
+// Aplica la correccion POR TANDAS (573 documentos x hasta 80 casas son decenas de
+// miles de filas): recoloca y persiste cada tanda antes de seguir con la siguiente,
+// asi un corte de red no deja todo a medias sin saber por donde iba.
+export async function aplicarCorreccionIndiviso(documentos, onProgress) {
+  const TANDA = 50;
+  let n = 0, fallidas = 0;
+  for (let i = 0; i < documentos.length; i += TANDA) {
+    const tanda = documentos.slice(i, i + TANDA);
+    let tocadas = 0;
+    tanda.forEach(d => {
+      const r = d.tipo === 'pago' ? reRepartirPago(d.doc) : reRepartirFactura(d.doc);
+      if (r === 'recolocado') { n++; tocadas++; }
+    });
+    if (tocadas) {
+      const res = await gsSaveCostoAsignaciones();
+      if (!res || !res.ok) { fallidas += tocadas; break; }   // corta: lo pendiente sigue en memoria
+    }
+    if (onProgress) { try { onProgress(Math.min(i + TANDA, documentos.length), documentos.length); } catch (_) { /* la UI no frena */ } }
+  }
+  return { recolocados: n, fallidas };
+}
+
 export function aplicarReparacionFacturas(lista) {
   let n = 0;
   lista.forEach(c => { if (reRepartirFactura(c.f) === 'recolocado') n++; });

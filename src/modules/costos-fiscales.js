@@ -13,7 +13,7 @@ import { planoDeProyecto } from '../config/planos.js';
 import { parseFechaHist } from './historial.js';
 import { gsSaveUnidades, gsSavePresupuestoUnidad, gsSaveCostoAsignaciones, esPorFila, sbGuardarFila, sbBorrarFila } from '../services/google-sync.js';
 import { nuevoAsignacionId, nuevoPresupuestoId, nuevoCambioPresupId } from '../state.js';
-import { auditarRepartos, aplicarReparacionRepartos, auditarRepartosFacturas, aplicarReparacionFacturas } from './confirmar-pagos.js';
+import { auditarRepartos, aplicarReparacionRepartos, auditarRepartosFacturas, aplicarReparacionFacturas, auditarIndivisoAplanado, aplicarCorreccionIndiviso } from './confirmar-pagos.js';
 import { aplicarPagoAFactura, restantePago } from './facturas.js';
 
 const PALETA = ['#c8a96e', '#5a9be0', '#4caf7d', '#e07a3a', '#9b7fe8', '#e05a5a', '#27ae60', '#3498db'];
@@ -832,6 +832,77 @@ function _ofrecerReparacionPorUnidad(u, fechaAntes) {
 
 // Auditoría GLOBAL de repartos congelados (botón ♻️ de la página). Idempotente:
 // en estado limpio solo avisa que todo cuadra.
+// Repartos hechos con el INDIVISO APLANADO (incidente del alta en lote): preview
+// con Excel de respaldo y, si el dueno lo aprueba, correccion por tandas. El total
+// de cada pago/factura NO cambia: solo se redistribuye entre las mismas casas.
+export async function revisarIndivisoAplanado() {
+  if (!puedeEditarUnidades()) { notify('Solo el admin puede recalcular repartos por indiviso', 'error'); return; }
+  if (!cfProyecto) { notify('Selecciona un proyecto', 'error'); return; }
+  const res = auditarIndivisoAplanado(cfProyecto);
+  if (!res.documentos.length) {
+    notify(`\u2705 ${cfProyecto}: ning\u00fan reparto por indiviso quedo con la huella del aplanado`);
+    return;
+  }
+  // Detalle por casa: lo que tiene hoy vs lo que le tocaria con los indivisos reales.
+  const filas = [...res.porCasa.entries()].map(([uid, v]) => {
+    const u = unidadById(parseInt(uid, 10)) || unidadById(uid);
+    return { uid, nombre: (u && u.nombre) || ('Unidad ' + uid), actual: v.actual, correcto: v.correcto,
+      dif: r2(v.correcto - v.actual), pct: v.actual > 0 ? ((v.correcto - v.actual) / v.actual) * 100 : null };
+  }).sort((a, b) => Math.abs(b.dif) - Math.abs(a.dif));
+  console.table(filas.map(f => ({ CASA: f.nombre, COSTO_HOY: f.actual, DEBERIA_SER: f.correcto,
+    DIFERENCIA: f.dif, PCT: f.pct === null ? '' : f.pct.toFixed(1) + '%' })));
+
+  // Excel de RESPALDO + preview ANTES de tocar nada (hay millones en juego).
+  if (window.XLSX) {
+    const hoyISO = new Date().toISOString().slice(0, 10);
+    const wb = XLSX.utils.book_new();
+    const aoa1 = [[`Indivisos vs repartos \u2014 ${cfProyecto}`],
+      [`Generado: ${hoyISO} \u00b7 ${res.documentos.length} documento(s) por ${fmt(res.total)} repartidos con el indiviso aplanado`],
+      [], ['Casa', 'Costo hoy', 'Deberia ser', 'Diferencia', '% cambio']];
+    filas.forEach(f => aoa1.push([f.nombre, f.actual, f.correcto, f.dif, f.pct === null ? '' : f.pct / 100]));
+    const ws1 = XLSX.utils.aoa_to_sheet(aoa1);
+    ws1['!cols'] = [{ wch: 18 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 11 }];
+    for (let r = 4; r < aoa1.length; r++) {
+      [1, 2, 3].forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (ws1[ref] && typeof ws1[ref].v === 'number') ws1[ref].z = '"$"#,##0.00'; });
+      const refp = XLSX.utils.encode_cell({ r, c: 4 }); if (ws1[refp] && typeof ws1[refp].v === 'number') ws1[refp].z = '0.0%';
+    }
+    XLSX.utils.book_append_sheet(wb, ws1, 'Por casa');
+    const aoa2 = [['Documentos con reparto parejo (huella del indiviso aplanado)'], [],
+      ['Tipo', 'Referencia', 'Fecha', 'Monto', 'Casas hoy', 'Casas despues']];
+    res.documentos.forEach(d => aoa2.push([d.tipo, d.ref, fmtFecha(d.fecha), d.monto, d.asigs.length, d.esperado.filas.length]));
+    const ws2 = XLSX.utils.aoa_to_sheet(aoa2);
+    ws2['!cols'] = [{ wch: 10 }, { wch: 14 }, { wch: 12 }, { wch: 15 }, { wch: 11 }, { wch: 13 }];
+    for (let r = 3; r < aoa2.length; r++) { const ref = XLSX.utils.encode_cell({ r, c: 3 }); if (ws2[ref] && typeof ws2[ref].v === 'number') ws2[ref].z = '"$"#,##0.00'; }
+    XLSX.utils.book_append_sheet(wb, ws2, 'Documentos');
+    XLSX.writeFile(wb, `Indivisos_vs_repartos_${String(cfProyecto).replace(/[\\/:*?"<>|\s]+/g, '_')}_${hoyISO}.xlsx`);
+  }
+
+  const sube = filas[0] && filas[0].dif > 0 ? filas[0] : filas.find(f => f.dif > 0);
+  const baja = filas.find(f => f.dif < 0);
+  const resumen = [
+    `${res.documentos.length} documento(s) por ${fmt(res.total)} se repartieron parejo (indiviso aplanado).`,
+    sube ? `La que mas SUBE: ${sube.nombre} ${fmt(sube.dif)}${sube.pct !== null ? ` (${sube.pct.toFixed(1)}%)` : ''}` : '',
+    baja ? `La que mas BAJA: ${baja.nombre} ${fmt(baja.dif)}${baja.pct !== null ? ` (${baja.pct.toFixed(1)}%)` : ''}` : '',
+  ].filter(Boolean).join(NL);
+  notify(`\ud83d\udd0d ${res.documentos.length} documento(s) por ${fmt(res.total)} \u2014 revisa el Excel descargado y la consola (F12)`);
+
+  if (!confirm(`\ud83d\udd0d Repartos hechos con el indiviso aplanado en ${cfProyecto}:${NL}${NL}${resumen}${NL}${NL}Se descargo un Excel con el detalle y el estado ACTUAL (respaldo).${NL}${NL}Al corregir: el TOTAL de cada pago y factura NO cambia; solo se redistribuye entre las mismas casas con los indivisos reales y las fechas de terminacion de cada documento.${NL}${NL}\u00bfCorregir los ${res.documentos.length} documento(s)?`)) return;
+
+  const btn = document.getElementById('cf-btn-indivisos');
+  if (btn) { btn.disabled = true; btn.textContent = 'Corrigiendo\u2026'; }
+  try {
+    const out = await aplicarCorreccionIndiviso(res.documentos, (k, n) => {
+      if (btn) btn.textContent = `Corrigiendo ${k}/${n}\u2026`;
+    });
+    renderCostosFiscales();
+    if (window.renderFacturas) window.renderFacturas();
+    if (out.fallidas) notify(`\u26a0\ufe0f ${out.recolocados} documento(s) corregidos, pero ${out.fallidas} no se guardaron (revisa tu conexion y vuelve a correrlo)`, 'error');
+    else notify(`\u2705 ${out.recolocados} documento(s) recalculados con los indivisos reales`);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '\ud83d\udd0d Revisar indivisos'; }
+  }
+}
+
 export function revisarRepartos() {
   if (!puedeEditar()) { notify('No tienes permiso para editar', 'error'); return; }
   const res = auditarRepartos();
