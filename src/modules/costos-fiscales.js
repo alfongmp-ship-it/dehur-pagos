@@ -13,7 +13,7 @@ import { planoDeProyecto } from '../config/planos.js';
 import { parseFechaHist } from './historial.js';
 import { gsSaveUnidades, gsSavePresupuestoUnidad, gsSaveCostoAsignaciones, esPorFila, sbGuardarFila, sbBorrarFila } from '../services/google-sync.js';
 import { nuevoAsignacionId, nuevoPresupuestoId, nuevoCambioPresupId } from '../state.js';
-import { auditarRepartos, aplicarReparacionRepartos } from './confirmar-pagos.js';
+import { auditarRepartos, aplicarReparacionRepartos, auditarRepartosFacturas, aplicarReparacionFacturas } from './confirmar-pagos.js';
 import { aplicarPagoAFactura, restantePago } from './facturas.js';
 
 const PALETA = ['#c8a96e', '#5a9be0', '#4caf7d', '#e07a3a', '#9b7fe8', '#e05a5a', '#27ae60', '#3498db'];
@@ -786,8 +786,12 @@ function _ofrecerReparacionPorUnidad(u, fechaAntes) {
     if (!u.fecha_termino) return;   // quitar la fecha no expulsa a nadie del pool
     const res = auditarRepartos();
     const k = String(u.unidad_id);
+    // Solo los que la SACAN a ella (corregibles). Los que meterian casas nuevas
+    // (conEntrantes) no se reparan aqui: eso se decide en el boton con su aviso.
     const mios = res.corregibles.filter(c => c.asigs.some(a => String(a.unidad_id) === k));
     const manuales = res.manuales.filter(c => c.asigs.some(a => String(a.unidad_id) === k));
+    const resF = auditarRepartosFacturas();
+    const miasF = resF.corregibles.filter(c => c.asigs.some(a => String(a.unidad_id) === k));
     if (mios.length) {
       const totalCasa = mios.reduce((s, c) =>
         s + c.asigs.filter(a => String(a.unidad_id) === k).reduce((x, a) => x + (a.monto_asignado || 0), 0), 0);
@@ -805,6 +809,18 @@ function _ofrecerReparacionPorUnidad(u, fechaAntes) {
         renderCostosFiscales();
       }
     }
+    if (miasF.length) {
+      const totalF = miasF.reduce((acc, c) =>
+        acc + c.asigs.filter(a => String(a.unidad_id) === k).reduce((x, a) => x + (a.monto_asignado || 0), 0), 0);
+      console.table(miasF.map(c => ({ FACTURA: c.f.factura_id, FECHA: c.f.fecha_factura, TOTAL: c.f.monto_total,
+        PROVEEDOR: (c.f.razon_social || c.f.nombre_proveedor || '').slice(0, 30), CASAS_HOY: c.asigs.length })));
+      if (confirm(`📄 ${miasF.length} factura(s) por indiviso le repartieron ${fmt(totalF)} a "${u.nombre}" después de su fecha de terminación.\n\n¿Recolocar también esas facturas? (conservan su partida; detalle en consola F12)`)) {
+        const nF = aplicarReparacionFacturas(miasF);
+        notify(`📄 ${nF} factura(s) recolocadas`);
+        renderCostosFiscales();
+        if (window.renderFacturas) window.renderFacturas();
+      }
+    }
     if (manuales.length) {
       notify(`✋ ${manuales.length} reparto(s) EDITADOS A MANO incluyen a "${u.nombre}" con fecha posterior — revísalos con "Reasignar"`, 'error');
       console.table(manuales.map(c => ({ FECHA: c.h.fecha, IMPORTE: c.h.importe, CONCEPTO: (c.h.concepto || '').slice(0, 45) })));
@@ -817,37 +833,81 @@ function _ofrecerReparacionPorUnidad(u, fechaAntes) {
 export function revisarRepartos() {
   if (!puedeEditar()) { notify('No tienes permiso para editar', 'error'); return; }
   const res = auditarRepartos();
-  if (!res.corregibles.length && !res.manuales.length && !res.sinPool.length) {
-    notify('✅ No hay repartos por corregir — todo cuadra con las fechas actuales');
+  const resF = auditarRepartosFacturas();
+  const nada = !res.corregibles.length && !res.conEntrantes.length && !res.manuales.length && !res.sinPool.length
+    && !resF.corregibles.length && !resF.conEntrantes.length && !resF.manuales.length;
+  if (nada) {
+    notify('✅ No hay repartos por corregir — pagos y facturas por indiviso cuadran con las fechas actuales');
     return;
   }
-  if (res.corregibles.length) {
-    // Detalle VISIBLE ANTES de decidir (consola F12): qué pagos, de qué proyecto,
-    // cuánto, y a cuántas casas queda el reparto tras corregir (y cuántas salen).
-    console.table(res.corregibles.map(c => {
-      const sigue = new Set((c.esperado?.filas || []).map(f => String(f.unidad_id)));
-      return { PROYECTO: c.h.proyecto, FECHA: c.h.fecha, IMPORTE: c.h.importe,
-        CASAS_HOY: c.asigs.length, CASAS_DESPUES: sigue.size,
-        SALEN: c.asigs.filter(a => !sigue.has(String(a.unidad_id))).length,
-        CONCEPTO: (c.h.concepto || '').slice(0, 45) };
-    }));
+  const nombreU = id => (unidadById(id) || {}).nombre || ('Unidad ' + id);
+  // Detalle VISIBLE ANTES de decidir (consola F12): a cuántas casas queda cada
+  // reparto, cuántas SALEN y cuántas ENTRAN.
+  const tablaPagos = lista => console.table(lista.map(c => {
+    const sigue = new Set((c.esperado?.filas || []).map(f => String(f.unidad_id)));
+    return { PROYECTO: c.h.proyecto, FECHA: c.h.fecha, IMPORTE: c.h.importe,
+      CASAS_HOY: c.asigs.length, CASAS_DESPUES: sigue.size,
+      SALEN: c.asigs.filter(a => !sigue.has(String(a.unidad_id))).length,
+      ENTRAN: (c.entran || []).length,
+      CONCEPTO: (c.h.concepto || '').slice(0, 45) };
+  }));
+  const desglosePagos = lista => {
     const porProy = new Map();
-    res.corregibles.forEach(c => {
-      const p = c.h.proyecto || '(sin proyecto)';
-      const acc = porProy.get(p) || { n: 0, total: 0 };
+    lista.forEach(c => {
+      const pr = c.h.proyecto || '(sin proyecto)';
+      const acc = porProy.get(pr) || { n: 0, total: 0 };
       acc.n++; acc.total += c.h.importe || 0;
-      porProy.set(p, acc);
+      porProy.set(pr, acc);
     });
-    const desglose = [...porProy.entries()].map(([p, v]) => `· ${p}: ${v.n} pago(s) (${fmt(v.total)})`).join('\n');
-    if (confirm(`♻️ ${res.corregibles.length} reparto(s) automáticos quedaron con una foto vieja:\n\n${desglose}\n\nCada pago se recoloca SOLO entre casas de SU propio proyecto (el total por proyecto no cambia). Los editados a mano no se tocan. Detalle en la consola (F12).\n\n¿Recolocarlos con las fechas de terminación actuales?`)) {
+    return [...porProy.entries()].map(([pr, v]) => `· ${pr}: ${v.n} pago(s) (${fmt(v.total)})`).join('\n');
+  };
+
+  // ---- PAGOS: solo SALEN casas (lo normal tras capturar una fecha de terminación)
+  if (res.corregibles.length) {
+    tablaPagos(res.corregibles);
+    if (confirm(`♻️ ${res.corregibles.length} reparto(s) de PAGOS por indiviso quedaron con una foto vieja:\n\n${desglosePagos(res.corregibles)}\n\nSale(n) la(s) casa(s) que ya habían terminado a la fecha del pago y su parte se reparte entre las demás de SU proyecto (el total no cambia). Lo dirigido a casas concretas no se toca. Detalle en consola (F12).\n\n¿Recolocarlos?`)) {
       const n = aplicarReparacionRepartos(res.corregibles);
-      notify(`♻️ ${n} reparto(s) recolocados`);
+      notify(`♻️ ${n} reparto(s) de pagos recolocados`);
       renderCostosFiscales();
     }
   }
-  if (res.manuales.length) {
-    notify(`✋ ${res.manuales.length} reparto(s) editados a mano incluyen casas ya terminadas — revísalos con "Reasignar" (detalle en consola F12)`, 'error');
-    console.table(res.manuales.map(c => ({ FECHA: c.h.fecha, IMPORTE: c.h.importe, CONCEPTO: (c.h.concepto || '').slice(0, 45) })));
+  // ---- PAGOS: además ENTRAN casas (típico: casa recién dada de alta) -> aparte,
+  // porque eso le mete costo HISTÓRICO y el mensaje de fechas no lo diría.
+  if (res.conEntrantes.length) {
+    tablaPagos(res.conEntrantes);
+    const casas = [...new Set(res.conEntrantes.flatMap(c => (c.entran || []).map(f => nombreU(f.unidad_id))))];
+    if (confirm(`⚠️ ${res.conEntrantes.length} reparto(s) de PAGOS AGREGARÍAN casa(s) que hoy no están en ellos:\n\n${casas.slice(0, 8).join(', ')}${casas.length > 8 ? ` …y ${casas.length - 8} más` : ''}\n\n${desglosePagos(res.conEntrantes)}\n\nEsto le mete costo HISTÓRICO a esas casas y se lo baja a las demás. Correcto si siempre estuvieron en obra y apenas las capturaste; INCORRECTO si empezaron después.\n\n¿Agregarlas a esos repartos?`)) {
+      const n = aplicarReparacionRepartos(res.conEntrantes);
+      notify(`♻️ ${n} reparto(s) de pagos recolocados (con casas nuevas)`);
+      renderCostosFiscales();
+    }
+  }
+  // ---- FACTURAS (devengado): el caso del agua/CFE repartida por indiviso
+  const fTodas = [...resF.corregibles, ...resF.conEntrantes];
+  if (fTodas.length) {
+    console.table(fTodas.map(c => {
+      const sigue = new Set((c.esperado?.filas || []).map(f => String(f.unidad_id)));
+      return { PROYECTO: c.f.proyecto, FACTURA: c.f.factura_id, FECHA: c.f.fecha_factura,
+        TOTAL: c.f.monto_total, PROVEEDOR: (c.f.razon_social || c.f.nombre_proveedor || '').slice(0, 30),
+        CASAS_HOY: c.asigs.length, CASAS_DESPUES: sigue.size,
+        SALEN: c.asigs.filter(a => !sigue.has(String(a.unidad_id))).length, ENTRAN: (c.entran || []).length };
+    }));
+    const totF = fTodas.reduce((acc, c) => acc + (c.f.monto_total || 0), 0);
+    const casasF = [...new Set(resF.conEntrantes.flatMap(c => (c.entran || []).map(f => nombreU(f.unidad_id))))];
+    if (confirm(`📄 ${fTodas.length} FACTURA(S) repartidas por indiviso quedaron con una foto vieja (${fmt(totF)}):\n\n${resF.corregibles.length} con casas que ya habían terminado a la fecha de la factura${casasF.length ? `\n${resF.conEntrantes.length} que además AGREGARÍAN: ${casasF.slice(0, 6).join(', ')}` : ''}\n\nSe recolocan conservando su partida y sub-partida; el total de cada factura no cambia. Detalle en consola (F12).\n\n¿Recolocarlas?`)) {
+      const n = aplicarReparacionFacturas(fTodas);
+      notify(`📄 ${n} factura(s) recolocadas`);
+      renderCostosFiscales();
+      if (window.renderFacturas) window.renderFacturas();
+    }
+  }
+  if (res.manuales.length || resF.manuales.length) {
+    const nM = res.manuales.length + resF.manuales.length;
+    notify(`✋ ${nM} reparto(s) por indiviso editados a mano (o con el % de indiviso ya cambiado) incluyen casas ya terminadas — revísalos con "Reasignar" (detalle en consola F12)`, 'error');
+    console.table([
+      ...res.manuales.map(c => ({ TIPO: 'pago', FECHA: c.h.fecha, IMPORTE: c.h.importe, DETALLE: (c.h.concepto || '').slice(0, 45) })),
+      ...resF.manuales.map(c => ({ TIPO: 'factura', FECHA: c.f.fecha_factura, IMPORTE: c.f.monto_total, DETALLE: 'Fac ' + c.f.factura_id })),
+    ]);
   }
   if (res.sinPool.length) notify(`ℹ️ ${res.sinPool.length} pago(s) en proyectos 100% terminados — no hay casas en obra a quién recolocar (quedan como están)`);
 }

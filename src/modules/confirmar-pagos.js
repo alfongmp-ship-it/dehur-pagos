@@ -157,7 +157,7 @@ export function reRepartirPago(h) {
   const porUnidad = new Map(asigs.map(a => [String(a.unidad_id), a]));
   const igual = asigs.length === esperado.filas.length && esperado.filas.every(f => {
     const a = porUnidad.get(String(f.unidad_id));
-    return a && Math.abs((a.factor || 0) - f.factor) <= 0.001;
+    return a && Math.abs((a.factor || 0) - f.factor) <= 0.01;   // misma tolerancia que _esRepartoAutoIntacto
   });
   if (igual) return 'sin_cambio';
   const hoyISO = new Date().toISOString().split('T')[0];
@@ -181,6 +181,125 @@ export function reRepartirPago(h) {
   return 'recolocado';
 }
 
+// ===== DEVENGADO DE FACTURAS: mismo tratamiento que los pagos =====
+// Caso real del dueño: la factura del agua se reparte por indiviso y DESPUÉS se
+// entera de que una casa ya había terminado. Antes nadie revisaba esto (el auditor
+// de pagos salta todo lo que trae factura_id) y la factura quedaba mal para siempre.
+// Solo toca repartos AUTOMÁTICOS por indiviso/equitativo: lo dirigido a una casa
+// (directo/custom/indiviso_sel) es decisión humana y no se audita ni se reescribe.
+const _AUTO = ['indiviso', 'equitativo'];
+function _asigsDeFactura(fid) {
+  return state.costoAsignaciones.filter(a => String(a.factura_id) === String(fid));
+}
+// Reparto "como debería ser" HOY para la fecha de la factura, sobre su monto_total.
+function _repartoEsperadoFactura(f) {
+  return _repartoEsperado({ proyecto: f.proyecto, fecha: f.fecha_factura, importe: f.monto_total || 0 });
+}
+// ¿El set guardado de una FACTURA es automático intacto? Espejo de
+// _esRepartoAutoIntacto pero sobre monto_total y SIN descartar por partida_override
+// (el reparto masivo de facturas sí llena partida/sub, a diferencia de los pagos).
+function _esRepartoAutoIntactoFactura(f, asigs) {
+  if (!asigs.length) return false;
+  if (asigs.some(a => !_AUTO.includes(a.metodo || ''))) return false;
+  const unidades = asigs.map(a => state.unidades.find(u => String(u.unidad_id) === String(a.unidad_id))).filter(Boolean);
+  if (unidades.length !== asigs.length) return false;
+  const sumaInd = unidades.reduce((s2, u) => s2 + (u.indiviso_pct || 0), 0);
+  const usarInd = sumaInd > 0.01;
+  const total = f.monto_total || 0;
+  return asigs.every(a => {
+    const u = unidades.find(x => String(x.unidad_id) === String(a.unidad_id));
+    const fEsp = usarInd ? ((u.indiviso_pct || 0) / sumaInd) : 1 / unidades.length;
+    return Math.abs((a.factor || 0) - fEsp) <= 0.01
+      && Math.abs((a.monto_asignado || 0) - total * fEsp) <= Math.max(1, total * 0.01);
+  });
+}
+// Recoloca el devengado de UNA factura, EN SITIO y conservando la partida/sub que
+// ya traía cada fila (las entrantes heredan la de la primera). NO persiste.
+export function reRepartirFactura(f) {
+  const esperado = _repartoEsperadoFactura(f);
+  if (!esperado) return 'sin_cambio';
+  if (esperado.sinPool) return 'sin_pool';
+  const asigs = _asigsDeFactura(f.factura_id);
+  if (!asigs.length) return 'sin_cambio';
+  const porUnidad = new Map(asigs.map(a => [String(a.unidad_id), a]));
+  const igual = asigs.length === esperado.filas.length && esperado.filas.every(x => {
+    const a = porUnidad.get(String(x.unidad_id));
+    return a && Math.abs((a.factor || 0) - x.factor) <= 0.01;
+  });
+  if (igual) return 'sin_cambio';
+  const partida = asigs[0].partida_override || '';
+  const sub = asigs[0].sub_partida_override || '';
+  const obra = asigs[0].partida_obra || '';
+  const hoyISO = new Date().toISOString().split('T')[0];
+  esperado.filas.forEach(x => {
+    const a = porUnidad.get(String(x.unidad_id));
+    if (a) {
+      a.monto_asignado = x.monto; a.factor = x.factor; a.metodo = x.metodo; a.fecha_asignacion = hoyISO;
+      porUnidad.delete(String(x.unidad_id));   // conserva partida_override/sub/obra
+    } else {
+      state.costoAsignaciones.push({
+        asignacion_id: nuevoAsignacionId(), pago_id: '', factura_id: String(f.factura_id),
+        unidad_id: x.unidad_id, proyecto: f.proyecto, metodo: x.metodo,
+        monto_asignado: x.monto, factor: x.factor, fecha_asignacion: hoyISO,
+        partida_override: partida, sub_partida_override: sub, partida_obra: obra
+      });
+    }
+  });
+  if (porUnidad.size) {
+    const quitar = new Set([...porUnidad.values()].map(a => String(a.asignacion_id)));
+    state.costoAsignaciones = state.costoAsignaciones.filter(a => !quitar.has(String(a.asignacion_id)));
+  }
+  return 'recolocado';
+}
+
+// AUDITORÍA de FACTURAS repartidas por indiviso (solo lectura). Mismas cubetas que
+// los pagos: corregibles (solo salen casas) · conEntrantes (además entran) · manuales.
+export function auditarRepartosFacturas() {
+  const porFactura = new Map();
+  state.costoAsignaciones.forEach(a => {
+    if (!a.factura_id) return;
+    const k = String(a.factura_id);
+    if (!porFactura.has(k)) porFactura.set(k, []);
+    porFactura.get(k).push(a);
+  });
+  const res = { corregibles: [], conEntrantes: [], manuales: [], sinPool: [] };
+  for (const [fid, asigs] of porFactura) {
+    const f = (state.facturas || []).find(x => String(x.factura_id) === fid);
+    if (!f || !f.proyecto) continue;
+    if (f.estado_sat === 'Cancelada' || f.estatus_factura === 'cancelada') continue;
+    // Dirigidas a casas concretas: el dinero se mandó a propósito, no se audita.
+    if (asigs.some(a => !_AUTO.includes(a.metodo || ''))) continue;
+    const tieneExpulsada = asigs.some(a => {
+      const u = state.unidades.find(x => String(x.unidad_id) === String(a.unidad_id));
+      return u && !unidadEnIndivisoAFecha(u, _isoFecha(f.fecha_factura));
+    });
+    if (!_esRepartoAutoIntactoFactura(f, asigs)) {
+      if (tieneExpulsada) res.manuales.push({ f, asigs });
+      continue;
+    }
+    const esperado = _repartoEsperadoFactura(f);
+    if (!esperado) continue;
+    if (esperado.sinPool) { if (tieneExpulsada) res.sinPool.push({ f, asigs }); continue; }
+    const porUnidad = new Map(asigs.map(a => [String(a.unidad_id), a]));
+    const difiere = asigs.length !== esperado.filas.length || esperado.filas.some(x => {
+      const a = porUnidad.get(String(x.unidad_id));
+      return !a || Math.abs((a.factor || 0) - x.factor) > 0.01;
+    });
+    if (!difiere) continue;
+    const idsAntes = new Set(asigs.map(a => String(a.unidad_id)));
+    const entran = esperado.filas.filter(x => !idsAntes.has(String(x.unidad_id)));
+    (entran.length && !tieneExpulsada ? res.conEntrantes : res.corregibles).push({ f, asigs, esperado, entran });
+  }
+  return res;
+}
+
+export function aplicarReparacionFacturas(lista) {
+  let n = 0;
+  lista.forEach(c => { if (reRepartirFactura(c.f) === 'recolocado') n++; });
+  if (n > 0) gsSaveCostoAsignaciones();
+  return n;
+}
+
 // AUDITORÍA completa (solo lectura): para cada pago con reparto propio, compara
 // la foto guardada vs el reparto esperado hoy. Los no-intactos solo se reportan
 // si incluyen una casa que ya no califica a la fecha del pago.
@@ -192,11 +311,15 @@ export function auditarRepartos() {
     if (!porPago.has(k)) porPago.set(k, []);
     porPago.get(k).push(a);
   });
-  const res = { corregibles: [], manuales: [], sinPool: [] };
+  const res = { corregibles: [], conEntrantes: [], manuales: [], sinPool: [] };
   for (const [pid, asigs] of porPago) {
     const h = state.historial.find(x => String(x.id) === pid);
     if (!h || !h.proyecto) continue;
     if (_cubiertoPorFactura(h)) continue;
+    // DIRIGIDOS (directo/custom/indiviso_sel): el dinero se mandó a propósito a esas
+    // casas. Ni se tocan ni se listan como regaño (decisión del dueño) — solo se
+    // auditan los repartos automáticos por indiviso/equitativo, que afectan a todos.
+    if (asigs.some(a => !_AUTO.includes(a.metodo || ''))) continue;
     const tieneExpulsada = asigs.some(a => {
       const u = state.unidades.find(x => String(x.unidad_id) === String(a.unidad_id));
       return u && !unidadEnIndivisoAFecha(u, _isoFecha(h.fecha));
@@ -211,10 +334,15 @@ export function auditarRepartos() {
     const porUnidad = new Map(asigs.map(a => [String(a.unidad_id), a]));
     const difiere = asigs.length !== esperado.filas.length || esperado.filas.some(f => {
       const a = porUnidad.get(String(f.unidad_id));
-      return !a || Math.abs((a.factor || 0) - f.factor) > 0.001;
+      return !a || Math.abs((a.factor || 0) - f.factor) > 0.01;   // misma tolerancia que _esRepartoAutoIntacto
     });
-    // Se incluye `esperado` para que el preview muestre a cuántas casas quedará.
-    if (difiere) res.corregibles.push({ h, asigs, esperado });
+    if (!difiere) continue;
+    // Casas que ENTRARÍAN al reparto (no estaban antes): típicamente una casa
+    // recién dada de alta. Va en cubeta aparte porque le mete costo HISTÓRICO y
+    // el mensaje de fechas no lo dice — se pregunta por separado, nombrándolas.
+    const idsAntes = new Set(asigs.map(a => String(a.unidad_id)));
+    const entran = esperado.filas.filter(f => !idsAntes.has(String(f.unidad_id)));
+    (entran.length && !tieneExpulsada ? res.conEntrantes : res.corregibles).push({ h, asigs, esperado, entran });
   }
   return res;
 }

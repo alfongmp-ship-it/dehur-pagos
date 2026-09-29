@@ -546,7 +546,7 @@ export async function aplicarRepartoBulk() {
   let repartidasOk = 0, filasNuevas = 0;
   elegibles.forEach(f => {
     // El pool de indiviso depende de la FECHA de cada factura (casas en obra ese día).
-    const pr = parseReparto(metodo, unidadesTxt, f.proyecto, f.fecha_factura);
+    const pr = parseReparto(metodo, unidadesTxt, f.proyecto, parseFechaHist(f.fecha_factura));
     const asigs = (pr.errores && pr.errores.length) ? [] : (pr.asignaciones || []).filter(a => a.unidad_id);
     if (!asigs.length) { conError.push(`Fac ${f.factura_id}: ${(pr.errores && pr.errores[0]) || 'sin unidades válidas'}`); return; }
     asigs.forEach(a => {
@@ -940,6 +940,18 @@ export function guardarFactura() {
   notify(state.editFactId ? 'Factura actualizada' : 'Factura registrada');
   // Fase 3: guarda solo esta factura (upsert por factura_id, add/edit).
   const porFila = esPorFila('facturas');
+  // Editar una factura YA repartida NO recoloca su devengado: se avisa, porque el
+  // reparto conserva la foto (pool de casas) de la fecha/proyecto anteriores.
+  if (state.editFactId && existing) {
+    const asigsPrevias = state.costoAsignaciones.filter(a => String(a.factura_id) === String(obj.factura_id));
+    if (asigsPrevias.length) {
+      if ((existing.proyecto || '') !== (obj.proyecto || '')) {
+        notify(`⚠️ Cambiaste el PROYECTO de una factura con ${asigsPrevias.length} reparto(s): su costo sigue asignado a casas de "${existing.proyecto || 'el proyecto anterior'}". Limpia el reparto y vuelve a repartirla en Costos por Unidad.`, 'error');
+      } else if ((existing.fecha_factura || '') !== (obj.fecha_factura || '')) {
+        notify('⚠️ Cambiaste la FECHA de una factura ya repartida: el reparto conserva las casas que estaban en obra en la fecha anterior. Corrígelo con ♻️ Revisar repartos.', 'error');
+      }
+    }
+  }
   gsSaveFacturas({ porFila });
   if (porFila) sbGuardarFila('facturas', obj);
 
