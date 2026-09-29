@@ -905,6 +905,7 @@ Al corregir: el TOTAL de cada pago y factura NO cambia; solo se redistribuye ent
     renderCostosFiscales();
     if (window.renderFacturas) window.renderFacturas();
     if (out.fallidas) notify(`\u26a0\ufe0f ${out.recolocados} documento(s) corregidos, pero ${out.fallidas} no se guardaron (revisa tu conexion y vuelve a correrlo)`, 'error');
+    else if (!out.recolocados) notify(`\u26a0\ufe0f Se detectaron ${res.documentos.length} documento(s) pero 0 se recalcularon \u2014 esto no deber\u00eda pasar, av\u00edsale a tu programador`, 'error');
     else notify(`\u2705 ${out.recolocados} documento(s) recalculados con los indivisos reales`);
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '\ud83d\udd0d Revisar indivisos'; }

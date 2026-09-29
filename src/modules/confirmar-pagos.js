@@ -149,7 +149,7 @@ export function esRepartoAutoIntactoDePago(h) {
 // y quita las expulsadas — nunca hay un instante sin reemplazo. NO persiste (el
 // llamador llama gsSaveCostoAsignaciones() UNA vez al final del lote).
 // Devuelve 'recolocado' | 'sin_cambio' | 'sin_pool'.
-export function reRepartirPago(h) {
+export function reRepartirPago(h, tol = 0.01) {
   const esperado = _repartoEsperado(h);
   if (!esperado) return 'sin_cambio';
   if (esperado.sinPool) return 'sin_pool';
@@ -157,7 +157,7 @@ export function reRepartirPago(h) {
   const porUnidad = new Map(asigs.map(a => [String(a.unidad_id), a]));
   const igual = asigs.length === esperado.filas.length && esperado.filas.every(f => {
     const a = porUnidad.get(String(f.unidad_id));
-    return a && Math.abs((a.factor || 0) - f.factor) <= 0.01;   // misma tolerancia que _esRepartoAutoIntacto
+    return a && Math.abs((a.factor || 0) - f.factor) <= tol;   // tol: 0.01 calza con _esRepartoAutoIntacto; la correccion de indivisos pasa una mas fina
   });
   if (igual) return 'sin_cambio';
   const hoyISO = new Date().toISOString().split('T')[0];
@@ -215,7 +215,7 @@ function _esRepartoAutoIntactoFactura(f, asigs) {
 }
 // Recoloca el devengado de UNA factura, EN SITIO y conservando la partida/sub que
 // ya traía cada fila (las entrantes heredan la de la primera). NO persiste.
-export function reRepartirFactura(f) {
+export function reRepartirFactura(f, tol = 0.01) {
   const esperado = _repartoEsperadoFactura(f);
   if (!esperado) return 'sin_cambio';
   if (esperado.sinPool) return 'sin_pool';
@@ -224,7 +224,7 @@ export function reRepartirFactura(f) {
   const porUnidad = new Map(asigs.map(a => [String(a.unidad_id), a]));
   const igual = asigs.length === esperado.filas.length && esperado.filas.every(x => {
     const a = porUnidad.get(String(x.unidad_id));
-    return a && Math.abs((a.factor || 0) - x.factor) <= 0.01;
+    return a && Math.abs((a.factor || 0) - x.factor) <= tol;
   });
   if (igual) return 'sin_cambio';
   const partida = asigs[0].partida_override || '';
@@ -378,7 +378,7 @@ export async function aplicarCorreccionIndiviso(documentos, onProgress) {
     const tanda = documentos.slice(i, i + TANDA);
     let tocadas = 0;
     tanda.forEach(d => {
-      const r = d.tipo === 'pago' ? reRepartirPago(d.doc) : reRepartirFactura(d.doc);
+      const r = d.tipo === 'pago' ? reRepartirPago(d.doc, _MISMA_F) : reRepartirFactura(d.doc, _MISMA_F);
       if (r === 'recolocado') { n++; tocadas++; }
     });
     if (tocadas) {
