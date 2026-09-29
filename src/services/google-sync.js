@@ -1,4 +1,4 @@
-import { state, puedeEditar, esAdmin, puedeFacturas, puedeLigarPagos, puedeCapturarObra } from '../state.js';
+import { state, puedeEditar, esAdmin, puedeFacturas, puedeLigarPagos, puedeCapturarObra, puedeRepartirCostos } from '../state.js';
 import { notify } from '../ui/notify.js';
 import { gsReadSheet, gsWriteRange, gsClearAndWrite, gsAppendRow } from './google-sheets.js';
 import { normalizeBanco } from '../config/bancos.js';
