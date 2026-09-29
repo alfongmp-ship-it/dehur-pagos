@@ -316,6 +316,13 @@ function _docsDelProyecto(proyecto) {
   return docs;
 }
 
+// Cuanto tiene repartido HOY un documento (para verificar que un recalculo no
+// movio su total: el reparto cambia de proporcion, nunca de suma).
+export function sumaAsignadaDoc(tipo, ref) {
+  const asigs = tipo === 'pago' ? _asigsDePago({ id: ref }) : _asigsDeFactura(ref);
+  return asigs.reduce((s, a) => s + (a.monto_asignado || 0), 0);
+}
+
 // Preview SIN tocar nada: que documentos traen la huella y como quedaria cada casa.
 // Devuelve { documentos:[...], porCasa: Map(unidad_id -> {actual, correcto}), total }
 export function auditarIndivisoAplanado(proyecto) {

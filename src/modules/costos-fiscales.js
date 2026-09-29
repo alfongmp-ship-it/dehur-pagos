@@ -13,7 +13,7 @@ import { planoDeProyecto } from '../config/planos.js';
 import { parseFechaHist } from './historial.js';
 import { gsSaveUnidades, gsSavePresupuestoUnidad, gsSaveCostoAsignaciones, esPorFila, sbGuardarFila, sbBorrarFila } from '../services/google-sync.js';
 import { nuevoAsignacionId, nuevoPresupuestoId, nuevoCambioPresupId } from '../state.js';
-import { auditarRepartos, aplicarReparacionRepartos, auditarRepartosFacturas, aplicarReparacionFacturas, auditarIndivisoAplanado, aplicarCorreccionIndiviso } from './confirmar-pagos.js';
+import { auditarRepartos, aplicarReparacionRepartos, auditarRepartosFacturas, aplicarReparacionFacturas, auditarIndivisoAplanado, aplicarCorreccionIndiviso, sumaAsignadaDoc } from './confirmar-pagos.js';
 import { aplicarPagoAFactura, restantePago } from './facturas.js';
 
 const PALETA = ['#c8a96e', '#5a9be0', '#4caf7d', '#e07a3a', '#9b7fe8', '#e05a5a', '#27ae60', '#3498db'];
@@ -898,15 +898,34 @@ Al corregir: el TOTAL de cada pago y factura NO cambia; solo se redistribuye ent
 
   const btn = document.getElementById('cf-btn-indivisos');
   if (btn) { btn.disabled = true; btn.textContent = 'Corrigiendo\u2026'; }
+  // Total repartido de cada documento ANTES de tocarlo: la revision final compara
+  // contra esto, porque la promesa es que el reparto cambia de proporcion y nunca
+  // de suma. Se mide antes de recolocar; despues los objetos ya vienen cambiados.
+  const totalAntes = new Map(res.documentos.map(d => [d.tipo + d.ref, sumaAsignadaDoc(d.tipo, d.ref)]));
   try {
     const out = await aplicarCorreccionIndiviso(res.documentos, (k, n) => {
       if (btn) btn.textContent = `Corrigiendo ${k}/${n}\u2026`;
     });
     renderCostosFiscales();
     if (window.renderFacturas) window.renderFacturas();
-    if (out.fallidas) notify(`\u26a0\ufe0f ${out.recolocados} documento(s) corregidos, pero ${out.fallidas} no se guardaron (revisa tu conexion y vuelve a correrlo)`, 'error');
-    else if (!out.recolocados) notify(`\u26a0\ufe0f Se detectaron ${res.documentos.length} documento(s) pero 0 se recalcularon \u2014 esto no deber\u00eda pasar, av\u00edsale a tu programador`, 'error');
-    else notify(`\u2705 ${out.recolocados} documento(s) recalculados con los indivisos reales`);
+    if (out.fallidas) { notify(`\u26a0\ufe0f ${out.recolocados} documento(s) corregidos, pero ${out.fallidas} no se guardaron (revisa tu conexion y vuelve a correrlo)`, 'error'); return; }
+    if (!out.recolocados) { notify(`\u26a0\ufe0f Se detectaron ${res.documentos.length} documento(s) pero 0 se recalcularon \u2014 esto no deber\u00eda pasar, av\u00edsale a tu programador`, 'error'); return; }
+
+    // ---- Revision automatica: el dueno no deberia tener que re-pulsar el boton ----
+    if (btn) btn.textContent = 'Revisando\u2026';
+    const quedan = auditarIndivisoAplanado(cfProyecto);          // 1. \u00bfqueda huella?
+    const movidos = res.documentos.filter(d => {                  // 2. \u00bfalgun total se movio?
+      const antes = totalAntes.get(d.tipo + d.ref) || 0;
+      return Math.abs(sumaAsignadaDoc(d.tipo, d.ref) - antes) > 0.02;   // centavos de redondeo
+    });
+    if (movidos.length) {
+      console.table(movidos.map(d => ({ TIPO: d.tipo, REF: d.ref, ANTES: totalAntes.get(d.tipo + d.ref), AHORA: sumaAsignadaDoc(d.tipo, d.ref) })));
+      notify(`\u26a0\ufe0f ${out.recolocados} recalculados, pero el TOTAL de ${movidos.length} documento(s) cambi\u00f3 \u2014 no deber\u00eda pasar nunca. Revisa la consola (F12) y av\u00edsale a tu programador`, 'error');
+    } else if (quedan.documentos.length) {
+      notify(`\u26a0\ufe0f ${out.recolocados} recalculados, pero todav\u00eda quedan ${quedan.documentos.length} documento(s) con la huella \u2014 vuelve a correrlo y, si insiste, av\u00edsame`, 'error');
+    } else {
+      notify(`\u2705 ${out.recolocados} documento(s) recalculados \u00b7 Revisi\u00f3n: TODO EN ORDEN \u2014 ya no queda ning\u00fan reparto parejo y ning\u00fan total cambi\u00f3`);
+    }
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '\ud83d\udd0d Revisar indivisos'; }
   }
