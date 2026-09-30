@@ -390,6 +390,8 @@ export function exportarFiscalPorCasaExcel() {
 // la cadena auditable factura → proporción → casa.
 //   · Facturado     = asignaciones de facturas ELEGIBLES (costoFacturadoPorUnidad).
 //   · Sin CFDI apr. = asignaciones tipo 'pagado' de pagos aprobados (= fiscalBatch).
+const _SIN_SUB = '(sin sub-partida)';
+
 function _detalleFiscalCasas(proyecto) {
   const unidades = unidadesDeProyecto(false, proyecto);
   const uids = new Set(unidades.map(u => String(u.unidad_id)));
@@ -408,8 +410,15 @@ function _detalleFiscalCasas(proyecto) {
   };
   const grupo = (c, partida) => {
     let g = c.partidas.get(partida);
-    if (!g) { g = { fac: 0, sc: 0, lineas: [] }; c.partidas.set(partida, g); }
+    if (!g) { g = { fac: 0, sc: 0, subs: new Map() }; c.partidas.set(partida, g); }
     return g;
+  };
+  // Sub-partida dentro de la partida: ahí viven las líneas; la partida suma sus subs.
+  const subDe = (g, sub) => {
+    const k = (sub || '').trim() || _SIN_SUB;
+    let s = g.subs.get(k);
+    if (!s) { s = { fac: 0, sc: 0, lineas: [] }; g.subs.set(k, s); }
+    return s;
   };
   state.costoAsignaciones.forEach(a => {
     const uid = String(a.unidad_id);
@@ -420,8 +429,9 @@ function _detalleFiscalCasas(proyecto) {
       const prov = provDe(f.proveedor_id);
       const c = casa(uid);
       const g = grupo(c, (a.partida_override || '').trim() || 'Sin partida');
-      c.fac += monto; g.fac += monto; c.nFac.add(String(a.factura_id));
-      g.lineas.push({
+      const sb = subDe(g, a.sub_partida_override);
+      c.fac += monto; g.fac += monto; sb.fac += monto; c.nFac.add(String(a.factura_id));
+      sb.lineas.push({
         tipo: 'Factura', doc: `Fac ${a.factura_id}${f.numero_factura ? ' · ' + f.numero_factura : ''}`,
         uuid: f.uuid || '', quien: f.razon_social || f.nombre_proveedor || (prov && prov.nombre) || '',
         rfc: (prov && prov.rfc) || '', fechaIso: parseFechaHist(f.fecha_factura) || f.fecha_factura || '',
@@ -438,8 +448,9 @@ function _detalleFiscalCasas(proyecto) {
     const marca = _marcaFiscalDe('pago', a.pago_id);
     const c = casa(uid);
     const g = grupo(c, (a.partida_override || h.partida || '').trim() || 'Sin partida');
-    c.sc += monto; g.sc += monto; c.nPag.add(String(a.pago_id));
-    g.lineas.push({
+    const sb = subDe(g, a.sub_partida_override || h.sub_partida);
+    c.sc += monto; g.sc += monto; sb.sc += monto; c.nPag.add(String(a.pago_id));
+    sb.lineas.push({
       tipo: 'Pago sin CFDI', doc: `Pago ${a.pago_id}`, uuid: '',
       quien: h.nombre || (prov && prov.nombre) || '', rfc: (prov && prov.rfc) || '',
       fechaIso: parseFechaHist(h.fecha) || h.fecha || '', totalDoc: h.importe || 0,
@@ -462,6 +473,7 @@ function _detalleFiscalCasas(proyecto) {
 }
 
 const _partidasOrdenadas = c => [...c.partidas.entries()].sort((a, z) => (z[1].fac + z[1].sc) - (a[1].fac + a[1].sc));
+const _subsOrdenadas = g => [...g.subs.entries()].sort((a, z) => (z[1].fac + z[1].sc) - (a[1].fac + a[1].sc));
 
 // Fichas imprimibles: ventana nueva con CSS de impresión (una casa por hoja
 // carta) y print() → el usuario elige "Guardar como PDF". Sin librerías.
@@ -479,8 +491,16 @@ export function imprimirFichasFiscales(unidadId) {
     const c = casas.get(String(u.unidad_id)) || { fac: 0, sc: 0, nFac: new Set(), nPag: new Set(), partidas: new Map() };
     const conc = c.fac + c.sc;
     const estU = est.porUnidad.get(u.unidad_id) || 0;
-    const filas = _partidasOrdenadas(c).map(([p, g]) =>
-      `<tr><td>${e(p)}</td><td class="n">${g.fac ? fmt(g.fac) : '—'}</td><td class="n">${g.sc ? fmt(g.sc) : '—'}</td><td class="n b">${fmt(g.fac + g.sc)}</td></tr>`).join('');
+    // Partida en negritas y, debajo, sus sub-partidas con sangría. Si la partida
+    // solo trae "(sin sub-partida)", no se repite un renglón que no aporta.
+    const filas = _partidasOrdenadas(c).map(([p, g]) => {
+      const subs = _subsOrdenadas(g);
+      const soloSinSub = subs.length === 1 && subs[0][0] === _SIN_SUB;
+      const renglonP = `<tr class="rp"><td>${e(p)}</td><td class="n">${g.fac ? fmt(g.fac) : '—'}</td><td class="n">${g.sc ? fmt(g.sc) : '—'}</td><td class="n b">${fmt(g.fac + g.sc)}</td></tr>`;
+      if (soloSinSub) return renglonP;
+      return renglonP + subs.map(([s, x]) =>
+        `<tr class="rs"><td>${e(s)}</td><td class="n">${x.fac ? fmt(x.fac) : '—'}</td><td class="n">${x.sc ? fmt(x.sc) : '—'}</td><td class="n">${fmt(x.fac + x.sc)}</td></tr>`).join('');
+    }).join('');
     return `<section class="pag">
       <header>
         <div class="emp">${e(proy.empresa || '')}</div>
@@ -515,7 +535,7 @@ export function imprimirFichasFiscales(unidadId) {
       @page { size: letter; margin: 16mm 14mm; }
       * { box-sizing: border-box; }
       body { font-family: Georgia, 'Times New Roman', serif; color: #111; margin: 0; font-size: 11pt; }
-      .pag { page-break-after: always; break-after: page; min-height: 240mm; position: relative; padding-bottom: 14mm; }
+      .pag { page-break-after: always; break-after: page; }
       .pag:last-child { page-break-after: auto; break-after: auto; }
       header { border-bottom: 2px solid #111; padding-bottom: 6px; margin-bottom: 12px; }
       .emp { font-family: Arial, Helvetica, sans-serif; font-size: 9pt; letter-spacing: .12em; text-transform: uppercase; color: #444; }
@@ -527,6 +547,11 @@ export function imprimirFichasFiscales(unidadId) {
       .datos td { padding: 3px 4px; width: 33%; }
       .part th { font-family: Arial, Helvetica, sans-serif; font-size: 8.5pt; text-align: left; border-bottom: 1px solid #111; padding: 4px; }
       .part td { padding: 4px; border-bottom: 1px solid #ddd; font-size: 10pt; }
+      .part thead { display: table-header-group; }   /* se repite si la ficha ocupa 2 hojas */
+      .part tr { page-break-inside: avoid; break-inside: avoid; }
+      .part tr.rp td { font-weight: bold; border-top: 1px solid #999; }
+      .part tr.rs td { font-size: 9pt; color: #333; border-bottom: 1px dotted #ddd; padding-top: 2px; padding-bottom: 2px; }
+      .part tr.rs td:first-child { padding-left: 18px; }
       .part tfoot td { border-top: 2px solid #111; border-bottom: none; font-weight: bold; }
       .n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
       .b { font-weight: bold; }
@@ -536,7 +561,7 @@ export function imprimirFichasFiscales(unidadId) {
       .comp { font-size: 9.5pt; color: #333; margin-top: 6px; }
       .nota { margin-top: 14px; border: 1px dashed #777; padding: 8px 12px; font-size: 9.5pt; color: #333; }
       .metodo { margin-top: 14px; font-size: 8.5pt; color: #555; line-height: 1.45; }
-      footer { position: absolute; bottom: 0; left: 0; right: 0; border-top: 1px solid #aaa; padding-top: 4px; font-family: Arial, Helvetica, sans-serif; font-size: 8pt; color: #666; text-align: right; }
+      footer { margin-top: 18px; border-top: 1px solid #aaa; padding-top: 4px; font-family: Arial, Helvetica, sans-serif; font-size: 8pt; color: #666; text-align: right; }
     </style></head><body>${paginas}</body></html>`;
   const w = window.open('', '_blank');
   if (!w) { notify('El navegador bloqueó la ventana de impresión: permite ventanas emergentes para este sitio y vuelve a intentarlo', 'error'); return; }
@@ -553,25 +578,35 @@ export function exportarAnexoFiscalExcel() {
   if (!unidades.length) { notify('No hay casas en este proyecto', 'error'); return; }
   const est = _estimadoPorCasa(fisProyecto);
   const corte = new Date().toISOString().slice(0, 10);
-  const enc = ['Casa', 'Partida', 'Tipo', 'Documento', 'UUID', 'Proveedor / Beneficiario', 'RFC', 'Fecha',
-    'Total documento', 'Método', '% a la casa', 'Monto a la casa', 'Facturado', 'Sin CFDI aprobado', 'Conciliado', 'Sub-partida', 'Motivo aprobación'];
+  // Columnas: 0 Casa · 1 Partida · 2 Sub-partida · 3 Tipo · 4 Documento · 5 UUID ·
+  // 6 Proveedor · 7 RFC · 8 Fecha · 9 Total doc · 10 Método · 11 % a la casa ·
+  // 12 Monto a la casa · 13 Facturado · 14 Sin CFDI · 15 Conciliado · 16 Motivo
+  const enc = ['Casa', 'Partida', 'Sub-partida', 'Tipo', 'Documento', 'UUID', 'Proveedor / Beneficiario', 'RFC', 'Fecha',
+    'Total documento', 'Método', '% a la casa', 'Monto a la casa', 'Facturado', 'Sin CFDI aprobado', 'Conciliado', 'Motivo aprobación'];
   const aoa = [
     [`ANEXO — Detalle del costo fiscal por unidad — ${fisProyecto}`],
-    [`Fecha de corte: ${corte} · Da clic en + (margen izquierdo) para abrir cada casa y cada partida. Facturas vigentes de la empresa del proyecto (pagadas o no) + pagos sin CFDI aprobados como deducibles.`],
+    [`Fecha de corte: ${corte} · Da clic en + (margen izquierdo) para abrir cada casa, partida y sub-partida. Facturas vigentes de la empresa del proyecto (pagadas o no) + pagos sin CFDI aprobados como deducibles.`],
     [], enc];
   const niveles = [0, 0, 0, 0];
+  const vacias = n => Array(n).fill('');
   const resumen = [['Casa', '% Indiviso', 'Facturado', 'Sin CFDI aprobado', 'Conciliado', 'Pendiente por repartir (estimado)', 'Facturas', 'Pagos sin CFDI']];
+  const porSub = [['Casa', 'Partida', 'Sub-partida', 'Facturado', 'Sin CFDI aprobado', 'Total', 'Documentos']];
   unidades.forEach(u => {
     const c = casas.get(String(u.unidad_id)) || { fac: 0, sc: 0, nFac: new Set(), nPag: new Set(), partidas: new Map() };
-    aoa.push([u.nombre, `Indiviso ${(u.indiviso_pct || 0).toFixed(4)}%`, '', '', '', '', '', '', '', '', '', '', c.fac, c.sc, c.fac + c.sc, '', '']);
+    aoa.push([u.nombre, `Indiviso ${(u.indiviso_pct || 0).toFixed(4)}%`, ...vacias(11), c.fac, c.sc, c.fac + c.sc, '']);
     niveles.push(0);
     _partidasOrdenadas(c).forEach(([p, g]) => {
-      aoa.push(['', p, '', '', '', '', '', '', '', '', '', '', g.fac, g.sc, g.fac + g.sc, '', '']);
+      aoa.push(['', p, ...vacias(11), g.fac, g.sc, g.fac + g.sc, '']);
       niveles.push(1);
-      g.lineas.slice().sort((a, z) => z.monto - a.monto).forEach(l => {
-        aoa.push(['', '', l.tipo, l.doc, l.uuid, l.quien, l.rfc, l.fechaIso ? fmtFecha(l.fechaIso) : '', l.totalDoc,
-          l.metodo, l.factor, l.monto, '', '', '', l.sub, l.motivo]);
+      _subsOrdenadas(g).forEach(([s, x]) => {
+        aoa.push(['', '', s, ...vacias(10), x.fac, x.sc, x.fac + x.sc, '']);
         niveles.push(2);
+        porSub.push([u.nombre, p, s, x.fac, x.sc, x.fac + x.sc, x.lineas.length]);
+        x.lineas.slice().sort((a, z) => z.monto - a.monto).forEach(l => {
+          aoa.push(['', '', '', l.tipo, l.doc, l.uuid, l.quien, l.rfc, l.fechaIso ? fmtFecha(l.fechaIso) : '', l.totalDoc,
+            l.metodo, l.factor, l.monto, '', '', '', l.motivo]);
+          niveles.push(3);
+        });
       });
     });
     resumen.push([u.nombre, (u.indiviso_pct || 0) / 100, c.fac, c.sc, c.fac + c.sc, est.porUnidad.get(u.unidad_id) || 0, c.nFac.size, c.nPag.size]);
@@ -579,12 +614,17 @@ export function exportarAnexoFiscalExcel() {
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   ws['!outline'] = { above: true };
   ws['!rows'] = niveles.map(lv => (lv ? { level: lv, hidden: true } : {}));
-  ws['!cols'] = [{ wch: 12 }, { wch: 24 }, { wch: 13 }, { wch: 20 }, { wch: 38 }, { wch: 30 }, { wch: 15 }, { wch: 11 },
-    { wch: 15 }, { wch: 11 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 16 }, { wch: 15 }, { wch: 18 }, { wch: 26 }];
+  ws['!cols'] = [{ wch: 12 }, { wch: 24 }, { wch: 22 }, { wch: 13 }, { wch: 20 }, { wch: 38 }, { wch: 30 }, { wch: 15 }, { wch: 11 },
+    { wch: 15 }, { wch: 11 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 16 }, { wch: 15 }, { wch: 26 }];
   for (let r = 4; r < aoa.length; r++) {
-    [8, 11, 12, 13, 14].forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (ws[ref] && typeof ws[ref].v === 'number') ws[ref].z = '"$"#,##0.00'; });
-    const rf = XLSX.utils.encode_cell({ r, c: 10 });
+    [9, 12, 13, 14, 15].forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (ws[ref] && typeof ws[ref].v === 'number') ws[ref].z = '"$"#,##0.00'; });
+    const rf = XLSX.utils.encode_cell({ r, c: 11 });
     if (ws[rf] && typeof ws[rf].v === 'number') ws[rf].z = '0.0000%';
+  }
+  const wsS = XLSX.utils.aoa_to_sheet(porSub);
+  wsS['!cols'] = [{ wch: 12 }, { wch: 24 }, { wch: 26 }, { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 11 }];
+  for (let r = 1; r < porSub.length; r++) {
+    [3, 4, 5].forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (wsS[ref] && typeof wsS[ref].v === 'number') wsS[ref].z = '"$"#,##0.00'; });
   }
   const wsR = XLSX.utils.aoa_to_sheet(resumen);
   wsR['!cols'] = [{ wch: 12 }, { wch: 11 }, { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 22 }, { wch: 9 }, { wch: 13 }];
@@ -595,6 +635,7 @@ export function exportarAnexoFiscalExcel() {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Anexo');
   XLSX.utils.book_append_sheet(wb, wsR, 'Resumen');
+  XLSX.utils.book_append_sheet(wb, wsS, 'Por sub-partida');
   XLSX.writeFile(wb, `Anexo_fiscal_${String(fisProyecto).replace(/[\\/:*?"<>|\s]+/g, '_')}_${corte}.xlsx`);
   notify('📎 Anexo fiscal descargado');
 }
