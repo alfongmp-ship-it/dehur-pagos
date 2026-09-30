@@ -265,13 +265,22 @@ function _pagosAprobadosSinRepartir(proyecto) {
   const { aprobados } = _marcasFiscales();
   return pagosSinFacturaSinRepartir(proyecto).filter(h => aprobados.has(String(h.id)));
 }
-function _estimadoPorCasa(proyecto) {
-  const fac = estimadoFacturadoPorUnidad(proyecto);
+// conDetalle → además `detalle: Map(unidad_id → [{ ref, factor, monto }])`: qué
+// parte de cada documento pendiente le toca a cada casa (renglón del anexo).
+function _estimadoPorCasa(proyecto, conDetalle = false) {
+  const opts = { detalle: conDetalle };
+  const fac = estimadoFacturadoPorUnidad(proyecto, opts);
   const pag = simularIndivisoDocs(_pagosAprobadosSinRepartir(proyecto)
-    .map(h => ({ importe: h.importe || 0, fechaIso: parseFechaHist(h.fecha) || '' })), proyecto);
+    .map(h => ({ importe: h.importe || 0, fechaIso: parseFechaHist(h.fecha) || '',
+      ref: { tipo: 'pago', id: h.id, pend: h.importe || 0, repartido: 0 } })), proyecto, opts);
   const porUnidad = new Map(fac.porUnidad);
   pag.porUnidad.forEach((v, k) => porUnidad.set(k, (porUnidad.get(k) || 0) + v));
-  return { porUnidad, total: fac.total + pag.total, nFact: fac.count, nSin: fac.nSin, nParc: fac.nParc, totFact: fac.total, nPagos: pag.count, totPagos: pag.total };
+  let detalle = null;
+  if (conDetalle) {
+    detalle = new Map();
+    [fac.detalle, pag.detalle].forEach(m => m && m.forEach((l, k) => detalle.set(k, [...(detalle.get(k) || []), ...l])));
+  }
+  return { porUnidad, detalle, total: fac.total + pag.total, nFact: fac.count, nSin: fac.nSin, nParc: fac.nParc, totFact: fac.total, nPagos: pag.count, totPagos: pag.total };
 }
 
 function renderPorCasaTab(panel) {
@@ -548,14 +557,15 @@ export function imprimirFichasFiscales(unidadId) {
     ? unidades
     : unidades.filter(u => String(u.unidad_id) === String(unidadId));
   if (!lista.length) { notify('No hay casas para generar fichas', 'error'); return; }
-  const est = _estimadoPorCasa(fisProyecto);
+  // La nota del estimado obedece a la casilla 'Estimado por asignar' (decisión del dueño).
+  const est = fisEstimCasa ? _estimadoPorCasa(fisProyecto) : null;
   const proy = (state.proyectos || []).find(p => p.nombre === fisProyecto) || {};
   const sello = _sello();
   const e = escapeHtml;
   const paginas = lista.map((u, i) => {
     const c = casas.get(String(u.unidad_id)) || { fac: 0, sc: 0, nFac: new Set(), nPag: new Set(), partidas: new Map() };
     const conc = c.fac + c.sc;
-    const estU = est.porUnidad.get(u.unidad_id) || 0;
+    const estU = est ? (est.porUnidad.get(u.unidad_id) || 0) : 0;
     // Partida en negritas y, debajo, sus sub-partidas con sangría. Si la partida
     // solo trae "(sin sub-partida)", no se repite un renglón que no aporta.
     const filas = _partidasOrdenadas(c).map(([p, g]) => {
@@ -641,24 +651,31 @@ export function exportarAnexoFiscalExcel() {
   if (!window.XLSX) { notify('Cargando la librería de Excel, intenta de nuevo en 2 segundos', 'error'); return; }
   const { unidades, casas } = _detalleFiscalCasas(fisProyecto);
   if (!unidades.length) { notify('No hay casas en este proyecto', 'error'); return; }
-  const est = _estimadoPorCasa(fisProyecto);
+  // El estimado obedece a la casilla 'Estimado por asignar': prendida → cada casa
+  // trae su renglón simulado con el detalle por documento y la columna Proyectado.
+  const est = fisEstimCasa ? _estimadoPorCasa(fisProyecto, true) : null;
   const sello = _sello();
   // Columnas: 0 Casa · 1 Partida · 2 Sub-partida · 3 Tipo · 4 Documento · 5 UUID ·
   // 6 Proveedor · 7 RFC · 8 Fecha · 9 Total doc · 10 Método · 11 % a la casa ·
   // 12 Monto a la casa · 13 Facturado · 14 Sin CFDI · 15 Conciliado · 16 Motivo
+  // [+ 17 Estimado · 18 Proyectado, solo con la casilla prendida]
   const enc = ['Casa', 'Partida', 'Sub-partida', 'Tipo', 'Documento', 'UUID', 'Proveedor / Beneficiario', 'RFC', 'Fecha',
-    'Total documento', 'Método', '% a la casa', 'Monto a la casa', 'Facturado', 'Sin CFDI aprobado', 'Conciliado', 'Motivo aprobación'];
+    'Total documento', 'Método', '% a la casa', 'Monto a la casa', 'Facturado', 'Sin CFDI aprobado', 'Conciliado', 'Motivo aprobación',
+    ...(est ? ['Estimado (simulado)', 'Proyectado'] : [])];
   const aoa = [
     [`ANEXO — Detalle del costo fiscal por unidad — ${fisProyecto}`],
-    [`Corte: ${sello.txt} · Da clic en + (margen izquierdo) para abrir cada casa, partida y sub-partida. Facturas vigentes de la empresa del proyecto (pagadas o no) + pagos sin CFDI aprobados como deducibles.`],
+    [`Corte: ${sello.txt} · Da clic en + (margen izquierdo) para abrir cada casa, partida y sub-partida. Facturas vigentes de la empresa del proyecto (pagadas o no) + pagos sin CFDI aprobados como deducibles.${est ? ' INCLUYE ESTIMADO: lo pendiente por repartir simulado por indiviso (NO definitivo) en un renglón aparte por casa.' : ''}`],
     [], enc];
   const niveles = [0, 0, 0, 0];
   const vacias = n => Array(n).fill('');
-  const resumen = [['Casa', '% Indiviso', 'Facturado', 'Sin CFDI aprobado', 'Conciliado', 'Pendiente por repartir (estimado)', 'Facturas', 'Pagos sin CFDI']];
+  const resumen = [['Casa', '% Indiviso', 'Facturado', 'Sin CFDI aprobado', 'Conciliado',
+    ...(est ? ['Estimado (simulado)', 'Proyectado'] : []), 'Facturas', 'Pagos sin CFDI']];
   const porSub = [['Casa', 'Partida', 'Sub-partida', 'Facturado', 'Sin CFDI aprobado', 'Total', 'Documentos']];
   unidades.forEach(u => {
     const c = casas.get(String(u.unidad_id)) || { fac: 0, sc: 0, nFac: new Set(), nPag: new Set(), partidas: new Map() };
-    aoa.push([u.nombre, `Indiviso ${(u.indiviso_pct || 0).toFixed(4)}%`, ...vacias(11), c.fac, c.sc, c.fac + c.sc, '']);
+    const eU = est ? (est.porUnidad.get(u.unidad_id) || 0) : 0;
+    aoa.push([u.nombre, `Indiviso ${(u.indiviso_pct || 0).toFixed(4)}%`, ...vacias(11), c.fac, c.sc, c.fac + c.sc, '',
+      ...(est ? [eU, c.fac + c.sc + eU] : [])]);
     niveles.push(0);
     _partidasOrdenadas(c).forEach(([p, g]) => {
       aoa.push(['', p, ...vacias(11), g.fac, g.sc, g.fac + g.sc, '']);
@@ -680,7 +697,34 @@ export function exportarAnexoFiscalExcel() {
         });
       });
     });
-    resumen.push([u.nombre, (u.indiviso_pct || 0) / 100, c.fac, c.sc, c.fac + c.sc, est.porUnidad.get(u.unidad_id) || 0, c.nFac.size, c.nPag.size]);
+    // Renglón del ESTIMADO de esta casa (solo con la casilla prendida): lo que le
+    // tocaría de cada documento pendiente si se repartiera por indiviso a su fecha.
+    if (est && eU > 0.005) {
+      aoa.push(['', '⚠ ESTIMADO — pendiente por repartir (simulado por indiviso, NO definitivo)', ...vacias(15), eU, '']);
+      niveles.push(1);
+      (est.detalle.get(u.unidad_id) || []).slice().sort((a, z) => z.monto - a.monto).forEach(d => {
+        const r = d.ref || {};
+        let fila;
+        if (r.tipo === 'factura') {
+          const f = facturaById(r.id) || {};
+          const prov = (state.proveedores || []).find(p => String(p.id) === String(f.proveedor_id));
+          fila = ['', '', '', 'Factura (estimado)', `Fac ${r.id}${f.numero_factura ? ' · ' + f.numero_factura : ''}`, f.uuid || '',
+            f.razon_social || f.nombre_proveedor || (prov && prov.nombre) || '', (prov && prov.rfc) || '',
+            f.fecha_factura ? fmtFecha(parseFechaHist(f.fecha_factura) || f.fecha_factura) : '', f.monto_total || 0,
+            'indiviso (simulado)', d.factor, d.monto, '', '', '',
+            r.repartido > 0.005 ? `Faltante de factura repartida a medias: ${fmt(r.pend)}` : 'Factura sin reparto'];
+        } else {
+          const h = pagoById(r.id) || {};
+          fila = ['', '', '', 'Pago sin CFDI (estimado)', `Pago ${r.id}`, '', h.nombre || '', '',
+            h.fecha ? fmtFecha(parseFechaHist(h.fecha) || h.fecha) : '', h.importe || 0,
+            'indiviso (simulado)', d.factor, d.monto, '', '', '', 'Pago aprobado sin repartir'];
+        }
+        aoa.push(fila);   // el detalle va en 'Monto a la casa'; el total del estimado, en su renglón
+        niveles.push(2);
+      });
+    }
+    resumen.push([u.nombre, (u.indiviso_pct || 0) / 100, c.fac, c.sc, c.fac + c.sc,
+      ...(est ? [eU, c.fac + c.sc + eU] : []), c.nFac.size, c.nPag.size]);
   });
 
   // ---- PENDIENTE POR REPARTIR: lo que no está en ninguna casa, ubicado doc por doc ----
@@ -706,6 +750,7 @@ export function exportarAnexoFiscalExcel() {
   }
 
   // ---- Conciliación del proyecto (al pie de Resumen) ----
+  const resumenFilasCasas = resumen.length;
   const repCasas = resumen.slice(1).reduce((s, r) => s + (r[2] || 0), 0);
   const fueraLista = pf.repartido - repCasas;
   const cuadre = (pf.repartido + pf.pendSin + pf.pendParc - pf.sobreTot + pf.redondeo) - pf.totalFact;
@@ -739,9 +784,10 @@ export function exportarAnexoFiscalExcel() {
   ws['!outline'] = { above: true };
   ws['!rows'] = niveles.map(lv => (lv ? { level: lv, hidden: true } : {}));
   ws['!cols'] = [{ wch: 12 }, { wch: 24 }, { wch: 22 }, { wch: 13 }, { wch: 20 }, { wch: 38 }, { wch: 30 }, { wch: 15 }, { wch: 11 },
-    { wch: 15 }, { wch: 11 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 16 }, { wch: 15 }, { wch: 26 }];
+    { wch: 15 }, { wch: 11 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 16 }, { wch: 15 }, { wch: 26 },
+    ...(est ? [{ wch: 18 }, { wch: 16 }] : [])];
   for (let r = 4; r < aoa.length; r++) {
-    [9, 12, 13, 14, 15].forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (ws[ref] && typeof ws[ref].v === 'number') ws[ref].z = '"$"#,##0.00'; });
+    [9, 12, 13, 14, 15, ...(est ? [17, 18] : [])].forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (ws[ref] && typeof ws[ref].v === 'number') ws[ref].z = '"$"#,##0.00'; });
     const rf = XLSX.utils.encode_cell({ r, c: 11 });
     if (ws[rf] && typeof ws[rf].v === 'number') ws[rf].z = '0.0000%';
   }
@@ -751,10 +797,10 @@ export function exportarAnexoFiscalExcel() {
     [3, 4, 5].forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (wsS[ref] && typeof wsS[ref].v === 'number') wsS[ref].z = '"$"#,##0.00'; });
   }
   const wsR = XLSX.utils.aoa_to_sheet(resumen);
-  wsR['!cols'] = [{ wch: 44 }, { wch: 11 }, { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 22 }, { wch: 9 }, { wch: 13 }];
+  wsR['!cols'] = [{ wch: 44 }, { wch: 11 }, { wch: 16 }, { wch: 18 }, { wch: 16 }, ...(est ? [{ wch: 18 }, { wch: 16 }] : []), { wch: 9 }, { wch: 13 }];
   for (let r = 1; r < resumen.length; r++) {
-    const ri = XLSX.utils.encode_cell({ r, c: 1 }); if (wsR[ri]) wsR[ri].z = '0.0000%';
-    [2, 3, 4, 5].forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (wsR[ref] && typeof wsR[ref].v === 'number') wsR[ref].z = '"$"#,##0.00'; });
+    const ri = XLSX.utils.encode_cell({ r, c: 1 }); if (r < resumenFilasCasas && wsR[ri] && typeof wsR[ri].v === 'number') wsR[ri].z = '0.0000%';
+    (r >= resumenFilasCasas ? [2] : [2, 3, 4, ...(est ? [5, 6] : [])]).forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (wsR[ref] && typeof wsR[ref].v === 'number') wsR[ref].z = '"$"#,##0.00'; });
   }
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Anexo');

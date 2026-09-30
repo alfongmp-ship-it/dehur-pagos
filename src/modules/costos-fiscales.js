@@ -550,11 +550,14 @@ export function costoFacturadoPorUnidad(proyecto = cfProyecto) {
 // hay ninguna, entre todas las activas); factor por indiviso, o parejo si la
 // suma de indivisos es 0. Lo usan el estimado de facturas y el de pagos sin
 // CFDI aprobados que aún no se reparten (🏠 Por casa en Fiscal).
-export function simularIndivisoDocs(docs, proyecto = cfProyecto) {
+// Con opts.detalle, además devuelve `detalle: Map(unidad_id → [{ ref, factor,
+// monto }])`: qué parte de CADA documento le tocó a cada casa (para el anexo).
+export function simularIndivisoDocs(docs, proyecto = cfProyecto, opts = {}) {
   const activas = unidadesDeProyecto(false, proyecto);
   const porUnidad = new Map();
+  const detalle = opts.detalle ? new Map() : null;
   let total = 0, count = 0;
-  if (!activas.length) return { porUnidad, total, count };
+  if (!activas.length) return { porUnidad, total, count, detalle };
   const poolCache = new Map();
   (docs || []).forEach(d => {
     const imp = d.importe || 0;
@@ -571,9 +574,14 @@ export function simularIndivisoDocs(docs, proyecto = cfProyecto) {
     pool.casas.forEach(u => {
       const factor = pool.sumInd > 0 ? (u.indiviso_pct || 0) / pool.sumInd : 1 / pool.casas.length;
       porUnidad.set(u.unidad_id, (porUnidad.get(u.unidad_id) || 0) + imp * factor);
+      if (detalle) {
+        let l = detalle.get(u.unidad_id);
+        if (!l) { l = []; detalle.set(u.unidad_id, l); }
+        l.push({ ref: d.ref, factor, monto: imp * factor });
+      }
     });
   });
-  return { porUnidad, total, count };
+  return { porUnidad, total, count, detalle };
 }
 
 // Lo YA repartido de cada factura (Σ de sus asignaciones), en una pasada.
@@ -590,7 +598,7 @@ export function repartidoPorFactura() {
 // Estimado de lo facturado pendiente: facturas elegibles SIN reparto (todo su
 // total) y el FALTANTE de las repartidas a medias (antes ese faltante no
 // aparecía en ningún lado). Tolerancia $0.50 por redondeos.
-export function estimadoFacturadoPorUnidad(proyecto = cfProyecto) {
+export function estimadoFacturadoPorUnidad(proyecto = cfProyecto, opts = {}) {
   const info = _facturasFiscalProyecto(proyecto);
   const rep = repartidoPorFactura();
   let nSin = 0, nParc = 0;
@@ -602,9 +610,10 @@ export function estimadoFacturadoPorUnidad(proyecto = cfProyecto) {
     const pend = (f.monto_total || 0) - r;
     if (pend <= 0.5) return;
     if (r > 0.005) nParc++; else nSin++;
-    docs.push({ importe: pend, fechaIso: parseFechaHist(f.fecha_factura) || '' });
+    docs.push({ importe: pend, fechaIso: parseFechaHist(f.fecha_factura) || '',
+      ref: { tipo: 'factura', id: f.factura_id, pend, repartido: r } });
   });
-  return { ...simularIndivisoDocs(docs, proyecto), nSin, nParc };
+  return { ...simularIndivisoDocs(docs, proyecto, opts), nSin, nParc };
 }
 
 export function cfToggleSoloFacturado(on) {
