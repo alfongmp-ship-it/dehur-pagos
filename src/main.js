@@ -37,7 +37,7 @@ import { renderResumenCostos, abrirReporteJuanPablo, generarReporteJuanPablo, ab
 import { renderFlujoSalida, fsAbrirDetalle, fsCerrarDetalle } from './modules/flujo-salida.js';
 import { renderResumenEjecutivo } from './modules/resumen-ejecutivo.js';
 import { renderCostosFiscales, abrirNuevaUnidad, editarUnidad, guardarUnidad, toggleUnidad, setFechaTermino, setEstatusUnidad, setIndivisoUnidad, abrirLoteUnidades, guardarLoteUnidades, cfLimpiarHuerfanas, abrirAsignarCosto, reasignarCosto, eliminarAsignacionCosto, cfCambiarMetodo, cfPreviewReparto, cfRepartirResto, cfRepartirRestoIndiviso, cfCustomSetModo, cfFiltrarUnidades, cfSelTodas, cfFiltrarPendientes, cfFiltrarAsignados, guardarAsignacionCosto, cfAgregarPartidaPresup, guardarPresupuestoUnidad, cfPresupPartidaChange, cfObraSetMetrica, cfObraAvanceCell, exportarControlObraExcel, cfVerUnidad, abrirRepartirFactura, cfLimpiarRepartoFactura, cfFacturaPartidaChange, cfToggleEstimado, cfToggleSoloFacturado, revisarRepartos, revisarIndivisoAplanado, abrirLigarFactura, lfAplicar, exportarPendientesExcel, cfAvNav, cfToggleVariaciones, cfVarFiltrar, exportarVariacionesExcel, cfObraToggleSoloVisibles, cfToggleSinRegistro, exportarCostosUnitariosExcel, cfObraToggleEstimado } from './modules/costos-fiscales.js';
-import { renderFiscal, fiscalMarcarPago, fiscalMarcarFactura, fiscalFiltrarPagos, fiscalExportar, fisToggleEstimCasa, exportarFiscalPorCasaExcel, fisSinCfdiToggle, exportarSinCfdiExcel, est324SetEjercicio, est324GuardarFactor, est324QuitarFactor, est324Exportar } from './modules/fiscal.js';
+import { renderFiscal, fiscalMarcarPago, fiscalMarcarFactura, fiscalFiltrarPagos, fiscalExportar, fisToggleEstimCasa, exportarFiscalPorCasaExcel, fisSinCfdiToggle, exportarSinCfdiExcel, imprimirFichasFiscales, exportarAnexoFiscalExcel, est324SetEjercicio, est324GuardarFactor, est324QuitarFactor, est324Exportar } from './modules/fiscal.js';
 import { renderCreditos, seleccionarCredito, abrirNuevoCredito, editarCredito, guardarCredito, abrirNuevaDisposicion, guardarDisposicion, editarPagare, togglePagare, abrirNuevaFechaPago, editarFechaPago, guardarFechaPago, marcarPagoPagado, eliminarPagoPagare } from './modules/creditos.js';
 import { initIngresosUI, setWorkspace, renderClientes, renderVentas, renderCobros, renderEstadoCuenta, abrirNuevoCliente, editarCliente, guardarCliente, eliminarCliente, abrirNuevaVenta, editarVenta, guardarVenta, eliminarVenta, vPoblarUnidades, abrirNuevoCobro, editarCobro, guardarCobro, eliminarCobro, exportarEstadoCuentaCSV, recalcularVentasDesdeCobros, cliSetFiltroProy, vtaSetFiltroProy } from './modules/ingresos.js';
 import { renderEstrategiaTablero, renderEstrategiaFlags, renderEstrategiaConfig, guardarConfigEstrategia, restaurarConfigEstrategia, abrirNuevoFlag, editarFlag, guardarFlag, eliminarFlag, efPoblarUnidades, efTipoChange, estToggleDesglose, renderSimuladorCaja, simToggleProyecto } from './modules/estrategia.js';
@@ -341,6 +341,8 @@ window.fisToggleEstimCasa = fisToggleEstimCasa;
 window.exportarFiscalPorCasaExcel = exportarFiscalPorCasaExcel;
 window.fisSinCfdiToggle = fisSinCfdiToggle;
 window.exportarSinCfdiExcel = exportarSinCfdiExcel;
+window.imprimirFichasFiscales = imprimirFichasFiscales;
+window.exportarAnexoFiscalExcel = exportarAnexoFiscalExcel;
 window.fiscalMarcarFactura = fiscalMarcarFactura;
 window.fiscalFiltrarPagos = fiscalFiltrarPagos;
 window.fiscalExportar = fiscalExportar;
