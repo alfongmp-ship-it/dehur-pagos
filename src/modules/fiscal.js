@@ -14,7 +14,7 @@ import {
   unidadesDeProyecto, pagoById, facturaById,
   _facturasRepartidasSet, _facturasCanceladasSet, _pagosCubiertosPorFacturaSet,
   _factExistSet, _pagoExistSet, _pagosCapitalSet, _tipoAsignacion,
-  costosPresupuestosBatch
+  costosPresupuestosBatch, costoFacturadoPorUnidad, estimadoFacturadoPorUnidad
 } from './costos-fiscales.js';
 import { parseFechaHist } from './historial.js';
 import { estimados324 } from './rmf-324.js';
@@ -70,6 +70,7 @@ function renderFisTabs() {
   if (!cont) return;
   const tabs = [
     { id: 'deducibilidad', label: '✅ Deducibilidad' },
+    { id: 'porcasa', label: '🏠 Por casa (facturado)' },
     { id: 'estimados', label: '📅 Estimados 3.2.4' },
   ];
   cont.innerHTML = tabs.map(t =>
@@ -88,7 +89,111 @@ function renderFisPanel() {
   const panel = document.getElementById('fiscal-panel');
   if (!panel) return;
   if (fisTab === 'deducibilidad') renderFiscalTab(panel);
+  else if (fisTab === 'porcasa') renderPorCasaTab(panel);
   else if (fisTab === 'estimados') renderEstimadosTab(panel);
+}
+
+// ===== 🏠 POR CASA (facturado) =====
+// El costo que se reporta al SAT es el DEVENGADO: toda factura vigente, pagada
+// o no. Esta pestaña lo baja a nivel casa con el motor del modo 💼 de Costos
+// por Unidad (misma regla, mismo número) y mide el HUECO: cuánto le caería a
+// cada casa si lo facturado sin repartir se repartiera por indiviso.
+let fisEstimCasa = true;   // aquí el punto ES ver el hueco → prendido por default
+
+export function fisToggleEstimCasa(on) {
+  fisEstimCasa = on === true || on === 'true' || on === '1';
+  renderFiscal();
+}
+
+function renderPorCasaTab(panel) {
+  const unidades = unidadesDeProyecto(false, fisProyecto);
+  if (!unidades.length) {
+    panel.innerHTML = `<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🏠</div><div>Sin unidades en ${escapeHtml(fisProyecto)}.</div></div>`;
+    return;
+  }
+  const fisc = costoFacturadoPorUnidad(fisProyecto);
+  const estim = fisEstimCasa ? estimadoFacturadoPorUnidad(fisProyecto) : null;
+  const tEst = estim ? estim.total : 0;
+
+  panel.innerHTML = `
+    <div style="margin-bottom:14px;padding:9px 12px;border:1px solid var(--accent);border-radius:8px;font-size:12px;background:color-mix(in srgb, var(--accent) 8%, transparent);">
+      <strong>💼 Solo facturado (devengado)</strong> — cuenta únicamente facturas vigentes, pagadas o no; los pagos no cuentan aquí.
+      ${fisc.nCruzadas ? ` · <span style="color:var(--red);font-weight:600;">${fisc.nCruzadas} factura(s) de EMPRESA CRUZADA excluidas</span>` : ''}
+      ${fisc.nExcluidas ? ` · ${fisc.nExcluidas} excluida(s) a mano en ✅ Deducibilidad` : ''}
+      ${fisc.sinEmpresaProyecto ? ` · <span style="color:var(--orange);">⚠ Este proyecto no tiene EMPRESA capturada (Configuración → Proyectos): sin eso no se filtran las facturas de empresa cruzada.</span>` : ''}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;">
+      <div class="stat-card"><div class="stat-label">Facturado repartido</div><div class="stat-value" style="color:var(--green);">${fmt(fisc.total)}</div><div class="stat-sub">ya asignado a casas</div></div>
+      <div class="stat-card" title="Facturas elegibles SIN reparto, simuladas por indiviso con el pool a la fecha de cada una. Es el tamaño del pendiente de reparto."><div class="stat-label">⚠ Por repartir (estimado)</div><div class="stat-value" style="color:var(--orange);">${estim ? fmt(tEst) : '—'}</div><div class="stat-sub">${estim ? `${estim.count} factura(s) sin repartir` : 'prende el estimado'}</div></div>
+      <div class="stat-card"><div class="stat-label">Costo fiscal proyectado</div><div class="stat-value">${fmt(fisc.total + tEst)}</div><div class="stat-sub">repartido + por repartir</div></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
+      <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;">Costo facturado por casa</div>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);cursor:pointer;" title="Simula repartir por indiviso (pool a la fecha de cada factura) lo facturado que aún no repartes. Solo para ver: no crea asignaciones.">
+          <input type="checkbox" ${fisEstimCasa ? 'checked' : ''} onchange="fisToggleEstimCasa(this.checked)" style="cursor:pointer;"> Estimado por asignar
+        </label>
+        <button class="btn btn-ghost btn-sm" onclick="exportarFiscalPorCasaExcel()" title="Excel: costo facturado por casa (y el estimado si está prendido)">⬇ Excel</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Casa</th><th style="text-align:right">% Indiviso</th><th style="text-align:right">💼 Costo facturado</th>${estim ? '<th style="text-align:right">Estimado (por asignar)</th><th style="text-align:right">Proyectado</th>' : ''}</tr></thead>
+        <tbody>${unidades.map(u => {
+          const cf = fisc.porUnidad.get(u.unidad_id) || 0;
+          const e = estim ? (estim.porUnidad.get(u.unidad_id) || 0) : 0;
+          return `<tr>
+            <td style="font-weight:600;">${escapeHtml(u.nombre)}</td>
+            <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--muted);">${(u.indiviso_pct || 0).toFixed(4)}%</td>
+            <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--green);">${fmt(cf)}</td>
+            ${estim ? `<td style="text-align:right;font-family:'DM Mono',monospace;color:var(--orange);">${fmt(e)}</td><td style="text-align:right;font-family:'DM Mono',monospace;font-weight:600;">${fmt(cf + e)}</td>` : ''}
+          </tr>`;
+        }).join('')}
+        <tr style="border-top:2px solid var(--border);font-weight:700;">
+          <td>TOTAL</td><td></td>
+          <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--green);">${fmt(fisc.total)}</td>
+          ${estim ? `<td style="text-align:right;font-family:'DM Mono',monospace;color:var(--orange);">${fmt(tEst)}</td><td style="text-align:right;font-family:'DM Mono',monospace;">${fmt(fisc.total + tEst)}</td>` : ''}
+        </tr></tbody>
+      </table>
+    </div>`;
+}
+
+export function exportarFiscalPorCasaExcel() {
+  if (!window.XLSX) { notify('Cargando la librería de Excel, intenta de nuevo en 2 segundos', 'error'); return; }
+  const unidades = unidadesDeProyecto(false, fisProyecto);
+  if (!unidades.length) { notify('No hay unidades en este proyecto', 'error'); return; }
+  const fisc = costoFacturadoPorUnidad(fisProyecto);
+  const estim = fisEstimCasa ? estimadoFacturadoPorUnidad(fisProyecto) : null;
+  const hoyISO = new Date().toISOString().slice(0, 10);
+  const enc = ['Casa', '% Indiviso', 'Costo facturado (fiscal)'];
+  if (estim) enc.push('Estimado por asignar', 'Proyectado');
+  const aoa = [
+    [`FISCAL — Por casa (solo facturado) — ${fisProyecto}`],
+    [`Generado: ${hoyISO} · Facturas vigentes (pagadas o no); pagos NO cuentan${fisc.nCruzadas ? ` · ${fisc.nCruzadas} factura(s) de empresa cruzada excluidas` : ''}${fisc.nExcluidas ? ` · ${fisc.nExcluidas} excluida(s) en Deducibilidad` : ''}${estim ? ` · Estimado: ${fmt(estim.total)} de ${estim.count} factura(s) sin repartir por indiviso (NO es reparto real)` : ''}`],
+    [], enc];
+  let tEst = 0;
+  unidades.forEach(u => {
+    const cf = fisc.porUnidad.get(u.unidad_id) || 0;
+    const e = estim ? (estim.porUnidad.get(u.unidad_id) || 0) : 0;
+    tEst += e;
+    const fila = [u.nombre, (u.indiviso_pct || 0) / 100, cf];
+    if (estim) fila.push(e, cf + e);
+    aoa.push(fila);
+  });
+  const tot = ['TOTAL', '', fisc.total];
+  if (estim) tot.push(tEst, fisc.total + tEst);
+  aoa.push([], tot);
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{ wch: 18 }, { wch: 11 }, { wch: 20 }, { wch: 20 }, { wch: 18 }];
+  for (let r = 4; r < aoa.length; r++) {
+    const refI = XLSX.utils.encode_cell({ r, c: 1 });
+    if (ws[refI] && typeof ws[refI].v === 'number') ws[refI].z = '0.0000%';
+    [2, 3, 4].forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (ws[ref] && typeof ws[ref].v === 'number') ws[ref].z = '"$"#,##0.00'; });
+  }
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Por casa');
+  XLSX.writeFile(wb, `Fiscal_por_casa_${String(fisProyecto).replace(/[\\/:*?"<>|\s]+/g, '_')}_${hoyISO}.xlsx`);
+  notify('⬇ Excel fiscal por casa descargado');
 }
 
 // ========== PESTAÑA: ✅ DEDUCIBILIDAD (mudada de Costos por Unidad) ==========

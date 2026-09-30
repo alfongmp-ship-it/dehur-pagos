@@ -491,15 +491,15 @@ function _factExcluidasFiscal() {
 }
 
 // Facturas del proyecto activo clasificadas para el modo fiscal (una pasada).
-function _facturasFiscalProyecto() {
-  const proy = (state.proyectos || []).find(p => proyectoMatch(cfProyecto, p.nombre))
-            || (state.proyectos || []).find(p => p.nombre === cfProyecto);
+function _facturasFiscalProyecto(proyecto = cfProyecto) {
+  const proy = (state.proyectos || []).find(p => proyectoMatch(proyecto, p.nombre))
+            || (state.proyectos || []).find(p => p.nombre === proyecto);
   const empresaProyNorm = _normEmpresa(proy && proy.empresa);
   const excl = _factExcluidasFiscal();
   const elegibles = new Set();
   let nCruzadas = 0, nExcluidas = 0;
   (state.facturas || []).forEach(f => {
-    if (!proyectoMatch(f.proyecto, cfProyecto)) return;
+    if (!proyectoMatch(f.proyecto, proyecto)) return;
     if (facturaElegibleFiscal(f, empresaProyNorm, excl)) { elegibles.add(String(f.factura_id)); return; }
     const fe = _normEmpresa(f.empresa);
     if (empresaProyNorm && fe && fe !== empresaProyNorm) nCruzadas++;
@@ -509,8 +509,8 @@ function _facturasFiscalProyecto() {
 }
 
 // Costo FACTURADO por casa: asignaciones con factura_id elegible. Una pasada.
-function costoFacturadoPorUnidad() {
-  const info = _facturasFiscalProyecto();
+export function costoFacturadoPorUnidad(proyecto = cfProyecto) {
+  const info = _facturasFiscalProyecto(proyecto);
   const porUnidad = new Map();
   let total = 0;
   state.costoAsignaciones.forEach(a => {
@@ -525,10 +525,10 @@ function costoFacturadoPorUnidad() {
 // Estimado del modo fiscal: facturas ELEGIBLES sin reparto, repartidas por
 // indiviso con el pool a la fecha de CADA factura (mismo criterio que el
 // estimado de pagos). Solo display.
-function estimadoFacturadoPorUnidad() {
-  const info = _facturasFiscalProyecto();
+export function estimadoFacturadoPorUnidad(proyecto = cfProyecto) {
+  const info = _facturasFiscalProyecto(proyecto);
   const repartidas = _facturasRepartidasSet();
-  const activas = unidadesDeProyecto();
+  const activas = unidadesDeProyecto(false, proyecto);
   const porUnidad = new Map();
   let total = 0, count = 0;
   const poolCache = new Map();
