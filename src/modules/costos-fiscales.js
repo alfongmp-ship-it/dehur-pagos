@@ -401,25 +401,32 @@ function pagosAsignados() {
 // pagos del proyecto SIN factura ligada y SIN reparto, para ver su impacto provisional por
 // casa mientras se asignan. NO crea asignaciones reales → no afecta el costo real ni duplica.
 // Devuelve { porUnidad: Map(unidad_id→monto), total, count }.
-function estimadoIndivisoPorUnidad() {
-  const porUnidad = new Map();
-  const porLlave = new Map();     // llave partida|sub → Map(unidad_id → monto estimado)
-  const countLlave = new Map();   // llave → cuántos pagos pendientes caen ahí
-  const etiquetas = new Map();    // llave → { partida, sub }
+// Pagos del proyecto que son costo, SIN factura ligada (por ninguna vía) y SIN
+// reparto. Fuente ÚNICA: la usan el estimado de Costos por Unidad y la pestaña
+// 🧮 Sin CFDI de Fiscal, para que ambas hablen de los mismos pagos.
+export function pagosSinFacturaSinRepartir(proyecto = cfProyecto) {
   const asignados = new Set(state.costoAsignaciones.map(a => String(a.pago_id)));
-  const activas = unidadesDeProyecto();
   // Excluir pagos ligados a factura por CUALQUIER vía (bandera directa o
   // facturaPagos por partes): su costo va por el devengado de la factura.
   const ligadosFp = new Set();
   (state.facturaPagos || []).forEach(fp => { if (String(fp.pago_id || '') !== '') ligadosFp.add(String(fp.pago_id)); });
   const noC = _partidasNoCuentanSet();
-  const pend = state.historial.filter(h =>
+  return state.historial.filter(h =>
     esCostoAsignable(h, noC) && h.id &&
-    proyectoMatch(h.proyecto, cfProyecto) &&
+    proyectoMatch(h.proyecto, proyecto) &&
     !asignados.has(String(h.id)) &&
     !(h.factura_id && String(h.factura_id) !== '') &&
     !ligadosFp.has(String(h.id))
   );
+}
+
+function estimadoIndivisoPorUnidad() {
+  const porUnidad = new Map();
+  const porLlave = new Map();     // llave partida|sub → Map(unidad_id → monto estimado)
+  const countLlave = new Map();   // llave → cuántos pagos pendientes caen ahí
+  const etiquetas = new Map();    // llave → { partida, sub }
+  const activas = unidadesDeProyecto();
+  const pend = pagosSinFacturaSinRepartir();
   let total = 0;
   pend.forEach(h => { total += h.importe || 0; });
   if (activas.length) {
@@ -478,6 +485,19 @@ export function facturaElegibleFiscal(f, empresaProyNorm, factExcluidas) {
   const fe = _normEmpresa(f.empresa);
   if (empresaProyNorm && fe && fe !== empresaProyNorm) return false;
   return true;
+}
+
+// Empresa del proyecto, normalizada ('' si no está capturada). Exportada para que
+// fiscalBatch (✅ Deducibilidad) aplique la MISMA regla de empresa cruzada.
+export function empresaDeProyectoNorm(proyecto) {
+  const proy = (state.proyectos || []).find(p => proyectoMatch(proyecto, p.nombre))
+            || (state.proyectos || []).find(p => p.nombre === proyecto);
+  return _normEmpresa(proy && proy.empresa);
+}
+// ¿La factura está a OTRA empresa que la del proyecto? Solo si ambas existen.
+export function facturaEmpresaCruzada(f, empresaProyNorm) {
+  const fe = _normEmpresa(f && f.empresa);
+  return !!(empresaProyNorm && fe && fe !== empresaProyNorm);
 }
 
 // Marcas 🚫 de factura (calca _marcasFiscales de fiscal.js; no se importa de ahí

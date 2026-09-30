@@ -14,7 +14,8 @@ import {
   unidadesDeProyecto, pagoById, facturaById,
   _facturasRepartidasSet, _facturasCanceladasSet, _pagosCubiertosPorFacturaSet,
   _factExistSet, _pagoExistSet, _pagosCapitalSet, _tipoAsignacion,
-  costosPresupuestosBatch, costoFacturadoPorUnidad, estimadoFacturadoPorUnidad
+  costosPresupuestosBatch, costoFacturadoPorUnidad, estimadoFacturadoPorUnidad,
+  empresaDeProyectoNorm, facturaEmpresaCruzada, pagosSinFacturaSinRepartir
 } from './costos-fiscales.js';
 import { parseFechaHist } from './historial.js';
 import { estimados324 } from './rmf-324.js';
@@ -71,6 +72,7 @@ function renderFisTabs() {
   const tabs = [
     { id: 'deducibilidad', label: '✅ Deducibilidad' },
     { id: 'porcasa', label: '🏠 Por casa (facturado)' },
+    { id: 'sincfdi', label: '🧮 Sin CFDI' },
     { id: 'estimados', label: '📅 Estimados 3.2.4' },
   ];
   cont.innerHTML = tabs.map(t =>
@@ -90,7 +92,154 @@ function renderFisPanel() {
   if (!panel) return;
   if (fisTab === 'deducibilidad') renderFiscalTab(panel);
   else if (fisTab === 'porcasa') renderPorCasaTab(panel);
+  else if (fisTab === 'sincfdi') renderSinCfdiTab(panel);
   else if (fisTab === 'estimados') renderEstimadosTab(panel);
+}
+
+// ===== 🧮 SIN CFDI =====
+// Pagos que son costo pero NO tienen factura (nómina, IMSS, gastos sueltos…),
+// AGRUPADOS POR PARTIDA para decidir viéndolos en conjunto qué es deducible.
+// Solo vista (decisión del dueño 2026-09-30: "primero solo quiero ver"); la
+// aprobación sigue siendo pago por pago con el ✅ de siempre (fiscal_marcas).
+// Dos universos, porque importan distinto:
+//   · REPARTIDOS a casas → ya están en el costo por casa; su aprobación decide
+//     si entran al costo FISCAL (fiscalBatch.pagosCand).
+//   · SIN REPARTIR → todavía no le pesan a ninguna casa; se muestran para que
+//     el hueco sea visible (pagosSinFacturaSinRepartir, misma fuente que el
+//     estimado de Costos por Unidad).
+let fisSinCfdiAbiertas = new Set();
+
+export function fisSinCfdiToggle(kEnc) {
+  const k = decodeURIComponent(kEnc);
+  if (fisSinCfdiAbiertas.has(k)) fisSinCfdiAbiertas.delete(k); else fisSinCfdiAbiertas.add(k);
+  renderFisPanel();
+}
+
+function _gruposSinCfdi(proyecto) {
+  const b = fiscalBatch(proyecto);
+  const grupos = new Map();
+  const g = k => {
+    let x = grupos.get(k);
+    if (!x) { x = { partida: k, n: 0, repartido: 0, aprob: 0, pend: 0, nSR: 0, sinRep: 0, pagos: [] }; grupos.set(k, x); }
+    return x;
+  };
+  b.pagosCand.forEach((reg, pid) => {
+    const h = reg.h;
+    const x = g(((h && h.partida) || '').trim() || 'Sin partida');
+    x.n++; x.repartido += reg.monto;
+    if (reg.aprobado) x.aprob += reg.monto; else x.pend += reg.monto;
+    x.pagos.push({ pid, h, monto: reg.monto, aprobado: reg.aprobado, repartido: true });
+  });
+  const { aprobados } = _marcasFiscales();
+  pagosSinFacturaSinRepartir(proyecto).forEach(h => {
+    const x = g((h.partida || '').trim() || 'Sin partida');
+    x.nSR++; x.sinRep += h.importe || 0;
+    x.pagos.push({ pid: String(h.id), h, monto: h.importe || 0, aprobado: aprobados.has(String(h.id)), repartido: false });
+  });
+  const lista = [...grupos.values()].sort((a, z) => (z.repartido + z.sinRep) - (a.repartido + a.sinRep));
+  lista.forEach(x => x.pagos.sort((a, z) => z.monto - a.monto));
+  return { b, lista };
+}
+
+function renderSinCfdiTab(panel) {
+  const sinTabla = state.cargado && state.cargado.fiscalMarcas !== true;
+  const { b, lista } = _gruposSinCfdi(fisProyecto);
+  const facturado = b.totFis - b.totPagosAprob;
+  const tSinRep = lista.reduce((s, x) => s + x.sinRep, 0);
+  const nSinRep = lista.reduce((s, x) => s + x.nSR, 0);
+  const mono = "font-family:'DM Mono',monospace;";
+
+  panel.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px;">
+      <div class="stat-card"><div class="stat-label">Facturado (fiscal)</div><div class="stat-value">${fmt(facturado)}</div><div class="stat-sub">facturas repartidas elegibles</div></div>
+      <div class="stat-card"><div class="stat-label">✅ Sin CFDI aprobado</div><div class="stat-value" style="color:var(--green);">${fmt(b.totPagosAprob)}</div><div class="stat-sub">pagos marcados deducibles</div></div>
+      <div class="stat-card"><div class="stat-label">Pendiente de decidir</div><div class="stat-value" style="color:var(--orange);">${fmt(b.totPagosNoAprob)}</div><div class="stat-sub">sin CFDI, repartido, sin aprobar</div></div>
+      <div class="stat-card" title="Facturado + Sin CFDI aprobado. Es el costo fiscal que hoy se sostiene, a nivel casa."><div class="stat-label">Costo fiscal conciliado</div><div class="stat-value" style="color:var(--accent);">${fmt(b.totFis)}</div><div class="stat-sub">facturado + aprobado</div></div>
+    </div>
+    ${tSinRep > 0 ? `<div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Además hay <strong style="color:var(--orange);">${fmt(tSinRep)}</strong> en ${nSinRep} pago(s) sin CFDI <strong>todavía sin repartir</strong> a casas: no le pesan a ninguna casa hasta que se repartan.</div>` : ''}
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
+      <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;">Pagos sin CFDI por partida</div>
+      <button class="btn btn-ghost btn-sm" onclick="exportarSinCfdiExcel()" title="Excel: resumen por partida + detalle de cada pago">⬇ Excel</button>
+    </div>
+    ${lista.length ? `<div class="table-wrap">
+      <table>
+        <thead><tr><th>Partida</th><th style="text-align:right">Pagos</th><th style="text-align:right">Repartido a casas</th><th style="text-align:right">✅ Aprobado</th><th style="text-align:right">Pendiente de decidir</th><th style="text-align:right">Sin repartir aún</th></tr></thead>
+        <tbody>${lista.map(x => {
+          const abierta = fisSinCfdiAbiertas.has(x.partida);
+          const kEnc = encodeURIComponent(x.partida).replace(/'/g, '%27');
+          const fila = `<tr style="cursor:pointer;" onclick="fisSinCfdiToggle('${kEnc}')" title="Click para ${abierta ? 'cerrar' : 'ver los pagos'}">
+            <td style="font-weight:600;">${abierta ? '▾' : '▸'} ${escapeHtml(x.partida)}</td>
+            <td style="text-align:right;${mono}color:var(--muted);">${x.n + x.nSR}</td>
+            <td style="text-align:right;${mono}">${fmt(x.repartido)}</td>
+            <td style="text-align:right;${mono}color:var(--green);">${x.aprob ? fmt(x.aprob) : '—'}</td>
+            <td style="text-align:right;${mono}color:var(--orange);">${x.pend ? fmt(x.pend) : '—'}</td>
+            <td style="text-align:right;${mono}color:var(--muted);">${x.nSR ? `${fmt(x.sinRep)} <span style="font-size:10px;">(${x.nSR})</span>` : '—'}</td>
+          </tr>`;
+          if (!abierta) return fila;
+          return fila + `<tr><td colspan="6" style="padding:0 0 10px 18px;background:color-mix(in srgb, var(--accent) 4%, transparent);">
+            <table style="width:100%;font-size:11px;">
+              <thead><tr><th>Fecha</th><th>Beneficiario</th><th>Concepto</th><th>Sub-partida</th><th style="text-align:right">Monto</th><th>Estado</th><th class="req-admin"></th></tr></thead>
+              <tbody>${x.pagos.map(p => {
+                const h = p.h || {};
+                const estado = !p.repartido ? '<span style="color:var(--muted);">sin repartir</span>'
+                  : p.aprobado ? '<span style="color:var(--green);">✅ aprobado</span>'
+                  : '<span style="color:var(--orange);">pendiente</span>';
+                const btn = sinTabla ? '' : (p.aprobado
+                  ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();fiscalMarcarPago('${escapeHtml(p.pid)}', false)">↩️ Quitar</button>`
+                  : `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();fiscalMarcarPago('${escapeHtml(p.pid)}', true)">✅ Aprobar</button>`);
+                return `<tr>
+                  <td style="${mono}white-space:nowrap;">${escapeHtml(h.fecha || '')}</td>
+                  <td>${escapeHtml(h.nombre || '')}</td>
+                  <td style="color:var(--muted);">${escapeHtml(h.concepto || '')}</td>
+                  <td style="color:var(--muted);">${escapeHtml(h.sub_partida || '')}</td>
+                  <td style="text-align:right;${mono}">${fmt(p.monto)}</td>
+                  <td>${estado}</td>
+                  <td class="req-admin" style="text-align:right;">${btn}</td>
+                </tr>`;
+              }).join('')}</tbody>
+            </table>
+          </td></tr>`;
+        }).join('')}</tbody>
+      </table>
+    </div>` : '<div style="color:var(--muted);font-size:12px;">No hay pagos sin CFDI en este proyecto.</div>'}`;
+}
+
+export function exportarSinCfdiExcel() {
+  if (!window.XLSX) { notify('Cargando la librería de Excel, intenta de nuevo en 2 segundos', 'error'); return; }
+  const { b, lista } = _gruposSinCfdi(fisProyecto);
+  if (!lista.length) { notify('No hay pagos sin CFDI en este proyecto', 'error'); return; }
+  const hoyISO = new Date().toISOString().slice(0, 10);
+  const money = (ws, r0, cols, rows) => {
+    for (let r = r0; r < rows; r++) cols.forEach(c => {
+      const ref = XLSX.utils.encode_cell({ r, c });
+      if (ws[ref] && typeof ws[ref].v === 'number') ws[ref].z = '"$"#,##0.00';
+    });
+  };
+  const aoa1 = [
+    [`FISCAL — Pagos sin CFDI por partida — ${fisProyecto}`],
+    [`Generado: ${hoyISO} · Facturado ${fmt(b.totFis - b.totPagosAprob)} + Sin CFDI aprobado ${fmt(b.totPagosAprob)} = Costo fiscal conciliado ${fmt(b.totFis)} · Pendiente de decidir ${fmt(b.totPagosNoAprob)}`],
+    [], ['Partida', 'Pagos', 'Repartido a casas', 'Aprobado', 'Pendiente de decidir', 'Sin repartir aún', 'Pagos sin repartir']];
+  lista.forEach(x => aoa1.push([x.partida, x.n + x.nSR, x.repartido, x.aprob, x.pend, x.sinRep, x.nSR]));
+  const ws1 = XLSX.utils.aoa_to_sheet(aoa1);
+  ws1['!cols'] = [{ wch: 30 }, { wch: 8 }, { wch: 18 }, { wch: 16 }, { wch: 20 }, { wch: 16 }, { wch: 10 }];
+  money(ws1, 4, [2, 3, 4, 5], aoa1.length);
+  const aoa2 = [['Detalle de pagos sin CFDI'], [],
+    ['Partida', 'Sub-partida', 'Fecha', 'Beneficiario', 'Concepto', 'Monto', 'Repartido', 'Estado', 'Motivo aprobación']];
+  lista.forEach(x => x.pagos.forEach(p => {
+    const h = p.h || {};
+    const marca = _marcaFiscalDe('pago', p.pid);
+    aoa2.push([x.partida, h.sub_partida || '', h.fecha || '', h.nombre || '', h.concepto || '', p.monto,
+      p.repartido ? 'Sí' : 'No', !p.repartido ? 'Sin repartir' : p.aprobado ? 'Aprobado' : 'Pendiente',
+      (marca && marca.incluir !== false && marca.motivo) || '']);
+  }));
+  const ws2 = XLSX.utils.aoa_to_sheet(aoa2);
+  ws2['!cols'] = [{ wch: 24 }, { wch: 18 }, { wch: 11 }, { wch: 28 }, { wch: 34 }, { wch: 14 }, { wch: 9 }, { wch: 12 }, { wch: 28 }];
+  money(ws2, 3, [5], aoa2.length);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws1, 'Por partida');
+  XLSX.utils.book_append_sheet(wb, ws2, 'Detalle');
+  XLSX.writeFile(wb, `Fiscal_sin_CFDI_${String(fisProyecto).replace(/[\\/:*?"<>|\s]+/g, '_')}_${hoyISO}.xlsx`);
+  notify('⬇ Excel de pagos sin CFDI descargado');
 }
 
 // ===== 🏠 POR CASA (facturado) =====
@@ -102,7 +251,7 @@ let fisEstimCasa = true;   // aquí el punto ES ver el hueco → prendido por de
 
 export function fisToggleEstimCasa(on) {
   fisEstimCasa = on === true || on === 'true' || on === '1';
-  renderFiscal();
+  renderFisPanel();
 }
 
 function renderPorCasaTab(panel) {
@@ -114,6 +263,12 @@ function renderPorCasaTab(panel) {
   const fisc = costoFacturadoPorUnidad(fisProyecto);
   const estim = fisEstimCasa ? estimadoFacturadoPorUnidad(fisProyecto) : null;
   const tEst = estim ? estim.total : 0;
+  // Sin CFDI aprobado por casa (pagos marcados deducibles en 🧮 / ✅): con eso la
+  // fila dice el costo FISCAL CONCILIADO = facturado + sin CFDI aprobado.
+  const bat = fiscalBatch(fisProyecto);
+  const scDe = u => (bat.porUnidad.get(String(u.unidad_id)) || {}).sinCfdi || 0;
+  const tSC = unidades.reduce((s, u) => s + scDe(u), 0);
+  const tConc = fisc.total + tSC;
 
   panel.innerHTML = `
     <div style="margin-bottom:14px;padding:9px 12px;border:1px solid var(--accent);border-radius:8px;font-size:12px;background:color-mix(in srgb, var(--accent) 8%, transparent);">
@@ -122,10 +277,11 @@ function renderPorCasaTab(panel) {
       ${fisc.nExcluidas ? ` · ${fisc.nExcluidas} excluida(s) a mano en ✅ Deducibilidad` : ''}
       ${fisc.sinEmpresaProyecto ? ` · <span style="color:var(--orange);">⚠ Este proyecto no tiene EMPRESA capturada (Configuración → Proyectos): sin eso no se filtran las facturas de empresa cruzada.</span>` : ''}
     </div>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
       <div class="stat-card"><div class="stat-label">Facturado repartido</div><div class="stat-value" style="color:var(--green);">${fmt(fisc.total)}</div><div class="stat-sub">ya asignado a casas</div></div>
+      <div class="stat-card" title="Pagos sin factura marcados deducibles (pestaña 🧮 Sin CFDI), repartidos a casas."><div class="stat-label">✅ Sin CFDI aprobado</div><div class="stat-value">${fmt(tSC)}</div><div class="stat-sub">nómina y otros deducibles</div></div>
       <div class="stat-card" title="Facturas elegibles SIN reparto, simuladas por indiviso con el pool a la fecha de cada una. Es el tamaño del pendiente de reparto."><div class="stat-label">⚠ Por repartir (estimado)</div><div class="stat-value" style="color:var(--orange);">${estim ? fmt(tEst) : '—'}</div><div class="stat-sub">${estim ? `${estim.count} factura(s) sin repartir` : 'prende el estimado'}</div></div>
-      <div class="stat-card"><div class="stat-label">Costo fiscal proyectado</div><div class="stat-value">${fmt(fisc.total + tEst)}</div><div class="stat-sub">repartido + por repartir</div></div>
+      <div class="stat-card" title="Facturado + Sin CFDI aprobado${estim ? ' + estimado por repartir' : ''}"><div class="stat-label">Costo fiscal ${estim ? 'proyectado' : 'conciliado'}</div><div class="stat-value" style="color:var(--accent);">${fmt(tConc + tEst)}</div><div class="stat-sub">${estim ? 'conciliado + por repartir' : 'facturado + sin CFDI'}</div></div>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
       <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;">Costo facturado por casa</div>
@@ -138,21 +294,26 @@ function renderPorCasaTab(panel) {
     </div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Casa</th><th style="text-align:right">% Indiviso</th><th style="text-align:right">💼 Costo facturado</th>${estim ? '<th style="text-align:right">Estimado (por asignar)</th><th style="text-align:right">Proyectado</th>' : ''}</tr></thead>
+        <thead><tr><th>Casa</th><th style="text-align:right">% Indiviso</th><th style="text-align:right">💼 Facturado</th><th style="text-align:right">✅ Sin CFDI</th><th style="text-align:right" title="Facturado + Sin CFDI aprobado">Fiscal conciliado</th>${estim ? '<th style="text-align:right">Estimado (por asignar)</th><th style="text-align:right">Proyectado</th>' : ''}</tr></thead>
         <tbody>${unidades.map(u => {
           const cf = fisc.porUnidad.get(u.unidad_id) || 0;
+          const sc = scDe(u);
           const e = estim ? (estim.porUnidad.get(u.unidad_id) || 0) : 0;
           return `<tr>
             <td style="font-weight:600;">${escapeHtml(u.nombre)}</td>
             <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--muted);">${(u.indiviso_pct || 0).toFixed(4)}%</td>
             <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--green);">${fmt(cf)}</td>
-            ${estim ? `<td style="text-align:right;font-family:'DM Mono',monospace;color:var(--orange);">${fmt(e)}</td><td style="text-align:right;font-family:'DM Mono',monospace;font-weight:600;">${fmt(cf + e)}</td>` : ''}
+            <td style="text-align:right;font-family:'DM Mono',monospace;">${sc ? fmt(sc) : '—'}</td>
+            <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--accent);font-weight:600;">${fmt(cf + sc)}</td>
+            ${estim ? `<td style="text-align:right;font-family:'DM Mono',monospace;color:var(--orange);">${fmt(e)}</td><td style="text-align:right;font-family:'DM Mono',monospace;font-weight:600;">${fmt(cf + sc + e)}</td>` : ''}
           </tr>`;
         }).join('')}
         <tr style="border-top:2px solid var(--border);font-weight:700;">
           <td>TOTAL</td><td></td>
           <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--green);">${fmt(fisc.total)}</td>
-          ${estim ? `<td style="text-align:right;font-family:'DM Mono',monospace;color:var(--orange);">${fmt(tEst)}</td><td style="text-align:right;font-family:'DM Mono',monospace;">${fmt(fisc.total + tEst)}</td>` : ''}
+          <td style="text-align:right;font-family:'DM Mono',monospace;">${fmt(tSC)}</td>
+          <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--accent);">${fmt(tConc)}</td>
+          ${estim ? `<td style="text-align:right;font-family:'DM Mono',monospace;color:var(--orange);">${fmt(tEst)}</td><td style="text-align:right;font-family:'DM Mono',monospace;">${fmt(tConc + tEst)}</td>` : ''}
         </tr></tbody>
       </table>
     </div>`;
@@ -164,31 +325,34 @@ export function exportarFiscalPorCasaExcel() {
   if (!unidades.length) { notify('No hay unidades en este proyecto', 'error'); return; }
   const fisc = costoFacturadoPorUnidad(fisProyecto);
   const estim = fisEstimCasa ? estimadoFacturadoPorUnidad(fisProyecto) : null;
+  const bat = fiscalBatch(fisProyecto);
+  const scDe = u => (bat.porUnidad.get(String(u.unidad_id)) || {}).sinCfdi || 0;
   const hoyISO = new Date().toISOString().slice(0, 10);
-  const enc = ['Casa', '% Indiviso', 'Costo facturado (fiscal)'];
+  const enc = ['Casa', '% Indiviso', 'Facturado', 'Sin CFDI aprobado', 'Fiscal conciliado'];
   if (estim) enc.push('Estimado por asignar', 'Proyectado');
   const aoa = [
     [`FISCAL — Por casa (solo facturado) — ${fisProyecto}`],
     [`Generado: ${hoyISO} · Facturas vigentes (pagadas o no); pagos NO cuentan${fisc.nCruzadas ? ` · ${fisc.nCruzadas} factura(s) de empresa cruzada excluidas` : ''}${fisc.nExcluidas ? ` · ${fisc.nExcluidas} excluida(s) en Deducibilidad` : ''}${estim ? ` · Estimado: ${fmt(estim.total)} de ${estim.count} factura(s) sin repartir por indiviso (NO es reparto real)` : ''}`],
     [], enc];
-  let tEst = 0;
+  let tEst = 0, tSC = 0;
   unidades.forEach(u => {
     const cf = fisc.porUnidad.get(u.unidad_id) || 0;
+    const sc = scDe(u);
     const e = estim ? (estim.porUnidad.get(u.unidad_id) || 0) : 0;
-    tEst += e;
-    const fila = [u.nombre, (u.indiviso_pct || 0) / 100, cf];
-    if (estim) fila.push(e, cf + e);
+    tEst += e; tSC += sc;
+    const fila = [u.nombre, (u.indiviso_pct || 0) / 100, cf, sc, cf + sc];
+    if (estim) fila.push(e, cf + sc + e);
     aoa.push(fila);
   });
-  const tot = ['TOTAL', '', fisc.total];
-  if (estim) tot.push(tEst, fisc.total + tEst);
+  const tot = ['TOTAL', '', fisc.total, tSC, fisc.total + tSC];
+  if (estim) tot.push(tEst, fisc.total + tSC + tEst);
   aoa.push([], tot);
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [{ wch: 18 }, { wch: 11 }, { wch: 20 }, { wch: 20 }, { wch: 18 }];
+  ws['!cols'] = [{ wch: 18 }, { wch: 11 }, { wch: 16 }, { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 16 }];
   for (let r = 4; r < aoa.length; r++) {
     const refI = XLSX.utils.encode_cell({ r, c: 1 });
     if (ws[refI] && typeof ws[refI].v === 'number') ws[refI].z = '0.0000%';
-    [2, 3, 4].forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (ws[ref] && typeof ws[ref].v === 'number') ws[ref].z = '"$"#,##0.00'; });
+    [2, 3, 4, 5, 6].forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (ws[ref] && typeof ws[ref].v === 'number') ws[ref].z = '"$"#,##0.00'; });
   }
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Por casa');
@@ -231,9 +395,12 @@ export function fiscalBatch(proyecto) {
   const fe = _factExistSet(); const pe = _pagoExistSet();
   const pcap = _pagosCapitalSet();
   const { aprobados, factExcluidas } = _marcasFiscales();
+  // Empresa cruzada (factura a otra razón social que la del proyecto): el SAT no
+  // la acepta para esta empresa → fuera del fiscal, igual que en 🏠 Por casa.
+  const empNorm = empresaDeProyectoNorm(proyecto);
 
   const porUnidad = new Map();   // uid → { ger, fis }
-  const filaDe = uid => { let x = porUnidad.get(uid); if (!x) { x = { ger: 0, fis: 0 }; porUnidad.set(uid, x); } return x; };
+  const filaDe = uid => { let x = porUnidad.get(uid); if (!x) { x = { ger: 0, fis: 0, sinCfdi: 0 }; porUnidad.set(uid, x); } return x; };
   const pagosCand = new Map();   // pago_id → { h, monto, aprobado }
   const factRep = new Map();     // factura_id → { f, monto, excluida, auto }
   let totGer = 0, totFis = 0, totPagosAprob = 0, totPagosNoAprob = 0, totFactExcl = 0, totInicial = 0;
@@ -252,18 +419,18 @@ export function fiscalBatch(proyecto) {
       let reg = factRep.get(fid);
       if (!reg) {
         const f = facturaById(fid);
-        reg = { f, monto: 0, excluida: factExcluidas.has(fid), auto: _factAutoExcluida(f) };
+        reg = { f, monto: 0, excluida: factExcluidas.has(fid), auto: _factAutoExcluida(f), cruzada: facturaEmpresaCruzada(f, empNorm) };
         factRep.set(fid, reg);
       }
       reg.monto += monto;
-      if (reg.excluida || reg.auto) totFactExcl += monto;
+      if (reg.excluida || reg.auto || reg.cruzada) totFactExcl += monto;
       else esFiscal = true;
     } else {
       const pid = String(a.pago_id);
       let reg = pagosCand.get(pid);
       if (!reg) { reg = { h: pagoById(pid), monto: 0, aprobado: aprobados.has(pid) }; pagosCand.set(pid, reg); }
       reg.monto += monto;
-      if (reg.aprobado) { esFiscal = true; totPagosAprob += monto; } else { totPagosNoAprob += monto; }
+      if (reg.aprobado) { esFiscal = true; totPagosAprob += monto; fila.sinCfdi += monto; } else { totPagosNoAprob += monto; }
     }
     if (esFiscal) { fila.fis += monto; totFis += monto; }
   });
@@ -282,7 +449,8 @@ export function fiscalBatch(proyecto) {
   const repartidas = _facturasRepartidasSet();
   const sinRepartir = (state.facturas || []).filter(f =>
     f.proyecto === proyecto && f.estado_sat !== 'Cancelada' && f.estatus_factura !== 'cancelada' &&
-    !_factAutoExcluida(f) && (f.monto_total || 0) > 0 && !repartidas.has(String(f.factura_id)));
+    !_factAutoExcluida(f) && !facturaEmpresaCruzada(f, empNorm) &&
+    (f.monto_total || 0) > 0 && !repartidas.has(String(f.factura_id)));
 
   return { porUnidad, pagosCand, factRep, sinRepartir, totGer, totFis, totPagosAprob, totPagosNoAprob, totFactExcl, totInicial };
 }
@@ -375,10 +543,11 @@ function renderFiscalTab(panel) {
             <td style="font-size:12px;">${escapeHtml(f.razon_social || f.nombre_proveedor || '')}</td>
             <td style="font-size:11px;color:var(--muted);">${escapeHtml(f.tipo_comprobante || 'Factura')}</td>
             <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;">${fmt(x.monto)}</td>
-            <td>${x.auto ? '<span style="font-size:10px;color:var(--orange);" title="Este tipo de comprobante no es costo deducible (sería doble conteo)">🚫 auto-excluida</span>'
+            <td>${x.cruzada ? `<span style="font-size:10px;color:var(--red);font-weight:600;" title="La factura está a ${escapeHtml(f.empresa || '')}, no a la empresa del proyecto: el SAT no la acepta para esta empresa. Si es error de captura, corrígela en Facturas con 🏢 Cambiar empresa.">⚠ empresa cruzada</span>`
+              : x.auto ? '<span style="font-size:10px;color:var(--orange);" title="Este tipo de comprobante no es costo deducible (sería doble conteo)">🚫 auto-excluida</span>'
               : x.excluida ? `<span style="font-size:10px;color:var(--red);" title="${escapeHtml((marca && (marca.motivo + ' · ' + marca.usuario_email)) || '')}">🚫 excluida</span>`
               : '<span style="font-size:10px;color:var(--green);">✅ deducible</span>'}</td>
-            <td style="text-align:right;" class="req-admin">${(sinTabla || x.auto) ? '' : (x.excluida
+            <td style="text-align:right;" class="req-admin">${(sinTabla || x.auto || x.cruzada) ? '' : (x.excluida
               ? `<button class="btn btn-ghost btn-sm" onclick="fiscalMarcarFactura('${escapeHtml(String(f.factura_id))}', false)">↩️ Incluir</button>`
               : `<button class="btn btn-ghost btn-sm" style="color:var(--red);" onclick="fiscalMarcarFactura('${escapeHtml(String(f.factura_id))}', true)">🚫 Excluir</button>`)}</td>
           </tr>`;
@@ -506,7 +675,7 @@ export function fiscalExportar() {
     const marca = _marcaFiscalDe('factura', x.f.factura_id);
     aoa3.push([String(x.f.factura_id), x.f.numero_factura || '', x.f.razon_social || x.f.nombre_proveedor || '',
       x.f.tipo_comprobante || 'Factura', x.monto,
-      x.auto ? 'AUTO-excluida (tipo)' : x.excluida ? 'EXCLUIDA' : 'Deducible',
+      x.cruzada ? 'EXCLUIDA (empresa cruzada)' : x.auto ? 'AUTO-excluida (tipo)' : x.excluida ? 'EXCLUIDA' : 'Deducible',
       (marca && marca.motivo) || '', (marca && marca.usuario_email) || '']);
   });
   const ws3 = XLSX.utils.aoa_to_sheet(aoa3);
