@@ -13,6 +13,7 @@
 import { state, nuevoClienteId, nuevoVentaId, nuevoCobroId, puedeEditar, rol } from '../state.js';
 import { ingresosActivo, estrategiaActivo, esPorFila, sbGuardarFila, sbBorrarFila, gsSaveClientes, gsSaveVentas, gsSaveCobros } from '../services/google-sync.js';
 import { notify } from '../ui/notify.js';
+import { fechaCierreUnidad, invalidarCierres } from '../config/costos-fiscales.js';
 import { cerrar } from '../ui/modal.js';
 import { fmt, fmtFecha, dl, escapeHtml } from '../ui/format.js';
 import { proyTag } from '../ui/badges.js';
@@ -441,6 +442,24 @@ function limpiarFormVenta() {
   set('v-obs', '');
 }
 
+// La escritura real (y cancelar/borrar la venta) mueve el CIERRE de la casa: desde
+// ahí ya no puede recibir costo. Se compara el cierre antes/después y, si cambió, se
+// ofrece rehacer/restaurar sus repartos (rehacer-repartos.js; solo admin — a otros
+// roles se les avisa que el admin debe hacerlo).
+function _cierreDe(unidadId) {
+  const u = (state.unidades || []).find(x => String(x.unidad_id) === String(unidadId));
+  return u ? fechaCierreUnidad(u) : '';
+}
+// Venta que cambia de casa: cambian DOS cierres; se atienden uno tras otro.
+async function _avisarCambioCierre(antes, origen) {
+  invalidarCierres();
+  const cambiaron = antes.filter(({ uid, cierre }) => uid && _cierreDe(uid) !== cierre);
+  for (const { uid } of cambiaron) {
+    if (rol() === 'admin' && window.ofrecerRehacerCasa) await window.ofrecerRehacerCasa(uid, origen);
+    else notify('ℹ️ Cambió el cierre de la casa (escritura): el admin debe rehacer sus repartos desde 🩺 Auditar repartos', 'error');
+  }
+}
+
 export function guardarVenta() {
   if (!puedeEditar()) { notify('No tienes permiso para editar', 'error'); return; }
   const unidad_id = (document.getElementById('v-unidad').value || '').trim();
@@ -463,6 +482,9 @@ export function guardarVenta() {
     return;
   }
   const existing = state.editVentaId ? state.ventas.find(v => String(v.venta_id) === String(state.editVentaId)) : null;
+  invalidarCierres();
+  const cierresAntes = [...new Set([unidad_id, existing && existing.unidad_id].filter(Boolean).map(String))]
+    .map(uid => ({ uid, cierre: _cierreDe(uid) }));
   const obj = {
     venta_id: existing ? existing.venta_id : nuevoVentaId(),
     unidad_id, proyecto, cliente_id, precio_venta,
@@ -521,6 +543,7 @@ export function guardarVenta() {
     if (pfC) sbGuardarFila('cobros', cobroApertura);
     actualizarContadoresIngresos();
   }
+  _avisarCambioCierre(cierresAntes, obj.fecha_escritura_real ? 'Se capturó la escritura' : 'Cambió la venta');
 }
 
 export function eliminarVenta(id) {
@@ -547,12 +570,15 @@ export function eliminarVenta(id) {
       if (pfC) sbGuardarFila('clientes', cli);
     }
   }
+  invalidarCierres();
+  const cierresAntesDel = [{ uid: String(v.unidad_id), cierre: _cierreDe(v.unidad_id) }];
   state.ventas = state.ventas.filter(x => String(x.venta_id) !== String(id));
   renderVentas();
   notify('Venta eliminada' + (interesGuardado ? ' · la relación con el proyecto se conservó como interés del cliente' : ''));
   const porFila = esPorFila('ventas');
   gsSaveVentas({ porFila });
   if (porFila) sbBorrarFila('ventas', id);
+  _avisarCambioCierre(cierresAntesDel, 'Se eliminó la venta');
 }
 // ---- Cobranza (Etapa 5) -----------------------------------------------------
 const _TIPO_COBRO_LABEL = { enganche: 'Enganche', mensualidad: 'Mensualidad', liquidacion: 'Liquidación', adeudo: 'Adeudo', abono: 'Abono', otro: 'Otro' };

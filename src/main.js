@@ -38,6 +38,7 @@ import { renderFlujoSalida, fsAbrirDetalle, fsCerrarDetalle } from './modules/fl
 import { renderResumenEjecutivo } from './modules/resumen-ejecutivo.js';
 import { renderCostosFiscales, abrirNuevaUnidad, editarUnidad, guardarUnidad, toggleUnidad, setFechaTermino, setEstatusUnidad, setIndivisoUnidad, abrirLoteUnidades, guardarLoteUnidades, cfLimpiarHuerfanas, abrirAsignarCosto, reasignarCosto, eliminarAsignacionCosto, cfCambiarMetodo, cfPreviewReparto, cfRepartirResto, cfRepartirRestoIndiviso, cfCustomSetModo, cfFiltrarUnidades, cfSelTodas, cfFiltrarPendientes, cfFiltrarAsignados, guardarAsignacionCosto, cfAgregarPartidaPresup, guardarPresupuestoUnidad, cfPresupPartidaChange, cfObraSetMetrica, cfObraAvanceCell, exportarControlObraExcel, cfVerUnidad, abrirRepartirFactura, cfLimpiarRepartoFactura, cfFacturaPartidaChange, cfToggleEstimado, cfToggleSoloFacturado, revisarRepartos, revisarIndivisoAplanado, abrirLigarFactura, lfAplicar, exportarPendientesExcel, cfAvNav, cfToggleVariaciones, cfVarFiltrar, exportarVariacionesExcel, cfObraToggleSoloVisibles, cfToggleSinRegistro, exportarCostosUnitariosExcel, cfObraToggleEstimado } from './modules/costos-fiscales.js';
 import { auditarRepartosTodo, descargarAuditoriaRepartos } from './modules/auditoria-repartos.js';
+import { rehacerPorCierre, quitarRepartosDuplicados, restaurarReabiertas, ofrecerRehacerCasa, descargarBitacoraRepartos, rehacerEnCurso } from './modules/rehacer-repartos.js';
 import { renderFiscal, fiscalMarcarPago, fiscalMarcarFactura, fiscalFiltrarPagos, fiscalExportar, fisToggleEstimCasa, exportarFiscalPorCasaExcel, fisSinCfdiToggle, exportarSinCfdiExcel, imprimirFichasFiscales, exportarAnexoFiscalExcel, est324SetEjercicio, est324GuardarFactor, est324QuitarFactor, est324Exportar } from './modules/fiscal.js';
 import { renderCreditos, seleccionarCredito, abrirNuevoCredito, editarCredito, guardarCredito, abrirNuevaDisposicion, guardarDisposicion, editarPagare, togglePagare, abrirNuevaFechaPago, editarFechaPago, guardarFechaPago, marcarPagoPagado, eliminarPagoPagare } from './modules/creditos.js';
 import { initIngresosUI, setWorkspace, renderClientes, renderVentas, renderCobros, renderEstadoCuenta, abrirNuevoCliente, editarCliente, guardarCliente, eliminarCliente, abrirNuevaVenta, editarVenta, guardarVenta, eliminarVenta, vPoblarUnidades, abrirNuevoCobro, editarCobro, guardarCobro, eliminarCobro, exportarEstadoCuentaCSV, recalcularVentasDesdeCobros, cliSetFiltroProy, vtaSetFiltroProy } from './modules/ingresos.js';
@@ -45,7 +46,7 @@ import { renderEstrategiaTablero, renderEstrategiaFlags, renderEstrategiaConfig,
 import { renderActividad, actSetVentana, actDepurar, actAplicarRango, actToggleUsuario, actReportePDF } from './modules/actividad.js';
 import { gsLogin, gsLogout, renderAuthStatus, checkOAuthCallback } from './services/google-auth.js';
 import { iniciarChequeoVersion } from './services/version-check.js';
-import { gsLoadAll, gsSaveProveedores, gsSaveEmpleados, gsSaveProyectos, gsSaveAlias, gsSaveCuentasPropias, gsSaveTraspasos, gsSaveCreditos, gsSavePagares, gsSavePagosPagare, gsSaveMovimientosInternos, migrarTodoASupabase, respaldarTodoASheets, cargarDatos, REALTIME_ON, estadoGuardadoAsignaciones } from './services/google-sync.js';
+import { gsLoadAll, gsSaveProveedores, gsSaveEmpleados, gsSaveProyectos, gsSaveAlias, gsSaveCuentasPropias, gsSaveTraspasos, gsSaveCreditos, gsSavePagares, gsSavePagosPagare, gsSaveMovimientosInternos, migrarTodoASupabase, respaldarTodoASheets, cargarDatos, REALTIME_ON, estadoGuardadoAsignaciones, gsSaveCostoAsignaciones } from './services/google-sync.js';
 import { iniciarRealtime, rtReiniciar } from './services/realtime.js';
 
 // ===== INICIALIZACIÓN =====
@@ -306,6 +307,11 @@ window.revisarRepartos = revisarRepartos;
 window.revisarIndivisoAplanado = revisarIndivisoAplanado;
 window.auditarRepartosTodo = auditarRepartosTodo;
 window.descargarAuditoriaRepartos = descargarAuditoriaRepartos;
+window.rehacerPorCierre = rehacerPorCierre;
+window.quitarRepartosDuplicados = quitarRepartosDuplicados;
+window.restaurarReabiertas = restaurarReabiertas;
+window.ofrecerRehacerCasa = ofrecerRehacerCasa;
+window.descargarBitacoraRepartos = descargarBitacoraRepartos;
 window.abrirLigarFactura = abrirLigarFactura;
 window.lfAplicar = lfAplicar;
 window.exportarPendientesExcel = exportarPendientesExcel;
@@ -481,15 +487,24 @@ window.respaldarTodoASheets = respaldarTodoASheets;
 // pregunta antes de cerrar/recargar y 🔄 Refrescar se niega (recargar el state a
 // mitad resetea el snapshot y puede dejar una factura con reparto parcial).
 window.estadoGuardadoAsignaciones = estadoGuardadoAsignaciones;
+window.rehacerEnCurso = rehacerEnCurso;
 window.addEventListener('beforeunload', e => {
   const g = estadoGuardadoAsignaciones();
   if (g.enCurso || g.pendientes > 0) { e.preventDefault(); e.returnValue = ''; }
 });
 
 window.refrescarDatos = async function refrescarDatos() {
+  if (rehacerEnCurso()) { notify('Espera: hay una corrida de 🔧 / 🧹 / ↩️ de repartos en curso. Refresca cuando termine.', 'error'); return; }
   const g = estadoGuardadoAsignaciones();
   if (g.enCurso) { notify(`Espera: hay un guardado de repartos en curso (${g.k} de ${g.n}). Refresca cuando termine.`, 'error'); return; }
-  if (g.pendientes > 0) { notify(`Hay ${g.pendientes} asignaciones sin guardar. Abre "📊 Repartir" y pulsa "Reintentar guardado" antes de refrescar.`, 'error'); return; }
+  if (g.pendientes > 0) {
+    // Cambios de reparto que solo viven en memoria (se cortó un guardado): refrescar
+    // los perdería. Se reintenta aquí mismo; solo si queda, se recarga.
+    if (!confirm(`Hay ${g.pendientes} cambio(s) de reparto que NO alcanzaron a guardarse (se cortó la conexión). Si refrescas ahora se pierden.\n\n¿Reintentar el guardado ahora?`)) return;
+    const r = await gsSaveCostoAsignaciones({ cascadaBorrado: true });
+    if (!r || !r.ok) { notify(`El guardado volvió a fallar (${(r && (r.error || r.motivo)) || 'error'}): revisa la conexión e intenta de nuevo. No recargues la página.`, 'error'); return; }
+    notify(`✓ Guardado: ${r.subidas} subida(s) · ${r.borradas} borrada(s)`, 'success');
+  }
   notify('Refrescando datos...');
   // Reconectar los canales de realtime ANTES de recargar: si la sesión estaba
   // "sorda" (suspensión/red caída), canales frescos primero = sin hueco entre lo

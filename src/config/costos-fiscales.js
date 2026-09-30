@@ -30,13 +30,14 @@ export function hoyISOLocal() {
 }
 
 // Normaliza a 'YYYY-MM-DD' las fechas que puede traer el catálogo ('YYYY-MM-DD…',
-// 'DD/MM/YYYY'); '' si no se puede interpretar (así nunca se compara basura).
+// 'DD/MM/YYYY'); '' si no se puede interpretar (así nunca se compara basura). Un año
+// < 2000 es una fecha a medio teclear en el campo (0002, 0202…): tampoco cuenta.
 function _iso(s) {
   const t = String(s || '').trim();
   let m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  if (m) return Number(m[1]) < 2000 ? '' : `${m[1]}-${m[2]}-${m[3]}`;
   m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  if (m) return Number(m[3]) < 2000 ? '' : `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
   return '';
 }
 
@@ -65,6 +66,10 @@ function _escrituraMin(uid) {
   }
   return _escCache.get(String(uid)) || '';
 }
+
+// Tras capturar/cambiar una venta en esta sesión: las ventas se mutan EN SITIO
+// (mismo arreglo), así que el caché de 1 s podría no ver el cambio recién hecho.
+export function invalidarCierres() { _escCache = null; }
 
 export function fechaCierreUnidad(u) {
   if (!u) return '';

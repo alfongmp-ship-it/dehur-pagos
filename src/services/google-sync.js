@@ -1415,6 +1415,10 @@ export async function gsSaveCostoAsignaciones(opts = {}) {
   if (!sbReady()) return nada('sin-sesion');
   let subidas = 0, borradas = 0;
   let cambios = [];     // filas nuevas o modificadas → upsert
+  let borrar = [];      // ids que estaban guardados y ya NO están en local → delete
+  // Lo que falta subir Y lo que falta borrar: un borrado pendiente también es un
+  // cambio que solo vive en memoria (el aviso de recarga y 🔄 lo deben proteger).
+  const faltan = () => Math.max(0, cambios.length - subidas) + Math.max(0, borrar.length - borradas);
   _guardadoEnCurso++;
   try {
     // FOTO de la lista ANTES de los await: los eventos realtime pueden mutar
@@ -1429,15 +1433,25 @@ export async function gsSaveCostoAsignaciones(opts = {}) {
       const row = _rowCostoAsignacion(a);
       if (_caSnapshot.get(id) !== JSON.stringify(row)) cambios.push(row);
     }
-    const borrar = []; // ids que estaban guardados y ya NO están en local → delete (quita de ESTA sesión)
-    for (const id of _caSnapshot.keys()) { if (!curIds.has(id)) borrar.push(id); }
+    for (const id of _caSnapshot.keys()) { if (!curIds.has(id)) borrar.push(id); }   // quita de ESTA sesión
     // Subida por LOTES (un request por lote, ≤100 filas, cortados en frontera de
     // factura/pago y sin ids repetidos — ver lotes-asignaciones.js): 1,000 filas
     // pasan de ~1,000 requests en serie (minutos) a ~10 (segundos). Un lote que
     // falle nunca deja una factura a medias; se para ahí y se reporta lo pendiente.
     const lotes = partirEnLotes(cambios, 100);
     cambios = lotes.flat();   // tras dedup: el conteo real que se va a subir
-    _guardadoInfo = { k: 0, n: cambios.length, pendientes: cambios.length };
+    _guardadoInfo = { k: 0, n: cambios.length, pendientes: faltan() };
+    // borrarPrimero (🔧/↩️/🧹): si se cae a media corrida, el documento queda con
+    // "falta repartir" (se ve) en vez de repartido de más (no se ve).
+    const borrarTodo = async () => {
+      for (const id of borrar.slice(borradas)) {
+        await sbDeleteRow('costo_asignaciones', 'asignacion_id', id);
+        _caSnapshot.delete(String(id));
+        borradas++;
+        _guardadoInfo.pendientes = faltan();
+      }
+    };
+    if (opts.borrarPrimero) await borrarTodo();
     // Snapshot INCREMENTAL tras cada lote exitoso (nada de reconstruirlo
     // completo al final: con realtime, los eventos ajenos ya lo van actualizando
     // por su cuenta vía caSnapshotAplicar/Quitar — reconstruirlo pisaría eso).
@@ -1445,19 +1459,15 @@ export async function gsSaveCostoAsignaciones(opts = {}) {
       await sbUpsertRows('costo_asignaciones', 'asignacion_id', lote);
       for (const row of lote) _caSnapshot.set(String(row.asignacion_id), JSON.stringify(row));
       subidas += lote.length;
-      _guardadoInfo.k = subidas; _guardadoInfo.pendientes = cambios.length - subidas;
+      _guardadoInfo.k = subidas; _guardadoInfo.pendientes = faltan();
       if (onProgress) { try { onProgress(subidas, cambios.length); } catch (_) { /* la UI nunca frena el guardado */ } }
     }
-    for (const id of borrar) {
-      await sbDeleteRow('costo_asignaciones', 'asignacion_id', id);
-      _caSnapshot.delete(String(id));
-      borradas++;
-    }
+    await borrarTodo();
     _guardadoInfo.pendientes = 0;
     return { ok: true, motivo: null, subidas, pendientes: 0, borradas, error: null };
   } catch (e) {
     console.error('gsSaveCostoAsignaciones (por fila)', e);
-    const pendientes = Math.max(0, cambios.length - subidas);
+    const pendientes = faltan();
     _guardadoInfo.pendientes = pendientes;
     return { ok: false, motivo: 'error', subidas, pendientes, borradas, error: (e && e.message) || String(e) };
   } finally {

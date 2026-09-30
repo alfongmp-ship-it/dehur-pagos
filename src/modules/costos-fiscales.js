@@ -937,8 +937,10 @@ export async function guardarUnidad() {
   if (porFila && _u) sbGuardarFila('unidades', _u);
   notify('Unidad guardada');
   renderCostosFiscales();
-  // Si el modal cambió la fecha de terminación, ofrecer recolocar los repartos.
-  if (_uEdit) _ofrecerReparacionPorUnidad(_uEdit, _fechaAntes);
+  // Si el modal cambió la fecha de terminación, ofrecer rehacer/restaurar sus repartos.
+  if (_uEdit && (_uEdit.fecha_termino || '') !== (_fechaAntes || '') && window.ofrecerRehacerCasa) {
+    window.ofrecerRehacerCasa(_uEdit.unidad_id, _uEdit.fecha_termino ? 'Cambió la fecha de terminación' : 'Se quitó la fecha de terminación');
+  }
 }
 
 export async function toggleUnidad(id) {
@@ -970,64 +972,6 @@ export async function toggleUnidad(id) {
   renderCostosFiscales();
 }
 
-// Captura rápida de la fecha de terminación (sale del pool de indiviso) desde la
-// tabla de unidades. Guarda solo esa casa; sin re-render para no perder el scroll
-// al capturar varias seguidas. gsSaveUnidades ya valida puedeEditar() por dentro.
-// Al capturar/cambiar la fecha de terminación de una casa, detectar los repartos
-// automáticos que la incluyeron cuando ya no debía (la foto del reparto se toma
-// al registrar el pago y NO se recalcula sola) y OFRECER recolocarlos, con
-// confirmación. Los editados a mano solo se reportan — jamás se tocan.
-function _ofrecerReparacionPorUnidad(u, fechaAntes) {
-  try {
-    // Recolocar repartos reescribe asignaciones de PAGOS: es de editores. Al
-    // residente de obra no se le pregunta nada (el admin lo corrige con ♻️).
-    if (!puedeEditar()) return;
-    if ((u.fecha_termino || '') === (fechaAntes || '')) return;
-    if (!u.fecha_termino) return;   // quitar la fecha no expulsa a nadie del pool
-    const res = auditarRepartos();
-    const k = String(u.unidad_id);
-    // Solo los que la SACAN a ella (corregibles). Los que meterian casas nuevas
-    // (conEntrantes) no se reparan aqui: eso se decide en el boton con su aviso.
-    const cerradaEn = f => !unidadEnIndivisoAFecha(u, parseFechaHist(f) || f);
-    const mios = res.corregibles.filter(c => c.asigs.some(a => String(a.unidad_id) === k) && cerradaEn(c.h.fecha));
-    const manuales = res.manuales.filter(c => c.asigs.some(a => String(a.unidad_id) === k));
-    const resF = auditarRepartosFacturas();
-    const miasF = resF.corregibles.filter(c => c.asigs.some(a => String(a.unidad_id) === k) && cerradaEn(c.f.fecha_factura));
-    if (mios.length) {
-      const totalCasa = mios.reduce((s, c) =>
-        s + c.asigs.filter(a => String(a.unidad_id) === k).reduce((x, a) => x + (a.monto_asignado || 0), 0), 0);
-      // Detalle VISIBLE ANTES de decidir (consola F12), con el pool resultante.
-      console.table(mios.map(c => {
-        const sigue = new Set((c.esperado?.filas || []).map(f => String(f.unidad_id)));
-        return { PROYECTO: c.h.proyecto, FECHA: c.h.fecha, IMPORTE: c.h.importe,
-          CASAS_HOY: c.asigs.length, CASAS_DESPUES: sigue.size,
-          SALEN: c.asigs.filter(a => !sigue.has(String(a.unidad_id))).length,
-          CONCEPTO: (c.h.concepto || '').slice(0, 45) };
-      }));
-      if (confirm(`⚠️ ${mios.length} pago(s) le repartieron ${fmt(totalCasa)} a "${u.nombre}" después de su fecha de terminación.\n\n¿Recolocar esos repartos SOLO entre las casas en obra de ${u.proyecto || 'su proyecto'}? (los editados a mano no se tocan; detalle en consola F12)`)) {
-        const n = aplicarReparacionRepartos(mios);
-        notify(`♻️ ${n} reparto(s) recolocados — el costo de "${u.nombre}" se ajustó`);
-        renderCostosFiscales();
-      }
-    }
-    if (miasF.length) {
-      const totalF = miasF.reduce((acc, c) =>
-        acc + c.asigs.filter(a => String(a.unidad_id) === k).reduce((x, a) => x + (a.monto_asignado || 0), 0), 0);
-      console.table(miasF.map(c => ({ FACTURA: c.f.factura_id, FECHA: c.f.fecha_factura, TOTAL: c.f.monto_total,
-        PROVEEDOR: (c.f.razon_social || c.f.nombre_proveedor || '').slice(0, 30), CASAS_HOY: c.asigs.length })));
-      if (confirm(`📄 ${miasF.length} factura(s) por indiviso le repartieron ${fmt(totalF)} a "${u.nombre}" después de su fecha de terminación.\n\n¿Recolocar también esas facturas? (conservan su partida; detalle en consola F12)`)) {
-        const nF = aplicarReparacionFacturas(miasF);
-        notify(`📄 ${nF} factura(s) recolocadas`);
-        renderCostosFiscales();
-        if (window.renderFacturas) window.renderFacturas();
-      }
-    }
-    if (manuales.length) {
-      notify(`✋ ${manuales.length} reparto(s) EDITADOS A MANO incluyen a "${u.nombre}" con fecha posterior — revísalos con "Reasignar"`, 'error');
-      console.table(manuales.map(c => ({ FECHA: c.h.fecha, IMPORTE: c.h.importe, CONCEPTO: (c.h.concepto || '').slice(0, 45) })));
-    }
-  } catch (e) { console.error('reparacionRepartos', e); }
-}
 
 // Auditoría GLOBAL de repartos congelados (botón ♻️ de la página). Idempotente:
 // en estado limpio solo avisa que todo cuadra.
@@ -1227,6 +1171,7 @@ export async function setEstatusUnidad(id, value) {
   //    (el residente ajusta la fecha real en la celda de al lado si terminó antes);
   //  - regresar a 'En obra' BORRA la fecha (la devuelve al reparto) ⇒ se confirma.
   let aviso = '';
+  let reabierta = false;
   if (value === 'En obra') {
     if (u.fecha_termino) {
       if (!confirm(`"${u.nombre}" tiene fecha de terminación ${u.fecha_termino}.\n\nRegresarla a "En obra" BORRA esa fecha y la casa vuelve a recibir costos por indiviso.\n\n¿Continuar?`)) {
@@ -1237,6 +1182,7 @@ export async function setEstatusUnidad(id, value) {
       u.fecha_termino = '';
       if (inpFecha) inpFecha.value = '';
       aviso = ' · se borró su fecha de terminación';
+      reabierta = true;
     }
   } else if (!u.fecha_termino) {
     // Salir de obra exige la FECHA REAL de terminación: sin ella la casa seguiría
@@ -1258,8 +1204,8 @@ export async function setEstatusUnidad(id, value) {
     await gsSaveUnidades({ porFila: porFila0 });
     if (porFila0) sbGuardarFila('unidades', u);
     notify(`${u.nombre}: ${value}${aviso}`);
-    // Igual que al capturar la fecha en su celda: si es retroactiva, ofrece reparar.
-    _ofrecerReparacionPorUnidad(u, '');
+    // Igual que al capturar la fecha en su celda: ofrece rehacer sus repartos.
+    if (window.ofrecerRehacerCasa) window.ofrecerRehacerCasa(u.unidad_id, 'Se capturó la terminación');
     return;
   }
   u.estatus = value;
@@ -1267,6 +1213,7 @@ export async function setEstatusUnidad(id, value) {
   await gsSaveUnidades({ porFila });
   if (porFila) sbGuardarFila('unidades', u);
   notify(`${u.nombre}: ${value}${aviso}`);
+  if (reabierta && window.ofrecerRehacerCasa) window.ofrecerRehacerCasa(u.unidad_id, 'Se quitó la fecha de terminación');
 }
 
 // Fecha capturada a mano → 'AAAA-MM-DD' (acepta DD/MM/AAAA); '' si no es válida.
@@ -1311,8 +1258,16 @@ export async function setIndivisoUnidad(id, value) {
   notify(`${u.nombre}: indiviso ${antes.toFixed(4)}% → ${u.indiviso_pct.toFixed(4)}%`);
 }
 
+// Captura rápida de la fecha de terminación (sale del pool de indiviso) desde la
+// tabla de unidades. Guarda solo esa casa; sin re-render para no perder el scroll
+// al capturar varias seguidas. gsSaveUnidades ya valida puedeEditar() por dentro.
+// Al cambiar la fecha ofrece rehacer (o restaurar) los repartos de esa casa con la
+// regla de cierre (rehacer-repartos.js), con vista previa y confirmación.
 export async function setFechaTermino(id, value) {
   if (!puedeEditarUnidades()) { notify('Solo el admin captura la fecha de terminación (decide quién sale del indiviso)', 'error'); return; }
+  // Mientras se teclea el año, el campo de fecha dispara cambios con 0002, 0020, 0202…
+  // (o 5+ dígitos): no se guardan; se guarda cuando la fecha queda completa.
+  if (value && (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value < '2000-01-01')) return;
   const u = unidadById(id);
   if (!u) return;
   const fechaAntes = u.fecha_termino || '';
@@ -1332,7 +1287,9 @@ export async function setFechaTermino(id, value) {
   await gsSaveUnidades({ porFila });
   if (porFila) sbGuardarFila('unidades', u);
   notify(value ? `Terminación: ${u.nombre} → ${value} · ${u.estatus}` : `${u.nombre}: sin fecha · ${u.estatus}`);
-  _ofrecerReparacionPorUnidad(u, fechaAntes);
+  if ((u.fecha_termino || '') !== (fechaAntes || '') && window.ofrecerRehacerCasa) {
+    window.ofrecerRehacerCasa(u.unidad_id, value ? 'Se capturó la terminación' : 'Se quitó la fecha de terminación');
+  }
 }
 
 export function abrirLoteUnidades() {

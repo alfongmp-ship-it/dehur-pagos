@@ -15,7 +15,7 @@
 // (try/catch) y todo sigue igual. Totalmente reversible (quitar import + llamada).
 // ============================================================================
 
-export const APP_VERSION = '2026.09.30-170509';
+export const APP_VERSION = '2026.09.30-200018';
 
 let _avisado = false;
 
@@ -44,6 +44,8 @@ function mostrarBanner() {
   document.getElementById('vb-update').addEventListener('click', () => {
     // Con un guardado de repartos en curso (o filas sin subir), recargar los perdería.
     const g = (typeof window.estadoGuardadoAsignaciones === 'function') ? window.estadoGuardadoAsignaciones() : null;
+    if (typeof window.rehacerEnCurso === 'function' && window.rehacerEnCurso()
+      && !confirm('Hay una corrida de 🔧 / 🧹 / ↩️ de repartos en curso. Si actualizas ahora se interrumpe.\n\n¿Actualizar de todos modos?')) return;
     if (g && (g.enCurso || g.pendientes > 0)) {
       if (!confirm(`Hay un guardado de repartos ${g.enCurso ? 'en curso' : 'incompleto'} (${g.pendientes} asignaciones sin subir). Si actualizas ahora se pierden.\n\n¿Actualizar de todos modos?`)) return;
     }
