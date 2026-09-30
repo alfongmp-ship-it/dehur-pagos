@@ -15,7 +15,7 @@ import {
   _facturasRepartidasSet, _facturasCanceladasSet, _pagosCubiertosPorFacturaSet,
   _factExistSet, _pagoExistSet, _pagosCapitalSet, _tipoAsignacion,
   costosPresupuestosBatch, costoFacturadoPorUnidad, estimadoFacturadoPorUnidad,
-  empresaDeProyectoNorm, facturaEmpresaCruzada, pagosSinFacturaSinRepartir
+  empresaDeProyectoNorm, facturaEmpresaCruzada, pagosSinFacturaSinRepartir, simularIndivisoDocs
 } from './costos-fiscales.js';
 import { parseFechaHist } from './historial.js';
 import { estimados324 } from './rmf-324.js';
@@ -147,6 +147,7 @@ function renderSinCfdiTab(panel) {
   const facturado = b.totFis - b.totPagosAprob;
   const tSinRep = lista.reduce((s, x) => s + x.sinRep, 0);
   const nSinRep = lista.reduce((s, x) => s + x.nSR, 0);
+  const aprobSR = lista.reduce((s, x) => s + x.pagos.filter(p => !p.repartido && p.aprobado).reduce((t, p) => t + p.monto, 0), 0);
   const mono = "font-family:'DM Mono',monospace;";
 
   panel.innerHTML = `
@@ -156,7 +157,7 @@ function renderSinCfdiTab(panel) {
       <div class="stat-card"><div class="stat-label">Pendiente de decidir</div><div class="stat-value" style="color:var(--orange);">${fmt(b.totPagosNoAprob)}</div><div class="stat-sub">sin CFDI, repartido, sin aprobar</div></div>
       <div class="stat-card" title="Facturado + Sin CFDI aprobado. Es el costo fiscal que hoy se sostiene, a nivel casa."><div class="stat-label">Costo fiscal conciliado</div><div class="stat-value" style="color:var(--accent);">${fmt(b.totFis)}</div><div class="stat-sub">facturado + aprobado</div></div>
     </div>
-    ${tSinRep > 0 ? `<div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Además hay <strong style="color:var(--orange);">${fmt(tSinRep)}</strong> en ${nSinRep} pago(s) sin CFDI <strong>todavía sin repartir</strong> a casas: no le pesan a ninguna casa hasta que se repartan.</div>` : ''}
+    ${tSinRep > 0 ? `<div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Además hay <strong style="color:var(--orange);">${fmt(tSinRep)}</strong> en ${nSinRep} pago(s) sin CFDI <strong>todavía sin repartir</strong> a casas: no le pesan a ninguna casa hasta que se repartan.${aprobSR > 0 ? ` De ellos, <strong style="color:var(--green);">${fmt(aprobSR)}</strong> ya están aprobados: entran al proyectado de 🏠 Por casa por indiviso.` : ''}</div>` : ''}
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
       <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;">Pagos sin CFDI por partida</div>
       <button class="btn btn-ghost btn-sm" onclick="exportarSinCfdiExcel()" title="Excel: resumen por partida + detalle de cada pago">⬇ Excel</button>
@@ -181,7 +182,8 @@ function renderSinCfdiTab(panel) {
               <thead><tr><th>Fecha</th><th>Beneficiario</th><th>Concepto</th><th>Sub-partida</th><th style="text-align:right">Monto</th><th>Estado</th><th class="req-admin"></th></tr></thead>
               <tbody>${x.pagos.map(p => {
                 const h = p.h || {};
-                const estado = !p.repartido ? '<span style="color:var(--muted);">sin repartir</span>'
+                const estado = !p.repartido
+                  ? (p.aprobado ? '<span style="color:var(--green);" title="Aprobado: entra al proyectado de 🏠 Por casa por indiviso hasta que se reparta">✅ aprobado · sin repartir</span>' : '<span style="color:var(--muted);">sin repartir</span>')
                   : p.aprobado ? '<span style="color:var(--green);">✅ aprobado</span>'
                   : '<span style="color:var(--orange);">pendiente</span>';
                 const btn = sinTabla ? '' : (p.aprobado
@@ -229,7 +231,7 @@ export function exportarSinCfdiExcel() {
     const h = p.h || {};
     const marca = _marcaFiscalDe('pago', p.pid);
     aoa2.push([x.partida, h.sub_partida || '', h.fecha || '', h.nombre || '', h.concepto || '', p.monto,
-      p.repartido ? 'Sí' : 'No', !p.repartido ? 'Sin repartir' : p.aprobado ? 'Aprobado' : 'Pendiente',
+      p.repartido ? 'Sí' : 'No', !p.repartido ? (p.aprobado ? 'Aprobado · sin repartir' : 'Sin repartir') : p.aprobado ? 'Aprobado' : 'Pendiente',
       (marca && marca.incluir !== false && marca.motivo) || '']);
   }));
   const ws2 = XLSX.utils.aoa_to_sheet(aoa2);
@@ -254,6 +256,23 @@ export function fisToggleEstimCasa(on) {
   renderFisPanel();
 }
 
+// Estimado de 🏠 Por casa = facturas elegibles sin repartir + pagos sin CFDI
+// APROBADOS que aún no se reparten (si no, un pago aprobado sin reparto no
+// aparecería en ningún lado). Los aprobados YA repartidos van por la columna
+// 'Sin CFDI' (fiscalBatch), así que aquí no se duplican.
+function _pagosAprobadosSinRepartir(proyecto) {
+  const { aprobados } = _marcasFiscales();
+  return pagosSinFacturaSinRepartir(proyecto).filter(h => aprobados.has(String(h.id)));
+}
+function _estimadoPorCasa(proyecto) {
+  const fac = estimadoFacturadoPorUnidad(proyecto);
+  const pag = simularIndivisoDocs(_pagosAprobadosSinRepartir(proyecto)
+    .map(h => ({ importe: h.importe || 0, fechaIso: parseFechaHist(h.fecha) || '' })), proyecto);
+  const porUnidad = new Map(fac.porUnidad);
+  pag.porUnidad.forEach((v, k) => porUnidad.set(k, (porUnidad.get(k) || 0) + v));
+  return { porUnidad, total: fac.total + pag.total, nFact: fac.count, totFact: fac.total, nPagos: pag.count, totPagos: pag.total };
+}
+
 function renderPorCasaTab(panel) {
   const unidades = unidadesDeProyecto(false, fisProyecto);
   if (!unidades.length) {
@@ -261,7 +280,7 @@ function renderPorCasaTab(panel) {
     return;
   }
   const fisc = costoFacturadoPorUnidad(fisProyecto);
-  const estim = fisEstimCasa ? estimadoFacturadoPorUnidad(fisProyecto) : null;
+  const estim = fisEstimCasa ? _estimadoPorCasa(fisProyecto) : null;
   const tEst = estim ? estim.total : 0;
   // Sin CFDI aprobado por casa (pagos marcados deducibles en 🧮 / ✅): con eso la
   // fila dice el costo FISCAL CONCILIADO = facturado + sin CFDI aprobado.
@@ -280,7 +299,7 @@ function renderPorCasaTab(panel) {
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
       <div class="stat-card"><div class="stat-label">Facturado repartido</div><div class="stat-value" style="color:var(--green);">${fmt(fisc.total)}</div><div class="stat-sub">ya asignado a casas</div></div>
       <div class="stat-card" title="Pagos sin factura marcados deducibles (pestaña 🧮 Sin CFDI), repartidos a casas."><div class="stat-label">✅ Sin CFDI aprobado</div><div class="stat-value">${fmt(tSC)}</div><div class="stat-sub">nómina y otros deducibles</div></div>
-      <div class="stat-card" title="Facturas elegibles SIN reparto, simuladas por indiviso con el pool a la fecha de cada una. Es el tamaño del pendiente de reparto."><div class="stat-label">⚠ Por repartir (estimado)</div><div class="stat-value" style="color:var(--orange);">${estim ? fmt(tEst) : '—'}</div><div class="stat-sub">${estim ? `${estim.count} factura(s) sin repartir` : 'prende el estimado'}</div></div>
+      <div class="stat-card" title="Facturas elegibles SIN reparto y pagos sin CFDI aprobados SIN reparto, simulados por indiviso con el pool a la fecha de cada uno. Es el tamaño del pendiente de reparto."><div class="stat-label">⚠ Por repartir (estimado)</div><div class="stat-value" style="color:var(--orange);">${estim ? fmt(tEst) : '—'}</div><div class="stat-sub">${estim ? `${estim.nFact} factura(s)${estim.nPagos ? ` + ${estim.nPagos} pago(s) aprobado(s)` : ''} sin repartir` : 'prende el estimado'}</div></div>
       <div class="stat-card" title="Facturado + Sin CFDI aprobado${estim ? ' + estimado por repartir' : ''}"><div class="stat-label">Costo fiscal ${estim ? 'proyectado' : 'conciliado'}</div><div class="stat-value" style="color:var(--accent);">${fmt(tConc + tEst)}</div><div class="stat-sub">${estim ? 'conciliado + por repartir' : 'facturado + sin CFDI'}</div></div>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
@@ -324,7 +343,7 @@ export function exportarFiscalPorCasaExcel() {
   const unidades = unidadesDeProyecto(false, fisProyecto);
   if (!unidades.length) { notify('No hay unidades en este proyecto', 'error'); return; }
   const fisc = costoFacturadoPorUnidad(fisProyecto);
-  const estim = fisEstimCasa ? estimadoFacturadoPorUnidad(fisProyecto) : null;
+  const estim = fisEstimCasa ? _estimadoPorCasa(fisProyecto) : null;
   const bat = fiscalBatch(fisProyecto);
   const scDe = u => (bat.porUnidad.get(String(u.unidad_id)) || {}).sinCfdi || 0;
   const hoyISO = new Date().toISOString().slice(0, 10);
@@ -332,7 +351,7 @@ export function exportarFiscalPorCasaExcel() {
   if (estim) enc.push('Estimado por asignar', 'Proyectado');
   const aoa = [
     [`FISCAL — Por casa (solo facturado) — ${fisProyecto}`],
-    [`Generado: ${hoyISO} · Facturas vigentes (pagadas o no); pagos NO cuentan${fisc.nCruzadas ? ` · ${fisc.nCruzadas} factura(s) de empresa cruzada excluidas` : ''}${fisc.nExcluidas ? ` · ${fisc.nExcluidas} excluida(s) en Deducibilidad` : ''}${estim ? ` · Estimado: ${fmt(estim.total)} de ${estim.count} factura(s) sin repartir por indiviso (NO es reparto real)` : ''}`],
+    [`Generado: ${hoyISO} · Facturas vigentes (pagadas o no); pagos NO cuentan${fisc.nCruzadas ? ` · ${fisc.nCruzadas} factura(s) de empresa cruzada excluidas` : ''}${fisc.nExcluidas ? ` · ${fisc.nExcluidas} excluida(s) en Deducibilidad` : ''}${estim ? ` · Estimado: ${fmt(estim.total)} = ${estim.nFact} factura(s) sin repartir (${fmt(estim.totFact)})${estim.nPagos ? ` + ${estim.nPagos} pago(s) sin CFDI aprobados sin repartir (${fmt(estim.totPagos)})` : ''}, por indiviso (NO es reparto real)` : ''}`],
     [], enc];
   let tEst = 0, tSC = 0;
   unidades.forEach(u => {

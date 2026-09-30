@@ -545,19 +545,22 @@ export function costoFacturadoPorUnidad(proyecto = cfProyecto) {
 // Estimado del modo fiscal: facturas ELEGIBLES sin reparto, repartidas por
 // indiviso con el pool a la fecha de CADA factura (mismo criterio que el
 // estimado de pagos). Solo display.
-export function estimadoFacturadoPorUnidad(proyecto = cfProyecto) {
-  const info = _facturasFiscalProyecto(proyecto);
-  const repartidas = _facturasRepartidasSet();
+// Simulador genérico de reparto por indiviso, SOLO display: cada documento
+// { importe, fechaIso } se reparte entre las casas en obra A SU FECHA (si no
+// hay ninguna, entre todas las activas); factor por indiviso, o parejo si la
+// suma de indivisos es 0. Lo usan el estimado de facturas y el de pagos sin
+// CFDI aprobados que aún no se reparten (🏠 Por casa en Fiscal).
+export function simularIndivisoDocs(docs, proyecto = cfProyecto) {
   const activas = unidadesDeProyecto(false, proyecto);
   const porUnidad = new Map();
   let total = 0, count = 0;
+  if (!activas.length) return { porUnidad, total, count };
   const poolCache = new Map();
-  (state.facturas || []).forEach(f => {
-    if (!info.elegibles.has(String(f.factura_id)) || repartidas.has(String(f.factura_id))) return;
-    const imp = f.monto_total || 0;
-    if (!imp || !activas.length) return;
+  (docs || []).forEach(d => {
+    const imp = d.importe || 0;
+    if (!imp) return;
     count++; total += imp;
-    const fIso = parseFechaHist(f.fecha_factura) || '';
+    const fIso = d.fechaIso || '';
     let pool = poolCache.get(fIso);
     if (!pool) {
       const inObra = activas.filter(u => unidadEnIndivisoAFecha(u, fIso));
@@ -571,6 +574,15 @@ export function estimadoFacturadoPorUnidad(proyecto = cfProyecto) {
     });
   });
   return { porUnidad, total, count };
+}
+
+export function estimadoFacturadoPorUnidad(proyecto = cfProyecto) {
+  const info = _facturasFiscalProyecto(proyecto);
+  const repartidas = _facturasRepartidasSet();
+  const docs = (state.facturas || [])
+    .filter(f => info.elegibles.has(String(f.factura_id)) && !repartidas.has(String(f.factura_id)))
+    .map(f => ({ importe: f.monto_total || 0, fechaIso: parseFechaHist(f.fecha_factura) || '' }));
+  return simularIndivisoDocs(docs, proyecto);
 }
 
 export function cfToggleSoloFacturado(on) {
