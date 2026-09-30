@@ -19,6 +19,7 @@ import {
 } from './costos-fiscales.js';
 import { parseFechaHist } from './historial.js';
 import { estimados324 } from './rmf-324.js';
+import { subPartidaObligatoria } from '../config/sub-partidas.js';
 
 let fisProyecto = '';           // proyecto activo de la página
 let fisTab = 'deducibilidad';   // pestaña activa
@@ -414,8 +415,10 @@ function _detalleFiscalCasas(proyecto) {
     return g;
   };
   // Sub-partida dentro de la partida: ahí viven las líneas; la partida suma sus subs.
-  const subDe = (g, sub) => {
-    const k = (sub || '').trim() || _SIN_SUB;
+  // Regla de negocio (subPartidaObligatoria): SOLO CONSTRUCCION lleva sub-partida; en
+  // las demás todo cae en un único cubo aunque el dato traiga una sub capturada.
+  const subDe = (g, partida, sub) => {
+    const k = subPartidaObligatoria(partida) ? ((sub || '').trim() || _SIN_SUB) : _SIN_SUB;
     let s = g.subs.get(k);
     if (!s) { s = { fac: 0, sc: 0, lineas: [] }; g.subs.set(k, s); }
     return s;
@@ -428,8 +431,9 @@ function _detalleFiscalCasas(proyecto) {
       const f = facturaById(a.factura_id) || {};
       const prov = provDe(f.proveedor_id);
       const c = casa(uid);
-      const g = grupo(c, (a.partida_override || '').trim() || 'Sin partida');
-      const sb = subDe(g, a.sub_partida_override);
+      const pNom = (a.partida_override || '').trim() || 'Sin partida';
+      const g = grupo(c, pNom);
+      const sb = subDe(g, pNom, a.sub_partida_override);
       c.fac += monto; g.fac += monto; sb.fac += monto; c.nFac.add(String(a.factura_id));
       sb.lineas.push({
         tipo: 'Factura', doc: `Fac ${a.factura_id}${f.numero_factura ? ' · ' + f.numero_factura : ''}`,
@@ -447,8 +451,9 @@ function _detalleFiscalCasas(proyecto) {
     const prov = provDe(h.proveedor_id);
     const marca = _marcaFiscalDe('pago', a.pago_id);
     const c = casa(uid);
-    const g = grupo(c, (a.partida_override || h.partida || '').trim() || 'Sin partida');
-    const sb = subDe(g, a.sub_partida_override || h.sub_partida);
+    const pNom = (a.partida_override || h.partida || '').trim() || 'Sin partida';
+    const g = grupo(c, pNom);
+    const sb = subDe(g, pNom, a.sub_partida_override || h.sub_partida);
     c.sc += monto; g.sc += monto; sb.sc += monto; c.nPag.add(String(a.pago_id));
     sb.lineas.push({
       tipo: 'Pago sin CFDI', doc: `Pago ${a.pago_id}`, uuid: '',
@@ -495,7 +500,7 @@ export function imprimirFichasFiscales(unidadId) {
     // solo trae "(sin sub-partida)", no se repite un renglón que no aporta.
     const filas = _partidasOrdenadas(c).map(([p, g]) => {
       const subs = _subsOrdenadas(g);
-      const soloSinSub = subs.length === 1 && subs[0][0] === _SIN_SUB;
+      const soloSinSub = !subPartidaObligatoria(p) || (subs.length === 1 && subs[0][0] === _SIN_SUB);
       const renglonP = `<tr class="rp"><td>${e(p)}</td><td class="n">${g.fac ? fmt(g.fac) : '—'}</td><td class="n">${g.sc ? fmt(g.sc) : '—'}</td><td class="n b">${fmt(g.fac + g.sc)}</td></tr>`;
       if (soloSinSub) return renglonP;
       return renglonP + subs.map(([s, x]) =>
@@ -598,14 +603,20 @@ export function exportarAnexoFiscalExcel() {
     _partidasOrdenadas(c).forEach(([p, g]) => {
       aoa.push(['', p, ...vacias(11), g.fac, g.sc, g.fac + g.sc, '']);
       niveles.push(1);
+      // Solo CONSTRUCCION abre un nivel de sub-partida; las demás van directo a sus
+      // documentos (la regla de negocio es la misma que usa toda la app).
+      const conSub = subPartidaObligatoria(p);
+      const docNivel = conSub ? 3 : 2;
       _subsOrdenadas(g).forEach(([s, x]) => {
-        aoa.push(['', '', s, ...vacias(10), x.fac, x.sc, x.fac + x.sc, '']);
-        niveles.push(2);
-        porSub.push([u.nombre, p, s, x.fac, x.sc, x.fac + x.sc, x.lineas.length]);
+        if (conSub) {
+          aoa.push(['', '', s, ...vacias(10), x.fac, x.sc, x.fac + x.sc, '']);
+          niveles.push(2);
+        }
+        porSub.push([u.nombre, p, conSub ? s : '', x.fac, x.sc, x.fac + x.sc, x.lineas.length]);
         x.lineas.slice().sort((a, z) => z.monto - a.monto).forEach(l => {
           aoa.push(['', '', '', l.tipo, l.doc, l.uuid, l.quien, l.rfc, l.fechaIso ? fmtFecha(l.fechaIso) : '', l.totalDoc,
             l.metodo, l.factor, l.monto, '', '', '', l.motivo]);
-          niveles.push(3);
+          niveles.push(docNivel);
         });
       });
     });
