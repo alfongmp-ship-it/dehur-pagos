@@ -97,6 +97,22 @@ export async function sbDeleteRow(tabla, idCol, idValue) {
   if (error) throw error;
 }
 
+// Borra VARIAS filas en un solo request: tenant_id = X y idCol dentro de `ids`.
+// Postgres lo hace todo o nada; RLS y triggers (bitácora de repartos) siguen siendo
+// por fila. El llamador parte la lista (los ids viajan en la URL).
+export async function sbDeleteRows(tabla, idCol, ids) {
+  if (!ids || !ids.length) return;
+  const tid = tenantId();
+  if (!tid) throw new Error('Sin tenant en sesión Supabase; no se puede escribir.');
+  const client = getSupabaseClient();
+  const { error } = await client
+    .from(tabla)
+    .delete()
+    .eq('tenant_id', tid)
+    .in(idCol, ids);
+  if (error) throw error;
+}
+
 // Lee TODAS las filas del tenant en `tabla`. Devuelve un array, o `null` si
 // falla o no hay tenant (para que el caller pueda caer a Sheets — Fase 1).
 //

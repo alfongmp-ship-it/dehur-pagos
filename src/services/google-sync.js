@@ -3,7 +3,7 @@ import { notify } from '../ui/notify.js';
 import { gsReadSheet, gsWriteRange, gsClearAndWrite, gsAppendRow } from './google-sheets.js';
 import { normalizeBanco } from '../config/bancos.js';
 import { SUB_PARTIDAS_CONSTRUCCION } from '../config/sub-partidas.js';
-import { sbReplaceTable, sbLoadTable, sbReady, sbUpsertRow, sbUpsertRows, sbInsertRow, sbDeleteRow } from './supabase-data.js';
+import { sbReplaceTable, sbLoadTable, sbReady, sbUpsertRow, sbUpsertRows, sbInsertRow, sbDeleteRow, sbDeleteRows } from './supabase-data.js';
 import { partirEnLotes } from './lotes-asignaciones.js';
 
 // ============================================================================
@@ -1443,12 +1443,28 @@ export async function gsSaveCostoAsignaciones(opts = {}) {
     _guardadoInfo = { k: 0, n: cambios.length, pendientes: faltan() };
     // borrarPrimero (🔧/↩️/🧹): si se cae a media corrida, el documento queda con
     // "falta repartir" (se ve) en vez de repartido de más (no se ve).
+    // Borrados de 50 en 50 (un request por trozo: 5,800 filas pasan de ~40 min a ~2).
+    // Si un trozo falla, ese trozo se borra fila por fila como antes (borrar una fila
+    // que ya no existe no hace nada); si eso también falla, se para ahí y lo que falta
+    // queda en "pendientes" para el reintento.
+    const yaBorradas = ids => {
+      ids.forEach(id => _caSnapshot.delete(String(id)));
+      borradas += ids.length;
+      _guardadoInfo.pendientes = faltan();
+    };
     const borrarTodo = async () => {
-      for (const id of borrar.slice(borradas)) {
-        await sbDeleteRow('costo_asignaciones', 'asignacion_id', id);
-        _caSnapshot.delete(String(id));
-        borradas++;
-        _guardadoInfo.pendientes = faltan();
+      while (borradas < borrar.length) {
+        const trozo = borrar.slice(borradas, borradas + 50);
+        try {
+          await sbDeleteRows('costo_asignaciones', 'asignacion_id', trozo);
+          yaBorradas(trozo);
+        } catch (e) {
+          console.warn('gsSaveCostoAsignaciones: el borrado por trozo falló; se borra fila por fila', e);
+          for (const id of trozo) {
+            await sbDeleteRow('costo_asignaciones', 'asignacion_id', id);
+            yaBorradas([id]);
+          }
+        }
       }
     };
     if (opts.borrarPrimero) await borrarTodo();
