@@ -38,18 +38,23 @@ export const TIPOS_APLICABLES = new Set(['recolocar', 'pendiente', 'restaurar', 
 // Σ fuera del total (con signo: una nota de crédito tiene total negativo).
 const _sobre = (suma, total) => (total >= 0 ? suma > total + _TOL : suma < total - _TOL);
 
-// ¿La parte junta varios repartos de casas elegidas? En un solo guardado del modal
-// los factores (parte dentro de la selección) suman 1 y monto = importe × factor, así
-// que monto ÷ factor es el mismo en todas; una casa repetida también lo delata.
+// ¿La parte junta repartos de casas elegidas con DISTINTA selección? En un solo guardado
+// del modal los factores (parte dentro de la selección) suman 1 y monto = importe ×
+// factor; el redondeo acumulado va a la última casa (hasta ~$0.005 por casa: con 80
+// casas, ~$0.40). La MISMA selección guardada k veces (cada casa aparece k veces) no es
+// mezcla: recolocar el total junto da lo mismo que cada paso por separado.
 // (Filas viejas con factor 0 no se pueden juzgar: no se marcan.)
 function _mezclaPasos(filas) {
-  const vistos = new Set();
-  for (const a of filas) { const k = String(a.unidad_id); if (vistos.has(k)) return true; vistos.add(k); }
+  const veces = new Map();
+  filas.forEach(a => { const u = String(a.unidad_id); veces.set(u, (veces.get(u) || 0) + 1); });
+  const k = veces.size ? veces.values().next().value : 1;
+  if ([...veces.values()].some(n => n !== k)) return true;
   const sf = filas.reduce((x, a) => x + (a.factor || 0), 0);
-  if (sf > 1e-9 && Math.abs(sf - 1) > 0.005) return true;
-  if (filas.length < 2 || filas.some(a => !(Math.abs(a.factor || 0) > 1e-9))) return false;
+  if (sf > 1e-9 && Math.abs(sf - k) > 0.005 * k) return true;
+  if (k > 1 || filas.length < 2 || filas.some(a => !(Math.abs(a.factor || 0) > 1e-9))) return false;
+  const tol = Math.max(0.1, 0.006 * filas.length);
   const R = filas.map(a => (a.monto_asignado || 0) / a.factor).sort((x, y) => x - y)[Math.floor(filas.length / 2)];
-  return filas.some(a => Math.abs((a.monto_asignado || 0) - R * a.factor) > Math.max(0.1, Math.abs(R * a.factor) * 0.002));
+  return filas.some(a => Math.abs((a.monto_asignado || 0) - R * a.factor) > Math.max(tol, Math.abs(R * a.factor) * 0.002));
 }
 
 // Reparte `monto` entre `casas` por indiviso (parejo si nadie tiene %). Σ exacta.

@@ -401,5 +401,42 @@ const unidades = () => [U(1, 0.64, '2024-10-14'), U(2, 0.61), U(3, 0.62), U(4, 0
   ck('pasos que no son copias completas → revisar (con las casas en el Excel)', pd.length === 1 && pd[0].tipo === 'revisar' && pd[0].antes.length === 2, pd.map(p => p.tipo));
 }
 
+// ===== Falsas alarmas de "mezcla" vistas en la 1a corrida real (2026-09-30) =====
+{
+  // 80 casas con el mismo indiviso; la 1 cerró en 2024 (como la 329).
+  const u80 = Array.from({ length: 80 }, (_, i) => U(i + 1, 0.5, i === 0 ? '2024-10-14' : ''));
+  const paso = (fid, importe, casas, fecha, base) => {
+    const c = r2(importe / casas.length);
+    return casas.map((uid, i) => A(base + i, { factura_id: fid, unidad_id: uid, factor: 1 / casas.length, fecha_asignacion: fecha,
+      monto_asignado: i === casas.length - 1 ? r2(importe - c * (casas.length - 1)) : c }));
+  };
+  const todas = u80.map(x => x.unidad_id);
+
+  // --- 28. como Fac 510: UN reparto de 80 casas, la última con ajuste de $0.30 ---
+  const a28 = paso(70, 4023.70, todas, '2025-09-01', 1000);
+  const f28 = F(70, { monto_total: 4023.70 });
+  ck('80 casas con ajuste de centavos en la última → NO es mezcla (se recoloca)',
+    (() => { const pl = planRehacerCierre({ asigs: a28, facturas: [f28], unidades: u80 }, reglas()); return pl.length === 1 && pl[0].tipo === 'recolocar'; })());
+
+  // --- 29. como Fac 568: la MISMA selección de 80 casas, dos veces el mismo día ---
+  const a29 = [...paso(71, 4000, todas, '2025-09-01', 2000), ...paso(71, 3500, todas, '2025-09-01', 3000)];
+  const f29 = F(71, { monto_total: 7500 });
+  const pl29 = planRehacerCierre({ asigs: a29, facturas: [f29], unidades: u80 }, reglas());
+  ck('misma selección repartida 2 veces el mismo día → se recoloca', pl29.length === 1 && pl29[0].tipo === 'recolocar', pl29.map(p => p.tipo));
+  const r29 = aplicarAcciones(a29.map(a => ({ ...a })), pl29, { nuevoId, hoy: HOY });
+  const filas29 = r29.asigs.filter(a => String(a.factura_id) === '71');
+  ck('… Σ se conserva (7500) y la casa cerrada sale', suma(r29.asigs, 71) === 7500 && !filas29.some(a => a.unidad_id === 1), suma(r29.asigs, 71));
+  ck('… una fila por casa, cada una 7500/79 (solo una con el ajuste de centavos)',
+    filas29.length === 79 && filas29.filter(a => Math.abs(a.monto_asignado - 7500 / 79) > 0.01).length <= 1
+      && filas29.every(a => Math.abs(a.monto_asignado - 7500 / 79) < 0.5), filas29.slice(0, 2).map(a => a.monto_asignado));
+  ck('… y si se vuelve a correr ya no hay nada que hacer (el ajuste no se toma por mezcla)',
+    planRehacerCierre({ asigs: r29.asigs, facturas: [f29], unidades: u80 }, reglas()).length === 0);
+
+  // --- 30. dos repartos del mismo día con DISTINTA selección (80 y luego 40) → sigue en revisar ---
+  const a30 = [...paso(72, 4000, todas, '2025-09-01', 4000), ...paso(72, 2000, todas.slice(0, 40), '2025-09-01', 5000)];
+  const pl30 = planRehacerCierre({ asigs: a30, facturas: [F(72, { monto_total: 6000 })], unidades: u80 }, reglas());
+  ck('distinta selección el mismo día → revisar', pl30.length === 1 && pl30[0].tipo === 'revisar', pl30.map(p => p.tipo));
+}
+
 console.log(`\n${ok} ok · ${fail} fallas`);
 process.exit(fail ? 1 : 0);
