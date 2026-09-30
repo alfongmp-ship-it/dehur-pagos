@@ -38,7 +38,7 @@ import { renderFlujoSalida, fsAbrirDetalle, fsCerrarDetalle } from './modules/fl
 import { renderResumenEjecutivo } from './modules/resumen-ejecutivo.js';
 import { renderCostosFiscales, abrirNuevaUnidad, editarUnidad, guardarUnidad, toggleUnidad, setFechaTermino, setEstatusUnidad, setIndivisoUnidad, abrirLoteUnidades, guardarLoteUnidades, cfLimpiarHuerfanas, abrirAsignarCosto, reasignarCosto, eliminarAsignacionCosto, cfCambiarMetodo, cfPreviewReparto, cfRepartirResto, cfRepartirRestoIndiviso, cfCustomSetModo, cfFiltrarUnidades, cfSelTodas, cfFiltrarPendientes, cfFiltrarAsignados, guardarAsignacionCosto, cfAgregarPartidaPresup, guardarPresupuestoUnidad, cfPresupPartidaChange, cfObraSetMetrica, cfObraAvanceCell, exportarControlObraExcel, cfVerUnidad, abrirRepartirFactura, cfLimpiarRepartoFactura, cfFacturaPartidaChange, cfToggleEstimado, cfToggleSoloFacturado, revisarRepartos, revisarIndivisoAplanado, abrirLigarFactura, lfAplicar, exportarPendientesExcel, cfAvNav, cfToggleVariaciones, cfVarFiltrar, exportarVariacionesExcel, cfObraToggleSoloVisibles, cfToggleSinRegistro, exportarCostosUnitariosExcel, cfObraToggleEstimado } from './modules/costos-fiscales.js';
 import { auditarRepartosTodo, descargarAuditoriaRepartos } from './modules/auditoria-repartos.js';
-import { rehacerPorCierre, quitarRepartosDuplicados, restaurarReabiertas, ofrecerRehacerCasa, descargarBitacoraRepartos, rehacerEnCurso } from './modules/rehacer-repartos.js';
+import { rehacerPorCierre, quitarRepartosDuplicados, restaurarReabiertas, ofrecerRehacerCasa, descargarBitacoraRepartos, rehacerEnCurso, aplicarElegirCopia } from './modules/rehacer-repartos.js';
 import { renderFiscal, fiscalMarcarPago, fiscalMarcarFactura, fiscalFiltrarPagos, fiscalExportar, fisToggleEstimCasa, exportarFiscalPorCasaExcel, fisSinCfdiToggle, exportarSinCfdiExcel, imprimirFichasFiscales, exportarAnexoFiscalExcel, est324SetEjercicio, est324GuardarFactor, est324QuitarFactor, est324Exportar } from './modules/fiscal.js';
 import { renderCreditos, seleccionarCredito, abrirNuevoCredito, editarCredito, guardarCredito, abrirNuevaDisposicion, guardarDisposicion, editarPagare, togglePagare, abrirNuevaFechaPago, editarFechaPago, guardarFechaPago, marcarPagoPagado, eliminarPagoPagare } from './modules/creditos.js';
 import { initIngresosUI, setWorkspace, renderClientes, renderVentas, renderCobros, renderEstadoCuenta, abrirNuevoCliente, editarCliente, guardarCliente, eliminarCliente, abrirNuevaVenta, editarVenta, guardarVenta, eliminarVenta, vPoblarUnidades, abrirNuevoCobro, editarCobro, guardarCobro, eliminarCobro, exportarEstadoCuentaCSV, recalcularVentasDesdeCobros, cliSetFiltroProy, vtaSetFiltroProy } from './modules/ingresos.js';
@@ -309,6 +309,7 @@ window.auditarRepartosTodo = auditarRepartosTodo;
 window.descargarAuditoriaRepartos = descargarAuditoriaRepartos;
 window.rehacerPorCierre = rehacerPorCierre;
 window.quitarRepartosDuplicados = quitarRepartosDuplicados;
+window.aplicarElegirCopia = aplicarElegirCopia;
 window.restaurarReabiertas = restaurarReabiertas;
 window.ofrecerRehacerCasa = ofrecerRehacerCasa;
 window.descargarBitacoraRepartos = descargarBitacoraRepartos;

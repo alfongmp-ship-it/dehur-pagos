@@ -1,6 +1,6 @@
 // Pruebas del motor puro de "rehacer por cierre".
 //   node scripts/test-rehacer-cierre.mjs
-import { planRehacerCierre, planRestaurar, planDuplicados, aplicarAcciones, partesLote, firmaPlan, sobreRepartidos } from '../src/services/rehacer-cierre-motor.js';
+import { planRehacerCierre, planRestaurar, planDuplicados, aplicarAcciones, partesLote, firmaPlan, sobreRepartidos, planQuitarCopias } from '../src/services/rehacer-cierre-motor.js';
 
 let ok = 0, fail = 0;
 const ck = (n, c, d) => { if (c) { ok++; console.log('OK  ' + n); } else { fail++; console.error('XX  ' + n + (d !== undefined ? ' — ' + JSON.stringify(d) : '')); } };
@@ -355,6 +355,50 @@ const unidades = () => [U(1, 0.64, '2024-10-14'), U(2, 0.61), U(3, 0.62), U(4, 0
   const viejo = { lote_id: 'L-v', creado: '2026-09-01T10:00:00Z', tipo: 'rehacer_cierre', detalle: { partes: [{ tipo: 'pendiente', docTipo: 'factura', docId: '56',
     partida: 'CONSTRUCCION', sub: 'Acabados', metodo: 'indiviso_sel', montoParte: 1000, quitadas: [{ unidad_id: 1, monto: 500 }] }] } };
   ck('lote sin fechaParte → no genera acciones', planRestaurar({ asigs: [], facturas: [F(56)], unidades: u }, [viejo], reglas()).length === 0);
+}
+
+// ===== Copias completas: el dueño elige cuál se queda (2026-09-30, Fac 467 y 322) =====
+
+// --- 25. como la 467: dos sub-partidas, mismas casas y montos → elegir_copia ---
+{
+  const u = [U(1, 0.5), U(2, 0.5)];
+  const asigs = [A(1, { factura_id: 60, unidad_id: 1, monto_asignado: 500, factor: 0.5, sub_partida_override: 'Instalaciones Hidrosanitarias', fecha_asignacion: '2026-01-07' }),
+                 A(2, { factura_id: 60, unidad_id: 2, monto_asignado: 500, factor: 0.5, sub_partida_override: 'Instalaciones Hidrosanitarias', fecha_asignacion: '2026-01-07' }),
+                 A(3, { factura_id: 60, unidad_id: 1, monto_asignado: 500, factor: 0.5, sub_partida_override: 'Muebles de Bano', fecha_asignacion: '2026-01-20' }),
+                 A(4, { factura_id: 60, unidad_id: 2, monto_asignado: 500, factor: 0.5, sub_partida_override: 'Muebles de Bano', fecha_asignacion: '2026-01-20' })];
+  const pd = planDuplicados({ asigs, facturas: [F(60)] });
+  ck('467: dos copias con distinta sub → elegir_copia (no revisar)', pd.length === 1 && pd[0].tipo === 'elegir_copia' && pd[0].copias.length === 2, pd.map(p => p.tipo));
+  ck('467: elegir_copia no se aplica sola', aplicarAcciones(asigs.map(a => ({ ...a })), pd, { nuevoId, hoy: HOY }).asigs.length === 4);
+  const muebles = pd[0].copias.find(c => c.sub === 'Muebles de Bano');
+  const pq = planQuitarCopias({ asigs, facturas: [F(60)] }, [{ docTipo: 'factura', docId: '60', clave: muebles.clave }]);
+  ck('467: elegir "Muebles de Baño" → quitar_duplicado', pq.length === 1 && pq[0].tipo === 'quitar_duplicado' && pq[0].quitar.length === 2, pq.map(p => p.tipo));
+  const res = aplicarAcciones(asigs.map(a => ({ ...a })), pq, { nuevoId, hoy: HOY });
+  ck('467: queda al 100% y solo con la sub elegida', suma(res.asigs, 60) === 1000 && res.asigs.every(a => a.sub_partida_override === 'Muebles de Bano'));
+  ck('467: después ya no hay nada que elegir', planDuplicados({ asigs: res.asigs, facturas: [F(60)] }).length === 0);
+  ck('467: elección vieja sobre datos ya corregidos → revisar, no toca',
+    planQuitarCopias({ asigs: res.asigs, facturas: [F(60)] }, [{ docTipo: 'factura', docId: '60', clave: muebles.clave }])[0].tipo === 'revisar');
+}
+
+// --- 26. como la 322: partes iguales entre 6 casas y otra vez entre 9 → elegir_copia ---
+{
+  const u = Array.from({ length: 12 }, (_, i) => U(i + 1, 0.5));
+  const seis = [1, 2, 3, 4, 5, 6], nueve = [5, 6, 7, 8, 9, 10, 11, 12, 1];
+  const reparte = (casas, fecha, base) => casas.map((c, i) => A(base + i, { factura_id: 61, unidad_id: c, metodo: 'equitativo', sub_partida_override: 'Estructura',
+    monto_asignado: i === casas.length - 1 ? r2(1000 - r2(1000 / casas.length) * (casas.length - 1)) : r2(1000 / casas.length), factor: 1 / casas.length, fecha_asignacion: fecha }));
+  const asigs = [...reparte(seis, '2025-10-01', 100), ...reparte(nueve, '2025-11-15', 200)];
+  const pd = planDuplicados({ asigs, facturas: [F(61)] });
+  ck('322: dos repartos completos con distintas casas → elegir_copia', pd.length === 1 && pd[0].tipo === 'elegir_copia', pd.map(p => p.tipo));
+  const de9 = pd[0].copias.find(c => c.filas.length === 9);
+  const res = aplicarAcciones(asigs.map(a => ({ ...a })), planQuitarCopias({ asigs, facturas: [F(61)] }, [{ docTipo: 'factura', docId: '61', clave: de9.clave }]), { nuevoId, hoy: HOY });
+  ck('322: elegir la de 9 casas → quedan esas 9 y el 100%', suma(res.asigs, 61) === 1000 && casasDe(res.asigs, 61).length === 9, [suma(res.asigs, 61), casasDe(res.asigs, 61)]);
+}
+
+// --- 27. sobre-repartido donde un paso NO suma el total → sigue en revisar ---
+{
+  const asigs = [A(1, { factura_id: 62, unidad_id: 1, monto_asignado: 1000, fecha_asignacion: '2025-09-01' }),
+                 A(2, { factura_id: 62, unidad_id: 2, monto_asignado: 300, fecha_asignacion: '2025-09-05' })];
+  const pd = planDuplicados({ asigs, facturas: [F(62)] });
+  ck('pasos que no son copias completas → revisar (con las casas en el Excel)', pd.length === 1 && pd[0].tipo === 'revisar' && pd[0].antes.length === 2, pd.map(p => p.tipo));
 }
 
 console.log(`\n${ok} ok · ${fail} fallas`);

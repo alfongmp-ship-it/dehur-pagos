@@ -155,11 +155,12 @@ function _modal() {
         <div style="font-size:12px;font-weight:600;margin-bottom:4px;">Reparar</div>
         <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Cada botón primero descarga la vista previa (y respaldo del antes) y pide confirmar. Todo queda en la bitácora; se puede correr las veces que haga falta.</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button class="btn btn-ghost btn-sm" onclick="quitarRepartosDuplicados()" title="Documentos repartidos dos veces: quita la copia (queda la más antigua)">🧹 Quitar duplicados${cont.duplicados ? ` (${cont.duplicados})` : ''}</button>
+          <button class="btn btn-ghost btn-sm" onclick="quitarRepartosDuplicados()" title="Documentos repartidos dos veces: las copias idénticas se quitan solas (queda la más antigua); si las copias son distintas (otra partida u otras casas), te deja elegir cuál se queda">🧹 Quitar duplicados${cont.duplicados + (cont.copias || 0) ? ` (${cont.duplicados + (cont.copias || 0)})` : ''}</button>
           <button class="btn btn-primary btn-sm" onclick="rehacerPorCierre()" title="Quita las casas cerradas de los repartos automáticos y de casas elegidas y reparte entre las abiertas; si no hay abiertas, queda pendiente. Los dirigidos solo se listan.">🔧 Rehacer por cierre${cont.rehacer ? ` (${cont.rehacer} docs)` : ''}</button>
           <button class="btn btn-ghost btn-sm" onclick="restaurarReabiertas()" title="Si corregiste una fecha de cierre (o se canceló una venta), devuelve esas casas a los repartos de donde se quitaron">↩️ Restaurar casas reabiertas</button>
           <button class="btn btn-ghost btn-sm" onclick="descargarBitacoraRepartos()" title="Excel con cada corrida (lotes) y cada cambio fila por fila: antes, después, quién y cuándo">📜 Bitácora</button>
         </div>
+        ${cont.copias ? `<div style="font-size:11px;color:var(--orange);margin-top:6px;">${cont.copias} documento(s) están repartidos completos más de una vez con distinta partida o casas (su costo cuenta doble): 🧹 te deja elegir cuál copia se queda.</div>` : ''}
         ${cont.revisar ? `<div style="font-size:11px;color:var(--orange);margin-top:6px;">${cont.revisar} documento(s) con casas cerradas no se tocan solos (dirigidos, repartidos de más o que mezclan repartos): el Excel de 🔧 los lista con su motivo. Si hay duplicados, corre 🧹 primero.</div>` : ''}
       </div>
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">

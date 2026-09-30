@@ -31,6 +31,10 @@ const _kParteDe = p => `${p.partida || ''}|${p.sub || ''}|${p.fechaParte || ''}|
 // Llave sin fecha (para detectar copias idénticas en 🧹).
 export const kParteEstable = a => `${a.partida_override || ''}|${a.sub_partida_override || ''}|${a.metodo || ''}`;
 
+// Únicas acciones que cambian filas. Cualquier otra (revisar, elegir_copia…) solo se
+// muestra; aplicarAcciones las ignora aunque le lleguen.
+export const TIPOS_APLICABLES = new Set(['recolocar', 'pendiente', 'restaurar', 'quitar_duplicado']);
+
 // Σ fuera del total (con signo: una nota de crédito tiene total negativo).
 const _sobre = (suma, total) => (total >= 0 ? suma > total + _TOL : suma < total - _TOL);
 
@@ -309,7 +313,7 @@ export function aplicarAcciones(asigs, acciones, opts) {
   // (duplicaría dinero) y no se aplica nada.
   const tocadas = new Set();
   (acciones || []).forEach(ac => {
-    if (ac.tipo === 'revisar') return;
+    if (!TIPOS_APLICABLES.has(ac.tipo)) return;
     [...(ac.antes || []), ...(ac.quitar || [])].forEach(a => {
       const id = String(a.asignacion_id);
       if (tocadas.has(id)) throw new Error(`La fila de reparto ${id} aparece en dos acciones del plan: no se aplica nada`);
@@ -317,7 +321,7 @@ export function aplicarAcciones(asigs, acciones, opts) {
     });
   });
   (acciones || []).forEach(ac => {
-    if (ac.tipo === 'revisar') return;
+    if (!TIPOS_APLICABLES.has(ac.tipo)) return;
     if (ac.tipo === 'quitar_duplicado') {
       (ac.quitar || []).forEach(a => quitar.add(String(a.asignacion_id)));
       return;
@@ -350,10 +354,32 @@ export function aplicarAcciones(asigs, acciones, opts) {
 }
 
 // ---------------------------------------------------------------------------
-// DUPLICADOS: documento sobre-repartido cuyas filas se repiten idénticas (misma
-// parte, casa y monto). Se quitan las copias (queda la más antigua); solo si con
-// eso el documento cuadra al 100% — si no, "revisar".
+// DUPLICADOS: documento sobre-repartido.
+//   · Filas que se repiten idénticas (misma parte, casa y monto) → se quitan las copias
+//     (queda la más antigua), solo si con eso el documento cuadra al 100%.
+//   · Si no, pero se repartió COMPLETO más de una vez (cada paso suma el total, con
+//     distinta partida o distintas casas) → "elegir_copia": la máquina no sabe cuál es
+//     la buena; la elige el dueño (planQuitarCopias).
+//   · Cualquier otro caso → "revisar".
 // ---------------------------------------------------------------------------
+const _totalDoc = (tipo, doc) => (tipo === 'factura' ? (doc.monto_total || 0) : (doc.importe || 0));
+const _refDoc = (tipo, id, doc) => (tipo === 'factura' ? `Fac ${id}${doc.numero_factura ? ' · ' + doc.numero_factura : ''}` : `Pago ${id}`);
+const _quienDoc = (tipo, doc) => (tipo === 'factura' ? (doc.razon_social || doc.nombre_proveedor || '') : (doc.nombre || ''));
+
+// Pasos (un guardado = partida|sub|fecha|método) si CADA uno suma el total; si no, null.
+function _copiasCompletas(asigs, total) {
+  const pasos = new Map();
+  asigs.forEach(a => { const k = _kParte(a); if (!pasos.has(k)) pasos.set(k, []); pasos.get(k).push(a); });
+  if (pasos.size < 2) return null;
+  const copias = [...pasos.entries()].map(([clave, filas]) => {
+    const a0 = filas[0];
+    return { clave, partida: a0.partida_override || '', sub: a0.sub_partida_override || '', fecha: a0.fecha_asignacion || '',
+      metodo: a0.metodo || '', suma: _sumaFilas(filas), filas: _antes(filas) };
+  });
+  if (!copias.every(c => Math.abs(c.suma - total) <= _TOL)) return null;
+  return copias.sort((x, y) => String(x.fecha).localeCompare(String(y.fecha)) || x.clave.localeCompare(y.clave));
+}
+
 export function planDuplicados(datos) {
   const facById = new Map((datos.facturas || []).map(f => [String(f.factura_id), f]));
   const pagoById = new Map((datos.historial || []).map(h => [String(h.id), h]));
@@ -361,7 +387,7 @@ export function planDuplicados(datos) {
   for (const d of _docs(datos.asigs).values()) {
     const doc = d.tipo === 'factura' ? facById.get(d.id) : pagoById.get(d.id);
     if (!doc) continue;
-    const total = d.tipo === 'factura' ? (doc.monto_total || 0) : (doc.importe || 0);
+    const total = _totalDoc(d.tipo, doc);
     const suma = d.asigs.reduce((s, a) => s + (a.monto_asignado || 0), 0);
     if (!_sobre(suma, total)) continue;
     const orden = d.asigs.slice().sort((a, b) =>
@@ -373,18 +399,59 @@ export function planDuplicados(datos) {
       const k = `${kParteEstable(a)}|${a.unidad_id}|${(a.monto_asignado || 0).toFixed(2)}`;
       if (vistos.has(k)) quitar.push(a); else vistos.add(k);
     });
-    const ref = d.tipo === 'factura' ? `Fac ${d.id}${doc.numero_factura ? ' · ' + doc.numero_factura : ''}` : `Pago ${d.id}`;
     const quedan = suma - quitar.reduce((s, a) => s + (a.monto_asignado || 0), 0);
-    const base = { docTipo: d.tipo, docId: d.id, ref, proyecto: doc.proyecto || '', totalDoc: total, sumaAntes: r2(suma), sumaDespues: r2(quedan),
-      quitar: quitar.map(a => ({ ...a })) };
+    const base = { docTipo: d.tipo, docId: d.id, ref: _refDoc(d.tipo, d.id, doc), quien: _quienDoc(d.tipo, doc), proyecto: doc.proyecto || '',
+      totalDoc: total, sumaAntes: r2(suma), sumaDespues: r2(quedan), quitar: quitar.map(a => ({ ...a })) };
     if (quitar.length && Math.abs(quedan - total) <= _TOL) {
       acciones.push({ ...base, tipo: 'quitar_duplicado', motivo: `${quitar.length} fila(s) repetida(s): el reparto queda al 100%` });
-    } else {
-      acciones.push({ ...base, tipo: 'revisar', quitar: [],
-        motivo: quitar.length ? 'Tiene filas repetidas pero al quitarlas no cuadra al 100%: revisar a mano'
-          : 'Sobre-repartido sin filas idénticas: revisar a mano' });
+      continue;
     }
+    const copias = _copiasCompletas(d.asigs, total);
+    if (copias) {
+      acciones.push({ ...base, tipo: 'elegir_copia', quitar: [], sumaDespues: r2(suma), antes: _antes(d.asigs), copias,
+        motivo: `Repartido completo ${copias.length} veces (distinta partida o distintas casas): elige cuál copia se queda (🧹)` });
+      continue;
+    }
+    acciones.push({ ...base, tipo: 'revisar', quitar: [], sumaDespues: r2(suma), antes: _antes(d.asigs),
+      motivo: quitar.length ? 'Tiene filas repetidas pero al quitarlas no cuadra al 100%: revisar a mano'
+        : 'Sobre-repartido sin filas idénticas ni copias completas: revisar a mano' });
   }
+  return acciones;
+}
+
+// El dueño eligió qué copia se queda: elecciones = [{ docTipo, docId, clave }]. Se
+// revalida contra los datos de HOY (sigue repartido de más, la copia existe y cada paso
+// suma el total); si algo cambió, "revisar" y no se toca.
+export function planQuitarCopias(datos, elecciones) {
+  const facById = new Map((datos.facturas || []).map(f => [String(f.factura_id), f]));
+  const pagoById = new Map((datos.historial || []).map(h => [String(h.id), h]));
+  const docs = _docs(datos.asigs);
+  const desc = c => `${c.partida}${c.sub ? ' › ' + c.sub : ''} · ${c.metodo || 'sin método'} · ${c.fecha || 'sin fecha'}`;
+  const acciones = [];
+  (elecciones || []).forEach(e => {
+    const esF = e.docTipo === 'factura';
+    const doc = esF ? facById.get(String(e.docId)) : pagoById.get(String(e.docId));
+    const d = docs.get((esF ? 'F' : 'P') + e.docId);
+    const ref = doc ? _refDoc(e.docTipo, e.docId, doc) : `${esF ? 'Fac' : 'Pago'} ${e.docId}`;
+    if (!doc || !d) {
+      acciones.push({ docTipo: e.docTipo, docId: String(e.docId), ref, tipo: 'revisar', quitar: [], motivo: 'El documento ya no existe o ya no tiene reparto: no se tocó' });
+      return;
+    }
+    const total = _totalDoc(d.tipo, doc);
+    const suma = _sumaFilas(d.asigs);
+    const base = { docTipo: d.tipo, docId: d.id, ref, quien: _quienDoc(d.tipo, doc), proyecto: doc.proyecto || '', totalDoc: total, sumaAntes: suma };
+    const copias = _sobre(suma, total) ? _copiasCompletas(d.asigs, total) : null;
+    const elegida = copias && copias.find(c => c.clave === e.clave);
+    if (!elegida) {
+      acciones.push({ ...base, tipo: 'revisar', quitar: [], sumaDespues: suma, antes: _antes(d.asigs),
+        motivo: 'Cambió desde que se eligió (ya cuadra, o esa copia ya no existe): no se tocó' });
+      return;
+    }
+    const quitar = d.asigs.filter(a => _kParte(a) !== e.clave);
+    const otras = copias.filter(c => c !== elegida);
+    acciones.push({ ...base, tipo: 'quitar_duplicado', quitar: quitar.map(a => ({ ...a })), sumaDespues: r2(suma - _sumaFilas(quitar)),
+      queda: desc(elegida), motivo: `Se queda: ${desc(elegida)}. Se quita(n): ${otras.map(desc).join(' | ')}` });
+  });
   return acciones;
 }
 
@@ -394,7 +461,7 @@ export function planDuplicados(datos) {
 
 // Lo que se guarda de cada parte en reparto_lotes.detalle.partes (para restaurar).
 export function partesLote(acciones) {
-  return (acciones || []).filter(a => a && a.tipo !== 'revisar').map(a => ({
+  return (acciones || []).filter(a => a && TIPOS_APLICABLES.has(a.tipo)).map(a => ({
     tipo: a.tipo, docTipo: a.docTipo, docId: String(a.docId), fechaIso: a.fechaIso || '', fechaParte: a.fechaParte || '',
     proyecto: a.proyecto || '', partida: a.partida || '', sub: a.sub || '', obra: a.obra || '', metodo: a.metodo || '',
     montoParte: a.montoParte || 0, seleccionOriginal: a.seleccionOriginal || [], quitadas: a.quitadas || [], entran: a.entran || [],
@@ -413,7 +480,7 @@ export function firmaPlan(acciones) {
 
 // Documentos (de los que tocaron las acciones) que quedaron repartidos de más.
 export function sobreRepartidos(datos, acciones) {
-  const tocados = new Set((acciones || []).filter(a => a && a.tipo !== 'revisar').map(a => (a.docTipo === 'factura' ? 'F' : 'P') + a.docId));
+  const tocados = new Set((acciones || []).filter(a => a && TIPOS_APLICABLES.has(a.tipo)).map(a => (a.docTipo === 'factura' ? 'F' : 'P') + a.docId));
   const facById = new Map((datos.facturas || []).map(f => [String(f.factura_id), f]));
   const pagoById = new Map((datos.historial || []).map(h => [String(h.id), h]));
   const out = [];

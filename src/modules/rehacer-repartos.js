@@ -13,7 +13,7 @@
 // Todo pasa por una sola fila: nunca corren dos a la vez.
 // ============================================================================
 import { state, esAdmin, nuevoAsignacionId } from '../state.js';
-import { fmt, fmtFecha } from '../ui/format.js';
+import { fmt, fmtFecha, escapeHtml } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { parseFechaHist } from './historial.js';
 import { proyectoMatch } from '../config/proyectos.js';
@@ -21,7 +21,7 @@ import { fechaCierreUnidad, hoyISOLocal, invalidarCierres } from '../config/cost
 import { _pagosCubiertosPorFacturaSet, _pagosCapitalSet } from './costos-fiscales.js';
 import { gsSaveCostoAsignaciones, estadoGuardadoAsignaciones, ingresosDataActiva } from '../services/google-sync.js';
 import { sbLoadTable, sbInsertRow } from '../services/supabase-data.js';
-import { planRehacerCierre, planRestaurar, planDuplicados, aplicarAcciones, partesLote, firmaPlan, sobreRepartidos } from '../services/rehacer-cierre-motor.js';
+import { planRehacerCierre, planRestaurar, planDuplicados, planQuitarCopias, aplicarAcciones, partesLote, firmaPlan, sobreRepartidos, TIPOS_APLICABLES } from '../services/rehacer-cierre-motor.js';
 import { auditarRepartosMotor } from '../services/auditoria-repartos-motor.js';
 
 const MSG_LOTES = 'No pude leer los lotes de repartos: ¿falta correr el SQL 46 (bitácora de repartos) en Supabase, o se cortó la conexión? No se cambió nada.';
@@ -237,7 +237,7 @@ async function _ejecutar(cfg) {
   if (estadoGuardadoAsignaciones().enCurso && !(await _esperarGuardado())) { notify('Sigue un guardado de repartos en curso: corre esto desde 🩺 cuando termine', 'error'); return false; }
   // Desde aquí hasta el confirm no hay await: el plan que se ve es el que se confirma.
   const acciones = cfg.planear(lotes);
-  const aplicables = acciones.filter(a => a.tipo !== 'revisar');
+  const aplicables = acciones.filter(a => TIPOS_APLICABLES.has(a.tipo));
   const cab = cfg.cabecera ? cfg.cabecera + '\n\n' : '';
   if (!acciones.length) { if (!cfg.silencioso) notify(cfg.vacio); return false; }
   const sello = _sello();
@@ -294,7 +294,7 @@ async function _ejecutar(cfg) {
   //    revisaba, o se recargaron los datos, el plan ya no es el confirmado → se anula.
   if (estadoGuardadoAsignaciones().enCurso) await _esperarGuardado();
   const listo = _listo();
-  const ahora = listo ? cfg.planear(lotes).filter(a => a.tipo !== 'revisar') : [];
+  const ahora = listo ? cfg.planear(lotes).filter(a => TIPOS_APLICABLES.has(a.tipo)) : [];
   if (!listo || estadoGuardadoAsignaciones().enCurso || firmaPlan(ahora) !== firma) {
     await _anular(loteId, 'Cambiaron los repartos mientras se revisaba: no se aplicó');
     notify('⚠️ Cambiaron repartos mientras revisabas (otra persona, otra pantalla o una recarga): NO se aplicó nada. Vuelve a correrlo para ver el plan actualizado.', 'error');
@@ -353,11 +353,23 @@ export function rehacerPorCierre(alcance = {}, opts = {}) {
   return _enCola(() => _rehacer(alcance, opts), true);
 }
 
-// 🧹 Quitar repartos duplicados (documentos repartidos dos veces).
+// 🧹 Quitar repartos duplicados (documentos repartidos dos veces). Primero las copias
+// IDÉNTICAS (automático); si además hay documentos repartidos completos más de una vez
+// con distinta partida o casas, se abre "Elegir la copia correcta" (lo decide el dueño).
 export function quitarRepartosDuplicados() {
-  return _enCola(() => _ejecutar({
+  return _enCola(async () => {
+    if (!_listo()) return;
+    const hayCopias = () => planDuplicados(_datos()).some(a => a.tipo === 'elegir_copia');
+    const otros = planDuplicados(_datos()).filter(a => a.tipo !== 'elegir_copia');
+    if (otros.length || !hayCopias()) await _duplicadosIdenticos();
+    if (hayCopias()) { _cerrarModalAuditoria(); _abrirElegirCopia(); }
+  }, true);
+}
+
+function _duplicadosIdenticos() {
+  return _ejecutar({
     tipo: 'quitar_duplicado', titulo: '🧹 Quitar repartos duplicados', archivo: 'duplicados',
-    planear: () => planDuplicados(_datos()),
+    planear: () => planDuplicados(_datos()).filter(a => a.tipo !== 'elegir_copia'),
     vacio: '✅ No hay documentos sobre-repartidos',
     confirmar: acciones => {
       const ap = acciones.filter(a => a.tipo === 'quitar_duplicado');
@@ -365,6 +377,99 @@ export function quitarRepartosDuplicados() {
       return `🧹 Quitar repartos duplicados:\n\n${ap.map(a => `• ${a.ref}: repartido ${fmt(a.sumaAntes)} de ${fmt(a.totalDoc)} → quedará ${fmt(a.sumaDespues)} (${a.quitar.length} fila(s) repetida(s))`).join('\n')}${rev.length ? `\n\n${rev.length} más no se tocan (revisar a mano).` : ''}\n\nSe queda la copia más antigua. Excel de respaldo descargado; todo queda en la bitácora.\n\n¿Aplicar?`;
     },
     motivo: 'Quitar repartos duplicados',
+  });
+}
+
+const _METODO = { indiviso: 'automático por indiviso', indiviso_sel: 'casas elegidas (por indiviso)', equitativo: 'partes iguales', directo: 'directo a una casa', custom: 'personalizado' };
+
+// Modal: por cada documento repartido completo más de una vez, sus copias (partida ›
+// sub, método, fecha en que se guardó, casas y monto) para elegir cuál se queda.
+function _abrirElegirCopia() {
+  const acc = planDuplicados(_datos()).filter(a => a.tipo === 'elegir_copia');
+  if (!acc.length) return;
+  let el = document.getElementById('modal-elegir-copia');
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'modal-overlay';
+    el.id = 'modal-elegir-copia';
+    document.body.appendChild(el);
+  }
+  const tarjeta = (a, i) => {
+    const doc = a.docTipo === 'factura'
+      ? (state.facturas || []).find(f => String(f.factura_id) === String(a.docId))
+      : (state.historial || []).find(h => String(h.id) === String(a.docId));
+    const fechaIso = doc ? (parseFechaHist(a.docTipo === 'factura' ? doc.fecha_factura : doc.fecha) || '') : '';
+    const cerradas = c => c.filas.filter(x => {
+      const u = state.unidades.find(z => String(z.unidad_id) === String(x.unidad_id));
+      const ci = u ? fechaCierreUnidad(u) : '';
+      return ci && fechaIso && ci <= fechaIso;
+    }).length;
+    const opcion = c => {
+      const n = cerradas(c);
+      return `
+        <label style="display:flex;gap:8px;align-items:flex-start;padding:8px;border:1px solid var(--border);border-radius:8px;cursor:pointer;">
+          <input type="radio" name="rr-copia-${i}" value="${escapeHtml(c.clave)}" style="margin-top:3px;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;font-weight:600;">${escapeHtml(c.partida || '(sin partida)')}${c.sub ? ` › ${escapeHtml(c.sub)}` : ''}</div>
+            <div style="font-size:11px;color:var(--muted);">${escapeHtml(_METODO[c.metodo] || c.metodo || 'sin método')} · guardado el ${c.fecha ? escapeHtml(fmtFecha(c.fecha)) : '—'} · ${c.filas.length} casa(s) · ${fmt(c.suma)}${n ? ` · <span style="color:var(--orange);">${n} ya cerrada(s) a la fecha del documento</span>` : ''}</div>
+            <details style="margin-top:4px;"><summary style="font-size:11px;cursor:pointer;">Ver casas</summary>
+              <div style="font-size:11px;font-family:'DM Mono',monospace;margin-top:4px;">${c.filas.map(x => `${escapeHtml(_nombre(x.unidad_id))} ${fmt(x.monto)}`).join(' · ')}</div>
+            </details>
+          </div>
+        </label>`;
+    };
+    return `
+      <div class="rr-copia-doc" data-doc-tipo="${escapeHtml(a.docTipo)}" data-doc-id="${escapeHtml(a.docId)}" style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
+        <div style="font-size:13px;font-weight:700;">${escapeHtml(a.ref)}${a.quien ? ` — ${escapeHtml(a.quien)}` : ''}</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">${fechaIso ? `Del ${escapeHtml(fmtFecha(fechaIso))} · ` : ''}${escapeHtml(a.proyecto || '')} · total ${fmt(a.totalDoc)} · repartido ${fmt(a.sumaAntes)} (${a.copias.length} veces)</div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          ${a.copias.map(opcion).join('')}
+          <label style="display:flex;gap:8px;align-items:center;padding:6px 8px;font-size:12px;color:var(--muted);cursor:pointer;">
+            <input type="radio" name="rr-copia-${i}" value="" checked> No tocar todavía
+          </label>
+        </div>
+      </div>`;
+  };
+  el.innerHTML = `
+    <div class="modal" style="max-width:860px;">
+      <div class="modal-header">
+        <div class="modal-title">🧹 Elegir la copia correcta</div>
+        <button class="modal-close" onclick="cerrar('modal-elegir-copia')">✕</button>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">
+        Estos documentos se repartieron <strong>completos más de una vez</strong>, con distinta partida o distintas casas,
+        así que su costo cuenta doble. La app no puede saber cuál reparto es el bueno: <strong>elige cuál se queda</strong>
+        y las otras copias se quitan. Al aplicar se descarga el respaldo (Excel) y todo queda en la bitácora.
+      </div>
+      <div style="max-height:62vh;overflow:auto;display:flex;flex-direction:column;gap:12px;">${acc.map(tarjeta).join('')}</div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
+        <button class="btn btn-ghost" onclick="cerrar('modal-elegir-copia')">Cancelar</button>
+        <button class="btn btn-primary" onclick="aplicarElegirCopia()">Aplicar</button>
+      </div>
+    </div>`;
+  el.classList.add('open');
+}
+
+// Botón "Aplicar" del modal: quita las copias NO elegidas (mismo flujo seguro: Excel,
+// confirmación, lote, re-plan y guardado con reintento).
+export function aplicarElegirCopia() {
+  const elecciones = [...document.querySelectorAll('#modal-elegir-copia .rr-copia-doc')].map(w => {
+    const r = w.querySelector('input[type=radio]:checked');
+    return r && r.value ? { docTipo: w.dataset.docTipo, docId: w.dataset.docId, clave: r.value } : null;
+  }).filter(Boolean);
+  if (!elecciones.length) { notify('No elegiste ninguna copia: no se cambió nada'); return; }
+  const m = document.getElementById('modal-elegir-copia');
+  if (m) m.classList.remove('open');
+  return _enCola(() => _ejecutar({
+    tipo: 'quitar_duplicado', titulo: '🧹 Quitar copias repetidas (elegidas)', archivo: 'copias',
+    planear: () => planQuitarCopias(_datos(), elecciones),
+    vacio: 'Nada que quitar',
+    confirmar: acciones => {
+      const ap = acciones.filter(a => a.tipo === 'quitar_duplicado');
+      const rev = acciones.filter(a => a.tipo === 'revisar');
+      return `🧹 Quitar copias repetidas (elegidas por ti):\n\n${ap.map(a => `• ${a.ref}: se queda ${a.queda}. Repartido ${fmt(a.sumaAntes)} de ${fmt(a.totalDoc)} → quedará ${fmt(a.sumaDespues)} (salen ${a.quitar.length} fila(s))`).join('\n')}${rev.length ? `\n\n${rev.length} no se tocan (cambiaron desde que elegiste).` : ''}\n\nExcel de respaldo descargado; todo queda en la bitácora.\n\n¿Aplicar?`;
+    },
+    motivo: `Elegir copia: ${elecciones.map(e => `${e.docTipo === 'factura' ? 'Fac' : 'Pago'} ${e.docId}`).join(', ')}`,
   }), true);
 }
 
@@ -418,8 +523,9 @@ export function conteosRehacer() {
       rehacer: _nDocs(r.filter(a => a.tipo !== 'revisar')),
       revisar: _nDocs(r.filter(a => a.tipo === 'revisar')),
       duplicados: d.filter(a => a.tipo === 'quitar_duplicado').length,
+      copias: d.filter(a => a.tipo === 'elegir_copia').length,
     };
-  } catch (e) { console.warn('conteosRehacer', e); return { rehacer: 0, revisar: 0, duplicados: 0 }; }
+  } catch (e) { console.warn('conteosRehacer', e); return { rehacer: 0, revisar: 0, duplicados: 0, copias: 0 }; }
 }
 
 // 📜 Bitácora: lotes + cada cambio fila por fila (antes/después, quién, cuándo).
