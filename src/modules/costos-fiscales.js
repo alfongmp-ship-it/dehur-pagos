@@ -576,13 +576,35 @@ export function simularIndivisoDocs(docs, proyecto = cfProyecto) {
   return { porUnidad, total, count };
 }
 
+// Lo YA repartido de cada factura (Σ de sus asignaciones), en una pasada.
+export function repartidoPorFactura() {
+  const rep = new Map();
+  state.costoAsignaciones.forEach(a => {
+    if (!a.factura_id) return;
+    const k = String(a.factura_id);
+    rep.set(k, (rep.get(k) || 0) + (a.monto_asignado || 0));
+  });
+  return rep;
+}
+
+// Estimado de lo facturado pendiente: facturas elegibles SIN reparto (todo su
+// total) y el FALTANTE de las repartidas a medias (antes ese faltante no
+// aparecía en ningún lado). Tolerancia $0.50 por redondeos.
 export function estimadoFacturadoPorUnidad(proyecto = cfProyecto) {
   const info = _facturasFiscalProyecto(proyecto);
-  const repartidas = _facturasRepartidasSet();
-  const docs = (state.facturas || [])
-    .filter(f => info.elegibles.has(String(f.factura_id)) && !repartidas.has(String(f.factura_id)))
-    .map(f => ({ importe: f.monto_total || 0, fechaIso: parseFechaHist(f.fecha_factura) || '' }));
-  return simularIndivisoDocs(docs, proyecto);
+  const rep = repartidoPorFactura();
+  let nSin = 0, nParc = 0;
+  const docs = [];
+  (state.facturas || []).forEach(f => {
+    const k = String(f.factura_id);
+    if (!info.elegibles.has(k)) return;
+    const r = rep.get(k) || 0;
+    const pend = (f.monto_total || 0) - r;
+    if (pend <= 0.5) return;
+    if (r > 0.005) nParc++; else nSin++;
+    docs.push({ importe: pend, fechaIso: parseFechaHist(f.fecha_factura) || '' });
+  });
+  return { ...simularIndivisoDocs(docs, proyecto), nSin, nParc };
 }
 
 export function cfToggleSoloFacturado(on) {
@@ -727,7 +749,7 @@ function renderUnidadesTab(panel) {
       </div>
     </div>
     ${bandaFiscal}
-    ${estim ? `<div style="font-size:12px;color:var(--accent);background:rgba(200,169,110,.08);border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:12px;">📊 Pendiente por asignar: <strong>${fmt(estim.total)}</strong> en ${estim.count} ${fisc ? 'factura(s) elegible(s) sin repartir' : 'pago(s)'} — repartido por indiviso (estimado; no afecta el costo real)</div>` : ''}
+    ${estim ? `<div style="font-size:12px;color:var(--accent);background:rgba(200,169,110,.08);border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:12px;">📊 Pendiente por asignar: <strong>${fmt(estim.total)}</strong> en ${estim.count} ${fisc ? 'factura(s) con saldo por repartir (sin reparto o a medias)' : 'pago(s)'} — repartido por indiviso (estimado; no afecta el costo real)</div>` : ''}
     ${unidades.length ? `
     <div class="table-wrap">
       <table>
@@ -787,7 +809,7 @@ export function exportarCostosUnitariosExcel() {
 
   const aoa = [
     [`Costos por unidad — ${cfProyecto}${fisc ? ' — 💼 FISCAL: SOLO FACTURADO' : ''}`],
-    [`Generado: ${hoyISO}${fisc ? ` · Solo facturas vigentes (pagadas o no); pagos NO cuentan${fisc.nCruzadas ? ` · ${fisc.nCruzadas} factura(s) de empresa cruzada excluidas` : ''}${fisc.nExcluidas ? ` · ${fisc.nExcluidas} excluida(s) en Fiscal` : ''}` : ''}${estim ? ` · INCLUYE estimado: ${fmt(estim.total)} de ${estim.count} ${fisc ? 'factura(s) elegible(s) sin repartir' : 'pago(s) pendientes'} repartido por indiviso (NO es costo real)` : ''}`],
+    [`Generado: ${hoyISO}${fisc ? ` · Solo facturas vigentes (pagadas o no); pagos NO cuentan${fisc.nCruzadas ? ` · ${fisc.nCruzadas} factura(s) de empresa cruzada excluidas` : ''}${fisc.nExcluidas ? ` · ${fisc.nExcluidas} excluida(s) en Fiscal` : ''}` : ''}${estim ? ` · INCLUYE estimado: ${fmt(estim.total)} de ${estim.count} ${fisc ? 'factura(s) con saldo por repartir (sin reparto o a medias)' : 'pago(s) pendientes'} repartido por indiviso (NO es costo real)` : ''}`],
     [],
     enc
   ];

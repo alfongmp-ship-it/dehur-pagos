@@ -15,7 +15,7 @@ import {
   _facturasRepartidasSet, _facturasCanceladasSet, _pagosCubiertosPorFacturaSet,
   _factExistSet, _pagoExistSet, _pagosCapitalSet, _tipoAsignacion,
   costosPresupuestosBatch, costoFacturadoPorUnidad, estimadoFacturadoPorUnidad,
-  empresaDeProyectoNorm, facturaEmpresaCruzada, pagosSinFacturaSinRepartir, simularIndivisoDocs
+  empresaDeProyectoNorm, facturaEmpresaCruzada, pagosSinFacturaSinRepartir, simularIndivisoDocs, repartidoPorFactura
 } from './costos-fiscales.js';
 import { parseFechaHist } from './historial.js';
 import { estimados324 } from './rmf-324.js';
@@ -211,7 +211,7 @@ export function exportarSinCfdiExcel() {
   if (!window.XLSX) { notify('Cargando la librería de Excel, intenta de nuevo en 2 segundos', 'error'); return; }
   const { b, lista } = _gruposSinCfdi(fisProyecto);
   if (!lista.length) { notify('No hay pagos sin CFDI en este proyecto', 'error'); return; }
-  const hoyISO = new Date().toISOString().slice(0, 10);
+  const sello = _sello();
   const money = (ws, r0, cols, rows) => {
     for (let r = r0; r < rows; r++) cols.forEach(c => {
       const ref = XLSX.utils.encode_cell({ r, c });
@@ -220,7 +220,7 @@ export function exportarSinCfdiExcel() {
   };
   const aoa1 = [
     [`FISCAL — Pagos sin CFDI por partida — ${fisProyecto}`],
-    [`Generado: ${hoyISO} · Facturado ${fmt(b.totFis - b.totPagosAprob)} + Sin CFDI aprobado ${fmt(b.totPagosAprob)} = Costo fiscal conciliado ${fmt(b.totFis)} · Pendiente de decidir ${fmt(b.totPagosNoAprob)}`],
+    [`Generado: ${sello.txt} · Facturado ${fmt(b.totFis - b.totPagosAprob)} + Sin CFDI aprobado ${fmt(b.totPagosAprob)} = Costo fiscal conciliado ${fmt(b.totFis)} · Pendiente de decidir ${fmt(b.totPagosNoAprob)}`],
     [], ['Partida', 'Pagos', 'Repartido a casas', 'Aprobado', 'Pendiente de decidir', 'Sin repartir aún', 'Pagos sin repartir']];
   lista.forEach(x => aoa1.push([x.partida, x.n + x.nSR, x.repartido, x.aprob, x.pend, x.sinRep, x.nSR]));
   const ws1 = XLSX.utils.aoa_to_sheet(aoa1);
@@ -241,7 +241,7 @@ export function exportarSinCfdiExcel() {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws1, 'Por partida');
   XLSX.utils.book_append_sheet(wb, ws2, 'Detalle');
-  XLSX.writeFile(wb, `Fiscal_sin_CFDI_${String(fisProyecto).replace(/[\\/:*?"<>|\s]+/g, '_')}_${hoyISO}.xlsx`);
+  XLSX.writeFile(wb, `Fiscal_sin_CFDI_${String(fisProyecto).replace(/[\\/:*?"<>|\s]+/g, '_')}_${sello.archivo}.xlsx`);
   notify('⬇ Excel de pagos sin CFDI descargado');
 }
 
@@ -271,7 +271,7 @@ function _estimadoPorCasa(proyecto) {
     .map(h => ({ importe: h.importe || 0, fechaIso: parseFechaHist(h.fecha) || '' })), proyecto);
   const porUnidad = new Map(fac.porUnidad);
   pag.porUnidad.forEach((v, k) => porUnidad.set(k, (porUnidad.get(k) || 0) + v));
-  return { porUnidad, total: fac.total + pag.total, nFact: fac.count, totFact: fac.total, nPagos: pag.count, totPagos: pag.total };
+  return { porUnidad, total: fac.total + pag.total, nFact: fac.count, nSin: fac.nSin, nParc: fac.nParc, totFact: fac.total, nPagos: pag.count, totPagos: pag.total };
 }
 
 function renderPorCasaTab(panel) {
@@ -300,7 +300,7 @@ function renderPorCasaTab(panel) {
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
       <div class="stat-card"><div class="stat-label">Facturado repartido</div><div class="stat-value" style="color:var(--green);">${fmt(fisc.total)}</div><div class="stat-sub">ya asignado a casas</div></div>
       <div class="stat-card" title="Pagos sin factura marcados deducibles (pestaña 🧮 Sin CFDI), repartidos a casas."><div class="stat-label">✅ Sin CFDI aprobado</div><div class="stat-value">${fmt(tSC)}</div><div class="stat-sub">nómina y otros deducibles</div></div>
-      <div class="stat-card" title="Facturas elegibles SIN reparto y pagos sin CFDI aprobados SIN reparto, simulados por indiviso con el pool a la fecha de cada uno. Es el tamaño del pendiente de reparto."><div class="stat-label">⚠ Por repartir (estimado)</div><div class="stat-value" style="color:var(--orange);">${estim ? fmt(tEst) : '—'}</div><div class="stat-sub">${estim ? `${estim.nFact} factura(s)${estim.nPagos ? ` + ${estim.nPagos} pago(s) aprobado(s)` : ''} sin repartir` : 'prende el estimado'}</div></div>
+      <div class="stat-card" title="Facturas elegibles SIN reparto y pagos sin CFDI aprobados SIN reparto, simulados por indiviso con el pool a la fecha de cada uno. Es el tamaño del pendiente de reparto."><div class="stat-label">⚠ Por repartir (estimado)</div><div class="stat-value" style="color:var(--orange);">${estim ? fmt(tEst) : '—'}</div><div class="stat-sub">${estim ? `${estim.nSin} sin reparto${estim.nParc ? ` + ${estim.nParc} a medias` : ''}${estim.nPagos ? ` + ${estim.nPagos} pago(s) aprobado(s)` : ''}` : 'prende el estimado'}</div></div>
       <div class="stat-card" title="Facturado + Sin CFDI aprobado${estim ? ' + estimado por repartir' : ''}"><div class="stat-label">Costo fiscal ${estim ? 'proyectado' : 'conciliado'}</div><div class="stat-value" style="color:var(--accent);">${fmt(tConc + tEst)}</div><div class="stat-sub">${estim ? 'conciliado + por repartir' : 'facturado + sin CFDI'}</div></div>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
@@ -351,12 +351,12 @@ export function exportarFiscalPorCasaExcel() {
   const estim = fisEstimCasa ? _estimadoPorCasa(fisProyecto) : null;
   const bat = fiscalBatch(fisProyecto);
   const scDe = u => (bat.porUnidad.get(String(u.unidad_id)) || {}).sinCfdi || 0;
-  const hoyISO = new Date().toISOString().slice(0, 10);
+  const sello = _sello();
   const enc = ['Casa', '% Indiviso', 'Facturado', 'Sin CFDI aprobado', 'Fiscal conciliado'];
   if (estim) enc.push('Estimado por asignar', 'Proyectado');
   const aoa = [
     [`FISCAL — Por casa (solo facturado) — ${fisProyecto}`],
-    [`Generado: ${hoyISO} · Facturas vigentes (pagadas o no); pagos NO cuentan${fisc.nCruzadas ? ` · ${fisc.nCruzadas} factura(s) de empresa cruzada excluidas` : ''}${fisc.nExcluidas ? ` · ${fisc.nExcluidas} excluida(s) en Deducibilidad` : ''}${estim ? ` · Estimado: ${fmt(estim.total)} = ${estim.nFact} factura(s) sin repartir (${fmt(estim.totFact)})${estim.nPagos ? ` + ${estim.nPagos} pago(s) sin CFDI aprobados sin repartir (${fmt(estim.totPagos)})` : ''}, por indiviso (NO es reparto real)` : ''}`],
+    [`Generado: ${sello.txt} · Facturas vigentes (pagadas o no); pagos NO cuentan${fisc.nCruzadas ? ` · ${fisc.nCruzadas} factura(s) de empresa cruzada excluidas` : ''}${fisc.nExcluidas ? ` · ${fisc.nExcluidas} excluida(s) en Deducibilidad` : ''}${estim ? ` · Estimado: ${fmt(estim.total)} = ${estim.nFact} factura(s) con saldo por repartir — ${estim.nSin} sin reparto y ${estim.nParc} a medias — (${fmt(estim.totFact)})${estim.nPagos ? ` + ${estim.nPagos} pago(s) sin CFDI aprobados sin repartir (${fmt(estim.totPagos)})` : ''}, por indiviso (NO es reparto real)` : ''}`],
     [], enc];
   let tEst = 0, tSC = 0;
   unidades.forEach(u => {
@@ -380,7 +380,7 @@ export function exportarFiscalPorCasaExcel() {
   }
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Por casa');
-  XLSX.writeFile(wb, `Fiscal_por_casa_${String(fisProyecto).replace(/[\\/:*?"<>|\s]+/g, '_')}_${hoyISO}.xlsx`);
+  XLSX.writeFile(wb, `Fiscal_por_casa_${String(fisProyecto).replace(/[\\/:*?"<>|\s]+/g, '_')}_${sello.archivo}.xlsx`);
   notify('⬇ Excel fiscal por casa descargado');
 }
 
@@ -392,6 +392,66 @@ export function exportarFiscalPorCasaExcel() {
 //   · Facturado     = asignaciones de facturas ELEGIBLES (costoFacturadoPorUnidad).
 //   · Sin CFDI apr. = asignaciones tipo 'pagado' de pagos aprobados (= fiscalBatch).
 const _SIN_SUB = '(sin sub-partida)';
+
+// Sello de corte en hora LOCAL (toISOString es UTC: en México, después de las
+// 18:00 daba la fecha de mañana). txt para textos, archivo para nombres.
+function _sello() {
+  const d = new Date();
+  const p2 = n => String(n).padStart(2, '0');
+  const iso = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+  const hora = `${p2(d.getHours())}:${p2(d.getMinutes())}`;
+  return { iso, hora, txt: `${fmtFecha(iso)} ${hora}`, archivo: `${iso}_${p2(d.getHours())}${p2(d.getMinutes())}` };
+}
+
+// Lo que NO está asignado a casas, ubicado documento por documento, y la
+// conciliación del proyecto: total facturado = repartido + pendiente − exceso.
+//   · sinRep    → facturas elegibles sin ningún reparto (todo su total pendiente)
+//   · parciales → repartidas a medias (pendiente = su faltante)
+//   · sobre     → repartidas de MÁS (exceso a corregir)
+//   · pagos     → pagos sin CFDI aprobados que aún no se reparten
+// Tolerancia $0.50 por factura (redondeos del reparto); lo menor va a "redondeos".
+function _pendientesFiscal(proyecto) {
+  const { elegibles } = costoFacturadoPorUnidad(proyecto);
+  const rep = repartidoPorFactura();
+  const provDe = id => (state.proveedores || []).find(p => String(p.id) === String(id));
+  const sinRep = [], parciales = [], sobre = [];
+  let totalFact = 0, repartido = 0, pendSin = 0, pendParc = 0, sobreTot = 0;
+  (state.facturas || []).forEach(f => {
+    const k = String(f.factura_id);
+    if (!elegibles.has(k)) return;
+    const total = f.monto_total || 0;
+    const r = rep.get(k) || 0;
+    totalFact += total; repartido += r;
+    const prov = provDe(f.proveedor_id);
+    const doc = {
+      tipo: 'Factura', doc: `Fac ${k}${f.numero_factura ? ' · ' + f.numero_factura : ''}`, uuid: f.uuid || '',
+      quien: f.razon_social || f.nombre_proveedor || (prov && prov.nombre) || '', rfc: (prov && prov.rfc) || '',
+      fechaIso: parseFechaHist(f.fecha_factura) || f.fecha_factura || '', total, rep: r
+    };
+    const dif = total - r;
+    if (dif > 0.5) {
+      if (r > 0.005) { parciales.push({ ...doc, pend: dif }); pendParc += dif; }
+      else { sinRep.push({ ...doc, pend: dif }); pendSin += dif; }
+    } else if (dif < -0.5) {
+      sobre.push({ ...doc, pend: dif }); sobreTot += -dif;
+    }
+  });
+  const pagos = _pagosAprobadosSinRepartir(proyecto).map(h => {
+    const prov = provDe(h.proveedor_id);
+    const marca = _marcaFiscalDe('pago', h.id);
+    return {
+      tipo: 'Pago sin CFDI', doc: `Pago ${h.id}`, uuid: '', quien: h.nombre || (prov && prov.nombre) || '',
+      rfc: (prov && prov.rfc) || '', fechaIso: parseFechaHist(h.fecha) || h.fecha || '', total: h.importe || 0,
+      rep: 0, pend: h.importe || 0, motivo: (marca && marca.motivo) || '', partida: h.partida || ''
+    };
+  });
+  const pendPagos = pagos.reduce((s, x) => s + x.pend, 0);
+  const porMonto = (a, z) => Math.abs(z.pend) - Math.abs(a.pend);
+  sinRep.sort(porMonto); parciales.sort(porMonto); sobre.sort(porMonto); pagos.sort(porMonto);
+  // Lo que queda fuera de la tolerancia (< $0.50 por factura) — cierra la cuenta.
+  const redondeo = totalFact - (repartido + pendSin + pendParc - sobreTot);
+  return { sinRep, parciales, sobre, pagos, totalFact, repartido, pendSin, pendParc, sobreTot, pendPagos, redondeo };
+}
 
 function _detalleFiscalCasas(proyecto) {
   const unidades = unidadesDeProyecto(false, proyecto);
@@ -490,7 +550,7 @@ export function imprimirFichasFiscales(unidadId) {
   if (!lista.length) { notify('No hay casas para generar fichas', 'error'); return; }
   const est = _estimadoPorCasa(fisProyecto);
   const proy = (state.proyectos || []).find(p => p.nombre === fisProyecto) || {};
-  const corte = new Date().toISOString().slice(0, 10);
+  const sello = _sello();
   const e = escapeHtml;
   const paginas = lista.map((u, i) => {
     const c = casas.get(String(u.unidad_id)) || { fac: 0, sc: 0, nFac: new Set(), nPag: new Set(), partidas: new Map() };
@@ -510,7 +570,7 @@ export function imprimirFichasFiscales(unidadId) {
       <header>
         <div class="emp">${e(proy.empresa || '')}</div>
         <h1>Ficha de costo fiscal por unidad</h1>
-        <div class="sub">${e(fisProyecto)} · Fecha de corte: ${e(fmtFecha(corte))}</div>
+        <div class="sub">${e(fisProyecto)} · Corte: ${e(sello.txt)}</div>
       </header>
       <table class="datos">
         <tr><th>Unidad</th><td class="b">${e(u.nombre)}</td><th>Tipo</th><td>${e(u.tipo || '—')}</td></tr>
@@ -582,7 +642,7 @@ export function exportarAnexoFiscalExcel() {
   const { unidades, casas } = _detalleFiscalCasas(fisProyecto);
   if (!unidades.length) { notify('No hay casas en este proyecto', 'error'); return; }
   const est = _estimadoPorCasa(fisProyecto);
-  const corte = new Date().toISOString().slice(0, 10);
+  const sello = _sello();
   // Columnas: 0 Casa · 1 Partida · 2 Sub-partida · 3 Tipo · 4 Documento · 5 UUID ·
   // 6 Proveedor · 7 RFC · 8 Fecha · 9 Total doc · 10 Método · 11 % a la casa ·
   // 12 Monto a la casa · 13 Facturado · 14 Sin CFDI · 15 Conciliado · 16 Motivo
@@ -590,7 +650,7 @@ export function exportarAnexoFiscalExcel() {
     'Total documento', 'Método', '% a la casa', 'Monto a la casa', 'Facturado', 'Sin CFDI aprobado', 'Conciliado', 'Motivo aprobación'];
   const aoa = [
     [`ANEXO — Detalle del costo fiscal por unidad — ${fisProyecto}`],
-    [`Fecha de corte: ${corte} · Da clic en + (margen izquierdo) para abrir cada casa, partida y sub-partida. Facturas vigentes de la empresa del proyecto (pagadas o no) + pagos sin CFDI aprobados como deducibles.`],
+    [`Corte: ${sello.txt} · Da clic en + (margen izquierdo) para abrir cada casa, partida y sub-partida. Facturas vigentes de la empresa del proyecto (pagadas o no) + pagos sin CFDI aprobados como deducibles.`],
     [], enc];
   const niveles = [0, 0, 0, 0];
   const vacias = n => Array(n).fill('');
@@ -622,6 +682,59 @@ export function exportarAnexoFiscalExcel() {
     });
     resumen.push([u.nombre, (u.indiviso_pct || 0) / 100, c.fac, c.sc, c.fac + c.sc, est.porUnidad.get(u.unidad_id) || 0, c.nFac.size, c.nPag.size]);
   });
+
+  // ---- PENDIENTE POR REPARTIR: lo que no está en ninguna casa, ubicado doc por doc ----
+  const pf = _pendientesFiscal(fisProyecto);
+  const pendFac = pf.pendSin + pf.pendParc;
+  if (pendFac > 0 || pf.pendPagos > 0) {
+    aoa.push(['PENDIENTE POR REPARTIR', 'sin partida · no asignado a casas', ...vacias(11), pendFac, pf.pendPagos, pendFac + pf.pendPagos, '']);
+    niveles.push(0);
+    const grupoPend = (titulo, lista, esPago) => {
+      if (!lista.length) return;
+      const tot = lista.reduce((s, x) => s + x.pend, 0);
+      aoa.push(['', titulo, ...vacias(11), esPago ? '' : tot, esPago ? tot : '', tot, '']);
+      niveles.push(1);
+      lista.forEach(x => {
+        aoa.push(['', '', '', x.tipo, x.doc, x.uuid, x.quien, x.rfc, x.fechaIso ? fmtFecha(x.fechaIso) : '', x.total,
+          '', '', x.pend, '', '', '', x.rep > 0.005 ? `Ya repartido ${fmt(x.rep)}; falta ${fmt(x.pend)}` : (x.motivo || '')]);
+        niveles.push(2);
+      });
+    };
+    grupoPend(`Facturas sin reparto (${pf.sinRep.length})`, pf.sinRep, false);
+    grupoPend(`Facturas repartidas a medias — faltante (${pf.parciales.length})`, pf.parciales, false);
+    grupoPend(`Pagos sin CFDI aprobados sin repartir (${pf.pagos.length})`, pf.pagos, true);
+  }
+
+  // ---- Conciliación del proyecto (al pie de Resumen) ----
+  const repCasas = resumen.slice(1).reduce((s, r) => s + (r[2] || 0), 0);
+  const fueraLista = pf.repartido - repCasas;
+  const cuadre = (pf.repartido + pf.pendSin + pf.pendParc - pf.sobreTot + pf.redondeo) - pf.totalFact;
+  resumen.push([], ['CONCILIACIÓN DEL PROYECTO — facturas elegibles', '', ''],
+    ['Total facturado elegible (vigentes, empresa del proyecto)', '', pf.totalFact],
+    ['Repartido a casas', '', pf.repartido],
+    ...(Math.abs(fueraLista) > 0.5 ? [['   de ello, en casas fuera de esta lista (dadas de baja u otras)', '', fueraLista]] : []),
+    [`Pendiente — facturas sin reparto (${pf.sinRep.length})`, '', pf.pendSin],
+    [`Pendiente — faltante de facturas repartidas a medias (${pf.parciales.length})`, '', pf.pendParc],
+    [`(−) Sobre-repartido — exceso a corregir (${pf.sobre.length})`, '', -pf.sobreTot],
+    ['Redondeos (< $0.50 por factura)', '', pf.redondeo],
+    ['Cuadre: componentes − total (debe ser $0.00)', '', Math.abs(cuadre) < 0.005 ? 0 : cuadre],
+    [],
+    [`Aparte (no son facturas): pagos sin CFDI aprobados sin repartir (${pf.pagos.length})`, '', pf.pendPagos]);
+
+  // Hoja plana "Pendiente por repartir" (misma lista, filtrable)
+  const aoaP = [['Grupo', 'Tipo', 'Documento', 'UUID', 'Proveedor / Beneficiario', 'RFC', 'Fecha', 'Total documento', 'Ya repartido', 'Pendiente (− = exceso)', 'Motivo aprobación']];
+  const addP = (g, lista) => lista.forEach(x => aoaP.push([g, x.tipo, x.doc, x.uuid, x.quien, x.rfc,
+    x.fechaIso ? fmtFecha(x.fechaIso) : '', x.total, x.rep, x.pend, x.motivo || '']));
+  addP('Sin reparto', pf.sinRep);
+  addP('Repartida a medias', pf.parciales);
+  addP('Pago sin CFDI aprobado sin repartir', pf.pagos);
+  addP('SOBRE-repartida (exceso)', pf.sobre);
+  const wsP = XLSX.utils.aoa_to_sheet(aoaP);
+  wsP['!cols'] = [{ wch: 30 }, { wch: 13 }, { wch: 20 }, { wch: 38 }, { wch: 30 }, { wch: 15 }, { wch: 11 }, { wch: 15 }, { wch: 15 }, { wch: 18 }, { wch: 26 }];
+  for (let r = 1; r < aoaP.length; r++) {
+    [7, 8, 9].forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (wsP[ref] && typeof wsP[ref].v === 'number') wsP[ref].z = '"$"#,##0.00'; });
+  }
+
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   ws['!outline'] = { above: true };
   ws['!rows'] = niveles.map(lv => (lv ? { level: lv, hidden: true } : {}));
@@ -638,7 +751,7 @@ export function exportarAnexoFiscalExcel() {
     [3, 4, 5].forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (wsS[ref] && typeof wsS[ref].v === 'number') wsS[ref].z = '"$"#,##0.00'; });
   }
   const wsR = XLSX.utils.aoa_to_sheet(resumen);
-  wsR['!cols'] = [{ wch: 12 }, { wch: 11 }, { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 22 }, { wch: 9 }, { wch: 13 }];
+  wsR['!cols'] = [{ wch: 44 }, { wch: 11 }, { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 22 }, { wch: 9 }, { wch: 13 }];
   for (let r = 1; r < resumen.length; r++) {
     const ri = XLSX.utils.encode_cell({ r, c: 1 }); if (wsR[ri]) wsR[ri].z = '0.0000%';
     [2, 3, 4, 5].forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (wsR[ref] && typeof wsR[ref].v === 'number') wsR[ref].z = '"$"#,##0.00'; });
@@ -647,7 +760,8 @@ export function exportarAnexoFiscalExcel() {
   XLSX.utils.book_append_sheet(wb, ws, 'Anexo');
   XLSX.utils.book_append_sheet(wb, wsR, 'Resumen');
   XLSX.utils.book_append_sheet(wb, wsS, 'Por sub-partida');
-  XLSX.writeFile(wb, `Anexo_fiscal_${String(fisProyecto).replace(/[\\/:*?"<>|\s]+/g, '_')}_${corte}.xlsx`);
+  XLSX.utils.book_append_sheet(wb, wsP, 'Pendiente por repartir');
+  XLSX.writeFile(wb, `Anexo_fiscal_${String(fisProyecto).replace(/[\\/:*?"<>|\s]+/g, '_')}_${sello.archivo}.xlsx`);
   notify('📎 Anexo fiscal descargado');
 }
 
@@ -915,7 +1029,7 @@ export function fiscalExportar() {
   if (!window.XLSX) { notify('Cargando la librería de Excel, intenta de nuevo en 2 segundos', 'error'); return; }
   const b = fiscalBatch(fisProyecto);
   const unidades = unidadesDeProyecto(false, fisProyecto);
-  const hoyISO = new Date().toISOString().slice(0, 10);
+  const sello = _sello();
   const wb = XLSX.utils.book_new();
   const fmtMoney = (ws, aoa, cols, desde) => {
     for (let r = desde; r < aoa.length; r++) cols.forEach(c => {
@@ -926,7 +1040,7 @@ export function fiscalExportar() {
 
   const aoa1 = [
     [`Costo FISCAL por casa — ${fisProyecto}`],
-    [`Generado: ${hoyISO} · Regla: facturas (CFDI) + pagos aprobados por admin · apertura y no aprobados fuera`],
+    [`Generado: ${sello.txt} · Regla: facturas (CFDI) + pagos aprobados por admin · apertura y no aprobados fuera`],
     [],
     ['Casa', 'Gerencial', 'Fiscal (deducible)', 'Diferencia', '% fiscal']
   ];
@@ -974,7 +1088,7 @@ export function fiscalExportar() {
   fmtMoney(ws3, aoa3, [4], 3);
   XLSX.utils.book_append_sheet(wb, ws3, 'Facturas');
 
-  XLSX.writeFile(wb, `Fiscal_${String(fisProyecto || 'proyecto').replace(/[\\/:*?"<>|\s]+/g, '_')}_${hoyISO}.xlsx`);
+  XLSX.writeFile(wb, `Fiscal_${String(fisProyecto || 'proyecto').replace(/[\\/:*?"<>|\s]+/g, '_')}_${sello.archivo}.xlsx`);
   notify('✅ Excel fiscal generado');
 }
 
@@ -1175,7 +1289,7 @@ export function est324Exportar() {
   if (!window.XLSX) { notify('Cargando la librería de Excel, intenta de nuevo en 2 segundos', 'error'); return; }
   const capturado = _rmfFactorGet(estEjercicio, fisProyecto);
   const r = estimados324(_est324Insumos(estEjercicio), clave => clave === 'factor' ? capturado : null);
-  const hoyISO = new Date().toISOString().slice(0, 10);
+  const sello = _sello();
   const wb = XLSX.utils.book_new();
   const fmtMoney = (ws, aoa, cols, desde) => {
     for (let row = desde; row < aoa.length; row++) cols.forEach(c => {
@@ -1186,7 +1300,7 @@ export function est324Exportar() {
 
   const aoa1 = [
     [`Registro RMF 3.2.4 — cobros por bienes NO escriturados — ${fisProyecto}`],
-    [`Corte: 31/dic/${estEjercicio} · Generado: ${hoyISO} · Factor ${r.factorFuente}: ${_pctTxt(r.factorUsado)}`],
+    [`Corte: 31/dic/${estEjercicio} · Generado: ${sello.txt} · Factor ${r.factorFuente}: ${_pctTxt(r.factorUsado)}`],
     [],
     ['Casa', 'Cliente', 'Precio de venta', 'Cobrado al corte', '% del precio']
   ];
@@ -1214,7 +1328,7 @@ export function est324Exportar() {
 
   const aoa3 = [
     [`Resumen RMF 3.2.4 — ${fisProyecto} — ejercicio ${estEjercicio}`],
-    [`Generado: ${hoyISO}`],
+    [`Generado: ${sello.txt}`],
     [],
     ['Concepto', 'Valor'],
     ['Base acumulable (cobros al corte de bienes no escriturados)', r.baseAcumulable],
@@ -1236,6 +1350,6 @@ export function est324Exportar() {
   const refS = XLSX.utils.encode_cell({ r: 6, c: 1 }); if (ws3[refS] && typeof ws3[refS].v === 'number') ws3[refS].z = '0.00%';
   XLSX.utils.book_append_sheet(wb, ws3, 'Resumen');
 
-  XLSX.writeFile(wb, `RMF324_${String(fisProyecto || 'proyecto').replace(/[\\/:*?"<>|\s]+/g, '_')}_${estEjercicio}_${hoyISO}.xlsx`);
+  XLSX.writeFile(wb, `RMF324_${String(fisProyecto || 'proyecto').replace(/[\\/:*?"<>|\s]+/g, '_')}_${estEjercicio}_${sello.archivo}.xlsx`);
   notify('✅ Excel 3.2.4 generado');
 }
