@@ -7,7 +7,7 @@ import { cerrar } from '../ui/modal.js';
 import { buscarProveedorSol, normalizar } from '../matching/fuzzy.js';
 import { gsSaveAlias } from '../services/google-sync.js';
 import { renderCola } from './dispersion.js';
-import { unidadEnIndivisoAFecha } from '../config/costos-fiscales.js';
+import { unidadEnIndivisoAFecha, fechaCierreUnidad } from '../config/costos-fiscales.js';
 // Resuelve un nombre de partida-obra al item del catálogo Obra del proyecto.
 // Busca primero el item específico del proyecto; si no, cae al maestro (sin proyecto).
 function resolverPartidaObra(nombreObra, proyecto) {
@@ -130,7 +130,29 @@ function _repExpandirIndiviso(pct, proyecto, errores, fechaISO) {
   return delProyecto.map(u => ({ unidad_id: u.unidad_id, casa: u.nombre, pct: (u.indiviso_pct / sumaInd) * pct }));
 }
 
+// Regla dura de cierre (dueño, 2026-09-30): ninguna casa CERRADA (terminación o
+// escritura) a la fecha del documento puede recibir su costo, venga del reparto en
+// bloque, del importador o de solicitudes. El indiviso ya filtra por fecha; aquí se
+// validan las casas nombradas a mano (directo / equitativo / custom) → error que
+// bloquea la fila, nunca un descarte silencioso.
 export function parseReparto(repartoRaw, unidadesRaw, proyecto, fechaISO) {
+  const r = _parseRepartoBase(repartoRaw, unidadesRaw, proyecto, fechaISO);
+  if (r.errores.length || !r.asignaciones.length) return r;
+  const iso2txt = s => { const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]}` : String(s || ''); };
+  const cerradas = [];
+  r.asignaciones.forEach(a => {
+    if (a.unidad_id == null || !((a.pct || 0) > 0)) return;
+    const u = state.unidades.find(x => String(x.unidad_id) === String(a.unidad_id));
+    if (u && !unidadEnIndivisoAFecha(u, fechaISO)) cerradas.push(`${u.nombre} (cerrada ${iso2txt(fechaCierreUnidad(u))})`);
+  });
+  if (cerradas.length) {
+    r.errores.push(`${cerradas.join(', ')}: ya estaba${cerradas.length > 1 ? 'n' : ''} cerrada${cerradas.length > 1 ? 's' : ''} (terminación o escritura) a la fecha del documento${fechaISO ? ' ' + iso2txt(fechaISO) : ''} — no puede${cerradas.length > 1 ? 'n' : ''} recibir costo.`);
+    return { ...r, asignaciones: [] };
+  }
+  return r;
+}
+
+function _parseRepartoBase(repartoRaw, unidadesRaw, proyecto, fechaISO) {
   const errores = [];
   const warnings = [];
   let asignaciones = [];

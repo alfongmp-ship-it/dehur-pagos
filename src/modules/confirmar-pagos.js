@@ -4,7 +4,7 @@ import { notify } from '../ui/notify.js';
 import { proyTag } from '../ui/badges.js';
 import { saveData, gsSaveHistorial, gsSavePendientes, gsSaveProyectos, gsSaveCuentasPropias, gsSaveFacturas, gsSaveFacturaPagos, gsSaveCostoAsignaciones, ensureHistorialIds, esPorFila, sbGuardarFila } from '../services/google-sync.js';
 import { saveProy } from '../config/proyectos.js';
-import { unidadEnIndivisoAFecha } from '../config/costos-fiscales.js';
+import { unidadEnIndivisoAFecha, hoyISOLocal } from '../config/costos-fiscales.js';
 
 // DD/MM/YYYY (o ISO) → ISO 'YYYY-MM-DD'. Inline para no depender de historial.js (evita ciclo).
 const _isoFecha = f => {
@@ -17,6 +17,22 @@ const _isoFecha = f => {
 
 const _normPart = s => String(s || '').trim().toLowerCase()
   .normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+// Avisos de la REGLA DE CIERRE (pagos que quedaron sin reparto). Se juntan y se
+// muestran ~1.8 s después, en UN solo aviso: los llamadores notifican su éxito en
+// el mismo tick (hay un solo toast) y un aviso inmediato quedaba tapado.
+let _avisosCierre = [], _avisosCierreTimer = null;
+function _avisarCierre(linea) {
+  _avisosCierre.push(linea);
+  clearTimeout(_avisosCierreTimer);
+  _avisosCierreTimer = setTimeout(() => {
+    const l = _avisosCierre; _avisosCierre = [];
+    if (!l.length) return;
+    notify(l.length === 1 ? '⚠️ ' + l[0]
+      : `⚠️ ${l.length} pago(s) quedaron SIN REPARTIR por la regla de cierre:\n` +
+        l.slice(0, 6).map(x => '• ' + x).join('\n') + (l.length > 6 ? `\n• … y ${l.length - 6} más` : ''), 'error');
+  }, 1800);
+}
 
 // Aplica auto-indiviso a un pago del historial cuya partida Admin no sea
 // CONSTRUCCION y que no tenga aún asignaciones de costo. Devuelve la cantidad
@@ -39,16 +55,20 @@ export function aplicarAutoIndiviso(h, repartoMetodo, forzar = false) {
   // importar la partida. No duplicar si ya hay asignaciones para este pago.
   if (state.costoAsignaciones.some(a => String(a.pago_id) === String(h.id))) return 0;
 
-  // Pool de indiviso a la FECHA del pago (casas que seguían en obra entonces); cae a todas
-  // las activas si ninguna calificó. Inerte si ninguna casa tiene fecha_termino (= como antes).
+  // Pool de indiviso a la FECHA del pago: solo casas ABIERTAS entonces (sin cierre =
+  // terminación o escritura anterior). Regla del dueño (2026-09-30): si NINGUNA casa
+  // estaba abierta, NO se reparte — antes caía a "todas" y cargaba costo a casas ya
+  // cerradas. El pago queda sin reparto (visible como pendiente) y se avisa.
   const activas = state.unidades.filter(u => u.activo !== false && u.proyecto === h.proyecto);
-  const pool = activas.filter(u => unidadEnIndivisoAFecha(u, _isoFecha(h.fecha)));
-  const unidades = pool.length ? pool : activas;
-  if (!unidades.length) return 0;
+  const unidades = activas.filter(u => unidadEnIndivisoAFecha(u, _isoFecha(h.fecha)));
+  if (!unidades.length) {
+    if (activas.length) _avisarCierre(`${h.proyecto}: ninguna casa estaba abierta el ${h.fecha || '(sin fecha)'} — pago de ${fmt(h.importe || 0)} quedó SIN REPARTIR; decide a qué casas va`);
+    return 0;
+  }
 
   const sumaInd = unidades.reduce((s, u) => s + (u.indiviso_pct || 0), 0);
   const usarInd = sumaInd > 0.01;
-  const fecha = new Date().toISOString().split('T')[0];
+  const fecha = hoyISOLocal();
 
   let creadas = 0;
   unidades.forEach(u => {
@@ -61,7 +81,7 @@ export function aplicarAutoIndiviso(h, repartoMetodo, forzar = false) {
       pago_id: h.id,
       unidad_id: u.unidad_id,
       proyecto: h.proyecto,
-      metodo: usarInd ? 'indiviso' : 'equitativo',
+      metodo: 'indiviso',   // automático SIEMPRE 'indiviso' (parejo si nadie tiene %)
       monto_asignado: (h.importe * pct) / 100,
       factor: pct / 100,
       fecha_asignacion: fecha,
@@ -112,7 +132,7 @@ function _repartoEsperado(h) {
   pool.forEach(u => {
     const pct = usarInd ? ((u.indiviso_pct || 0) / sumaInd) * 100 : 100 / pool.length;
     if (pct <= 0) return;
-    filas.push({ unidad_id: u.unidad_id, factor: pct / 100, monto: ((h.importe || 0) * pct) / 100, metodo: usarInd ? 'indiviso' : 'equitativo' });
+    filas.push({ unidad_id: u.unidad_id, factor: pct / 100, monto: ((h.importe || 0) * pct) / 100, metodo: 'indiviso' });
   });
   return filas.length ? { filas } : { sinPool: true };
 }
@@ -121,9 +141,30 @@ function _repartoEsperado(h) {
 // equitativo, sin partida_override, y factores/montos que calzan con la fórmula
 // de indiviso sobre SU PROPIO conjunto de casas). Cualquier edición manual
 // rompe el calce → se clasifica "editado a mano" y no se toca.
+// Métodos que se consideran reparto AUTOMÁTICO (recolocable). Solo 'indiviso':
+// 'equitativo' casi siempre es "Partes iguales" elegido A MANO entre algunas casas, y
+// recolocarlo lo convertía en indiviso de TODO el proyecto (hallazgo de auditoría).
+const _AUTO = ['indiviso'];
+
+// Documento repartido POR PARTES: alguna casa tiene más de una fila, o las filas traen
+// partidas/sub-partidas distintas. Recolocarlo con la lógica de "una fila por casa"
+// inflaba el total (una fila recibía la parte completa y la otra se quedaba) — nunca se
+// toca solo; se reporta para revisarlo a mano.
+export function esRepartoPorPartes(asigs) {
+  const casas = new Set(), partes = new Set();
+  for (const a of asigs) {
+    const k = String(a.unidad_id);
+    if (casas.has(k)) return true;
+    casas.add(k);
+    partes.add(`${a.partida_override || ''}|${a.sub_partida_override || ''}`);
+  }
+  return partes.size > 1;
+}
+
 function _esRepartoAutoIntacto(h, asigs) {
   if (!asigs.length) return false;
-  if (asigs.some(a => !['indiviso', 'equitativo'].includes(a.metodo || '') || (a.partida_override || '') !== '')) return false;
+  if (esRepartoPorPartes(asigs)) return false;
+  if (asigs.some(a => !_AUTO.includes(a.metodo || '') || (a.partida_override || '') !== '')) return false;
   const unidades = asigs.map(a => state.unidades.find(u => String(u.unidad_id) === String(a.unidad_id))).filter(Boolean);
   if (unidades.length !== asigs.length) return false;
   const sumaInd = unidades.reduce((s, u) => s + (u.indiviso_pct || 0), 0);
@@ -154,6 +195,7 @@ export function reRepartirPago(h, tol = 0.01) {
   if (!esperado) return 'sin_cambio';
   if (esperado.sinPool) return 'sin_pool';
   const asigs = _asigsDePago(h);
+  if (esRepartoPorPartes(asigs)) return 'por_partes';   // nunca se recoloca solo
   const porUnidad = new Map(asigs.map(a => [String(a.unidad_id), a]));
   const igual = asigs.length === esperado.filas.length && esperado.filas.every(f => {
     const a = porUnidad.get(String(f.unidad_id));
@@ -187,7 +229,6 @@ export function reRepartirPago(h, tol = 0.01) {
 // de pagos salta todo lo que trae factura_id) y la factura quedaba mal para siempre.
 // Solo toca repartos AUTOMÁTICOS por indiviso/equitativo: lo dirigido a una casa
 // (directo/custom/indiviso_sel) es decisión humana y no se audita ni se reescribe.
-const _AUTO = ['indiviso', 'equitativo'];
 function _asigsDeFactura(fid) {
   return state.costoAsignaciones.filter(a => String(a.factura_id) === String(fid));
 }
@@ -200,6 +241,7 @@ function _repartoEsperadoFactura(f) {
 // (el reparto masivo de facturas sí llena partida/sub, a diferencia de los pagos).
 function _esRepartoAutoIntactoFactura(f, asigs) {
   if (!asigs.length) return false;
+  if (esRepartoPorPartes(asigs)) return false;
   if (asigs.some(a => !_AUTO.includes(a.metodo || ''))) return false;
   const unidades = asigs.map(a => state.unidades.find(u => String(u.unidad_id) === String(a.unidad_id))).filter(Boolean);
   if (unidades.length !== asigs.length) return false;
@@ -221,6 +263,7 @@ export function reRepartirFactura(f, tol = 0.01) {
   if (esperado.sinPool) return 'sin_pool';
   const asigs = _asigsDeFactura(f.factura_id);
   if (!asigs.length) return 'sin_cambio';
+  if (esRepartoPorPartes(asigs)) return 'por_partes';   // nunca se recoloca solo
   const porUnidad = new Map(asigs.map(a => [String(a.unidad_id), a]));
   const igual = asigs.length === esperado.filas.length && esperado.filas.every(x => {
     const a = porUnidad.get(String(x.unidad_id));
@@ -273,6 +316,7 @@ export function auditarRepartosFacturas() {
       const u = state.unidades.find(x => String(x.unidad_id) === String(a.unidad_id));
       return u && !unidadEnIndivisoAFecha(u, _isoFecha(f.fecha_factura));
     });
+    if (esRepartoPorPartes(asigs)) { if (tieneExpulsada) res.manuales.push({ f, asigs, porPartes: true }); continue; }
     if (!_esRepartoAutoIntactoFactura(f, asigs)) {
       if (tieneExpulsada) res.manuales.push({ f, asigs });
       continue;
@@ -331,6 +375,7 @@ export function auditarIndivisoAplanado(proyecto) {
   for (const d of _docsDelProyecto(proyecto).values()) {
     if (d.asigs.length < 2) continue;
     if (d.asigs.some(a => (a.metodo || '') !== 'indiviso')) continue;
+    if (esRepartoPorPartes(d.asigs)) continue;   // por partes: nunca se recoloca solo (lo lista 🩺)
     // Huella: todos los factores iguales entre si.
     const f0 = d.asigs[0].factor || 0;
     if (d.asigs.some(a => Math.abs((a.factor || 0) - f0) > _MISMA_F)) continue;
@@ -428,6 +473,7 @@ export function auditarRepartos() {
       const u = state.unidades.find(x => String(x.unidad_id) === String(a.unidad_id));
       return u && !unidadEnIndivisoAFecha(u, _isoFecha(h.fecha));
     });
+    if (esRepartoPorPartes(asigs)) { if (tieneExpulsada) res.manuales.push({ h, asigs, porPartes: true }); continue; }
     if (!_esRepartoAutoIntacto(h, asigs)) {
       if (tieneExpulsada) res.manuales.push({ h, asigs });
       continue;
@@ -599,9 +645,20 @@ export async function confirmarPagos() {
   // (su propio reparto), NO el pago → se omite el reparto del pago para no duplicar.
   let asignacionesCreadas = 0;
   let repartoIgnorado = 0;
+  const bloqueadosCierre = new Set();   // pagos cuyo reparto planificado tocaba casas cerradas
   insertados.forEach(({ d, h }) => {
     if (h.factura_id) { if (d.asignacionesPlanificadas?.length) repartoIgnorado++; return; } // el costo va por la factura (devengado)
     if (!d.asignacionesPlanificadas?.length) return;
+    const fechaPago = _isoFecha(h.fecha);
+    const cerradas = d.asignacionesPlanificadas
+      .filter(asg => asg.unidad_id && (parseFloat(asg.pct) || 0) > 0)
+      .map(asg => state.unidades.find(u => String(u.unidad_id) === String(asg.unidad_id)))
+      .filter(u => u && !unidadEnIndivisoAFecha(u, fechaPago));
+    if (cerradas.length) {
+      bloqueadosCierre.add(String(h.id));
+      _avisarCierre(`${h.proyecto}: el reparto de la solicitud iba a ${cerradas.map(u => u.nombre).join(', ')}, ya cerrada(s) al ${h.fecha || '(sin fecha)'} — pago de ${fmt(h.importe || 0)} quedó SIN REPARTIR`);
+      return;
+    }
     d.asignacionesPlanificadas.forEach(asg => {
       if (!asg.unidad_id) return; // casa no encontrada en catálogo: se omite
       const pct = parseFloat(asg.pct) || 0;
@@ -615,7 +672,7 @@ export async function confirmarPagos() {
         metodo: d.repartoMetodo || 'custom',
         monto_asignado: monto,
         factor: pct / 100,
-        fecha_asignacion: new Date().toISOString().split('T')[0],
+        fecha_asignacion: hoyISOLocal(),
         // Doble etiqueta (Control de Obra): la ADMIN resuelta viaja en partida/
         // sub_partida del pendiente (la resolvió la solicitud vía el catálogo);
         // la de OBRA va en su campo propio y empareja con el presupuesto.
@@ -633,6 +690,7 @@ export async function confirmarPagos() {
   let autoIndivCreadas = 0;
   insertados.forEach(({ d, h }) => {
     if (h.factura_id) return; // con factura el costo es devengado (lo aporta la factura)
+    if (bloqueadosCierre.has(String(h.id))) return; // su reparto dirigido no aplica: no se sustituye por indiviso
     autoIndivCreadas += aplicarAutoIndiviso(h, d.repartoMetodo);
   });
 

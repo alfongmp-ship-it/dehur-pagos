@@ -15,7 +15,8 @@ import {
   _facturasRepartidasSet, _facturasCanceladasSet, _pagosCubiertosPorFacturaSet,
   _factExistSet, _pagoExistSet, _pagosCapitalSet, _tipoAsignacion,
   costosPresupuestosBatch, costoFacturadoPorUnidad, estimadoFacturadoPorUnidad,
-  empresaDeProyectoNorm, facturaEmpresaCruzada, pagosSinFacturaSinRepartir, simularIndivisoDocs, repartidoPorFactura
+  empresaDeProyectoNorm, facturaEmpresaCruzada, pagosSinFacturaSinRepartir, simularIndivisoDocs, repartidoPorFactura,
+  facturaElegibleFiscal
 } from './costos-fiscales.js';
 import { parseFechaHist } from './historial.js';
 import { estimados324 } from './rmf-324.js';
@@ -280,7 +281,8 @@ function _estimadoPorCasa(proyecto, conDetalle = false) {
     detalle = new Map();
     [fac.detalle, pag.detalle].forEach(m => m && m.forEach((l, k) => detalle.set(k, [...(detalle.get(k) || []), ...l])));
   }
-  return { porUnidad, detalle, total: fac.total + pag.total, nFact: fac.count, nSin: fac.nSin, nParc: fac.nParc, totFact: fac.total, nPagos: pag.count, totPagos: pag.total };
+  return { porUnidad, detalle, total: fac.total + pag.total, nFact: fac.count, nSin: fac.nSin, nParc: fac.nParc, totFact: fac.total, nPagos: pag.count, totPagos: pag.total,
+    sinPoolTotal: (fac.sinPoolTotal || 0) + (pag.sinPoolTotal || 0), sinPoolCount: (fac.sinPoolCount || 0) + (pag.sinPoolCount || 0) };
 }
 
 function renderPorCasaTab(panel) {
@@ -309,7 +311,7 @@ function renderPorCasaTab(panel) {
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
       <div class="stat-card"><div class="stat-label">Facturado repartido</div><div class="stat-value" style="color:var(--green);">${fmt(fisc.total)}</div><div class="stat-sub">ya asignado a casas</div></div>
       <div class="stat-card" title="Pagos sin factura marcados deducibles (pestaña 🧮 Sin CFDI), repartidos a casas."><div class="stat-label">✅ Sin CFDI aprobado</div><div class="stat-value">${fmt(tSC)}</div><div class="stat-sub">nómina y otros deducibles</div></div>
-      <div class="stat-card" title="Facturas elegibles SIN reparto y pagos sin CFDI aprobados SIN reparto, simulados por indiviso con el pool a la fecha de cada uno. Es el tamaño del pendiente de reparto."><div class="stat-label">⚠ Por repartir (estimado)</div><div class="stat-value" style="color:var(--orange);">${estim ? fmt(tEst) : '—'}</div><div class="stat-sub">${estim ? `${estim.nSin} sin reparto${estim.nParc ? ` + ${estim.nParc} a medias` : ''}${estim.nPagos ? ` + ${estim.nPagos} pago(s) aprobado(s)` : ''}` : 'prende el estimado'}</div></div>
+      <div class="stat-card" title="Facturas elegibles SIN reparto y pagos sin CFDI aprobados SIN reparto, simulados por indiviso con el pool a la fecha de cada uno. Es el tamaño del pendiente de reparto."><div class="stat-label">⚠ Por repartir (estimado)</div><div class="stat-value" style="color:var(--orange);">${estim ? fmt(tEst) : '—'}</div><div class="stat-sub">${estim ? `${estim.nSin} sin reparto${estim.nParc ? ` + ${estim.nParc} a medias` : ''}${estim.nPagos ? ` + ${estim.nPagos} pago(s) aprobado(s)` : ''}${estim.sinPoolCount ? ` · ${estim.sinPoolCount} sin casas abiertas (${fmt(estim.sinPoolTotal)}, no se simulan)` : ''}` : 'prende el estimado'}</div></div>
       <div class="stat-card" title="Facturado + Sin CFDI aprobado${estim ? ' + estimado por repartir' : ''}"><div class="stat-label">Costo fiscal ${estim ? 'proyectado' : 'conciliado'}</div><div class="stat-value" style="color:var(--accent);">${fmt(tConc + tEst)}</div><div class="stat-sub">${estim ? 'conciliado + por repartir' : 'facturado + sin CFDI'}</div></div>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
@@ -393,6 +395,24 @@ export function exportarFiscalPorCasaExcel() {
   notify('⬇ Excel fiscal por casa descargado');
 }
 
+// Pagos ligados (bandera h.factura_id o aplicación por partes) a una factura que SÍ
+// cuenta en el fiscal (vigente, tipo Factura, no excluida, sin empresa cruzada). Esos
+// ya tienen CFDI: no son 'sin CFDI' (aprobarlos contaba doble al repartir la factura).
+function _pagosConFacturaFiscal(empNorm, factExcluidas) {
+  const ok = new Set();
+  (state.facturaPagos || []).forEach(fp => {
+    if (String(fp.pago_id || '') === '') return;
+    const f = facturaById(fp.factura_id);
+    if (f && facturaElegibleFiscal(f, empNorm, factExcluidas)) ok.add(String(fp.pago_id));
+  });
+  (state.historial || []).forEach(h => {
+    if (!h.factura_id || String(h.factura_id) === '') return;
+    const f = facturaById(h.factura_id);
+    if (f && facturaElegibleFiscal(f, empNorm, factExcluidas)) ok.add(String(h.id));
+  });
+  return ok;
+}
+
 // ===== F3 · FICHAS POR CASA + ANEXO AUDITABLE =====
 // Motor de detalle ÚNICO: de aquí salen la ficha (PDF) y el anexo (Excel), así
 // ambos cuentan exactamente lo mismo que 🏠 Por casa. Cada línea es un renglón
@@ -470,7 +490,8 @@ function _detalleFiscalCasas(proyecto) {
   const fc = _facturasCanceladasSet();
   const fe = _factExistSet(); const pe = _pagoExistSet();
   const pcap = _pagosCapitalSet();
-  const { aprobados } = _marcasFiscales();
+  const { aprobados, factExcluidas: exclD } = _marcasFiscales();
+  const conFacturaD = _pagosConFacturaFiscal(empresaDeProyectoNorm(proyecto), exclD);
   const provDe = id => (state.proveedores || []).find(p => String(p.id) === String(id));
   const casas = new Map();
   const casa = uid => {
@@ -517,6 +538,8 @@ function _detalleFiscalCasas(proyecto) {
     if (_tipoAsignacion(a, pcf, fc, fe, pe, pcap) !== 'pagado') return;
     if (!aprobados.has(String(a.pago_id))) return;
     const h = pagoById(a.pago_id) || {};
+    // Ligado a factura que cuenta = tiene CFDI: no es "sin CFDI" (misma regla que fiscalBatch).
+    if (conFacturaD.has(String(a.pago_id))) return;
     const prov = provDe(h.proveedor_id);
     const marca = _marcaFiscalDe('pago', a.pago_id);
     const c = casa(uid);
@@ -849,6 +872,10 @@ export function fiscalBatch(proyecto) {
   // Empresa cruzada (factura a otra razón social que la del proyecto): el SAT no
   // la acepta para esta empresa → fuera del fiscal, igual que en 🏠 Por casa.
   const empNorm = empresaDeProyectoNorm(proyecto);
+  // Pagos ligados a una factura que SÍ entrará al fiscal: tienen CFDI. Mientras su
+  // factura no se reparte cuentan en gerencial, pero NO son candidatos 'sin CFDI'.
+  const conFactura = _pagosConFacturaFiscal(empNorm, factExcluidas);
+  let totPagosConFactura = 0;
 
   const porUnidad = new Map();   // uid → { ger, fis }
   const filaDe = uid => { let x = porUnidad.get(uid); if (!x) { x = { ger: 0, fis: 0, sinCfdi: 0 }; porUnidad.set(uid, x); } return x; };
@@ -878,8 +905,13 @@ export function fiscalBatch(proyecto) {
       else esFiscal = true;
     } else {
       const pid = String(a.pago_id);
+      const hh = pagoById(pid);
+      if (conFactura.has(pid)) {
+        totPagosConFactura += monto;   // tiene CFDI: entra al fiscal cuando se reparta su factura
+        return;
+      }
       let reg = pagosCand.get(pid);
-      if (!reg) { reg = { h: pagoById(pid), monto: 0, aprobado: aprobados.has(pid) }; pagosCand.set(pid, reg); }
+      if (!reg) { reg = { h: hh, monto: 0, aprobado: aprobados.has(pid) }; pagosCand.set(pid, reg); }
       reg.monto += monto;
       if (reg.aprobado) { esFiscal = true; totPagosAprob += monto; fila.sinCfdi += monto; } else { totPagosNoAprob += monto; }
     }
@@ -903,7 +935,7 @@ export function fiscalBatch(proyecto) {
     !_factAutoExcluida(f) && !facturaEmpresaCruzada(f, empNorm) &&
     (f.monto_total || 0) > 0 && !repartidas.has(String(f.factura_id)));
 
-  return { porUnidad, pagosCand, factRep, sinRepartir, totGer, totFis, totPagosAprob, totPagosNoAprob, totFactExcl, totInicial };
+  return { porUnidad, pagosCand, factRep, sinRepartir, totGer, totFis, totPagosAprob, totPagosNoAprob, totFactExcl, totInicial, totPagosConFactura };
 }
 
 function renderFiscalTab(panel) {
@@ -924,7 +956,7 @@ function renderFiscalTab(panel) {
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
       <div class="stat-card"><div class="stat-label">Costo FISCAL (deducible)</div><div class="stat-value" style="color:var(--green);">${fmt(b.totFis)}</div><div class="stat-sub">facturas ${fmt(b.totFis - b.totPagosAprob)} + pagos aprobados ${fmt(b.totPagosAprob)}</div></div>
       <div class="stat-card"><div class="stat-label">Costo gerencial</div><div class="stat-value">${fmt(b.totGer)}</div><div class="stat-sub">la vista de siempre (márgenes)</div></div>
-      <div class="stat-card" title="Pagos sin factura no aprobados + facturas excluidas + costo inicial de apertura"><div class="stat-label">No deducible (hoy)</div><div class="stat-value" style="color:var(--orange);">${fmt(totNoDeducible)}</div><div class="stat-sub">sin aprobar ${fmt(b.totPagosNoAprob)} · fact. excl. ${fmt(b.totFactExcl)} · apertura ${fmt(b.totInicial)}</div></div>
+      <div class="stat-card" title="Pagos sin factura no aprobados + facturas excluidas + costo inicial de apertura + pagos cuya factura aún no se reparte (entran al fiscal al repartirla)"><div class="stat-label">No deducible (hoy)</div><div class="stat-value" style="color:var(--orange);">${fmt(totNoDeducible)}</div><div class="stat-sub">sin aprobar ${fmt(b.totPagosNoAprob)} · fact. excl. ${fmt(b.totFactExcl)} · apertura ${fmt(b.totInicial)}${b.totPagosConFactura ? ` · pagos con factura por repartir ${fmt(b.totPagosConFactura)}` : ''}</div></div>
       <div class="stat-card" title="Facturas vigentes del proyecto sin repartir a casas: al repartirlas, su monto entrará al costo fiscal"><div class="stat-label">⚠ Facturas sin repartir</div><div class="stat-value" style="color:${b.sinRepartir.length ? 'var(--red)' : 'var(--muted)'};">${b.sinRepartir.length}</div><div class="stat-sub">${fmt(sinRepTot)} por entrar al fiscal</div></div>
     </div>
 

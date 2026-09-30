@@ -995,12 +995,27 @@ export function guardarFactura() {
   if (porFila) sbGuardarFila('facturas', obj);
 
   // Devengado (Fase B): si cambió el total y la factura ya estaba repartida,
-  // recalcula los montos del reparto manteniendo las proporciones (factor).
+  // re-escala CADA monto por la proporción nuevo/anterior. Antes hacía
+  // `nuevoTotal × factor`, pero en facturas repartidas POR PARTES el factor es
+  // relativo a su parte → cada parte quedaba del tamaño de la factura completa
+  // (2 partes = doble). La proporción conserva partes, casas y lo repartido parcial.
   if (state.editFactId && existing && (existing.monto_total || 0) !== monto) {
     const asigs = state.costoAsignaciones.filter(a => String(a.factura_id) === String(obj.factura_id));
-    if (asigs.length) {
-      asigs.forEach(a => { a.monto_asignado = Math.round((monto * (a.factor || 0) + Number.EPSILON) * 100) / 100; });
+    const anterior = existing.monto_total || 0;
+    if (asigs.length && anterior > 0) {
+      const ratio = monto / anterior;
+      const r2 = x => Math.round((x + Number.EPSILON) * 100) / 100;
+      const objetivo = r2(asigs.reduce((s, a) => s + (a.monto_asignado || 0), 0) * ratio);
+      asigs.forEach(a => { a.monto_asignado = r2((a.monto_asignado || 0) * ratio); });
+      // El centavo de redondeo va a la fila más grande (Σ exacta).
+      const dif = r2(objetivo - asigs.reduce((s, a) => s + a.monto_asignado, 0));
+      if (Math.abs(dif) >= 0.01) {
+        const mayor = asigs.reduce((m, a) => (a.monto_asignado > m.monto_asignado ? a : m), asigs[0]);
+        mayor.monto_asignado = r2(mayor.monto_asignado + dif);
+      }
       gsSaveCostoAsignaciones();
+    } else if (asigs.length) {
+      notify('⚠️ La factura tenía total $0: su reparto no se puede re-escalar. Límpialo y repártela de nuevo.', 'error');
     }
   }
 

@@ -7,7 +7,7 @@ import { fmt, fmtFecha, escapeHtml } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { proyectoMatch } from '../config/proyectos.js';
-import { ESTATUS_UNIDAD, METODO_LABEL, unidadEnIndivisoAFecha } from '../config/costos-fiscales.js';
+import { ESTATUS_UNIDAD, METODO_LABEL, unidadEnIndivisoAFecha, fechaCierreUnidad, hoyISOLocal } from '../config/costos-fiscales.js';
 import { chartTheme } from '../ui/chart-theme.js';
 import { planoDeProyecto } from '../config/planos.js';
 import { parseFechaHist } from './historial.js';
@@ -429,6 +429,7 @@ function estimadoIndivisoPorUnidad() {
   const pend = pagosSinFacturaSinRepartir();
   let total = 0;
   pend.forEach(h => { total += h.importe || 0; });
+  let sinPoolTotal = 0, sinPoolCount = 0;   // pagos sin ninguna casa abierta a su fecha
   if (activas.length) {
     const poolCache = new Map(); // fecha ISO → { casas, sumInd } (pool de indiviso a esa fecha)
     pend.forEach(h => {
@@ -437,12 +438,13 @@ function estimadoIndivisoPorUnidad() {
       const fIso = parseFechaHist(h.fecha) || '';
       let pool = poolCache.get(fIso);
       if (!pool) {
-        const inObra = activas.filter(u => unidadEnIndivisoAFecha(u, fIso));
-        const casas = inObra.length ? inObra : activas;
+        // Solo casas ABIERTAS a la fecha (sin respaldo a "todas": una casa cerrada no
+        // recibe costo posterior). Sin ninguna → no se estima a casas (va a sinPool).
+        const casas = activas.filter(u => unidadEnIndivisoAFecha(u, fIso));
         pool = { casas, sumInd: casas.reduce((s, u) => s + (u.indiviso_pct || 0), 0) };
         poolCache.set(fIso, pool);
       }
-      if (!pool.casas.length) return;
+      if (!pool.casas.length) { sinPoolTotal += imp; sinPoolCount++; return; }
       // Llave partida|sub del PAGO (misma que desgloseAdminBatch) para poder ver el
       // estimado por partida en Control de Obra. Las FACTURAS sin repartir no entran
       // aquí (ya se excluyeron arriba) y además no tienen partida hasta repartirse.
@@ -459,7 +461,7 @@ function estimadoIndivisoPorUnidad() {
       });
     });
   }
-  return { porUnidad, porLlave, countLlave, etiquetas, total, count: pend.length };
+  return { porUnidad, porLlave, countLlave, etiquetas, total: total - sinPoolTotal, count: pend.length - sinPoolCount, sinPoolTotal, sinPoolCount };
 }
 
 // ===== MODO 💼 SOLO FACTURADO (fiscal) =====
@@ -556,21 +558,22 @@ export function simularIndivisoDocs(docs, proyecto = cfProyecto, opts = {}) {
   const activas = unidadesDeProyecto(false, proyecto);
   const porUnidad = new Map();
   const detalle = opts.detalle ? new Map() : null;
-  let total = 0, count = 0;
-  if (!activas.length) return { porUnidad, total, count, detalle };
+  let total = 0, count = 0, sinPoolTotal = 0, sinPoolCount = 0;
+  if (!activas.length) return { porUnidad, total, count, detalle, sinPoolTotal, sinPoolCount };
   const poolCache = new Map();
   (docs || []).forEach(d => {
     const imp = d.importe || 0;
     if (!imp) return;
-    count++; total += imp;
     const fIso = d.fechaIso || '';
     let pool = poolCache.get(fIso);
     if (!pool) {
-      const inObra = activas.filter(u => unidadEnIndivisoAFecha(u, fIso));
-      const casas = inObra.length ? inObra : activas;
+      // Solo casas ABIERTAS a la fecha del documento; sin ninguna → sinPool.
+      const casas = activas.filter(u => unidadEnIndivisoAFecha(u, fIso));
       pool = { casas, sumInd: casas.reduce((s, u) => s + (u.indiviso_pct || 0), 0) };
       poolCache.set(fIso, pool);
     }
+    if (!pool.casas.length) { sinPoolTotal += imp; sinPoolCount++; return; }
+    count++; total += imp;   // solo lo que SÍ se simula (cuadra con la suma por casa)
     pool.casas.forEach(u => {
       const factor = pool.sumInd > 0 ? (u.indiviso_pct || 0) / pool.sumInd : 1 / pool.casas.length;
       porUnidad.set(u.unidad_id, (porUnidad.get(u.unidad_id) || 0) + imp * factor);
@@ -581,7 +584,7 @@ export function simularIndivisoDocs(docs, proyecto = cfProyecto, opts = {}) {
       }
     });
   });
-  return { porUnidad, total, count, detalle };
+  return { porUnidad, total, count, detalle, sinPoolTotal, sinPoolCount };
 }
 
 // Lo YA repartido de cada factura (Σ de sus asignaciones), en una pasada.
@@ -758,7 +761,7 @@ function renderUnidadesTab(panel) {
       </div>
     </div>
     ${bandaFiscal}
-    ${estim ? `<div style="font-size:12px;color:var(--accent);background:rgba(200,169,110,.08);border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:12px;">📊 Pendiente por asignar: <strong>${fmt(estim.total)}</strong> en ${estim.count} ${fisc ? 'factura(s) con saldo por repartir (sin reparto o a medias)' : 'pago(s)'} — repartido por indiviso (estimado; no afecta el costo real)</div>` : ''}
+    ${estim ? `<div style="font-size:12px;color:var(--accent);background:rgba(200,169,110,.08);border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:12px;">📊 Pendiente por asignar: <strong>${fmt(estim.total)}</strong> en ${estim.count} ${fisc ? 'factura(s) con saldo por repartir (sin reparto o a medias)' : 'pago(s)'} — repartido por indiviso (estimado; no afecta el costo real)${estim.sinPoolCount ? ` · <span style="color:var(--orange);">${estim.sinPoolCount} documento(s) por ${fmt(estim.sinPoolTotal)} no se simulan: ninguna casa estaba abierta a su fecha</span>` : ''}</div>` : ''}
     ${unidades.length ? `
     <div class="table-wrap">
       <table>
@@ -906,6 +909,11 @@ export async function guardarUnidad() {
     fecha_termino: document.getElementById('un-fecha-termino').value || '',
     estatus: document.getElementById('un-estatus').value,
   };
+  // Fuera de obra SIN fecha la casa seguiría absorbiendo costo para siempre.
+  if (obj.estatus && obj.estatus !== 'En obra' && !obj.fecha_termino) {
+    notify(`Una casa "${obj.estatus}" necesita su fecha de terminación: desde esa fecha deja de recibir costo`, 'error');
+    return;
+  }
   let _uEdit = null, _fechaAntes = '';
   if (state.editUnidadId) {
     _uEdit = unidadById(state.editUnidadId);
@@ -980,10 +988,11 @@ function _ofrecerReparacionPorUnidad(u, fechaAntes) {
     const k = String(u.unidad_id);
     // Solo los que la SACAN a ella (corregibles). Los que meterian casas nuevas
     // (conEntrantes) no se reparan aqui: eso se decide en el boton con su aviso.
-    const mios = res.corregibles.filter(c => c.asigs.some(a => String(a.unidad_id) === k));
+    const cerradaEn = f => !unidadEnIndivisoAFecha(u, parseFechaHist(f) || f);
+    const mios = res.corregibles.filter(c => c.asigs.some(a => String(a.unidad_id) === k) && cerradaEn(c.h.fecha));
     const manuales = res.manuales.filter(c => c.asigs.some(a => String(a.unidad_id) === k));
     const resF = auditarRepartosFacturas();
-    const miasF = resF.corregibles.filter(c => c.asigs.some(a => String(a.unidad_id) === k));
+    const miasF = resF.corregibles.filter(c => c.asigs.some(a => String(a.unidad_id) === k) && cerradaEn(c.f.fecha_factura));
     if (mios.length) {
       const totalCasa = mios.reduce((s, c) =>
         s + c.asigs.filter(a => String(a.unidad_id) === k).reduce((x, a) => x + (a.monto_asignado || 0), 0), 0);
@@ -1126,7 +1135,7 @@ export function revisarRepartos() {
   const res = auditarRepartos();
   const resF = auditarRepartosFacturas();
   const nada = !res.corregibles.length && !res.conEntrantes.length && !res.manuales.length && !res.sinPool.length
-    && !resF.corregibles.length && !resF.conEntrantes.length && !resF.manuales.length;
+    && !resF.corregibles.length && !resF.conEntrantes.length && !resF.manuales.length && !(resF.sinPool || []).length;
   if (nada) {
     notify('✅ No hay repartos por corregir — pagos y facturas por indiviso cuadran con las fechas actuales');
     return;
@@ -1200,7 +1209,8 @@ export function revisarRepartos() {
       ...resF.manuales.map(c => ({ TIPO: 'factura', FECHA: c.f.fecha_factura, IMPORTE: c.f.monto_total, DETALLE: 'Fac ' + c.f.factura_id })),
     ]);
   }
-  if (res.sinPool.length) notify(`ℹ️ ${res.sinPool.length} pago(s) en proyectos 100% terminados — no hay casas en obra a quién recolocar (quedan como están)`);
+  const nSinPool = res.sinPool.length + (resF.sinPool || []).length;
+  if (nSinPool) notify(`⚠️ ${nSinPool} documento(s) con costo en casas ya cerradas, en proyectos SIN casas abiertas a su fecha — no hay a quién recolocarlos. Revísalos con 🩺 Auditar repartos.`, 'error');
 }
 
 // Estatus de la casa (En obra → Terminada → Entregada → Vendida). Captura de OBRA:
@@ -1229,15 +1239,47 @@ export async function setEstatusUnidad(id, value) {
       aviso = ' · se borró su fecha de terminación';
     }
   } else if (!u.fecha_termino) {
-    u.fecha_termino = new Date().toISOString().slice(0, 10);
-    if (inpFecha) inpFecha.value = u.fecha_termino;
-    aviso = ` · se puso fecha de terminación ${u.fecha_termino} (ajústala si terminó antes)`;
+    // Salir de obra exige la FECHA REAL de terminación: sin ella la casa seguiría
+    // absorbiendo costo (y "hoy" callado era casi siempre una fecha equivocada).
+    const hoy = hoyISOLocal();
+    const resp = prompt(`¿En qué fecha terminó "${u.nombre}"? (AAAA-MM-DD o DD/MM/AAAA)\n\nDesde esa fecha la casa deja de recibir costo.`, hoy);
+    const iso = _isoFechaCaptura(resp);
+    if (!iso) {
+      if (resp !== null) notify('Fecha no válida: no se cambió el estatus', 'error');
+      const sel = document.getElementById('estatus-u-' + id);
+      if (sel) sel.value = estatusAntes;   // revertir: sin fecha no se sale de obra
+      return;
+    }
+    u.fecha_termino = iso;
+    if (inpFecha) inpFecha.value = iso;
+    aviso = ` · fecha de terminación ${fmtFecha(iso)}`;
+    u.estatus = value;
+    const porFila0 = esPorFila('unidades');
+    await gsSaveUnidades({ porFila: porFila0 });
+    if (porFila0) sbGuardarFila('unidades', u);
+    notify(`${u.nombre}: ${value}${aviso}`);
+    // Igual que al capturar la fecha en su celda: si es retroactiva, ofrece reparar.
+    _ofrecerReparacionPorUnidad(u, '');
+    return;
   }
   u.estatus = value;
   const porFila = esPorFila('unidades');
   await gsSaveUnidades({ porFila });
   if (porFila) sbGuardarFila('unidades', u);
   notify(`${u.nombre}: ${value}${aviso}`);
+}
+
+// Fecha capturada a mano → 'AAAA-MM-DD' (acepta DD/MM/AAAA); '' si no es válida.
+function _isoFechaCaptura(s) {
+  const t = String(s || '').trim();
+  let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  let y, mo, d;
+  if (m) { y = +m[1]; mo = +m[2]; d = +m[3]; }
+  else if ((m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/))) { y = +m[3]; mo = +m[2]; d = +m[1]; }
+  else return '';
+  const dt = new Date(y, mo - 1, d);
+  if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return '';
+  return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
 // Captura rápida del % de indiviso desde la tabla (recapturar decenas de casas sin
@@ -1855,6 +1897,15 @@ function renderMetodoBody() {
   if (!body) return;
   const metodo = metodoSeleccionado();
   const unidades = unidadesDeProyecto();
+  // Regla de cierre (dueño, 2026-09-30): una casa CERRADA (terminada o escriturada) a la
+  // fecha del documento no puede recibir su costo. Se marca con 🔒, los atajos (Todas /
+  // Repartir resto) la saltan y el guardado la bloquea. No se deshabilita: un reparto
+  // viejo que ya la incluía debe poder desmarcarse.
+  const fechaDocM = cfFechaObjetivo();
+  const cerradaM = u => !unidadEnIndivisoAFecha(u, fechaDocM);
+  const candado = u => cerradaM(u)
+    ? ` <span style="color:var(--red);font-size:10px;" title="Cerrada el ${fmtFecha(fechaCierreUnidad(u))} (terminación o escritura): no puede recibir costo de un documento de esa fecha o posterior">🔒 cerrada ${fmtFecha(fechaCierreUnidad(u))}</span>` : '';
+  const dataCerr = u => cerradaM(u) ? ' data-cerrada="1"' : '';
 
   if (!unidades.length) {
     body.innerHTML = '<div class="cf-picker-vacio">No hay casas activas en este proyecto. Crea unidades primero.</div>';
@@ -1867,7 +1918,7 @@ function renderMetodoBody() {
       <label style="font-size:12px;color:var(--muted);">Casa que recibe el costo completo</label>
       <select id="asignar-unidad-directo" class="filter-select" style="width:100%;margin-top:4px;" onchange="cfPreviewReparto()">
         <option value="">— Selecciona la casa —</option>
-        ${unidades.map(u => `<option value="${u.unidad_id}">${escapeHtml(u.nombre)}</option>`).join('')}
+        ${unidades.map(u => `<option value="${u.unidad_id}">${escapeHtml(u.nombre)}${cerradaM(u) ? ' — 🔒 cerrada ' + fmtFecha(fechaCierreUnidad(u)) : ''}</option>`).join('')}
       </select>`;
   } else if (metodo === 'equitativo') {
     body.innerHTML = `
@@ -1879,8 +1930,8 @@ function renderMetodoBody() {
       <div class="cf-picker cols" id="cf-picker-lista">
         ${unidades.map(u => `
           <div class="cf-pick-row" data-nombre="${escapeHtml((u.nombre || '').toLowerCase().replace(/"/g, ''))}">
-            <input type="checkbox" class="cf-unidad-check" value="${u.unidad_id}" id="cfchk-${u.unidad_id}" onchange="cfPreviewReparto()">
-            <label for="cfchk-${u.unidad_id}">${escapeHtml(u.nombre)}</label>
+            <input type="checkbox" class="cf-unidad-check" value="${u.unidad_id}" id="cfchk-${u.unidad_id}"${dataCerr(u)} onchange="cfPreviewReparto()">
+            <label for="cfchk-${u.unidad_id}">${escapeHtml(u.nombre)}${candado(u)}</label>
           </div>`).join('')}
       </div>
       <div class="cf-picker-count" id="cf-picker-count"></div>`;
@@ -1897,8 +1948,8 @@ function renderMetodoBody() {
       <div class="cf-picker" id="cf-picker-lista">
         ${unidades.map(u => `
           <div class="cf-pick-row" data-nombre="${escapeHtml((u.nombre || '').toLowerCase().replace(/"/g, ''))}">
-            <label>${escapeHtml(u.nombre)}</label>
-            <input type="number" step="0.01" class="cf-custom-monto" data-uid="${u.unidad_id}" placeholder="${esPct ? '0.00 %' : '0.00'}"
+            <label>${escapeHtml(u.nombre)}${candado(u)}</label>
+            <input type="number" step="0.01" class="cf-custom-monto" data-uid="${u.unidad_id}"${dataCerr(u)} placeholder="${esPct ? '0.00 %' : '0.00'}"
               oninput="cfPreviewReparto()" style="text-align:right;font-family:'DM Mono',monospace;">
           </div>`).join('')}
       </div>
@@ -1915,22 +1966,27 @@ function renderMetodoBody() {
         <button type="button" class="btn btn-ghost btn-sm" onclick="cfSelTodas(false)">Ninguna</button>
       </div>
       <div class="cf-picker cols" id="cf-picker-lista">
-        ${unidades.map(u => {
-          const fuera = !unidadEnIndivisoAFecha(u, fechaDoc);
-          return `<div class="cf-pick-row" data-nombre="${escapeHtml((u.nombre || '').toLowerCase().replace(/"/g, ''))}">
-            <input type="checkbox" class="cf-unidad-check" value="${u.unidad_id}" id="cfchk-${u.unidad_id}" onchange="cfPreviewReparto()">
-            <label for="cfchk-${u.unidad_id}">${escapeHtml(u.nombre)} <span style="color:var(--muted);font-family:'DM Mono',monospace;font-size:10px;">${(u.indiviso_pct || 0).toFixed(2)}%</span>${fuera ? ' <span style="color:var(--orange);font-size:10px;" title="Ya estaba terminada a la fecha del documento — solo se le reparte si la marcas a propósito">⚑</span>' : ''}</label>
-          </div>`;
-        }).join('')}
+        ${unidades.map(u => `<div class="cf-pick-row" data-nombre="${escapeHtml((u.nombre || '').toLowerCase().replace(/"/g, ''))}">
+            <input type="checkbox" class="cf-unidad-check" value="${u.unidad_id}" id="cfchk-${u.unidad_id}"${dataCerr(u)} onchange="cfPreviewReparto()">
+            <label for="cfchk-${u.unidad_id}">${escapeHtml(u.nombre)} <span style="color:var(--muted);font-family:'DM Mono',monospace;font-size:10px;">${(u.indiviso_pct || 0).toFixed(2)}%</span>${candado(u)}</label>
+          </div>`).join('')}
       </div>
       <div class="cf-picker-count" id="cf-picker-count"></div>`;
   } else if (metodo === 'indiviso') {
     // Mostrar el pool REAL (mismo criterio que calcularReparto): solo las casas que seguían
     // en obra a la fecha del documento. El texto debe coincidir con lo que de verdad reparte.
     const fechaDoc = cfFechaObjetivo();
-    const enObra = unidades.filter(u => unidadEnIndivisoAFecha(u, fechaDoc));
-    const pool = enObra.length ? enObra : unidades;
+    const pool = unidades.filter(u => unidadEnIndivisoAFecha(u, fechaDoc));
     const fechaTxt = fechaDoc ? fmtFecha(fechaDoc) : 'hoy';
+    if (!pool.length) {
+      body.innerHTML = `<div style="font-size:12px;color:var(--red);background:rgba(224,82,82,.08);border:1px solid rgba(224,82,82,.35);border-radius:8px;padding:10px;">
+        Ninguna casa de ${escapeHtml(cfProyecto)} estaba abierta al <strong>${fechaTxt}</strong> (todas terminadas o escrituradas antes):
+        este documento no se puede repartir a ninguna casa y queda <strong>pendiente</strong>. Si la fecha del documento está mal, corrígela.
+        ${state.costoAsignaciones.some(a => cfEsFactura() ? String(a.factura_id) === String(cfFacturaAsignar) : (!a.factura_id && String(a.pago_id) === String(cfPagoAsignar)))
+          ? '<br><strong>Ojo:</strong> ya tiene un reparto guardado a casas cerradas — revísalo con 🩺 Auditar repartos.' : ''}</div>`;
+      cfPreviewReparto();
+      return;
+    }
     const nota = pool.length === unidades.length ? ''
       : ` (de ${unidades.length} activas; las terminadas antes de esa fecha NO reciben costo)`;
     body.innerHTML = `
@@ -1999,7 +2055,8 @@ export function cfFiltrarUnidades() {
 
 // Marca o desmarca todas las casas (método equitativo).
 export function cfSelTodas(valor) {
-  document.querySelectorAll('.cf-unidad-check').forEach(c => { c.checked = valor; });
+  // "Todas" = solo casas ABIERTAS a la fecha del documento (las 🔒 se quedan fuera).
+  document.querySelectorAll('.cf-unidad-check').forEach(c => { c.checked = valor && !c.dataset.cerrada; });
   cfPreviewReparto();
 }
 
@@ -2047,16 +2104,15 @@ function calcularReparto() {
     return arr;
   }
   if (metodo === 'indiviso') {
-    // Pool de indiviso A LA FECHA del documento: solo las casas que seguían en obra entonces.
-    // Si ninguna calificó (fecha rara), cae a todas las activas para no perder el reparto.
+    // Pool de indiviso A LA FECHA del documento: solo casas ABIERTAS entonces. Sin
+    // ninguna → no hay reparto (antes caía a todas y cargaba costo a casas cerradas).
     const fechaDoc = cfFechaObjetivo();
     const pool0 = unidades.filter(u => unidadEnIndivisoAFecha(u, fechaDoc));
-    return _repartoPorIndiviso(pool0.length ? pool0 : unidades, importe);
+    return pool0.length ? _repartoPorIndiviso(pool0, importe) : [];
   }
   if (metodo === 'indiviso_sel') {
     // Solo las casas ELEGIDAS, ponderadas por su indiviso renormalizado entre ellas.
-    // Aquí NO se filtra por fecha: el usuario eligió a mano (el picker marca con ⚑ las
-    // que ya estaban terminadas).
+    // Solo las elegidas; si alguna está cerrada a la fecha, el guardado lo bloquea.
     const sel = [...document.querySelectorAll('.cf-unidad-check:checked')].map(c => parseInt(c.value));
     return _repartoPorIndiviso(sel.map(uid => unidadById(uid)).filter(Boolean), importe);
   }
@@ -2091,9 +2147,9 @@ export function cfRepartirResto() {
   inputs.forEach(inp => {
     const v = parseFloat(inp.value) || 0;
     if (v > 0) asignado += v;
-    else vacias.push(inp);
+    else if (!inp.dataset.cerrada) vacias.push(inp);   // las 🔒 no reciben el resto
   });
-  if (!vacias.length) { notify('No hay casas vacías para repartir el resto', 'error'); return; }
+  if (!vacias.length) { notify('No hay casas abiertas vacías para repartir el resto', 'error'); return; }
   const total = esPct ? 100 : cfImporteObjetivo();
   const resto = r2(total - asignado);
   if (resto <= 0) { notify('Ya no queda ' + (esPct ? 'porcentaje' : 'monto') + ' por repartir', 'error'); return; }
@@ -2117,12 +2173,10 @@ export function cfRepartirRestoIndiviso() {
   const total = esPct ? 100 : cfImporteObjetivo();
   const resto = r2(total - capturado);
   if (resto <= 0) { notify('Ya no queda ' + (esPct ? 'porcentaje' : 'monto') + ' por repartir', 'error'); return; }
-  // Pool de indiviso a la fecha del documento; cae a todas las activas si ninguna calificó.
+  // Pool de indiviso a la fecha del documento: solo casas ABIERTAS (sin respaldo a todas).
   const fechaDoc = cfFechaObjetivo();
-  const activas = unidadesDeProyecto();
-  const pool = activas.filter(u => unidadEnIndivisoAFecha(u, fechaDoc));
-  const unidades = pool.length ? pool : activas;
-  if (!unidades.length) { notify('No hay casas activas en este proyecto', 'error'); return; }
+  const unidades = unidadesDeProyecto().filter(u => unidadEnIndivisoAFecha(u, fechaDoc));
+  if (!unidades.length) { notify('Ninguna casa estaba abierta a la fecha del documento: no hay a quién repartir el resto', 'error'); return; }
   const totalPct = unidades.reduce((s, u) => s + (u.indiviso_pct || 0), 0);
   const byUid = new Map(inputs.map(inp => [parseInt(inp.dataset.uid), inp]));
   let suma = 0;
@@ -2189,6 +2243,17 @@ export async function guardarAsignacionCosto() {
   if (!reparto.length) { notify('Selecciona al menos una unidad', 'error'); return; }
   const metodo = metodoSeleccionado();
   const importe = cfImporteObjetivo();
+  // Regla dura de cierre: ninguna casa cerrada (terminación o escritura) a la fecha del
+  // documento puede recibir costo, sea cual sea el método.
+  const fechaDocG = cfFechaObjetivo();
+  const cerradas = reparto
+    .map(x => unidadById(x.unidad_id))
+    .filter(u => u && !unidadEnIndivisoAFecha(u, fechaDocG));
+  if (cerradas.length) {
+    const pl = cerradas.length > 1;
+    notify(`🔒 No se puede: ${cerradas.map(u => `${u.nombre} (cerrada ${fmtFecha(fechaCierreUnidad(u))})`).join(', ')} ya estaba${pl ? 'n' : ''} cerrada${pl ? 's' : ''} a la fecha del documento (${fechaDocG ? fmtFecha(fechaDocG) : 'sin fecha'}). Quítala${pl ? 's' : ''} del reparto.`, 'error');
+    return;
+  }
 
   // El método personalizado debe cuadrar exactamente (100% en modo %, o el importe en modo $).
   if (metodo === 'custom') {
