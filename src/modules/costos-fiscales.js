@@ -15,6 +15,7 @@ import { gsSaveUnidades, gsSavePresupuestoUnidad, gsSaveCostoAsignaciones, esPor
 import { nuevoAsignacionId, nuevoPresupuestoId, nuevoCambioPresupId } from '../state.js';
 import { auditarRepartos, aplicarReparacionRepartos, auditarRepartosFacturas, aplicarReparacionFacturas, auditarIndivisoAplanado, aplicarCorreccionIndiviso, sumaAsignadaDoc } from './confirmar-pagos.js';
 import { aplicarPagoAFactura, restantePago } from './facturas.js';
+import { montosFiscales, montoFiscalDe, factorFiscalFactura } from '../services/base-fiscal.js';
 
 const PALETA = ['#c8a96e', '#5a9be0', '#4caf7d', '#e07a3a', '#9b7fe8', '#e05a5a', '#27ae60', '#3498db'];
 
@@ -531,17 +532,23 @@ function _facturasFiscalProyecto(proyecto = cfProyecto) {
 }
 
 // Costo FACTURADO por casa: asignaciones con factura_id elegible. Una pasada.
-export function costoFacturadoPorUnidad(proyecto = cfProyecto) {
+// opts.fiscal (solo 🧾 Fiscal): cada fila a su monto FISCAL (subtotal + IVA: las
+// retenciones no bajan el costo; services/base-fiscal.js). Sin la opción — como lo
+// llama Costos por Unidad 💼 — es lo pagado al proveedor, igual que siempre.
+// `neto` = lo mismo a lo pagado; `retenciones` = total − neto.
+export function costoFacturadoPorUnidad(proyecto = cfProyecto, opts = {}) {
   const info = _facturasFiscalProyecto(proyecto);
+  const mf = opts.fiscal ? montosFiscales(state.costoAsignaciones, state.facturas) : null;
   const porUnidad = new Map();
-  let total = 0;
+  let total = 0, neto = 0;
   state.costoAsignaciones.forEach(a => {
     if (!a.factura_id || !info.elegibles.has(String(a.factura_id))) return;
-    const m = a.monto_asignado || 0;
+    const n = a.monto_asignado || 0;
+    const m = mf ? montoFiscalDe(mf, a) : n;
     porUnidad.set(a.unidad_id, (porUnidad.get(a.unidad_id) || 0) + m);
-    total += m;
+    total += m; neto += n;
   });
-  return { porUnidad, total, ...info };
+  return { porUnidad, total, neto, retenciones: total - neto, ...info };
 }
 
 // Estimado del modo fiscal: facturas ELEGIBLES sin reparto, repartidas por
@@ -610,11 +617,15 @@ export function estimadoFacturadoPorUnidad(proyecto = cfProyecto, opts = {}) {
     const k = String(f.factura_id);
     if (!info.elegibles.has(k)) return;
     const r = rep.get(k) || 0;
-    const pend = (f.monto_total || 0) - r;
-    if (pend <= 0.5) return;
+    const pendNeto = (f.monto_total || 0) - r;
+    if (pendNeto <= 0.5) return;
     if (r > 0.005) nParc++; else nSin++;
+    // opts.fiscal (solo 🧾 Fiscal): lo pendiente a subtotal + IVA (mismo factor que
+    // sus filas repartidas). Sin la opción, lo pagado al proveedor, como siempre.
+    const fac = opts.fiscal ? factorFiscalFactura(f) : 1;
+    const pend = pendNeto * fac;
     docs.push({ importe: pend, fechaIso: parseFechaHist(f.fecha_factura) || '',
-      ref: { tipo: 'factura', id: f.factura_id, pend, repartido: r } });
+      ref: { tipo: 'factura', id: f.factura_id, pend, repartido: r * fac } });
   });
   return { ...simularIndivisoDocs(docs, proyecto, opts), nSin, nParc };
 }

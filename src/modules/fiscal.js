@@ -1,7 +1,8 @@
 // ===== 🧾 FISCAL — página propia (admin + contabilidad) =====
-// Fase 1 del módulo Fiscal. Pestañas: Deducibilidad (la vista fiscal que vivía
-// dentro de Costos por Unidad, MUDADA sin reescribir — mismos motores, mismos
-// números al centavo) y próximamente Estimados RMF 3.2.4.
+// Pestañas: Deducibilidad (la vista fiscal que vivía dentro de Costos por Unidad),
+// Por casa, Sin CFDI, Desglose de facturas y Estimados RMF 3.2.4. Desde 2026-09-30
+// las facturas cuentan a SUBTOTAL + IVA (regla de la contadora: las retenciones no
+// reducen el costo; services/base-fiscal.js). Costos por Unidad sigue con lo pagado.
 // Contabilidad (Ericka) SOLO consulta y exporta: los botones de marcar llevan
 // .req-admin (CSS) y los handlers conservan su backstop esAdmin(). La RLS de
 // fiscal_marcas abre el select a contabilidad con el SQL 44.
@@ -20,6 +21,7 @@ import {
 } from './costos-fiscales.js';
 import { parseFechaHist } from './historial.js';
 import { estimados324 } from './rmf-324.js';
+import { montosFiscales, montoFiscalDe, baseFiscalFactura, retencionesFiscales, desgloseFactura } from '../services/base-fiscal.js';
 import { subPartidaObligatoria } from '../config/sub-partidas.js';
 
 let fisProyecto = '';           // proyecto activo de la página
@@ -75,6 +77,7 @@ function renderFisTabs() {
     { id: 'deducibilidad', label: '✅ Deducibilidad' },
     { id: 'porcasa', label: '🏠 Por casa (facturado)' },
     { id: 'sincfdi', label: '🧮 Sin CFDI' },
+    { id: 'desglose', label: '🔎 Desglose de facturas' },
     { id: 'estimados', label: '📅 Estimados 3.2.4' },
   ];
   cont.innerHTML = tabs.map(t =>
@@ -95,8 +98,30 @@ function renderFisPanel() {
   if (fisTab === 'deducibilidad') renderFiscalTab(panel);
   else if (fisTab === 'porcasa') renderPorCasaTab(panel);
   else if (fisTab === 'sincfdi') renderSinCfdiTab(panel);
+  else if (fisTab === 'desglose') renderDesgloseTab(panel);
   else if (fisTab === 'estimados') renderEstimadosTab(panel);
 }
+
+// Pago de IMPUESTOS (partida con "impuest" o proveedor de categoría "Impuestos"). Si
+// es el entero al SAT de RETENCIONES, no debe aprobarse como deducible: ese dinero ya
+// va dentro de la base fiscal (subtotal + IVA) de las facturas que lo retuvieron, y
+// aprobarlo lo contaría dos veces. Solo se avisa: hay otros impuestos que sí se aprueban.
+function _provImpuestosSet() {
+  return new Set((state.proveedores || []).filter(p => /impuest/i.test(p.categoria || '')).map(p => String(p.id)));
+}
+function _esPagoImpuestos(h, provImp = _provImpuestosSet()) {
+  if (!h) return false;
+  if (/impuest/i.test(h.partida || '')) return true;
+  return provImp.has(String(h.proveedor_id));
+}
+// Pagos de impuestos YA aprobados como deducibles cuando las facturas del proyecto
+// traen retenciones: si son el entero de esas retenciones, hoy cuentan DOBLE (antes
+// de la regla subtotal + IVA aprobarlos era la forma de meterlas). Aviso visible.
+function _avisoImpAprob(b) {
+  if (!(b.totImpAprob > 0.005) || !(b.totRet > 0.005)) return '';
+  return `<div style="background:rgba(220,60,60,.08);border:1px solid rgba(220,60,60,.35);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px;">⚠ <b>${fmt(b.totImpAprob)} en ${b.nImpAprob} pago(s) de IMPUESTOS están aprobados como deducibles.</b> Si alguno es el pago al SAT de las <b>retenciones</b> de facturas, ahora se cuenta <b>dos veces</b>: las retenciones ya van dentro del costo fiscal de cada factura (subtotal + IVA). Revísalos (salen con ⚠ ¿retenciones?) y quítales la aprobación con ↩️ Quitar.</div>`;
+}
+const _BADGE_IMP = '<span style="font-size:10px;color:var(--orange);font-weight:600;" title="Pago de impuestos: si es el pago al SAT de RETENCIONES (ISR/IVA retenido) de facturas, NO lo apruebes — ya está dentro del costo fiscal de esas facturas (subtotal + IVA) y se contaría dos veces.">⚠ ¿retenciones?</span>';
 
 // ===== 🧮 SIN CFDI =====
 // Pagos que son costo pero NO tienen factura (nómina, IMSS, gastos sueltos…),
@@ -146,6 +171,7 @@ function _gruposSinCfdi(proyecto) {
 function renderSinCfdiTab(panel) {
   const sinTabla = state.cargado && state.cargado.fiscalMarcas !== true;
   const { b, lista } = _gruposSinCfdi(fisProyecto);
+  const provImp = _provImpuestosSet();
   const facturado = b.totFis - b.totPagosAprob;
   const tSinRep = lista.reduce((s, x) => s + x.sinRep, 0);
   const nSinRep = lista.reduce((s, x) => s + x.nSR, 0);
@@ -153,6 +179,7 @@ function renderSinCfdiTab(panel) {
   const mono = "font-family:'DM Mono',monospace;";
 
   panel.innerHTML = `
+    ${_avisoImpAprob(b)}
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px;">
       <div class="stat-card"><div class="stat-label">Facturado (fiscal)</div><div class="stat-value">${fmt(facturado)}</div><div class="stat-sub">facturas repartidas elegibles</div></div>
       <div class="stat-card"><div class="stat-label">✅ Sin CFDI aprobado</div><div class="stat-value" style="color:var(--green);">${fmt(b.totPagosAprob)}</div><div class="stat-sub">pagos marcados deducibles</div></div>
@@ -197,7 +224,7 @@ function renderSinCfdiTab(panel) {
                   <td style="color:var(--muted);">${escapeHtml(h.concepto || '')}</td>
                   <td style="color:var(--muted);">${escapeHtml(h.sub_partida || '')}</td>
                   <td style="text-align:right;${mono}">${fmt(p.monto)}</td>
-                  <td>${estado}</td>
+                  <td>${estado}${_esPagoImpuestos(h, provImp) ? ' ' + _BADGE_IMP : ''}</td>
                   <td class="req-admin" style="text-align:right;">${btn}</td>
                 </tr>`;
               }).join('')}</tbody>
@@ -249,7 +276,8 @@ export function exportarSinCfdiExcel() {
 // ===== 🏠 POR CASA (facturado) =====
 // El costo que se reporta al SAT es el DEVENGADO: toda factura vigente, pagada
 // o no. Esta pestaña lo baja a nivel casa con el motor del modo 💼 de Costos
-// por Unidad (misma regla, mismo número) y mide el HUECO: cuánto le caería a
+// por Unidad (misma regla de qué factura cuenta; aquí a subtotal + IVA, allá a lo
+// pagado) y mide el HUECO: cuánto le caería a
 // cada casa si lo facturado sin repartir se repartiera por indiviso.
 let fisEstimCasa = true;   // aquí el punto ES ver el hueco → prendido por default
 
@@ -270,7 +298,7 @@ function _pagosAprobadosSinRepartir(proyecto) {
 // parte de cada documento pendiente le toca a cada casa (renglón del anexo).
 function _estimadoPorCasa(proyecto, conDetalle = false) {
   const opts = { detalle: conDetalle };
-  const fac = estimadoFacturadoPorUnidad(proyecto, opts);
+  const fac = estimadoFacturadoPorUnidad(proyecto, { ...opts, fiscal: true });
   const pag = simularIndivisoDocs(_pagosAprobadosSinRepartir(proyecto)
     .map(h => ({ importe: h.importe || 0, fechaIso: parseFechaHist(h.fecha) || '',
       ref: { tipo: 'pago', id: h.id, pend: h.importe || 0, repartido: 0 } })), proyecto, opts);
@@ -291,7 +319,7 @@ function renderPorCasaTab(panel) {
     panel.innerHTML = `<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🏠</div><div>Sin unidades en ${escapeHtml(fisProyecto)}.</div></div>`;
     return;
   }
-  const fisc = costoFacturadoPorUnidad(fisProyecto);
+  const fisc = costoFacturadoPorUnidad(fisProyecto, { fiscal: true });
   const estim = fisEstimCasa ? _estimadoPorCasa(fisProyecto) : null;
   const tEst = estim ? estim.total : 0;
   // Sin CFDI aprobado por casa (pagos marcados deducibles en 🧮 / ✅): con eso la
@@ -302,8 +330,10 @@ function renderPorCasaTab(panel) {
   const tConc = fisc.total + tSC;
 
   panel.innerHTML = `
+    ${_avisoImpAprob(bat)}
     <div style="margin-bottom:14px;padding:9px 12px;border:1px solid var(--accent);border-radius:8px;font-size:12px;background:color-mix(in srgb, var(--accent) 8%, transparent);">
       <strong>💼 Solo facturado (devengado)</strong> — cuenta únicamente facturas vigentes, pagadas o no; los pagos no cuentan aquí.
+      Cada factura cuenta a su <strong>subtotal + IVA</strong>: las retenciones no reducen el costo fiscal${fisc.retenciones > 0.005 ? ` (incluye ${fmt(fisc.retenciones)} de retenciones)` : ''}.
       ${fisc.nCruzadas ? ` · <span style="color:var(--red);font-weight:600;">${fisc.nCruzadas} factura(s) de EMPRESA CRUZADA excluidas</span>` : ''}
       ${fisc.nExcluidas ? ` · ${fisc.nExcluidas} excluida(s) a mano en ✅ Deducibilidad` : ''}
       ${fisc.sinEmpresaProyecto ? ` · <span style="color:var(--orange);">⚠ Este proyecto no tiene EMPRESA capturada (Configuración → Proyectos): sin eso no se filtran las facturas de empresa cruzada.</span>` : ''}
@@ -358,7 +388,7 @@ export function exportarFiscalPorCasaExcel() {
   if (!window.XLSX) { notify('Cargando la librería de Excel, intenta de nuevo en 2 segundos', 'error'); return; }
   const unidades = unidadesDeProyecto(false, fisProyecto);
   if (!unidades.length) { notify('No hay unidades en este proyecto', 'error'); return; }
-  const fisc = costoFacturadoPorUnidad(fisProyecto);
+  const fisc = costoFacturadoPorUnidad(fisProyecto, { fiscal: true });
   const estim = fisEstimCasa ? _estimadoPorCasa(fisProyecto) : null;
   const bat = fiscalBatch(fisProyecto);
   const scDe = u => (bat.porUnidad.get(String(u.unidad_id)) || {}).sinCfdi || 0;
@@ -367,7 +397,7 @@ export function exportarFiscalPorCasaExcel() {
   if (estim) enc.push('Estimado por asignar', 'Proyectado');
   const aoa = [
     [`FISCAL — Por casa (solo facturado) — ${fisProyecto}`],
-    [`Generado: ${sello.txt} · Facturas vigentes (pagadas o no); pagos NO cuentan${fisc.nCruzadas ? ` · ${fisc.nCruzadas} factura(s) de empresa cruzada excluidas` : ''}${fisc.nExcluidas ? ` · ${fisc.nExcluidas} excluida(s) en Deducibilidad` : ''}${estim ? ` · Estimado: ${fmt(estim.total)} = ${estim.nFact} factura(s) con saldo por repartir — ${estim.nSin} sin reparto y ${estim.nParc} a medias — (${fmt(estim.totFact)})${estim.nPagos ? ` + ${estim.nPagos} pago(s) sin CFDI aprobados sin repartir (${fmt(estim.totPagos)})` : ''}, por indiviso (NO es reparto real)` : ''}`],
+    [`Generado: ${sello.txt} · Facturas vigentes (pagadas o no) a su subtotal + IVA (las retenciones no reducen el costo${fisc.retenciones > 0.005 ? `; incluye ${fmt(fisc.retenciones)} de retenciones` : ''}); pagos NO cuentan${fisc.nCruzadas ? ` · ${fisc.nCruzadas} factura(s) de empresa cruzada excluidas` : ''}${fisc.nExcluidas ? ` · ${fisc.nExcluidas} excluida(s) en Deducibilidad` : ''}${estim ? ` · Estimado: ${fmt(estim.total)} = ${estim.nFact} factura(s) con saldo por repartir — ${estim.nSin} sin reparto y ${estim.nParc} a medias — (${fmt(estim.totFact)})${estim.nPagos ? ` + ${estim.nPagos} pago(s) sin CFDI aprobados sin repartir (${fmt(estim.totPagos)})` : ''}, por indiviso (NO es reparto real)` : ''}`],
     [], enc];
   let tEst = 0, tSC = 0;
   unidades.forEach(u => {
@@ -439,29 +469,44 @@ function _sello() {
 //   · sobre     → repartidas de MÁS (exceso a corregir)
 //   · pagos     → pagos sin CFDI aprobados que aún no se reparten
 // Tolerancia $0.50 por factura (redondeos del reparto); lo menor va a "redondeos".
+// A base FISCAL (subtotal + IVA): total = base fiscal y repartido = Σ de sus filas a
+// monto fiscal. Qué factura está sin reparto / a medias / de más se decide sobre lo
+// pagado (como siempre), para que las listas no cambien de documentos.
 function _pendientesFiscal(proyecto) {
   const { elegibles } = costoFacturadoPorUnidad(proyecto);
   const rep = repartidoPorFactura();
+  const mf = montosFiscales(state.costoAsignaciones, state.facturas);
+  const repF = new Map();
+  state.costoAsignaciones.forEach(a => {
+    if (!a.factura_id) return;
+    const k = String(a.factura_id);
+    repF.set(k, (repF.get(k) || 0) + montoFiscalDe(mf, a));
+  });
   const provDe = id => (state.proveedores || []).find(p => String(p.id) === String(id));
   const sinRep = [], parciales = [], sobre = [];
-  let totalFact = 0, repartido = 0, pendSin = 0, pendParc = 0, sobreTot = 0;
+  let totalFact = 0, repartido = 0, pendSin = 0, pendParc = 0, sobreTot = 0, totalPagadoFact = 0, retencionesFact = 0;
   (state.facturas || []).forEach(f => {
     const k = String(f.factura_id);
     if (!elegibles.has(k)) return;
-    const total = f.monto_total || 0;
+    const totalNeto = f.monto_total || 0;
     const r = rep.get(k) || 0;
-    totalFact += total; repartido += r;
+    const total = baseFiscalFactura(f);
+    const rF = repF.get(k) || 0;
+    totalFact += total; repartido += rF;
+    totalPagadoFact += totalNeto; retencionesFact += retencionesFiscales(f);
     const prov = provDe(f.proveedor_id);
     const doc = {
       tipo: 'Factura', doc: `Fac ${k}${f.numero_factura ? ' · ' + f.numero_factura : ''}`, uuid: f.uuid || '',
       quien: f.razon_social || f.nombre_proveedor || (prov && prov.nombre) || '', rfc: (prov && prov.rfc) || '',
-      fechaIso: parseFechaHist(f.fecha_factura) || f.fecha_factura || '', total, rep: r
+      fechaIso: parseFechaHist(f.fecha_factura) || f.fecha_factura || '', total, rep: rF,
+      totalPagado: totalNeto, retenciones: retencionesFiscales(f)
     };
-    const dif = total - r;
-    if (dif > 0.5) {
+    const difNeto = totalNeto - r;
+    const dif = total - rF;
+    if (difNeto > 0.5) {
       if (r > 0.005) { parciales.push({ ...doc, pend: dif }); pendParc += dif; }
       else { sinRep.push({ ...doc, pend: dif }); pendSin += dif; }
-    } else if (dif < -0.5) {
+    } else if (difNeto < -0.5) {
       sobre.push({ ...doc, pend: dif }); sobreTot += -dif;
     }
   });
@@ -471,6 +516,7 @@ function _pendientesFiscal(proyecto) {
     return {
       tipo: 'Pago sin CFDI', doc: `Pago ${h.id}`, uuid: '', quien: h.nombre || (prov && prov.nombre) || '',
       rfc: (prov && prov.rfc) || '', fechaIso: parseFechaHist(h.fecha) || h.fecha || '', total: h.importe || 0,
+      totalPagado: h.importe || 0, retenciones: 0,
       rep: 0, pend: h.importe || 0, motivo: (marca && marca.motivo) || '', partida: h.partida || ''
     };
   });
@@ -479,7 +525,7 @@ function _pendientesFiscal(proyecto) {
   sinRep.sort(porMonto); parciales.sort(porMonto); sobre.sort(porMonto); pagos.sort(porMonto);
   // Lo que queda fuera de la tolerancia (< $0.50 por factura) — cierra la cuenta.
   const redondeo = totalFact - (repartido + pendSin + pendParc - sobreTot);
-  return { sinRep, parciales, sobre, pagos, totalFact, repartido, pendSin, pendParc, sobreTot, pendPagos, redondeo };
+  return { sinRep, parciales, sobre, pagos, totalFact, repartido, pendSin, pendParc, sobreTot, pendPagos, redondeo, totalPagadoFact, retencionesFact };
 }
 
 function _detalleFiscalCasas(proyecto) {
@@ -492,11 +538,15 @@ function _detalleFiscalCasas(proyecto) {
   const pcap = _pagosCapitalSet();
   const { aprobados, factExcluidas: exclD } = _marcasFiscales();
   const conFacturaD = _pagosConFacturaFiscal(empresaDeProyectoNorm(proyecto), exclD);
+  const provImpD = _provImpuestosSet();
+  const hayRetD = (state.facturas || []).some(f => elegibles.has(String(f.factura_id)) && retencionesFiscales(f) > 0);
   const provDe = id => (state.proveedores || []).find(p => String(p.id) === String(id));
+  // Facturas a monto FISCAL (subtotal + IVA): mismo % de la factura por casa y partida.
+  const mf = montosFiscales(state.costoAsignaciones, state.facturas);
   const casas = new Map();
   const casa = uid => {
     let c = casas.get(uid);
-    if (!c) { c = { fac: 0, sc: 0, nFac: new Set(), nPag: new Set(), partidas: new Map() }; casas.set(uid, c); }
+    if (!c) { c = { fac: 0, sc: 0, ret: 0, nFac: new Set(), nPag: new Set(), partidas: new Map() }; casas.set(uid, c); }
     return c;
   };
   const grupo = (c, partida) => {
@@ -516,7 +566,7 @@ function _detalleFiscalCasas(proyecto) {
   state.costoAsignaciones.forEach(a => {
     const uid = String(a.unidad_id);
     if (!uids.has(uid)) return;
-    const monto = a.monto_asignado || 0;
+    const montoNeto = a.monto_asignado || 0;
     if (a.factura_id && elegibles.has(String(a.factura_id))) {
       const f = facturaById(a.factura_id) || {};
       const prov = provDe(f.proveedor_id);
@@ -524,16 +574,20 @@ function _detalleFiscalCasas(proyecto) {
       const pNom = (a.partida_override || '').trim() || 'Sin partida';
       const g = grupo(c, pNom);
       const sb = subDe(g, pNom, a.sub_partida_override);
-      c.fac += monto; g.fac += monto; sb.fac += monto; c.nFac.add(String(a.factura_id));
+      const monto = montoFiscalDe(mf, a);
+      c.fac += monto; g.fac += monto; sb.fac += monto; c.ret += monto - montoNeto; c.nFac.add(String(a.factura_id));
+      const pagado = f.monto_total || 0;
       sb.lineas.push({
         tipo: 'Factura', doc: `Fac ${a.factura_id}${f.numero_factura ? ' · ' + f.numero_factura : ''}`,
         uuid: f.uuid || '', quien: f.razon_social || f.nombre_proveedor || (prov && prov.nombre) || '',
         rfc: (prov && prov.rfc) || '', fechaIso: parseFechaHist(f.fecha_factura) || f.fecha_factura || '',
-        totalDoc: f.monto_total || 0, metodo: a.metodo || '', factor: a.factor || 0, monto,
+        totalDoc: baseFiscalFactura(f), totalPagado: pagado, retenciones: retencionesFiscales(f),
+        pct: pagado ? montoNeto / pagado : 0, metodo: a.metodo || '', factor: a.factor || 0, monto,
         sub: a.sub_partida_override || '', motivo: ''
       });
       return;
     }
+    const monto = montoNeto;
     if (a.factura_id) return;   // factura no elegible: fuera del fiscal
     if (_tipoAsignacion(a, pcf, fc, fe, pe, pcap) !== 'pagado') return;
     if (!aprobados.has(String(a.pago_id))) return;
@@ -551,12 +605,14 @@ function _detalleFiscalCasas(proyecto) {
       tipo: 'Pago sin CFDI', doc: `Pago ${a.pago_id}`, uuid: '',
       quien: h.nombre || (prov && prov.nombre) || '', rfc: (prov && prov.rfc) || '',
       fechaIso: parseFechaHist(h.fecha) || h.fecha || '', totalDoc: h.importe || 0,
+      totalPagado: h.importe || 0, retenciones: 0, pct: h.importe ? monto / h.importe : 0,
       metodo: a.metodo || '', factor: a.factor || 0, monto,
-      sub: a.sub_partida_override || h.sub_partida || '', motivo: (marca && marca.motivo) || ''
+      sub: a.sub_partida_override || h.sub_partida || '',
+      motivo: (hayRetD && _esPagoImpuestos(h, provImpD) ? '⚠ IMPUESTOS aprobado: si es el pago de retenciones de facturas, cuenta doble · ' : '') + ((marca && marca.motivo) || '')
     });
   });
   // Autochequeo contra las vistas: si algún día divergen, que se note en consola.
-  const fisc = costoFacturadoPorUnidad(proyecto);
+  const fisc = costoFacturadoPorUnidad(proyecto, { fiscal: true });
   const bat = fiscalBatch(proyecto);
   unidades.forEach(u => {
     const c = casas.get(String(u.unidad_id)) || { fac: 0, sc: 0 };
@@ -618,11 +674,13 @@ export function imprimirFichasFiscales(unidadId) {
       </table>
       <div class="total"><span>Costo fiscal conciliado</span><strong>${fmt(conc)}</strong></div>
       <div class="comp">Integrado por ${c.nFac.size} factura(s) y ${c.nPag.size} pago(s) sin CFDI aprobado(s) como deducibles.</div>
+      ${c.ret > 0.005 ? `<div class="comp">Facturas a su subtotal + IVA: incluye ${fmt(c.ret)} de retenciones de ISR/IVA (las retenciones no reducen el costo).</div>` : ''}
       ${estU > 0 ? `<div class="nota"><strong>Pendiente por repartir (estimado, NO definitivo): ${fmt(estU)}</strong><br>
         Comprobantes del proyecto aún no asignados a unidades, simulados por % de indiviso. No forma parte del costo conciliado.</div>` : ''}
       <div class="metodo">Método: los costos directos se asignan a la unidad que los generó; los costos comunes se reparten por
         porcentaje de indiviso entre las unidades en obra a la fecha de cada comprobante. Solo se incluyen facturas vigentes
-        de la empresa del proyecto (pagadas o no) y pagos sin CFDI aprobados como deducibles. Detalle documento por documento
+        de la empresa del proyecto (pagadas o no), a su subtotal más IVA (las retenciones no reducen el costo), y pagos sin
+        CFDI aprobados como deducibles. Detalle documento por documento
         (UUID, proveedor, proporción asignada) en el anexo Excel.</div>
       <footer>${e(fisProyecto)} · ${e(u.nombre)} · Hoja ${i + 1} de ${lista.length}</footer>
     </section>`;
@@ -679,15 +737,18 @@ export function exportarAnexoFiscalExcel() {
   const est = fisEstimCasa ? _estimadoPorCasa(fisProyecto, true) : null;
   const sello = _sello();
   // Columnas: 0 Casa · 1 Partida · 2 Sub-partida · 3 Tipo · 4 Documento · 5 UUID ·
-  // 6 Proveedor · 7 RFC · 8 Fecha · 9 Total doc · 10 Método · 11 % a la casa ·
-  // 12 Monto a la casa · 13 Facturado · 14 Sin CFDI · 15 Conciliado · 16 Motivo
-  // [+ 17 Estimado · 18 Proyectado, solo con la casilla prendida]
+  // 6 Proveedor · 7 RFC · 8 Fecha · 9 Total neto al proveedor · 10 Retenciones · 11 Base fiscal ·
+  // 12 Método · 13 % de la factura a la casa · 14 Monto fiscal a la casa ·
+  // 15 Facturado · 16 Sin CFDI · 17 Conciliado · 18 Motivo
+  // [+ 19 Estimado · 20 Proyectado, solo con la casilla prendida]
+  // Monto fiscal = Base fiscal × % (la base fiscal = subtotal + IVA = neto + retenciones).
   const enc = ['Casa', 'Partida', 'Sub-partida', 'Tipo', 'Documento', 'UUID', 'Proveedor / Beneficiario', 'RFC', 'Fecha',
-    'Total documento', 'Método', '% a la casa', 'Monto a la casa', 'Facturado', 'Sin CFDI aprobado', 'Conciliado', 'Motivo aprobación',
+    'Total neto al proveedor', 'Retenciones', 'Base fiscal (subtotal + IVA)', 'Método', '% de la factura a la casa', 'Monto fiscal a la casa',
+    'Facturado', 'Sin CFDI aprobado', 'Conciliado', 'Motivo aprobación',
     ...(est ? ['Estimado (simulado)', 'Proyectado'] : [])];
   const aoa = [
     [`ANEXO — Detalle del costo fiscal por unidad — ${fisProyecto}`],
-    [`Corte: ${sello.txt} · Da clic en + (margen izquierdo) para abrir cada casa, partida y sub-partida. Facturas vigentes de la empresa del proyecto (pagadas o no) + pagos sin CFDI aprobados como deducibles.${est ? ' INCLUYE ESTIMADO: lo pendiente por repartir simulado por indiviso (NO definitivo) en un renglón aparte por casa.' : ''}`],
+    [`Corte: ${sello.txt} · Da clic en + (margen izquierdo) para abrir cada casa, partida y sub-partida. Facturas vigentes de la empresa del proyecto (pagadas o no) a su subtotal + IVA (las retenciones no reducen el costo) + pagos sin CFDI aprobados como deducibles.${est ? ' INCLUYE ESTIMADO: lo pendiente por repartir simulado por indiviso (NO definitivo) en un renglón aparte por casa.' : ''}`],
     [], enc];
   const niveles = [0, 0, 0, 0];
   const vacias = n => Array(n).fill('');
@@ -697,11 +758,11 @@ export function exportarAnexoFiscalExcel() {
   unidades.forEach(u => {
     const c = casas.get(String(u.unidad_id)) || { fac: 0, sc: 0, nFac: new Set(), nPag: new Set(), partidas: new Map() };
     const eU = est ? (est.porUnidad.get(u.unidad_id) || 0) : 0;
-    aoa.push([u.nombre, `Indiviso ${(u.indiviso_pct || 0).toFixed(4)}%`, ...vacias(11), c.fac, c.sc, c.fac + c.sc, '',
+    aoa.push([u.nombre, `Indiviso ${(u.indiviso_pct || 0).toFixed(4)}%`, ...vacias(13), c.fac, c.sc, c.fac + c.sc, '',
       ...(est ? [eU, c.fac + c.sc + eU] : [])]);
     niveles.push(0);
     _partidasOrdenadas(c).forEach(([p, g]) => {
-      aoa.push(['', p, ...vacias(11), g.fac, g.sc, g.fac + g.sc, '']);
+      aoa.push(['', p, ...vacias(13), g.fac, g.sc, g.fac + g.sc, '']);
       niveles.push(1);
       // Solo CONSTRUCCION abre un nivel de sub-partida; las demás van directo a sus
       // documentos (la regla de negocio es la misma que usa toda la app).
@@ -709,13 +770,13 @@ export function exportarAnexoFiscalExcel() {
       const docNivel = conSub ? 3 : 2;
       _subsOrdenadas(g).forEach(([s, x]) => {
         if (conSub) {
-          aoa.push(['', '', s, ...vacias(10), x.fac, x.sc, x.fac + x.sc, '']);
+          aoa.push(['', '', s, ...vacias(12), x.fac, x.sc, x.fac + x.sc, '']);
           niveles.push(2);
         }
         porSub.push([u.nombre, p, conSub ? s : '', x.fac, x.sc, x.fac + x.sc, x.lineas.length]);
         x.lineas.slice().sort((a, z) => z.monto - a.monto).forEach(l => {
-          aoa.push(['', '', '', l.tipo, l.doc, l.uuid, l.quien, l.rfc, l.fechaIso ? fmtFecha(l.fechaIso) : '', l.totalDoc,
-            l.metodo, l.factor, l.monto, '', '', '', l.motivo]);
+          aoa.push(['', '', '', l.tipo, l.doc, l.uuid, l.quien, l.rfc, l.fechaIso ? fmtFecha(l.fechaIso) : '', l.totalPagado,
+            l.retenciones, l.totalDoc, l.metodo, l.pct, l.monto, '', '', '', l.motivo]);
           niveles.push(docNivel);
         });
       });
@@ -723,7 +784,7 @@ export function exportarAnexoFiscalExcel() {
     // Renglón del ESTIMADO de esta casa (solo con la casilla prendida): lo que le
     // tocaría de cada documento pendiente si se repartiera por indiviso a su fecha.
     if (est && eU > 0.005) {
-      aoa.push(['', '⚠ ESTIMADO — pendiente por repartir (simulado por indiviso, NO definitivo)', ...vacias(15), eU, '']);
+      aoa.push(['', '⚠ ESTIMADO — pendiente por repartir (simulado por indiviso, NO definitivo)', ...vacias(17), eU, '']);
       niveles.push(1);
       (est.detalle.get(u.unidad_id) || []).slice().sort((a, z) => z.monto - a.monto).forEach(d => {
         const r = d.ref || {};
@@ -731,16 +792,17 @@ export function exportarAnexoFiscalExcel() {
         if (r.tipo === 'factura') {
           const f = facturaById(r.id) || {};
           const prov = (state.proveedores || []).find(p => String(p.id) === String(f.proveedor_id));
+          const base = baseFiscalFactura(f);
           fila = ['', '', '', 'Factura (estimado)', `Fac ${r.id}${f.numero_factura ? ' · ' + f.numero_factura : ''}`, f.uuid || '',
             f.razon_social || f.nombre_proveedor || (prov && prov.nombre) || '', (prov && prov.rfc) || '',
             f.fecha_factura ? fmtFecha(parseFechaHist(f.fecha_factura) || f.fecha_factura) : '', f.monto_total || 0,
-            'indiviso (simulado)', d.factor, d.monto, '', '', '',
+            retencionesFiscales(f), base, 'indiviso (simulado)', base ? d.monto / base : d.factor, d.monto, '', '', '',
             r.repartido > 0.005 ? `Faltante de factura repartida a medias: ${fmt(r.pend)}` : 'Factura sin reparto'];
         } else {
           const h = pagoById(r.id) || {};
           fila = ['', '', '', 'Pago sin CFDI (estimado)', `Pago ${r.id}`, '', h.nombre || '', '',
             h.fecha ? fmtFecha(parseFechaHist(h.fecha) || h.fecha) : '', h.importe || 0,
-            'indiviso (simulado)', d.factor, d.monto, '', '', '', 'Pago aprobado sin repartir'];
+            0, h.importe || 0, 'indiviso (simulado)', h.importe ? d.monto / h.importe : d.factor, d.monto, '', '', '', 'Pago aprobado sin repartir'];
         }
         aoa.push(fila);   // el detalle va en 'Monto a la casa'; el total del estimado, en su renglón
         niveles.push(2);
@@ -754,16 +816,16 @@ export function exportarAnexoFiscalExcel() {
   const pf = _pendientesFiscal(fisProyecto);
   const pendFac = pf.pendSin + pf.pendParc;
   if (pendFac > 0 || pf.pendPagos > 0) {
-    aoa.push(['PENDIENTE POR REPARTIR', 'sin partida · no asignado a casas', ...vacias(11), pendFac, pf.pendPagos, pendFac + pf.pendPagos, '']);
+    aoa.push(['PENDIENTE POR REPARTIR', 'sin partida · no asignado a casas', ...vacias(13), pendFac, pf.pendPagos, pendFac + pf.pendPagos, '']);
     niveles.push(0);
     const grupoPend = (titulo, lista, esPago) => {
       if (!lista.length) return;
       const tot = lista.reduce((s, x) => s + x.pend, 0);
-      aoa.push(['', titulo, ...vacias(11), esPago ? '' : tot, esPago ? tot : '', tot, '']);
+      aoa.push(['', titulo, ...vacias(13), esPago ? '' : tot, esPago ? tot : '', tot, '']);
       niveles.push(1);
       lista.forEach(x => {
-        aoa.push(['', '', '', x.tipo, x.doc, x.uuid, x.quien, x.rfc, x.fechaIso ? fmtFecha(x.fechaIso) : '', x.total,
-          '', '', x.pend, '', '', '', x.rep > 0.005 ? `Ya repartido ${fmt(x.rep)}; falta ${fmt(x.pend)}` : (x.motivo || '')]);
+        aoa.push(['', '', '', x.tipo, x.doc, x.uuid, x.quien, x.rfc, x.fechaIso ? fmtFecha(x.fechaIso) : '', x.totalPagado,
+          x.retenciones, x.total, '', '', x.pend, '', '', '', x.rep > 0.005 ? `Ya repartido ${fmt(x.rep)}; falta ${fmt(x.pend)}` : (x.motivo || '')]);
         niveles.push(2);
       });
     };
@@ -773,45 +835,49 @@ export function exportarAnexoFiscalExcel() {
   }
 
   // ---- Conciliación del proyecto (al pie de Resumen) ----
+  const bImp = fiscalBatch(fisProyecto);
   const resumenFilasCasas = resumen.length;
   const repCasas = resumen.slice(1).reduce((s, r) => s + (r[2] || 0), 0);
   const fueraLista = pf.repartido - repCasas;
   const cuadre = (pf.repartido + pf.pendSin + pf.pendParc - pf.sobreTot + pf.redondeo) - pf.totalFact;
   resumen.push([], ['CONCILIACIÓN DEL PROYECTO — facturas elegibles', '', ''],
-    ['Total facturado elegible (vigentes, empresa del proyecto)', '', pf.totalFact],
+    ['Total facturado elegible a subtotal + IVA (vigentes, empresa del proyecto)', '', pf.totalFact],
+    ...(pf.retencionesFact > 0.005 ? [['   (informativo) = pagado a proveedores + retenciones', '', `${fmt(pf.totalPagadoFact)} + ${fmt(pf.retencionesFact)}`]] : []),
     ['Repartido a casas', '', pf.repartido],
     ...(Math.abs(fueraLista) > 0.5 ? [['   de ello, en casas fuera de esta lista (dadas de baja u otras)', '', fueraLista]] : []),
     [`Pendiente — facturas sin reparto (${pf.sinRep.length})`, '', pf.pendSin],
     [`Pendiente — faltante de facturas repartidas a medias (${pf.parciales.length})`, '', pf.pendParc],
     [`(−) Sobre-repartido — exceso a corregir (${pf.sobre.length})`, '', -pf.sobreTot],
-    ['Redondeos (< $0.50 por factura)', '', pf.redondeo],
+    ['Redondeos (centavos por factura)', '', pf.redondeo],
     ['Cuadre: componentes − total (debe ser $0.00)', '', Math.abs(cuadre) < 0.005 ? 0 : cuadre],
     [],
-    [`Aparte (no son facturas): pagos sin CFDI aprobados sin repartir (${pf.pagos.length})`, '', pf.pendPagos]);
+    [`Aparte (no son facturas): pagos sin CFDI aprobados sin repartir (${pf.pagos.length})`, '', pf.pendPagos],
+    ...(bImp.totImpAprob > 0.005 && bImp.totRet > 0.005 ? [[], [`⚠ REVISAR: ${bImp.nImpAprob} pago(s) de IMPUESTOS aprobados como deducibles (si son el pago de retenciones de facturas, cuentan doble)`, '', bImp.totImpAprob]] : []));
 
   // Hoja plana "Pendiente por repartir" (misma lista, filtrable)
-  const aoaP = [['Grupo', 'Tipo', 'Documento', 'UUID', 'Proveedor / Beneficiario', 'RFC', 'Fecha', 'Total documento', 'Ya repartido', 'Pendiente (− = exceso)', 'Motivo aprobación']];
+  const aoaP = [['Grupo', 'Tipo', 'Documento', 'UUID', 'Proveedor / Beneficiario', 'RFC', 'Fecha', 'Total neto al proveedor', 'Retenciones',
+    'Base fiscal (subtotal + IVA)', 'Ya repartido (fiscal)', 'Pendiente fiscal (− = exceso)', 'Motivo aprobación']];
   const addP = (g, lista) => lista.forEach(x => aoaP.push([g, x.tipo, x.doc, x.uuid, x.quien, x.rfc,
-    x.fechaIso ? fmtFecha(x.fechaIso) : '', x.total, x.rep, x.pend, x.motivo || '']));
+    x.fechaIso ? fmtFecha(x.fechaIso) : '', x.totalPagado, x.retenciones, x.total, x.rep, x.pend, x.motivo || '']));
   addP('Sin reparto', pf.sinRep);
   addP('Repartida a medias', pf.parciales);
   addP('Pago sin CFDI aprobado sin repartir', pf.pagos);
   addP('SOBRE-repartida (exceso)', pf.sobre);
   const wsP = XLSX.utils.aoa_to_sheet(aoaP);
-  wsP['!cols'] = [{ wch: 30 }, { wch: 13 }, { wch: 20 }, { wch: 38 }, { wch: 30 }, { wch: 15 }, { wch: 11 }, { wch: 15 }, { wch: 15 }, { wch: 18 }, { wch: 26 }];
+  wsP['!cols'] = [{ wch: 30 }, { wch: 13 }, { wch: 20 }, { wch: 38 }, { wch: 30 }, { wch: 15 }, { wch: 11 }, { wch: 14 }, { wch: 13 }, { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 26 }];
   for (let r = 1; r < aoaP.length; r++) {
-    [7, 8, 9].forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (wsP[ref] && typeof wsP[ref].v === 'number') wsP[ref].z = '"$"#,##0.00'; });
+    [7, 8, 9, 10, 11].forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (wsP[ref] && typeof wsP[ref].v === 'number') wsP[ref].z = '"$"#,##0.00'; });
   }
 
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   ws['!outline'] = { above: true };
   ws['!rows'] = niveles.map(lv => (lv ? { level: lv, hidden: true } : {}));
   ws['!cols'] = [{ wch: 12 }, { wch: 24 }, { wch: 22 }, { wch: 13 }, { wch: 20 }, { wch: 38 }, { wch: 30 }, { wch: 15 }, { wch: 11 },
-    { wch: 15 }, { wch: 11 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 16 }, { wch: 15 }, { wch: 26 },
+    { wch: 14 }, { wch: 13 }, { wch: 18 }, { wch: 11 }, { wch: 12 }, { wch: 16 }, { wch: 15 }, { wch: 16 }, { wch: 15 }, { wch: 26 },
     ...(est ? [{ wch: 18 }, { wch: 16 }] : [])];
   for (let r = 4; r < aoa.length; r++) {
-    [9, 12, 13, 14, 15, ...(est ? [17, 18] : [])].forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (ws[ref] && typeof ws[ref].v === 'number') ws[ref].z = '"$"#,##0.00'; });
-    const rf = XLSX.utils.encode_cell({ r, c: 11 });
+    [9, 10, 11, 14, 15, 16, 17, ...(est ? [19, 20] : [])].forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (ws[ref] && typeof ws[ref].v === 'number') ws[ref].z = '"$"#,##0.00'; });
+    const rf = XLSX.utils.encode_cell({ r, c: 13 });
     if (ws[rf] && typeof ws[rf].v === 'number') ws[rf].z = '0.0000%';
   }
   const wsS = XLSX.utils.aoa_to_sheet(porSub);
@@ -832,6 +898,104 @@ export function exportarAnexoFiscalExcel() {
   XLSX.utils.book_append_sheet(wb, wsP, 'Pendiente por repartir');
   XLSX.writeFile(wb, `Anexo_fiscal_${String(fisProyecto).replace(/[\\/:*?"<>|\s]+/g, '_')}_${sello.archivo}.xlsx`);
   notify('📎 Anexo fiscal descargado');
+}
+
+// ========== PESTAÑA: 🔎 DESGLOSE DE FACTURAS ==========
+// Calidad de datos para la base fiscal (subtotal + IVA). Solo lectura: no cambia
+// ningún número. Facturas elegibles del proyecto:
+//   · sin desglose  → solo tienen el total (subtotal 0): su base fiscal = total y
+//                     sus retenciones, si las hubo, no se ven.
+//   · no cuadra     → subtotal − descuento + IVA − retenciones − NC ≠ total (> $1):
+//                     el total se capturó a mano o falta un dato.
+// Se corrigen en Facturas (editar) antes de presentar a los fiscalistas.
+function _desgloseProyecto(proyecto) {
+  const { elegibles } = costoFacturadoPorUnidad(proyecto);
+  const provDe = id => (state.proveedores || []).find(p => String(p.id) === String(id));
+  const filas = [];
+  let nOk = 0, nSin = 0, nNo = 0, totSin = 0, totRet = 0, nConRet = 0, nElig = 0;
+  (state.facturas || []).forEach(f => {
+    if (!elegibles.has(String(f.factura_id))) return;
+    nElig++;
+    const d = desgloseFactura(f);
+    const rf = retencionesFiscales(f);
+    if (rf > 0) { nConRet++; totRet += rf; }
+    if (d.sinDesglose) { nSin++; totSin += d.total; }
+    else if (d.noCuadra) nNo++;
+    else { nOk++; return; }
+    filas.push({ f, d, prov: provDe(f.proveedor_id) });
+  });
+  filas.sort((a, z) => (z.d.noCuadra - a.d.noCuadra) || (Math.abs(z.d.diferencia) - Math.abs(a.d.diferencia)) || (z.d.total - a.d.total));
+  return { filas, nOk, nSin, nNo, totSin, totRet, nConRet, nElig };
+}
+
+function renderDesgloseTab(panel) {
+  const x = _desgloseProyecto(fisProyecto);
+  const mono = "font-family:'DM Mono',monospace;";
+  const pct = v => (v == null ? '—' : (v * 100).toFixed(1) + '%');
+  panel.innerHTML = `
+    <div style="margin-bottom:14px;padding:9px 12px;border:1px solid var(--accent);border-radius:8px;font-size:12px;background:color-mix(in srgb, var(--accent) 8%, transparent);">
+      El costo fiscal de cada factura es su <strong>subtotal + IVA</strong> (las retenciones no lo reducen). Para eso cada factura necesita su
+      desglose capturado y que cuadre con su total. Esta lista <strong>no cambia ningún número</strong>: muestra qué corregir en Facturas.
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
+      <div class="stat-card"><div class="stat-label">Facturas elegibles</div><div class="stat-value">${x.nElig}</div><div class="stat-sub">${x.nOk} con desglose correcto</div></div>
+      <div class="stat-card" title="Solo tienen el total (subtotal en 0): su base fiscal es el total y no se ven sus retenciones"><div class="stat-label">Sin desglose</div><div class="stat-value" style="color:${x.nSin ? 'var(--orange)' : 'var(--muted)'};">${x.nSin}</div><div class="stat-sub">${fmt(x.totSin)} en total</div></div>
+      <div class="stat-card" title="Subtotal − descuento + IVA − retenciones − NC no da el total capturado (diferencia de más de $1)"><div class="stat-label">Desglose que no cuadra</div><div class="stat-value" style="color:${x.nNo ? 'var(--red)' : 'var(--muted)'};">${x.nNo}</div><div class="stat-sub">revisar captura</div></div>
+      <div class="stat-card" title="Retenciones de ISR/IVA de las facturas elegibles: se suman al costo fiscal (subtotal + IVA)"><div class="stat-label">Retenciones del proyecto</div><div class="stat-value" style="color:var(--accent);">${fmt(x.totRet)}</div><div class="stat-sub">en ${x.nConRet} factura(s)</div></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
+      <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;">Facturas por corregir (${x.filas.length})</div>
+      <button class="btn btn-ghost btn-sm" onclick="exportarDesgloseExcel()" title="Excel con las facturas sin desglose o que no cuadran">⬇ Excel</button>
+    </div>
+    ${x.filas.length ? `<div class="table-wrap cf-tabla-scroll" style="max-height:520px;">
+      <table>
+        <thead><tr><th>Factura</th><th>Proveedor</th><th>Fecha</th><th style="text-align:right">Subtotal</th><th style="text-align:right">Desc.</th><th style="text-align:right">IVA</th><th style="text-align:right">Ret. IVA</th><th style="text-align:right">Ret. ISR</th><th style="text-align:right">NC</th><th style="text-align:right">Total capturado</th><th style="text-align:right">Total calculado</th><th style="text-align:right">Diferencia</th><th>Problema</th></tr></thead>
+        <tbody>${x.filas.map(({ f, d, prov }) => `<tr>
+          <td style="font-size:12px;font-weight:500;white-space:nowrap;">Fac ${escapeHtml(String(f.factura_id))}${f.numero_factura ? ' · ' + escapeHtml(f.numero_factura) : ''}</td>
+          <td style="font-size:12px;">${escapeHtml(f.razon_social || f.nombre_proveedor || (prov && prov.nombre) || '')}</td>
+          <td style="${mono}font-size:11px;color:var(--muted);">${escapeHtml(f.fecha_factura ? fmtFecha(parseFechaHist(f.fecha_factura) || f.fecha_factura) : '')}</td>
+          <td style="text-align:right;${mono}font-size:12px;">${d.sinDesglose ? '—' : fmt(d.subtotal)}</td>
+          <td style="text-align:right;${mono}font-size:12px;color:var(--muted);">${d.descuento ? fmt(d.descuento) : '—'}</td>
+          <td style="text-align:right;${mono}font-size:12px;">${d.iva ? fmt(d.iva) : '—'}${d.ivaPct != null && d.iva ? ` <span style="font-size:10px;color:var(--muted);">${pct(d.ivaPct)}</span>` : ''}</td>
+          <td style="text-align:right;${mono}font-size:12px;">${d.retIva ? fmt(d.retIva) : '—'}</td>
+          <td style="text-align:right;${mono}font-size:12px;">${d.retIsr ? fmt(d.retIsr) : '—'}</td>
+          <td style="text-align:right;${mono}font-size:12px;color:var(--muted);">${d.nc ? fmt(d.nc) : '—'}</td>
+          <td style="text-align:right;${mono}font-size:12px;font-weight:600;">${fmt(d.total)}</td>
+          <td style="text-align:right;${mono}font-size:12px;color:var(--muted);">${d.sinDesglose ? '—' : fmt(d.calculado)}</td>
+          <td style="text-align:right;${mono}font-size:12px;color:${d.noCuadra ? 'var(--red)' : 'var(--muted)'};">${d.noCuadra ? fmt(d.diferencia) : '—'}</td>
+          <td style="font-size:11px;">${d.sinDesglose ? `<span style="color:var(--orange);">Sin desglose (solo total)${d.retSinSubtotal ? ' · trae retenciones: verifica que el total sea el neto y captura el subtotal' : ''}</span>` : '<span style="color:var(--red);">No cuadra con el total</span>'}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>` : '<div style="padding:18px;color:var(--green);font-weight:600;">✅ Todas las facturas elegibles tienen su desglose y cuadra con su total.</div>'}`;
+}
+
+export function exportarDesgloseExcel() {
+  if (!window.XLSX) { notify('Cargando la librería de Excel, intenta de nuevo en 2 segundos', 'error'); return; }
+  const x = _desgloseProyecto(fisProyecto);
+  if (!x.filas.length) { notify('✅ No hay facturas por corregir en este proyecto'); return; }
+  const sello = _sello();
+  const aoa = [
+    [`FISCAL — Desglose de facturas por corregir — ${fisProyecto}`],
+    [`Corte: ${sello.txt} · Base fiscal = subtotal + IVA (las retenciones no reducen el costo). ${x.nSin} sin desglose (solo total) · ${x.nNo} con desglose que no cuadra · retenciones del proyecto ${fmt(x.totRet)} en ${x.nConRet} factura(s)`],
+    [], ['Factura', 'Folio', 'UUID', 'Proveedor', 'RFC', 'Fecha', 'Subtotal', 'Descuento', 'IVA', 'IVA % del subtotal', 'Ret. IVA', 'Ret. ISR',
+      'NC (subtotal + IVA)', 'Total capturado', 'Total calculado', 'Diferencia', 'Problema']];
+  x.filas.forEach(({ f, d, prov }) => aoa.push([String(f.factura_id), f.numero_factura || '', f.uuid || '',
+    f.razon_social || f.nombre_proveedor || (prov && prov.nombre) || '', (prov && prov.rfc) || f.rfc_emisor || '',
+    f.fecha_factura ? fmtFecha(parseFechaHist(f.fecha_factura) || f.fecha_factura) : '',
+    d.subtotal, d.descuento, d.iva, d.ivaPct == null ? '' : d.ivaPct, d.retIva, d.retIsr, d.nc, d.total,
+    d.sinDesglose ? '' : d.calculado, d.noCuadra ? d.diferencia : '',
+    d.sinDesglose ? `Sin desglose (solo total)${d.retSinSubtotal ? ' · trae retenciones: verificar que el total sea el neto y capturar el subtotal' : ''}` : 'No cuadra con el total']));
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{ wch: 9 }, { wch: 14 }, { wch: 38 }, { wch: 32 }, { wch: 15 }, { wch: 11 }, { wch: 14 }, { wch: 12 }, { wch: 13 }, { wch: 10 },
+    { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 15 }, { wch: 15 }, { wch: 13 }, { wch: 26 }];
+  for (let r = 4; r < aoa.length; r++) {
+    [6, 7, 8, 10, 11, 12, 13, 14, 15].forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (ws[ref] && typeof ws[ref].v === 'number') ws[ref].z = '"$"#,##0.00'; });
+    const rp = XLSX.utils.encode_cell({ r, c: 9 }); if (ws[rp] && typeof ws[rp].v === 'number') ws[rp].z = '0.0%';
+  }
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Por corregir');
+  XLSX.writeFile(wb, `Fiscal_desglose_${String(fisProyecto).replace(/[\\/:*?"<>|\s]+/g, '_')}_${sello.archivo}.xlsx`);
+  notify('⬇ Excel de desglose descargado');
 }
 
 // ========== PESTAÑA: ✅ DEDUCIBILIDAD (mudada de Costos por Unidad) ==========
@@ -877,11 +1041,16 @@ export function fiscalBatch(proyecto) {
   const conFactura = _pagosConFacturaFiscal(empNorm, factExcluidas);
   let totPagosConFactura = 0;
 
-  const porUnidad = new Map();   // uid → { ger, fis }
-  const filaDe = uid => { let x = porUnidad.get(uid); if (!x) { x = { ger: 0, fis: 0, sinCfdi: 0 }; porUnidad.set(uid, x); } return x; };
+  // Facturas al FISCAL a subtotal + IVA (las retenciones no reducen el costo); el
+  // gerencial sigue siendo lo pagado. ret = cuánto suben las facturas por eso.
+  const mf = montosFiscales(state.costoAsignaciones, state.facturas);
+  const porUnidad = new Map();   // uid → { ger, fis, sinCfdi, ret }
+  const filaDe = uid => { let x = porUnidad.get(uid); if (!x) { x = { ger: 0, fis: 0, sinCfdi: 0, ret: 0 }; porUnidad.set(uid, x); } return x; };
   const pagosCand = new Map();   // pago_id → { h, monto, aprobado }
-  const factRep = new Map();     // factura_id → { f, monto, excluida, auto }
-  let totGer = 0, totFis = 0, totPagosAprob = 0, totPagosNoAprob = 0, totFactExcl = 0, totInicial = 0;
+  const factRep = new Map();     // factura_id → { f, monto, montoFiscal, excluida, auto }
+  let totGer = 0, totFis = 0, totPagosAprob = 0, totPagosNoAprob = 0, totFactExcl = 0, totInicial = 0, totRet = 0, totImpAprob = 0;
+  const provImp = _provImpuestosSet();
+  const impAprob = new Set();
 
   state.costoAsignaciones.forEach(a => {
     const uid = String(a.unidad_id);
@@ -891,18 +1060,19 @@ export function fiscalBatch(proyecto) {
     const monto = a.monto_asignado || 0;
     const fila = filaDe(uid);
     fila.ger += monto; totGer += monto;
-    let esFiscal = false;
+    let esFiscal = false, montoFis = monto;
     if (t === 'devengado') {
       const fid = String(a.factura_id);
       let reg = factRep.get(fid);
       if (!reg) {
         const f = facturaById(fid);
-        reg = { f, monto: 0, excluida: factExcluidas.has(fid), auto: _factAutoExcluida(f), cruzada: facturaEmpresaCruzada(f, empNorm) };
+        reg = { f, monto: 0, montoFiscal: 0, excluida: factExcluidas.has(fid), auto: _factAutoExcluida(f), cruzada: facturaEmpresaCruzada(f, empNorm) };
         factRep.set(fid, reg);
       }
-      reg.monto += monto;
+      montoFis = montoFiscalDe(mf, a);
+      reg.monto += monto; reg.montoFiscal += montoFis;
       if (reg.excluida || reg.auto || reg.cruzada) totFactExcl += monto;
-      else esFiscal = true;
+      else { esFiscal = true; fila.ret += montoFis - monto; totRet += montoFis - monto; }
     } else {
       const pid = String(a.pago_id);
       const hh = pagoById(pid);
@@ -913,9 +1083,12 @@ export function fiscalBatch(proyecto) {
       let reg = pagosCand.get(pid);
       if (!reg) { reg = { h: hh, monto: 0, aprobado: aprobados.has(pid) }; pagosCand.set(pid, reg); }
       reg.monto += monto;
-      if (reg.aprobado) { esFiscal = true; totPagosAprob += monto; fila.sinCfdi += monto; } else { totPagosNoAprob += monto; }
+      if (reg.aprobado) {
+        esFiscal = true; totPagosAprob += monto; fila.sinCfdi += monto;
+        if (_esPagoImpuestos(hh, provImp)) { totImpAprob += monto; impAprob.add(pid); }
+      } else { totPagosNoAprob += monto; }
     }
-    if (esFiscal) { fila.fis += monto; totFis += monto; }
+    if (esFiscal) { fila.fis += montoFis; totFis += montoFis; }
   });
 
   // Costo inicial (apertura): entra al GERENCIAL (igual que costoRealUnidad) pero
@@ -935,7 +1108,7 @@ export function fiscalBatch(proyecto) {
     !_factAutoExcluida(f) && !facturaEmpresaCruzada(f, empNorm) &&
     (f.monto_total || 0) > 0 && !repartidas.has(String(f.factura_id)));
 
-  return { porUnidad, pagosCand, factRep, sinRepartir, totGer, totFis, totPagosAprob, totPagosNoAprob, totFactExcl, totInicial, totPagosConFactura };
+  return { porUnidad, pagosCand, factRep, sinRepartir, totGer, totFis, totPagosAprob, totPagosNoAprob, totFactExcl, totInicial, totPagosConFactura, totRet, totImpAprob, nImpAprob: impAprob.size };
 }
 
 function renderFiscalTab(panel) {
@@ -946,35 +1119,41 @@ function renderFiscalTab(panel) {
   const sinTabla = state.cargado && state.cargado.fiscalMarcas !== true;
   const b = fiscalBatch(fisProyecto);
   const unidades = unidadesDeProyecto(false, fisProyecto);
-  const totNoDeducible = b.totGer - b.totFis;
-  const sinRepTot = b.sinRepartir.reduce((s, f) => s + (f.monto_total || 0), 0);
+  // No deducible = lo que el gerencial tiene y el fiscal no, comparando ambos sobre lo
+  // PAGADO (al fiscal se le quitan las retenciones que suma por la regla subtotal + IVA).
+  const totNoDeducible = b.totGer - (b.totFis - b.totRet);
+  const sinRepTot = b.sinRepartir.reduce((s, f) => s + baseFiscalFactura(f), 0);
   const pagosList = [...b.pagosCand.values()].filter(x => x.h).sort((a, z) => z.monto - a.monto);
   const factList = [...b.factRep.values()].filter(x => x.f).sort((a, z) => z.monto - a.monto);
+  const provImp = _provImpuestosSet();
 
   panel.innerHTML = `
+    ${_avisoImpAprob(b)}
     ${sinTabla ? '<div style="background:rgba(224,122,58,.1);border:1px solid rgba(224,122,58,.35);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px;">⚠ <b>Falta activar las marcas fiscales:</b> corre <b>supabase/schema/36_fiscal.sql</b> en el SQL Editor de Supabase y recarga. Mientras tanto la vista muestra solo lo facturado y los botones de marcar están desactivados.</div>' : ''}
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
-      <div class="stat-card"><div class="stat-label">Costo FISCAL (deducible)</div><div class="stat-value" style="color:var(--green);">${fmt(b.totFis)}</div><div class="stat-sub">facturas ${fmt(b.totFis - b.totPagosAprob)} + pagos aprobados ${fmt(b.totPagosAprob)}</div></div>
+      <div class="stat-card" title="Facturas a su subtotal + IVA (las retenciones no reducen el costo) + pagos sin CFDI aprobados"><div class="stat-label">Costo FISCAL (deducible)</div><div class="stat-value" style="color:var(--green);">${fmt(b.totFis)}</div><div class="stat-sub">facturas ${fmt(b.totFis - b.totPagosAprob)}${b.totRet > 0.005 ? ` (incl. retenciones ${fmt(b.totRet)})` : ''} + pagos aprobados ${fmt(b.totPagosAprob)}</div></div>
       <div class="stat-card"><div class="stat-label">Costo gerencial</div><div class="stat-value">${fmt(b.totGer)}</div><div class="stat-sub">la vista de siempre (márgenes)</div></div>
       <div class="stat-card" title="Pagos sin factura no aprobados + facturas excluidas + costo inicial de apertura + pagos cuya factura aún no se reparte (entran al fiscal al repartirla)"><div class="stat-label">No deducible (hoy)</div><div class="stat-value" style="color:var(--orange);">${fmt(totNoDeducible)}</div><div class="stat-sub">sin aprobar ${fmt(b.totPagosNoAprob)} · fact. excl. ${fmt(b.totFactExcl)} · apertura ${fmt(b.totInicial)}${b.totPagosConFactura ? ` · pagos con factura por repartir ${fmt(b.totPagosConFactura)}` : ''}</div></div>
       <div class="stat-card" title="Facturas vigentes del proyecto sin repartir a casas: al repartirlas, su monto entrará al costo fiscal"><div class="stat-label">⚠ Facturas sin repartir</div><div class="stat-value" style="color:${b.sinRepartir.length ? 'var(--red)' : 'var(--muted)'};">${b.sinRepartir.length}</div><div class="stat-sub">${fmt(sinRepTot)} por entrar al fiscal</div></div>
     </div>
 
+    ${b.totRet > 0.005 ? `<div style="font-size:12px;color:var(--muted);margin:-4px 0 14px;">Las facturas cuentan a su <strong>subtotal + IVA</strong>: sus retenciones (<strong>${fmt(b.totRet)}</strong>) están dentro del costo fiscal. Los pagos al SAT de esas retenciones <strong>no se aprueban</strong> aquí (se contarían dos veces); salen con ⚠ ¿retenciones?.</div>` : ''}
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
       <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;">Fiscal por casa</div>
       <button class="btn btn-ghost btn-sm" onclick="fiscalExportar()" title="Excel para contabilidad: fiscal por casa + pagos aprobados + marcas con motivo">⬇ Excel</button>
     </div>
     <div class="table-wrap" style="margin-bottom:22px;">
       <table>
-        <thead><tr><th>Casa</th><th style="text-align:right">Gerencial</th><th style="text-align:right">Fiscal</th><th style="text-align:right">Diferencia</th><th style="text-align:right">% fiscal</th></tr></thead>
+        <thead><tr><th>Casa</th><th style="text-align:right">Gerencial</th><th style="text-align:right">Fiscal</th><th style="text-align:right" title="Retenciones de sus facturas: el fiscal las incluye (subtotal + IVA), el gerencial no (ahí entran como pago al SAT)">de ello, retenciones</th><th style="text-align:right" title="Gerencial − (Fiscal − retenciones): lo que no es deducible, comparando ambos sobre lo pagado">No deducible</th><th style="text-align:right" title="Qué parte del gerencial es deducible, comparando ambos sobre lo pagado: (Fiscal − retenciones) ÷ Gerencial">% deducible</th></tr></thead>
         <tbody>${unidades.map(u => {
-          const x = b.porUnidad.get(String(u.unidad_id)) || { ger: 0, fis: 0 };
-          const pct = x.ger > 0 ? (x.fis / x.ger) * 100 : null;
+          const x = b.porUnidad.get(String(u.unidad_id)) || { ger: 0, fis: 0, ret: 0 };
+          const pct = x.ger > 0 ? ((x.fis - (x.ret || 0)) / x.ger) * 100 : null;
           return `<tr>
             <td style="font-weight:600;font-size:12px;">${escapeHtml(u.nombre)}</td>
             <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;">${fmt(x.ger)}</td>
             <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--green);">${fmt(x.fis)}</td>
-            <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--orange);">${fmt(x.ger - x.fis)}</td>
+            <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);">${x.ret > 0.005 ? fmt(x.ret) : '—'}</td>
+            <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--orange);">${fmt(x.ger - (x.fis - (x.ret || 0)))}</td>
             <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;">${pct === null ? '—' : pct.toFixed(0) + '%'}</td>
           </tr>`;
         }).join('')}
@@ -982,8 +1161,9 @@ function renderFiscalTab(panel) {
           <td style="text-transform:uppercase;font-size:11px;letter-spacing:.05em;">Total</td>
           <td style="text-align:right;font-family:'DM Mono',monospace;">${fmt(b.totGer)}</td>
           <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--green);">${fmt(b.totFis)}</td>
+          <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--muted);">${b.totRet > 0.005 ? fmt(b.totRet) : '—'}</td>
           <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--orange);">${fmt(totNoDeducible)}</td>
-          <td style="text-align:right;font-family:'DM Mono',monospace;">${b.totGer > 0 ? ((b.totFis / b.totGer) * 100).toFixed(0) + '%' : '—'}</td>
+          <td style="text-align:right;font-family:'DM Mono',monospace;">${b.totGer > 0 ? (((b.totFis - b.totRet) / b.totGer) * 100).toFixed(0) + '%' : '—'}</td>
         </tr></tbody>
       </table>
     </div>
@@ -1002,7 +1182,7 @@ function renderFiscalTab(panel) {
           return `<tr class="fiscal-p-row" data-buscar="${escapeHtml(`${h.nombre || ''} ${h.partida || ''} ${h.concepto || ''}`.toLowerCase().replace(/"/g, ''))}">
             <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);">${fmtFecha(h.fecha)}</td>
             <td style="font-size:12px;font-weight:500;">${escapeHtml(h.nombre) || '—'}</td>
-            <td style="font-size:11px;color:var(--muted);">${escapeHtml(h.partida) || 'Sin partida'}${h.sub_partida ? ' / ' + escapeHtml(h.sub_partida) : ''}</td>
+            <td style="font-size:11px;color:var(--muted);">${escapeHtml(h.partida) || 'Sin partida'}${h.sub_partida ? ' / ' + escapeHtml(h.sub_partida) : ''}${_esPagoImpuestos(h, provImp) ? ' ' + _BADGE_IMP : ''}</td>
             <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;">${fmt(x.monto)}</td>
             <td>${x.aprobado ? `<span style="font-size:10px;color:var(--green);" title="${escapeHtml((marca && (marca.motivo + ' · ' + marca.usuario_email)) || '')}">✅ deducible</span>` : '<span style="font-size:10px;color:var(--muted);">fuera del fiscal</span>'}</td>
             <td style="text-align:right;" class="req-admin">${sinTabla ? '' : (x.aprobado
@@ -1017,7 +1197,7 @@ function renderFiscalTab(panel) {
     ${factList.length ? `
     <div class="table-wrap cf-tabla-scroll" style="max-height:360px;">
       <table>
-        <thead><tr><th>Factura</th><th>Proveedor</th><th>Tipo</th><th style="text-align:right">$ repartido</th><th>Estado fiscal</th><th style="text-align:right" class="req-admin">Acción</th></tr></thead>
+        <thead><tr><th>Factura</th><th>Proveedor</th><th>Tipo</th><th style="text-align:right" title="Lo pagado al proveedor (como en Costos por Unidad)">$ repartido</th><th style="text-align:right" title="El mismo reparto a subtotal + IVA (las retenciones no reducen el costo)">Fiscal</th><th>Estado fiscal</th><th style="text-align:right" class="req-admin">Acción</th></tr></thead>
         <tbody>${factList.map(x => {
           const f = x.f;
           const marca = _marcaFiscalDe('factura', f.factura_id);
@@ -1026,6 +1206,7 @@ function renderFiscalTab(panel) {
             <td style="font-size:12px;">${escapeHtml(f.razon_social || f.nombre_proveedor || '')}</td>
             <td style="font-size:11px;color:var(--muted);">${escapeHtml(f.tipo_comprobante || 'Factura')}</td>
             <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;">${fmt(x.monto)}</td>
+            <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;${Math.abs((x.montoFiscal || 0) - x.monto) > 0.005 ? 'color:var(--accent);' : 'color:var(--muted);'}">${(x.cruzada || x.auto || x.excluida) ? '—' : fmt(x.montoFiscal || 0)}</td>
             <td>${x.cruzada ? `<span style="font-size:10px;color:var(--red);font-weight:600;" title="La factura está a ${escapeHtml(f.empresa || '')}, no a la empresa del proyecto: el SAT no la acepta para esta empresa. Si es error de captura, corrígela en Facturas con 🏢 Cambiar empresa.">⚠ empresa cruzada</span>`
               : x.auto ? '<span style="font-size:10px;color:var(--orange);" title="Este tipo de comprobante no es costo deducible (sería doble conteo)">🚫 auto-excluida</span>'
               : x.excluida ? `<span style="font-size:10px;color:var(--red);" title="${escapeHtml((marca && (marca.motivo + ' · ' + marca.usuario_email)) || '')}">🚫 excluida</span>`
@@ -1053,6 +1234,7 @@ export async function fiscalMarcarPago(pagoId, aprobar) {
   const ex = _marcaFiscalDe('pago', pagoId);
   if (aprobar) {
     if (ex && ex.incluir !== false) return;
+    if (_esPagoImpuestos(pagoById(pagoId)) && !confirm('Este pago es de IMPUESTOS.\n\nSi es el pago al SAT de RETENCIONES (ISR / IVA retenido) de facturas, NO lo apruebes: ese dinero ya está dentro del costo fiscal de esas facturas (subtotal + IVA) y se contaría dos veces.\n\nSi es otro impuesto deducible, sí puedes aprobarlo.\n\n¿Aprobar de todos modos?')) return;
     const motivo = prompt('Motivo (opcional) — ej. "nómina con recibos", "gasto deducible sin CFDI en sistema":');
     if (motivo === null) return;   // canceló
     const marca = ex || {
@@ -1118,20 +1300,20 @@ export function fiscalExportar() {
 
   const aoa1 = [
     [`Costo FISCAL por casa — ${fisProyecto}`],
-    [`Generado: ${sello.txt} · Regla: facturas (CFDI) + pagos aprobados por admin · apertura y no aprobados fuera`],
+    [`Generado: ${sello.txt} · Regla: facturas (CFDI) a su subtotal + IVA (las retenciones no reducen el costo) + pagos aprobados por admin · apertura y no aprobados fuera · No deducible = Gerencial − (Fiscal − retenciones)`],
     [],
-    ['Casa', 'Gerencial', 'Fiscal (deducible)', 'Diferencia', '% fiscal']
+    ['Casa', 'Gerencial', 'Fiscal (deducible)', 'De ello, retenciones', 'No deducible', '% deducible (sobre lo pagado)']
   ];
   unidades.forEach(u => {
-    const x = b.porUnidad.get(String(u.unidad_id)) || { ger: 0, fis: 0 };
-    aoa1.push([u.nombre, x.ger, x.fis, x.ger - x.fis, x.ger > 0 ? x.fis / x.ger : '']);
+    const x = b.porUnidad.get(String(u.unidad_id)) || { ger: 0, fis: 0, ret: 0 };
+    aoa1.push([u.nombre, x.ger, x.fis, x.ret || 0, x.ger - (x.fis - (x.ret || 0)), x.ger > 0 ? (x.fis - (x.ret || 0)) / x.ger : '']);
   });
   aoa1.push([]);
-  aoa1.push(['TOTAL', b.totGer, b.totFis, b.totGer - b.totFis, b.totGer > 0 ? b.totFis / b.totGer : '']);
+  aoa1.push(['TOTAL', b.totGer, b.totFis, b.totRet, b.totGer - (b.totFis - b.totRet), b.totGer > 0 ? (b.totFis - b.totRet) / b.totGer : '']);
   const ws1 = XLSX.utils.aoa_to_sheet(aoa1);
-  ws1['!cols'] = [{ wch: 16 }, { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 10 }];
-  fmtMoney(ws1, aoa1, [1, 2, 3], 4);
-  for (let r = 4; r < aoa1.length; r++) { const ref = XLSX.utils.encode_cell({ r, c: 4 }); if (ws1[ref] && typeof ws1[ref].v === 'number') ws1[ref].z = '0.0%'; }
+  ws1['!cols'] = [{ wch: 16 }, { wch: 14 }, { wch: 16 }, { wch: 18 }, { wch: 14 }, { wch: 10 }];
+  fmtMoney(ws1, aoa1, [1, 2, 3, 4], 4);
+  for (let r = 4; r < aoa1.length; r++) { const ref = XLSX.utils.encode_cell({ r, c: 5 }); if (ws1[ref] && typeof ws1[ref].v === 'number') ws1[ref].z = '0.0%'; }
   XLSX.utils.book_append_sheet(wb, ws1, 'Fiscal por casa');
 
   const aoa2 = [
@@ -1152,18 +1334,18 @@ export function fiscalExportar() {
   const aoa3 = [
     [`Facturas repartidas — estado fiscal — ${fisProyecto}`],
     [],
-    ['Factura', 'Folio', 'Proveedor', 'Tipo comprobante', '$ repartido', 'Estado', 'Motivo', 'Marcó']
+    ['Factura', 'Folio', 'Proveedor', 'Tipo comprobante', '$ repartido (pagado)', 'Fiscal (subtotal + IVA)', 'Estado', 'Motivo', 'Marcó']
   ];
   [...b.factRep.values()].filter(x => x.f).sort((a, z) => z.monto - a.monto).forEach(x => {
     const marca = _marcaFiscalDe('factura', x.f.factura_id);
     aoa3.push([String(x.f.factura_id), x.f.numero_factura || '', x.f.razon_social || x.f.nombre_proveedor || '',
-      x.f.tipo_comprobante || 'Factura', x.monto,
+      x.f.tipo_comprobante || 'Factura', x.monto, (x.cruzada || x.auto || x.excluida) ? '' : (x.montoFiscal || 0),
       x.cruzada ? 'EXCLUIDA (empresa cruzada)' : x.auto ? 'AUTO-excluida (tipo)' : x.excluida ? 'EXCLUIDA' : 'Deducible',
       (marca && marca.motivo) || '', (marca && marca.usuario_email) || '']);
   });
   const ws3 = XLSX.utils.aoa_to_sheet(aoa3);
-  ws3['!cols'] = [{ wch: 9 }, { wch: 14 }, { wch: 32 }, { wch: 18 }, { wch: 13 }, { wch: 18 }, { wch: 30 }, { wch: 26 }];
-  fmtMoney(ws3, aoa3, [4], 3);
+  ws3['!cols'] = [{ wch: 9 }, { wch: 14 }, { wch: 32 }, { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 18 }, { wch: 30 }, { wch: 26 }];
+  fmtMoney(ws3, aoa3, [4, 5], 3);
   XLSX.utils.book_append_sheet(wb, ws3, 'Facturas');
 
   XLSX.writeFile(wb, `Fiscal_${String(fisProyecto || 'proyecto').replace(/[\\/:*?"<>|\s]+/g, '_')}_${sello.archivo}.xlsx`);
