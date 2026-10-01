@@ -7,6 +7,7 @@ import { cerrar } from '../ui/modal.js';
 import { gsSaveFacturas, gsSaveFacturaPagos, esPorFila, sbGuardarFila, sbBorrarFila, ensureHistorialIds, gsSaveCostoAsignaciones, purgarAsignacionesDeFactura } from '../services/google-sync.js';
 import { proyectoMatch } from '../config/proyectos.js';
 import { parseFechaHist } from './historial.js';
+import { claseCelda, claseDeFactura, CLASE_LABEL, guardarClases, quitarClases, claseListo, maxIdConClase } from './facturas-clase.js';
 
 // Empresas propias a las que se factura (receptor del CFDI). Lista corta editable:
 // agrega aquí si en el futuro facturan a otra razón social.
@@ -79,7 +80,7 @@ export function renderFacturas() {
   if (!tb) return;
 
   if (!datosListos()) {
-    tb.innerHTML = '<tr><td colspan="13"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔒</div><div>Conecta Google Sheets para ver esta información</div></div></td></tr>';
+    tb.innerHTML = '<tr><td colspan="14"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔒</div><div>Conecta Google Sheets para ver esta información</div></div></td></tr>';
     const sub = document.getElementById('fact-subtitulo'); if (sub) sub.textContent = '';
     const cnt = document.getElementById('cnt-fact'); if (cnt) cnt.textContent = '0';
     return;
@@ -90,7 +91,7 @@ export function renderFacturas() {
   renderFactStats();
 
   if (!state.facturas.length) {
-    tb.innerHTML = '<tr><td colspan="13"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🧾</div><div>Sin facturas registradas</div></div></td></tr>';
+    tb.innerHTML = '<tr><td colspan="14"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🧾</div><div>Sin facturas registradas</div></div></td></tr>';
     document.getElementById('fact-subtitulo').textContent = '';
     return;
   }
@@ -102,7 +103,7 @@ export function renderFacturas() {
     : `${state.facturas.length} facturas`;
 
   if (!fil.length) {
-    tb.innerHTML = '<tr><td colspan="13"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔍</div><div>Sin resultados con los filtros actuales</div></div></td></tr>';
+    tb.innerHTML = '<tr><td colspan="14"><div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🔍</div><div>Sin resultados con los filtros actuales</div></div></td></tr>';
     return;
   }
 
@@ -182,6 +183,7 @@ export function renderFacturas() {
       <td>${estBadge}</td>
       <td>${estadoSatBadge(f.estado_sat)}</td>
       <td>${proyTag(f.proyecto)}${_esEmpresaCruzada(f, empresaDeProyecto) ? `<div style="font-size:9px;color:var(--red);font-weight:700;" title="La factura está a ${escapeHtml(f.empresa)} pero el proyecto es de otra empresa: NO cuenta para el costo fiscal de este proyecto. Si es un error de captura, corrígela con 🏢 Cambiar empresa.">⚠ ${escapeHtml(f.empresa)}</div>` : ''}</td>
+      <td>${claseCelda(f.factura_id)}</td>
       <td style="text-align:right;white-space:nowrap;">${btnRepartir} <button class="btn btn-ghost req-facturas" style="padding:4px 8px;font-size:11px;" onclick="editarFactura(${f.factura_id})">Editar</button></td>
     </tr>`;
   }).join('');
@@ -240,6 +242,11 @@ function actualizarBarraSelFact() {
   if (btnR) {
     btnR.style.display = n > 0 ? '' : 'none';
     btnR.textContent = `📊 Repartir (${n})`;
+  }
+  const btnC = document.getElementById('fact-bulk-clase');
+  if (btnC) {
+    btnC.style.display = n > 0 ? '' : 'none';
+    btnC.textContent = `🏷 Clase de costo (${n})`;
   }
 }
 
@@ -316,9 +323,14 @@ function getFilteredFacturas() {
   const fp = document.getElementById('ff-proy')?.value || '';
   const fl = document.getElementById('ff-lote')?.value || '';
   const fx = document.getElementById('ff-emp-cruzada')?.checked || false;
+  const fc = document.getElementById('ff-clase')?.value || '';
   const empresaDeProyecto = _empresasProyectosMap();
   const fil = state.facturas.filter(f => {
     if (fx && !_esEmpresaCruzada(f, empresaDeProyecto)) return false;
+    if (fc) {
+      const c = claseDeFactura(f.factura_id);
+      if (fc === 'sin' ? !!c : !c || c.clase !== fc) return false;
+    }
     if (q) {
       // Búsqueda por CAMPO elegido → así un número no se confunde entre ID, N° de
       // factura y UUID. 'todo' conserva el buscador amplio de siempre.
@@ -375,7 +387,7 @@ export function exportarFacturasExcel() {
   const headers = ['ID', 'Folio', 'UUID', 'Proveedor', 'Razón social', 'RFC emisor',
     'Fecha factura', 'Vencimiento', 'Subtotal', 'Descuento', 'IVA', 'Ret. IVA', 'Ret. ISR',
     'NC monto', 'NC IVA', 'Total neto', 'Pagado', 'Saldo', 'Estatus pago', 'Estado SAT',
-    'Tipo comprobante', 'Proyecto', 'Empresa facturada', 'Observaciones'];
+    'Tipo comprobante', 'Proyecto', 'Empresa facturada', 'Observaciones', 'Clase de costo', 'Cuenta contable', 'Origen de la clase'];
   const rows = fil.map(f => {
     const prov = state.proveedores.find(p => p.id === f.proveedor_id);
     const provNombre = f.nombre_proveedor || (prov ? prov.nombre : '') || f.razon_social || `ID ${f.proveedor_id}`;
@@ -385,7 +397,8 @@ export function exportarFacturasExcel() {
       f.subtotal || 0, f.descuento || 0, f.iva_trasladado || 0, f.retencion_iva || 0, f.retencion_isr || 0,
       f.nc_subtotal || 0, f.nc_iva || 0, f.monto_total || 0, f.monto_pagado || 0, f.saldo_pendiente || 0,
       f.estatus_factura || '', f.estado_sat || 'Vigente', f.tipo_comprobante || 'Factura',
-      f.proyecto || '', f.empresa || '', f.observaciones || ''
+      f.proyecto || '', f.empresa || '', f.observaciones || '',
+      ...(c => [c ? (CLASE_LABEL[c.clase] || c.clase) : 'Sin clasificar', c ? c.cuenta_contable || '' : '', c ? (c.fuente === 'manual' ? 'Manual' : c.lote || '') : ''])(claseDeFactura(f.factura_id))
     ];
   });
   const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
@@ -434,6 +447,52 @@ export function aplicarEmpresaBulk() {
   cerrar('modal-empresa-bulk');
   renderFacturas();
   notify(`✓ ${objetivos.length} factura(s) actualizada(s) — empresa: ${etiqueta}`);
+}
+
+// ===== Acción en bloque: CLASE DE COSTO (solo admin) =====
+// Directo / Indirecto de obra a las seleccionadas, o quitarla (sin clasificar). Se
+// guarda aparte de la factura (tabla factura_clase, SQL 47): solo toca la clase;
+// la cuenta contable que ya tuvieran se conserva.
+export function abrirClaseBulk() {
+  if (!esAdmin()) { notify('Solo el admin puede cambiar la clase de costo', 'error'); return; }
+  if (!claseListo()) { notify('Falta correr el SQL 47 (clase de costo) en Supabase', 'error'); return; }
+  if (!factSel.size) { notify('Selecciona al menos una factura', 'error'); return; }
+  const actuales = new Set([...factSel].map(id => { const c = claseDeFactura(id); return c ? c.clase : ''; }));
+  const sel = document.getElementById('cb-clase');
+  if (sel) sel.value = actuales.size === 1 && [...actuales][0] ? [...actuales][0] : 'directo';
+  const tit = document.getElementById('cb-titulo');
+  if (tit) tit.textContent = `Clase de costo — ${factSel.size} factura(s) seleccionada(s)`;
+  document.getElementById('modal-clase-bulk').classList.add('open');
+}
+
+export async function aplicarClaseBulk() {
+  if (!esAdmin()) { notify('Solo el admin puede cambiar la clase de costo', 'error'); return; }
+  const ids = state.facturas.filter(f => factSel.has(String(f.factura_id))).map(f => String(f.factura_id));
+  if (!ids.length) { notify('No hay facturas seleccionadas', 'error'); return; }
+  if (!claseListo()) { notify('Falta correr el SQL 47 (clase de costo) en Supabase', 'error'); return; }
+  const valor = document.getElementById('cb-clase')?.value || '';
+  const etiqueta = valor ? CLASE_LABEL[valor] : 'Sin clasificar (quitar la clase)';
+  // Solo las que CAMBIAN: volver a poner la misma clase no borra su origen (Excel) ni su cuenta.
+  const cambian = ids.filter(id => { const c = claseDeFactura(id); return valor ? !(c && c.clase === valor) : !!c; });
+  if (!cambian.length) { cerrar('modal-clase-bulk'); notify(`Las ${ids.length} factura(s) ya estaban en "${etiqueta}": no hay nada que cambiar`); return; }
+  const yaEstaban = ids.length - cambian.length;
+  if (!confirm(`¿Poner "${etiqueta}" a ${cambian.length} factura(s)?${yaEstaban ? `\n(${yaEstaban} ya estaban así y no se tocan)` : ''}\n\nSolo cambia la clase de costo: no toca montos, partidas, proyectos ni repartos.`)) return;
+  cerrar('modal-clase-bulk');
+  try {
+    if (valor) {
+      await guardarClases(cambian.map(id => {
+        const prev = claseDeFactura(id);
+        return { factura_id: id, clase: valor, cuenta_contable: prev ? prev.cuenta_contable : '', fuente: 'manual', lote: '' };
+      }));
+    } else {
+      await quitarClases(cambian);
+    }
+    factSel.clear();
+    notify(`✓ ${cambian.length} factura(s): ${etiqueta}`, 'success');
+  } catch (e) {
+    notify(`⚠️ No se pudo guardar la clase (${(e && e.message) || e}). Lo ya guardado quedó; intenta de nuevo.`, 'error');
+  }
+  renderFacturas();
 }
 
 // ===== Acción en bloque: REPARTIR facturas (solo admin) =====
@@ -862,6 +921,7 @@ export function abrirDetalleFactura(id) {
         ${fila('Proveedor', escapeHtml(provNombre))}
         ${fila('Razón social', escapeHtml(f.razon_social) || '—')}
         ${fila('Empresa facturada', escapeHtml(f.empresa) || '—')}
+        ${(c => fila('Clase de costo', c ? `${escapeHtml(CLASE_LABEL[c.clase] || c.clase)}${c.cuenta_contable ? ` · <span style="font-family:'DM Mono',monospace;font-size:11px;">${escapeHtml(c.cuenta_contable)}</span>` : ''}<div style="font-size:10px;color:var(--muted);">${c.fuente === 'manual' ? 'Marcada a mano' : escapeHtml(c.lote || '')}</div>` : '<span style="color:var(--muted);">Sin clasificar</span>'))(claseDeFactura(f.factura_id))}
         ${fila('Proyecto', escapeHtml(f.proyecto) || '—')}
         ${fila('Tipo comprobante', escapeHtml(f.tipo_comprobante) || '—')}
         ${fila('Estado SAT', escapeHtml(f.estado_sat) || 'Vigente')}
@@ -930,7 +990,7 @@ export function guardarFactura() {
 
   const prov = state.proveedores.find(p => p.id === provId);
   const obj = {
-    factura_id: state.editFactId || (state.facturas.reduce((max, f) => Math.max(max, f.factura_id), 0) + 1),
+    factura_id: state.editFactId || (Math.max(state.facturas.reduce((max, f) => Math.max(max, f.factura_id), 0), maxIdConClase()) + 1),
     numero_factura: folio,
     razon_social: document.getElementById('f-razon-social').value.trim(),
     proveedor_id: provId,

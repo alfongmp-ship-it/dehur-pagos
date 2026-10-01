@@ -828,6 +828,8 @@ export async function sbLoadAll() {
     estrategia_config: 'clave', estrategia_flags_unidad: 'flag_id',
     // FISCAL (pestaña 🧾, solo-admin)
     fiscal_marcas: 'marca_id',
+    // Clase de costo por factura (Directo / Indirecto de obra)
+    factura_clase: 'factura_id',
     // 📜 Libro de variaciones del presupuesto
     presupuesto_cambios: 'cambio_id'
   };
@@ -1109,6 +1111,21 @@ export async function sbLoadAll() {
       motivo: r.motivo || '',
       usuario_email: r.usuario_email || '',
       created_at: r.created_at || ''
+    }));
+  });
+
+  // Clase de costo de cada factura (Directo / Indirecto de obra). Vive SOLO en
+  // Supabase, aparte de facturas. Tolerante: si el SQL 47 no se ha corrido,
+  // sbLoadTable devuelve null, cargado queda en false y Facturas no deja subir.
+  P('factura_clase', 'facturaClase', rows => {
+    state.facturaClase = rows.map(r => ({
+      factura_id: r.factura_id != null ? String(r.factura_id) : '',
+      clase: r.clase || '',
+      cuenta_contable: r.cuenta_contable || '',
+      fuente: r.fuente || '',
+      lote: r.lote || '',
+      usuario: r.usuario || '',
+      actualizado: r.actualizado || ''
     }));
   });
 

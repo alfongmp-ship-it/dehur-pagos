@@ -31,6 +31,7 @@ export const state = {
   // y flags por unidad (bloqueo/compromiso/estratégica). NO tocan nada de Pagos.
   estrategiaConfig: [],
   estrategiaFlags: [],
+  facturaClase: [],        // clase de costo por factura (Directo / Indirecto de obra; SQL 47)
   fiscalMarcas: [],        // pestaña 🧾 Fiscal (solo-admin): aprobaciones/exclusiones de deducibilidad
   presupuestoCambios: [],  // 📜 libro de variaciones del presupuesto (inmutable: solo se agrega)
   // Catálogo editable de partidas y subpartidas

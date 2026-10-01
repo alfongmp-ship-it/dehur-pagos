@@ -14,6 +14,7 @@ import { fmt } from '../ui/format.js';
 import { createExcelImporter, normalizarFechaISO, normalizarFechaDDMMYYYY, parseImporte } from '../services/excel-import.js';
 import { gsSaveFacturas, esPorFila, sbGuardarFila, gsSaveCostoAsignaciones } from '../services/google-sync.js';
 import { parseReparto } from './solicitudes.js';
+import { maxIdConClase } from './facturas-clase.js';
 
 const norm = s => String(s || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 const r2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -263,7 +264,8 @@ export const facturasImporter = createExcelImporter({
   },
 
   insertar: (registros) => {
-    let nextId = state.facturas.reduce((mx, f) => Math.max(mx, f.factura_id || 0), 0) + 1;
+    // Por encima de las clases guardadas: una factura nueva no hereda la clase de una borrada.
+    let nextId = Math.max(state.facturas.reduce((mx, f) => Math.max(mx, f.factura_id || 0), 0), maxIdConClase()) + 1;
     const porFila = esPorFila('facturas');
     const hoyISO = new Date().toISOString().slice(0, 10);
     let creoAsig = false;

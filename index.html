@@ -474,6 +474,7 @@
         <div><div class="page-title">Facturas</div><div class="page-subtitle">Registro de facturas por proveedor</div></div>
         <div style="display:flex;gap:8px;">
           <button class="btn btn-ghost" onclick="exportarFacturasExcel()">📊 Exportar Excel</button>
+          <button class="btn btn-ghost req-admin" onclick="subirClaseCosto()" title="Sube el reporte de contabilidad (secciones COSTOS DIRECTOS / INDIRECTOS DE OBRA) o un Excel con columnas UUID y Clase: marca cada factura como Directo o Indirecto de obra. Antes de aplicar descarga una vista previa.">🏷 Subir clase de costo</button>
           <button class="btn btn-ghost req-facturas" onclick="abrirImportFacturas()">📥 Importar facturas</button>
           <button class="btn btn-primary req-facturas" onclick="abrirNuevaFactura()">+ Nueva Factura</button>
         </div>
@@ -503,16 +504,23 @@
         <select class="filter-select" id="ff-lote" onchange="renderFacturas()" style="display:none;" title="Lotes de carga marcados en observaciones (ej. conciliación con contabilidad)">
           <option value="">Todos los lotes</option>
         </select>
+        <select class="filter-select" id="ff-clase" onchange="renderFacturas()" title="Clase de costo según contabilidad (Directo / Indirecto de obra). 'Sin clasificar' = no vinieron en el reporte subido.">
+          <option value="">Clase: todas</option>
+          <option value="directo">Directo de obra</option>
+          <option value="indirecto">Indirecto de obra</option>
+          <option value="sin">Sin clasificar</option>
+        </select>
         <label id="ff-emp-cruzada-wrap" style="display:none;align-items:center;gap:5px;font-size:12px;color:var(--red);cursor:pointer;white-space:nowrap;" title="Facturas cuya EMPRESA no coincide con la empresa del proyecto (ej. Home Depot a Dehur en un proyecto de Dehur Territorial). No cuentan para el costo fiscal de ese proyecto. Corrige las mal capturadas con 🏢 Cambiar empresa.">
           <input type="checkbox" id="ff-emp-cruzada" onchange="renderFacturas()" style="cursor:pointer;"> ⚠ Empresa cruzada
         </label>
         <button id="fact-bulk-empresa" class="btn btn-ghost btn-sm req-admin" onclick="abrirEmpresaBulk()" style="display:none;color:var(--accent);border-color:var(--accent);font-size:11px;padding:3px 10px;margin-left:auto;">🏢 Cambiar empresa (0)</button>
         <button id="fact-bulk-reparto" class="btn btn-ghost btn-sm req-admin" onclick="abrirRepartoBulk()" style="display:none;color:var(--accent);border-color:var(--accent);font-size:11px;padding:3px 10px;">📊 Repartir (0)</button>
+        <button id="fact-bulk-clase" class="btn btn-ghost btn-sm req-admin" onclick="abrirClaseBulk()" style="display:none;color:var(--accent);border-color:var(--accent);font-size:11px;padding:3px 10px;">🏷 Clase de costo (0)</button>
       </div>
       <div id="fact-subtitulo" style="font-size:11px;color:var(--muted);margin-bottom:6px;"></div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th style="width:34px;text-align:center;"><input type="checkbox" id="fact-sel-all" class="req-admin" onclick="toggleFactSelAll(this.checked)" title="Seleccionar todas las visibles" style="cursor:pointer;"></th><th style="width:50px">ID</th><th>UUID · Núm.</th><th>Proveedor</th><th>Fecha</th><th>Vencimiento</th><th style="text-align:right">Total</th><th style="text-align:right">Pagado</th><th style="text-align:right">Saldo</th><th>Estatus</th><th>Estado SAT</th><th>Proyecto</th><th style="text-align:right">Acciones</th></tr></thead>
+          <thead><tr><th style="width:34px;text-align:center;"><input type="checkbox" id="fact-sel-all" class="req-admin" onclick="toggleFactSelAll(this.checked)" title="Seleccionar todas las visibles" style="cursor:pointer;"></th><th style="width:50px">ID</th><th>UUID · Núm.</th><th>Proveedor</th><th>Fecha</th><th>Vencimiento</th><th style="text-align:right">Total</th><th style="text-align:right">Pagado</th><th style="text-align:right">Saldo</th><th>Estatus</th><th>Estado SAT</th><th>Proyecto</th><th title="Clase de costo según contabilidad">Clase</th><th style="text-align:right">Acciones</th></tr></thead>
           <tbody id="tbody-fact"></tbody>
         </table>
       </div>
@@ -1272,6 +1280,30 @@
     <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px;">
       <button class="btn btn-ghost" onclick="cerrar('modal-empresa-bulk')">Cancelar</button>
       <button class="btn btn-primary" onclick="aplicarEmpresaBulk()">Aplicar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Clase de costo en bloque (solo admin) -->
+<div class="modal-overlay" id="modal-clase-bulk">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-header">
+      <div class="modal-title" id="cb-titulo">Clase de costo</div>
+      <button class="modal-close" onclick="cerrar('modal-clase-bulk')">✕</button>
+    </div>
+    <div class="form-grid">
+      <div class="field span2">
+        <label>Clase de costo <span style="color:var(--muted);font-weight:400;font-size:11px;">(como la separa contabilidad)</span></label>
+        <select id="cb-clase">
+          <option value="directo">Directo de obra</option>
+          <option value="indirecto">Indirecto de obra</option>
+          <option value="">— Sin clasificar (quitar la clase) —</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px;">
+      <button class="btn btn-ghost" onclick="cerrar('modal-clase-bulk')">Cancelar</button>
+      <button class="btn btn-primary" onclick="aplicarClaseBulk()">Aplicar</button>
     </div>
   </div>
 </div>
