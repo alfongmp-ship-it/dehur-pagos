@@ -1,10 +1,10 @@
 // Config de import Excel para Proveedores.
 
 import { state } from '../state.js';
-import { gsSaveProveedores } from '../services/google-sync.js';
+import { gsSaveProveedores, esPorFila, sbGuardarFila } from '../services/google-sync.js';
 import { createExcelImporter, parseImporte } from '../services/excel-import.js';
 
-const CATEGORIAS_VALIDAS = ['General', 'Nomina', 'Proveedor', 'Obra', 'Contratista', 'Acreedor', 'Socio'];
+const CATEGORIAS_VALIDAS = ['General', 'Nomina', 'Proveedor', 'Obra', 'Contratista', 'Acreedor', 'Socio', 'Gastos sin cuenta'];
 const BANCOS_COMUNES = ['BBVA', 'Santander', 'Banorte', 'Banamex', 'HSBC', 'Scotiabank', 'Inbursa'];
 
 const norm = s => String(s || '').trim().toLowerCase()
@@ -76,7 +76,9 @@ export const proveedoresImporter = createExcelImporter({
     const cuentaRaw = String(raw.cuenta || '').trim();
     const cuentaLimpia = cuentaRaw.replace(/\D/g, '');
     const clabe = String(raw.clabe || '').trim();
-    const categoria = String(raw.categoria || 'General').trim();
+    const catTxt = String(raw.categoria || 'General').trim();
+    // Sin importar mayúsculas/acentos: "gastos sin cuenta" → "Gastos sin cuenta".
+    const categoria = CATEGORIAS_VALIDAS.find(c => norm(c) === norm(catTxt)) || catTxt;
     const subcategoria = String(raw.subcategoria || '').trim();
     const proyectosRaw = String(raw.proyectos || '').trim();
     const proyectos = proyectosRaw ? proyectosRaw.split(/[|,;]/).map(s => s.trim()).filter(Boolean) : [];
@@ -86,11 +88,20 @@ export const proveedoresImporter = createExcelImporter({
     const bloqueada = bloqRaw === 'true' || bloqRaw === '1' || bloqRaw === 'si' || bloqRaw === 'sí';
 
     if (!nombre) return { omit: 'Nombre requerido' };
-    if (!cuentaLimpia) return { omit: 'Cuenta requerida' };
+    // Antes de que carguen los proveedores, los IDs nuevos podrían encimarse con reales.
+    if (!(state.cargado && state.cargado.proveedores === true)) return { omit: 'Los proveedores aún no cargan: recarga la página e intenta de nuevo' };
+    // El importador solo da de ALTA: un ID que ya existe pisaría a otro proveedor.
+    if (proveedorId && state.proveedores.some(p => String(p.id) === proveedorId)) return { omit: `El Proveedor ID ${proveedorId} ya existe (el importador solo da de alta proveedores nuevos)` };
+    // Sin cuenta NI CLABE = proveedor "sin cuenta bancaria" (gastos con comprobante:
+    // gasolina, tiendas, casetas…): se guarda igual que la casilla del formulario.
+    const sinCuenta = !cuentaLimpia && !clabe.replace(/\D/g, '');
+    if (!sinCuenta && !cuentaLimpia) return { omit: 'Cuenta requerida' };
 
-    if (!tipoCuenta) tipoCuenta = detectarTipoCuenta(cuentaLimpia);
+    if (sinCuenta) tipoCuenta = 'N/A';
+    else if (!tipoCuenta) tipoCuenta = detectarTipoCuenta(cuentaLimpia);
 
     const avisos = [];
+    if (sinCuenta) avisos.push('Sin cuenta bancaria');
     if (categoria && !CATEGORIAS_VALIDAS.includes(categoria)) {
       avisos.push(`Categoria "${categoria}" no esta en lista estandar`);
     }
@@ -103,7 +114,7 @@ export const proveedoresImporter = createExcelImporter({
       id: proveedorId ? parseInt(proveedorId, 10) : null,
       nombre,
       rfc,
-      banco,
+      banco: sinCuenta ? 'N/A' : banco,
       tipo_cuenta: tipoCuenta,
       cuenta: cuentaLimpia,
       clabe: clabe.replace(/\D/g, ''),
@@ -132,16 +143,20 @@ export const proveedoresImporter = createExcelImporter({
   },
 
   insertar: (registros) => {
+    // En modo 'fila' se sube SOLO cada proveedor nuevo (como el formulario), sin espejar
+    // la tabla completa (borrado + inserción masiva y tormenta de realtime).
+    const porFila = esPorFila('proveedores');
     registros.forEach(r => {
       if (!r.id) r.id = state.nextId++;
       else if (r.id >= state.nextId) state.nextId = r.id + 1;
       state.proveedores.push(r);
+      if (porFila) sbGuardarFila('proveedores', r);
     });
     const cnt = document.getElementById('cnt-prov');
     if (cnt) cnt.textContent = state.proveedores.length;
   },
 
-  save: async () => { await gsSaveProveedores(); },
+  save: async () => { await gsSaveProveedores({ porFila: esPorFila('proveedores') }); },
 
   postCommit: () => {
     if (window.renderProveedores) window.renderProveedores();

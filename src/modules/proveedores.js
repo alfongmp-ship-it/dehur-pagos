@@ -6,9 +6,36 @@ import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { gsSaveProveedores, esPorFila, sbGuardarFila } from '../services/google-sync.js';
 
+// Subcategorías por categoría: 'Proveedor' (especialidad de obra) y 'Gastos sin cuenta'
+// (comprobantes de gastos que no se pagan por transferencia: gasolina, tiendas, casetas…).
+const SUBCATS = {
+  'Proveedor': ['Estructura', 'Instalaciones', 'Acabados', 'Herrería', 'Impermeabilización', 'Electricidad', 'Plomería', 'Otros'],
+  'Gastos sin cuenta': ['Gasolina', 'Tiendas y súper', 'Papelería', 'Viajes y transporte', 'Gobierno y cuotas', 'Otros'],
+};
+
+// Un <select> que no trae la opción guardada la pierde al guardar (categorías viejas
+// como "Impuestos" o "Gastos fijos" quedaban en blanco): se agrega antes de asignarla.
+function _asegurarOpcion(sel, valor) {
+  if (!sel || !valor) return;
+  if ([...sel.options].some(o => o.value === valor)) return;
+  const o = document.createElement('option');
+  o.value = valor;
+  o.textContent = valor;
+  sel.appendChild(o);
+}
+
 export function toggleSubcat() {
   const cat = document.getElementById('p-cat').value;
-  document.getElementById('field-subcat').style.display = cat === 'Proveedor' ? '' : 'none';
+  const lista = SUBCATS[cat];
+  document.getElementById('field-subcat').style.display = lista ? '' : 'none';
+  const sel = document.getElementById('p-subcat');
+  if (!lista || !sel) return;
+  const actual = sel.value;
+  if (sel.dataset.cat !== cat) {
+    sel.innerHTML = '<option value="">—</option>' + lista.map(s => `<option>${escapeHtml(s)}</option>`).join('');
+    sel.dataset.cat = cat;
+  }
+  sel.value = lista.includes(actual) ? actual : '';
 }
 
 export function renderProveedores() {
@@ -21,6 +48,10 @@ export function renderProveedores() {
     return;
   }
 
+  // El filtro también ofrece las categorías que ya existen en el catálogo aunque no
+  // estén en la lista fija (p. ej. "Impuestos", "Gastos fijos").
+  const selF = document.getElementById('f-cat');
+  if (selF) new Set(state.proveedores.map(p => p.categoria).filter(Boolean)).forEach(c => _asegurarOpcion(selF, c));
   const q = document.getElementById('buscar-prov').value.toLowerCase();
   const ft = document.getElementById('f-tipo').value;
   const fc = document.getElementById('f-cat').value;
@@ -35,7 +66,7 @@ export function renderProveedores() {
     tb.innerHTML = `<tr><td colspan="9"><div class="empty-state" style="padding:30px;"><div style="font-size:28px;opacity:.4;margin-bottom:8px;">🔍</div><div>Sin resultados</div></div></td></tr>`;
     return;
   }
-  tb.innerHTML = fil.map(p => `<tr><td style="font-size:12px;color:var(--muted);text-align:center;">${p.id}</td><td><div class="name-cell">${escapeHtml(p.nombre)}</div>${p.rfc ? `<div class="name-sub">${escapeHtml(p.rfc)}</div>` : ''}</td><td>${tipoBadge(p.tipo_cuenta)}</td><td style="font-size:13px;">${escapeHtml(p.banco)}</td><td><span class="mono">${escapeHtml(p.clabe || p.cuenta)}</span></td><td>${catTag(p.categoria)}</td><td style="font-size:11px;color:var(--muted);">${p.categoria === 'Proveedor' && p.subcategoria ? escapeHtml(p.subcategoria) : '—'}</td><td>${p.proyectos.map(proyTag).join(' ')}</td><td><div style="display:flex;gap:6px;justify-content:flex-end;"><button class="btn btn-success btn-sm" onclick="abrirPagoRapido('prov',${p.id})">+ Pago</button><button class="btn btn-ghost btn-sm" onclick="editarProv(${p.id})">Editar</button></div></td></tr>`).join('');
+  tb.innerHTML = fil.map(p => `<tr><td style="font-size:12px;color:var(--muted);text-align:center;">${p.id}</td><td><div class="name-cell">${escapeHtml(p.nombre)}</div>${p.rfc ? `<div class="name-sub">${escapeHtml(p.rfc)}</div>` : ''}</td><td>${tipoBadge(p.tipo_cuenta)}</td><td style="font-size:13px;">${escapeHtml(p.banco)}</td><td><span class="mono">${escapeHtml(p.clabe || p.cuenta)}</span></td><td>${catTag(p.categoria)}</td><td style="font-size:11px;color:var(--muted);">${SUBCATS[p.categoria] && p.subcategoria ? escapeHtml(p.subcategoria) : '—'}</td><td>${p.proyectos.map(proyTag).join(' ')}</td><td><div style="display:flex;gap:6px;justify-content:flex-end;"><button class="btn btn-success btn-sm" onclick="abrirPagoRapido('prov',${p.id})">+ Pago</button><button class="btn btn-ghost btn-sm" onclick="editarProv(${p.id})">Editar</button></div></td></tr>`).join('');
   document.getElementById('st-total').textContent = state.proveedores.length;
   document.getElementById('st-clabe').textContent = state.proveedores.filter(p => p.tipo_cuenta === 'CLABE').length;
   document.getElementById('st-bbva').textContent = state.proveedores.filter(p => p.tipo_cuenta === 'Cuenta').length;
@@ -62,8 +93,12 @@ export function editarProv(id) {
   document.getElementById('p-cuenta').value = p.cuenta || '';
   document.getElementById('p-clabe').value = p.clabe || '';
   document.getElementById('p-banco').value = p.banco;
+  // Categoría / subcategoría que no estén en la lista: se agregan como opción para que
+  // guardar NO las borre.
+  _asegurarOpcion(document.getElementById('p-cat'), p.categoria);
   document.getElementById('p-cat').value = p.categoria;
   toggleSubcat();
+  if (SUBCATS[p.categoria]) _asegurarOpcion(document.getElementById('p-subcat'), p.subcategoria);
   document.getElementById('p-subcat').value = p.subcategoria || '';
   document.getElementById('p-activo').value = p.activo ? 'true' : 'false';
   const sinCuenta = !p.cuenta && !p.clabe;
@@ -134,9 +169,10 @@ export function guardarProveedor() {
     banco, tipo_cuenta: tipo, cuenta,
     clabe, num_cuenta: cuenta,
     categoria: document.getElementById('p-cat').value,
-    subcategoria: document.getElementById('p-cat').value === 'Proveedor' ? (document.getElementById('p-subcat').value || '') : '',
+    subcategoria: SUBCATS[document.getElementById('p-cat').value] ? (document.getElementById('p-subcat').value || '') : '',
     activo: document.getElementById('p-activo').value === 'true',
     bloqueada_para_pago: existing ? existing.bloqueada_para_pago || false : false,
+    aliases: existing ? (existing.aliases || []) : [],   // editar NO borra los alias (los usa el buscador)
     proyectos: projs
   };
   if (state.editProvId) {
