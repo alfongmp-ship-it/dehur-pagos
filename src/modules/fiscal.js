@@ -23,6 +23,7 @@ import { parseFechaHist } from './historial.js';
 import { estimados324 } from './rmf-324.js';
 import { montosFiscales, montoFiscalDe, baseFiscalFactura, retencionesFiscales, desgloseFactura } from '../services/base-fiscal.js';
 import { subPartidaObligatoria } from '../config/sub-partidas.js';
+import { claseDeFactura, CLASE_LABEL, claseListo } from './facturas-clase.js';
 
 let fisProyecto = '';           // proyecto activo de la página
 let fisTab = 'deducibilidad';   // pestaña activa
@@ -546,12 +547,12 @@ function _detalleFiscalCasas(proyecto) {
   const casas = new Map();
   const casa = uid => {
     let c = casas.get(uid);
-    if (!c) { c = { fac: 0, sc: 0, ret: 0, nFac: new Set(), nPag: new Set(), partidas: new Map() }; casas.set(uid, c); }
+    if (!c) { c = { fac: 0, sc: 0, ret: 0, dir: 0, ind: 0, sinCl: 0, nFac: new Set(), nPag: new Set(), partidas: new Map() }; casas.set(uid, c); }
     return c;
   };
   const grupo = (c, partida) => {
     let g = c.partidas.get(partida);
-    if (!g) { g = { fac: 0, sc: 0, subs: new Map() }; c.partidas.set(partida, g); }
+    if (!g) { g = { fac: 0, sc: 0, dir: 0, ind: 0, sinCl: 0, subs: new Map() }; c.partidas.set(partida, g); }
     return g;
   };
   // Sub-partida dentro de la partida: ahí viven las líneas; la partida suma sus subs.
@@ -576,6 +577,11 @@ function _detalleFiscalCasas(proyecto) {
       const sb = subDe(g, pNom, a.sub_partida_override);
       const monto = montoFiscalDe(mf, a);
       c.fac += monto; g.fac += monto; sb.fac += monto; c.ret += monto - montoNeto; c.nFac.add(String(a.factura_id));
+      // Clase de costo de contabilidad (Directo / Indirecto de obra). Solo etiqueta lo ya
+      // facturado: Directo + Indirecto + Sin clasificar = Facturado de la casa y la partida.
+      const cl = claseDeFactura(a.factura_id);
+      const kCl = cl && cl.clase === 'directo' ? 'dir' : cl && cl.clase === 'indirecto' ? 'ind' : 'sinCl';
+      c[kCl] += monto; g[kCl] += monto;
       const pagado = f.monto_total || 0;
       sb.lineas.push({
         tipo: 'Factura', doc: `Fac ${a.factura_id}${f.numero_factura ? ' · ' + f.numero_factura : ''}`,
@@ -583,7 +589,7 @@ function _detalleFiscalCasas(proyecto) {
         rfc: (prov && prov.rfc) || '', fechaIso: parseFechaHist(f.fecha_factura) || f.fecha_factura || '',
         totalDoc: baseFiscalFactura(f), totalPagado: pagado, retenciones: retencionesFiscales(f),
         pct: pagado ? montoNeto / pagado : 0, metodo: a.metodo || '', factor: a.factor || 0, monto,
-        sub: a.sub_partida_override || '', motivo: ''
+        sub: a.sub_partida_override || '', motivo: '', facturaId: String(a.factura_id), clase: cl ? cl.clase : ''
       });
       return;
     }
@@ -638,6 +644,7 @@ export function imprimirFichasFiscales(unidadId) {
   if (!lista.length) { notify('No hay casas para generar fichas', 'error'); return; }
   // La nota del estimado obedece a la casilla 'Estimado por asignar' (decisión del dueño).
   const est = fisEstimCasa ? _estimadoPorCasa(fisProyecto) : null;
+  const conClase = claseListo();   // línea Directo / Indirecto (sin SQL 47 no se muestra)
   const proy = (state.proyectos || []).find(p => p.nombre === fisProyecto) || {};
   const sello = _sello();
   const e = escapeHtml;
@@ -673,11 +680,12 @@ export function imprimirFichasFiscales(unidadId) {
         <tfoot><tr><td>TOTAL</td><td class="n">${fmt(c.fac)}</td><td class="n">${fmt(c.sc)}</td><td class="n">${fmt(conc)}</td></tr></tfoot>
       </table>
       <div class="total"><span>Costo fiscal conciliado</span><strong>${fmt(conc)}</strong></div>
+      ${conClase && c.fac > 0.005 ? `<div class="comp">De lo facturado, según la clase de costo de contabilidad: Directo de obra <b>${fmt(c.dir || 0)}</b> · Indirecto de obra <b>${fmt(c.ind || 0)}</b>${(c.sinCl || 0) > 0.005 ? ` · Sin clasificar <b>${fmt(c.sinCl)}</b>` : ''}.</div>` : ''}
       <div class="comp">Integrado por ${c.nFac.size} factura(s) y ${c.nPag.size} pago(s) sin CFDI aprobado(s) como deducibles.</div>
       ${c.ret > 0.005 ? `<div class="comp">Facturas a su subtotal + IVA, sin descontar retenciones de ISR/IVA (${fmt(c.ret)}).</div>` : ''}
       ${estU > 0 ? `<div class="nota"><strong>Pendiente por repartir (estimado, NO definitivo): ${fmt(estU)}</strong><br>
         Comprobantes del proyecto aún no asignados a unidades, simulados por % de indiviso. No forma parte del costo conciliado.</div>` : ''}
-      <div class="metodo">Método: los costos directos se asignan a la unidad que los generó; los costos comunes se reparten por
+      <div class="metodo">Método: los costos de una sola unidad se asignan a esa unidad; los costos comunes se reparten por
         porcentaje de indiviso entre las unidades en obra a la fecha de cada comprobante. Solo se incluyen facturas vigentes
         de la empresa del proyecto (pagadas o no), a su subtotal más IVA sin descontar retenciones, y pagos sin
         CFDI aprobados como deducibles. Detalle documento por documento
@@ -726,6 +734,65 @@ export function imprimirFichasFiscales(unidadId) {
   setTimeout(() => { try { w.print(); } catch (_) { /* el usuario puede imprimir a mano */ } }, 400);
 }
 
+// Hojas de clase de costo del anexo: lo FACTURADO de cada casa partido por la clase de
+// contabilidad (Facturas → 🏷 Clase de costo). Solo lectura, mismos montos fiscales del
+// detalle: Directo + Indirecto + Sin clasificar = Facturado. Los pagos sin CFDI no tienen clase.
+function _hojasDirectoIndirecto(unidades, casas, sello) {
+  const aoa = [
+    [`Directo vs Indirecto de obra — ${fisProyecto}`],
+    [`Corte: ${sello.txt} · Clase de costo según contabilidad (Facturas → 🏷 Clase de costo). Montos fiscales (subtotal + IVA) ya repartidos a cada casa: Directo + Indirecto + Sin clasificar = Facturado. Los pagos sin CFDI no tienen clase.`],
+    [],
+    ['Casa', '% Indiviso', 'Directo de obra', 'Indirecto de obra', 'Facturado sin clasificar', 'Facturado', 'Sin CFDI aprobado', 'Conciliado'],
+  ];
+  const t = { dir: 0, ind: 0, sinCl: 0, fac: 0, sc: 0 };
+  const porPartida = new Map();
+  const sinClase = new Map();      // factura → { monto en casas, una línea de muestra }
+  unidades.forEach(u => {
+    const c = casas.get(String(u.unidad_id)) || { fac: 0, sc: 0, dir: 0, ind: 0, sinCl: 0, partidas: new Map() };
+    aoa.push([u.nombre, (u.indiviso_pct || 0) / 100, c.dir || 0, c.ind || 0, c.sinCl || 0, c.fac, c.sc, c.fac + c.sc]);
+    ['dir', 'ind', 'sinCl', 'fac', 'sc'].forEach(k => { t[k] += c[k] || 0; });
+    if (Math.abs((c.dir || 0) + (c.ind || 0) + (c.sinCl || 0) - c.fac) > 0.01) console.warn(`[anexo clase] ${u.nombre}: directo + indirecto + sin clasificar ≠ facturado`);
+    c.partidas.forEach((g, p) => {
+      const x = porPartida.get(p) || { dir: 0, ind: 0, sinCl: 0, fac: 0 };
+      x.dir += g.dir || 0; x.ind += g.ind || 0; x.sinCl += g.sinCl || 0; x.fac += g.fac;
+      porPartida.set(p, x);
+      g.subs.forEach(s => s.lineas.forEach(l => {
+        if (l.tipo !== 'Factura' || l.clase) return;
+        const y = sinClase.get(l.facturaId) || { monto: 0, l };
+        y.monto += l.monto;
+        sinClase.set(l.facturaId, y);
+      }));
+    });
+  });
+  const finCasas = aoa.length;
+  aoa.push(['TOTAL', '', t.dir, t.ind, t.sinCl, t.fac, t.sc, t.fac + t.sc]);
+  const clasesDe = x => {
+    const d = x.dir > 0.005, i = x.ind > 0.005;
+    return d && i ? 'Directo e Indirecto' : d ? 'Solo Directo' : i ? 'Solo Indirecto' : 'Sin clasificar';
+  };
+  aoa.push([], ['POR PARTIDA — todo el proyecto, solo lo facturado'],
+    ['Partida', 'Directo de obra', 'Indirecto de obra', 'Facturado sin clasificar', 'Facturado', 'Clases en la partida']);
+  [...porPartida].filter(([, x]) => x.fac > 0.005).sort((a, z) => z[1].fac - a[1].fac)
+    .forEach(([p, x]) => aoa.push([p, x.dir, x.ind, x.sinCl, x.fac, clasesDe(x)]));
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{ wch: 34 }, { wch: 16 }, { wch: 17 }, { wch: 17 }, { wch: 22 }, { wch: 18 }, { wch: 17 }, { wch: 16 }];
+  for (let r = 4; r < aoa.length; r++) {
+    (aoa[r] || []).forEach((v, c) => {
+      if (typeof v !== 'number') return;
+      const ref = XLSX.utils.encode_cell({ r, c });
+      if (ws[ref]) ws[ref].z = (r < finCasas && c === 1) ? '0.0000%' : '"$"#,##0.00';
+    });
+  }
+  // Lista aparte (filtrable) de las facturas SIN clase que sí cuentan en este anexo.
+  const lista = [...sinClase.entries()].sort((a, z) => z[1].monto - a[1].monto);
+  const aoaS = [['Factura (ID)', 'Folio', 'Proveedor', 'Fecha', 'Monto fiscal en casas', 'UUID'],
+    ...lista.map(([fid, y]) => [fid, (facturaById(fid) || {}).numero_factura || '', y.l.quien, y.l.fechaIso ? fmtFecha(y.l.fechaIso) : '', y.monto, y.l.uuid])];
+  const wsS = XLSX.utils.aoa_to_sheet(aoaS);
+  wsS['!cols'] = [{ wch: 12 }, { wch: 14 }, { wch: 34 }, { wch: 11 }, { wch: 20 }, { wch: 38 }];
+  for (let r = 1; r < aoaS.length; r++) { const ref = XLSX.utils.encode_cell({ r, c: 4 }); if (wsS[ref]) wsS[ref].z = '"$"#,##0.00'; }
+  return { ws, wsS };
+}
+
 // Anexo auditable: Excel con renglones agrupados (+/−). Nivel 0 = casa (visible),
 // nivel 1 = partida, nivel 2 = cada documento. Total ARRIBA de cada grupo.
 export function exportarAnexoFiscalExcel() {
@@ -735,6 +802,7 @@ export function exportarAnexoFiscalExcel() {
   // El estimado obedece a la casilla 'Estimado por asignar': prendida → cada casa
   // trae su renglón simulado con el detalle por documento y la columna Proyectado.
   const est = fisEstimCasa ? _estimadoPorCasa(fisProyecto, true) : null;
+  const clOn = claseListo();   // columna y hojas de clase de costo (sin SQL 47 no salen)
   const sello = _sello();
   // Columnas: 0 Casa · 1 Partida · 2 Sub-partida · 3 Tipo · 4 Documento · 5 UUID ·
   // 6 Proveedor · 7 RFC · 8 Fecha · 9 Total neto al proveedor · 10 Retenciones · 11 Base fiscal ·
@@ -745,7 +813,17 @@ export function exportarAnexoFiscalExcel() {
   const enc = ['Casa', 'Partida', 'Sub-partida', 'Tipo', 'Documento', 'UUID', 'Proveedor / Beneficiario', 'RFC', 'Fecha',
     'Total neto al proveedor', 'Retenciones (no se descuentan)', 'Base fiscal (subtotal + IVA)', 'Método', '% de la factura a la casa', 'Monto fiscal a la casa',
     'Facturado', 'Sin CFDI aprobado', 'Conciliado', 'Motivo aprobación',
-    ...(est ? ['Estimado (simulado)', 'Proyectado'] : [])];
+    ...(est ? ['Estimado (simulado)', 'Proyectado'] : []),
+    ...(clOn ? ['Clase de costo (contabilidad)'] : [])];
+  // La clase va al FINAL (después de Estimado/Proyectado): no mueve ninguna columna existente.
+  const iClase = enc.length - 1;
+  const conClase = (fila, clase) => {
+    if (!clOn) return fila;
+    const f = fila.slice();
+    while (f.length < iClase) f.push('');
+    f[iClase] = clase;
+    return f;
+  };
   const aoa = [
     [`ANEXO — Detalle del costo fiscal por unidad — ${fisProyecto}`],
     [`Corte: ${sello.txt} · Da clic en + (margen izquierdo) para abrir cada casa, partida y sub-partida. Facturas vigentes de la empresa del proyecto (pagadas o no) a su subtotal + IVA, sin descontar retenciones, + pagos sin CFDI aprobados como deducibles.${est ? ' INCLUYE ESTIMADO: lo pendiente por repartir simulado por indiviso (NO definitivo) en un renglón aparte por casa.' : ''}`],
@@ -775,8 +853,9 @@ export function exportarAnexoFiscalExcel() {
         }
         porSub.push([u.nombre, p, conSub ? s : '', x.fac, x.sc, x.fac + x.sc, x.lineas.length]);
         x.lineas.slice().sort((a, z) => z.monto - a.monto).forEach(l => {
-          aoa.push(['', '', '', l.tipo, l.doc, l.uuid, l.quien, l.rfc, l.fechaIso ? fmtFecha(l.fechaIso) : '', l.totalPagado,
-            l.retenciones, l.totalDoc, l.metodo, l.pct, l.monto, '', '', '', l.motivo]);
+          aoa.push(conClase(['', '', '', l.tipo, l.doc, l.uuid, l.quien, l.rfc, l.fechaIso ? fmtFecha(l.fechaIso) : '', l.totalPagado,
+            l.retenciones, l.totalDoc, l.metodo, l.pct, l.monto, '', '', '', l.motivo],
+          l.tipo === 'Factura' ? (CLASE_LABEL[l.clase] || 'Sin clasificar') : ''));
           niveles.push(docNivel);
         });
       });
@@ -804,7 +883,7 @@ export function exportarAnexoFiscalExcel() {
             h.fecha ? fmtFecha(parseFechaHist(h.fecha) || h.fecha) : '', h.importe || 0,
             0, h.importe || 0, 'indiviso (simulado)', h.importe ? d.monto / h.importe : d.factor, d.monto, '', '', '', 'Pago aprobado sin repartir'];
         }
-        aoa.push(fila);   // el detalle va en 'Monto a la casa'; el total del estimado, en su renglón
+        aoa.push(conClase(fila, r.tipo === 'factura' ? (CLASE_LABEL[(claseDeFactura(r.id) || {}).clase] || 'Sin clasificar') : ''));   // el detalle va en 'Monto a la casa'; el total del estimado, en su renglón
         niveles.push(2);
       });
     }
@@ -874,7 +953,7 @@ export function exportarAnexoFiscalExcel() {
   ws['!rows'] = niveles.map(lv => (lv ? { level: lv, hidden: true } : {}));
   ws['!cols'] = [{ wch: 12 }, { wch: 24 }, { wch: 22 }, { wch: 13 }, { wch: 20 }, { wch: 38 }, { wch: 30 }, { wch: 15 }, { wch: 11 },
     { wch: 14 }, { wch: 13 }, { wch: 18 }, { wch: 11 }, { wch: 12 }, { wch: 16 }, { wch: 15 }, { wch: 16 }, { wch: 15 }, { wch: 26 },
-    ...(est ? [{ wch: 18 }, { wch: 16 }] : [])];
+    ...(est ? [{ wch: 18 }, { wch: 16 }] : []), ...(clOn ? [{ wch: 24 }] : [])];
   for (let r = 4; r < aoa.length; r++) {
     [9, 10, 11, 14, 15, 16, 17, ...(est ? [19, 20] : [])].forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (ws[ref] && typeof ws[ref].v === 'number') ws[ref].z = '"$"#,##0.00'; });
     const rf = XLSX.utils.encode_cell({ r, c: 13 });
@@ -894,6 +973,11 @@ export function exportarAnexoFiscalExcel() {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Anexo');
   XLSX.utils.book_append_sheet(wb, wsR, 'Resumen');
+  if (clOn) {
+    const di = _hojasDirectoIndirecto(unidades, casas, sello);
+    XLSX.utils.book_append_sheet(wb, di.ws, 'Directo vs Indirecto');
+    XLSX.utils.book_append_sheet(wb, di.wsS, 'Facturas sin clase');
+  }
   XLSX.utils.book_append_sheet(wb, wsS, 'Por sub-partida');
   XLSX.utils.book_append_sheet(wb, wsP, 'Pendiente por repartir');
   XLSX.writeFile(wb, `Anexo_fiscal_${String(fisProyecto).replace(/[\\/:*?"<>|\s]+/g, '_')}_${sello.archivo}.xlsx`);
