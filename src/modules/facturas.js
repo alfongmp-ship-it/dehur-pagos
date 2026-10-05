@@ -11,7 +11,7 @@ import { claseCelda, claseDeFactura, CLASE_LABEL, guardarClases, quitarClases, c
 
 // Empresas propias a las que se factura (receptor del CFDI). Lista corta editable:
 // agrega aquí si en el futuro facturan a otra razón social.
-const EMPRESAS_FACTURA = ['Dehur', 'Dehur Territorial'];
+export const EMPRESAS_FACTURA = ['Dehur', 'Dehur Territorial'];
 
 function diasAlVencimiento(fechaVenc) {
   if (!fechaVenc) return null;

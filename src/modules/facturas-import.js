@@ -15,6 +15,7 @@ import { createExcelImporter, normalizarFechaISO, normalizarFechaDDMMYYYY, parse
 import { gsSaveFacturas, esPorFila, sbGuardarFila, gsSaveCostoAsignaciones } from '../services/google-sync.js';
 import { parseReparto } from './solicitudes.js';
 import { maxIdConClase } from './facturas-clase.js';
+import { EMPRESAS_FACTURA } from './facturas.js';
 
 const norm = s => String(s || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 const r2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -55,7 +56,9 @@ export const facturasImporter = createExcelImporter({
     { key: 'unidades', label: 'Unidades (códigos, ver Referencia)', width: 28 },
     { key: 'partida', label: 'Partida (si hay reparto)', width: 20 },
     { key: 'sub_partida', label: 'Sub-partida (si la partida la pide)', width: 26 },
-    { key: 'observaciones', label: 'Observaciones', width: 28 }
+    { key: 'observaciones', label: 'Observaciones', width: 28 },
+    // AL FINAL a propósito: el lector va por posición, así las plantillas viejas siguen igual.
+    { key: 'empresa', label: 'Empresa facturada (opcional)', width: 22 }
   ],
 
   previewColumns: [
@@ -71,6 +74,7 @@ export const facturasImporter = createExcelImporter({
     { header: 'Proveedores (ID - Nombre)', valores: state.proveedores.filter(p => p.activo !== false).map(p => `${p.id} - ${p.nombre}`) },
     { header: 'Proyectos', valores: state.proyectos.filter(p => p.activo !== false).map(p => p.nombre) },
     { header: 'Estado SAT', valores: ['Vigente', 'Cancelada'] },
+    { header: 'Empresa facturada', valores: EMPRESAS_FACTURA },
     { header: 'Tipo comprobante', valores: ['Factura', 'Nota de crédito', 'Complemento de pago', 'Otro'] },
     { header: 'Partidas', valores: (state.partidasCatalogo || []).filter(p => p.activa !== false).map(p => p.partida) },
     { header: 'Reparto: cómo llenar', valores: [
@@ -107,7 +111,8 @@ export const facturasImporter = createExcelImporter({
       unidades: '',
       partida: (state.partidasCatalogo || []).find(p => p.activa !== false)?.partida || '',
       sub_partida: '',
-      observaciones: ''
+      observaciones: '',
+      empresa: EMPRESAS_FACTURA[EMPRESAS_FACTURA.length - 1]
     }];
   },
 
@@ -183,6 +188,11 @@ export const facturasImporter = createExcelImporter({
     const estadoSat = String(raw.estado_sat ?? '').trim() === 'Cancelada' ? 'Cancelada' : 'Vigente';
     if (estadoSat === 'Cancelada') avisos.push('Estado SAT: Cancelada');
     const tipoComp = String(raw.tipo_comprobante ?? '').trim() || 'Factura';
+    // Empresa facturada (opcional): sin importar mayúsculas/acentos; una que no existe
+    // no se guarda (aviso) para no inventar empresas.
+    const empTxt = String(raw.empresa ?? '').trim();
+    const empresa = empTxt ? (EMPRESAS_FACTURA.find(e => norm(e) === norm(empTxt)) || '') : '';
+    if (empTxt && !empresa) avisos.push(`Empresa "${empTxt}" no reconocida: se deja sin empresa`);
 
     // ===== Reparto OPCIONAL (devengado) =====
     // Si la fila trae reparto y está MAL, se BLOQUEA toda la carga (se acumula en
@@ -250,6 +260,7 @@ export const facturasImporter = createExcelImporter({
       rfc_emisor: (rfcExcel || prov.rfc || '').toUpperCase(),
       estado_sat: estadoSat,
       tipo_comprobante: tipoComp,
+      empresa,
       _reparto: repartoPlan            // transitorio: se consume en insertar()
     };
     const preview = {
