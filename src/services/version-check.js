@@ -15,7 +15,7 @@
 // (try/catch) y todo sigue igual. Totalmente reversible (quitar import + llamada).
 // ============================================================================
 
-export const APP_VERSION = '2026.10.05-163258';
+export const APP_VERSION = '2026.10.05-165212';
 
 let _avisado = false;
 

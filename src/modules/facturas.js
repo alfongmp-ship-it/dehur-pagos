@@ -1312,9 +1312,12 @@ export function filtrarPagosParaFactura() {
   const tol = Math.max(1, (f.monto_total || 0) * 0.01);
   const targets = [f.monto_total || 0];
   if ((f.saldo_pendiente || 0) > 0.01) targets.push(f.saldo_pendiente);
+  // El monto se busca también con comas o $: "44,642" o "$44,642.06" encuentran 44642.06.
+  const qNum = q.replace(/[$,\s]/g, '');
   const matchQ = h => !q ||
     (h.concepto || '').toLowerCase().includes(q) || (h.nombre || '').toLowerCase().includes(q) ||
-    String(h.importe).includes(q) || (h.fecha || '').includes(q);
+    String(h.importe).includes(q) || (/^[\d.]+$/.test(qNum) && String(h.importe).includes(qNum)) ||
+    (h.fecha || '').includes(q);
 
   // Candidatos: pagos con RESTANTE por aplicar (importe − lo ya aplicado a facturas) y que NO
   // estén ya aplicados a ESTA factura. Así un pago se reparte por partes entre varias facturas.
@@ -1336,11 +1339,13 @@ export function filtrarPagosParaFactura() {
   const mismoProvTodos = ordenar(base.filter(x => x.mismoProy && x.mismoProv));
   const mismoProv = _fpVerTodosProv ? mismoProvTodos : mismoProvTodos.slice(0, 25);
   const provOcultos = mismoProvTodos.length - mismoProv.length;
-  const otros = ordenar(base.filter(x => x.mismoProy && !x.mismoProv && x.cercano)).slice(0, 10);
+  // Con texto en el buscador, también los de OTRO proveedor que coincidan aunque el monto no se
+  // parezca (p. ej. un pago parcial registrado a otro proveedor con el mismo nombre).
+  const otros = ordenar(base.filter(x => x.mismoProy && !x.mismoProv && (x.cercano || q))).slice(0, q ? 25 : 10);
   // De OTRO proyecto: NO se esconden — van hasta ABAJO con aviso (para no errar al vincular y
   // para cachar pagos mal clasificados a otro proyecto). Prioriza los del mismo proveedor (señal
   // más fuerte de que ese pago debería ser de la factura pero quedó con el proyecto mal puesto).
-  const otroProy = base.filter(x => !x.mismoProy && (x.mismoProv || x.cercano))
+  const otroProy = base.filter(x => !x.mismoProy && (x.mismoProv || x.cercano || q))
     .sort((a, b) => (b.mismoProv - a.mismoProv) || (a.montoDiff - b.montoDiff) || (a.fechaDiff - b.fechaDiff))
     .slice(0, 12);
 
@@ -1380,7 +1385,7 @@ export function filtrarPagosParaFactura() {
       <button class="btn btn-ghost" style="width:100%;padding:6px;font-size:11px;color:var(--muted);" onclick="fpMostrarTodosProv()">▾ Mostrar los ${provOcultos} pagos restantes de este proveedor</button>
     </div>`;
   }
-  if (otros.length) html += header('Otros con el mismo monto (otro proveedor)') + otros.map(fila).join('');
+  if (otros.length) html += header(q ? 'Otros proveedores que coinciden con tu búsqueda' : 'Otros con el mismo monto (otro proveedor)') + otros.map(fila).join('');
   if (otroProy.length) html += headerWarn('⚠ De OTRO proyecto — revisa si algún pago quedó mal clasificado') + otroProy.map(fila).join('');
   cont.innerHTML = html;
 }
