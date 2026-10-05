@@ -14,7 +14,7 @@ export function catTag(c) {
     'Acreedor': 'tag-fijo',
     'Socio': 'tag-prestamo',
     'Contratista': 'tag-obra',
-    'Gastos sin cuenta': 'tag-prestamo'
+    'Gastos de operación': 'tag-prestamo'
   };
   return `<span class="tag ${m[c] || 'tag-general'}">${escapeHtml(c)}</span>`;
 }

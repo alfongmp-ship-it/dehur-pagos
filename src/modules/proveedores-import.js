@@ -4,7 +4,7 @@ import { state } from '../state.js';
 import { gsSaveProveedores, esPorFila, sbGuardarFila } from '../services/google-sync.js';
 import { createExcelImporter, parseImporte } from '../services/excel-import.js';
 
-const CATEGORIAS_VALIDAS = ['General', 'Nomina', 'Proveedor', 'Obra', 'Contratista', 'Acreedor', 'Socio', 'Gastos sin cuenta'];
+const CATEGORIAS_VALIDAS = ['General', 'Nomina', 'Proveedor', 'Obra', 'Contratista', 'Acreedor', 'Socio', 'Gastos de operación'];
 const BANCOS_COMUNES = ['BBVA', 'Santander', 'Banorte', 'Banamex', 'HSBC', 'Scotiabank', 'Inbursa'];
 
 const norm = s => String(s || '').trim().toLowerCase()
@@ -77,7 +77,7 @@ export const proveedoresImporter = createExcelImporter({
     const cuentaLimpia = cuentaRaw.replace(/\D/g, '');
     const clabe = String(raw.clabe || '').trim();
     const catTxt = String(raw.categoria || 'General').trim();
-    // Sin importar mayúsculas/acentos: "gastos sin cuenta" → "Gastos sin cuenta".
+    // Sin importar mayúsculas/acentos: "gastos de operacion" → "Gastos de operación".
     const categoria = CATEGORIAS_VALIDAS.find(c => norm(c) === norm(catTxt)) || catTxt;
     const subcategoria = String(raw.subcategoria || '').trim();
     const proyectosRaw = String(raw.proyectos || '').trim();

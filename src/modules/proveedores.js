@@ -6,11 +6,13 @@ import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { gsSaveProveedores, esPorFila, sbGuardarFila } from '../services/google-sync.js';
 
-// Subcategorías por categoría: 'Proveedor' (especialidad de obra) y 'Gastos sin cuenta'
-// (comprobantes de gastos que no se pagan por transferencia: gasolina, tiendas, casetas…).
+// Subcategorías por categoría: 'Proveedor' (especialidad de obra) y 'Gastos de operación'
+// (compras que no se pagan por transferencia: gasolina, tiendas, viajes, materiales de
+// mostrador…). "Gastos de operación" NO se ofrece al crear un proveedor a mano: solo
+// entra por la carga de Excel (controlada), para que la distinción quede limpia.
 const SUBCATS = {
   'Proveedor': ['Estructura', 'Instalaciones', 'Acabados', 'Herrería', 'Impermeabilización', 'Electricidad', 'Plomería', 'Otros'],
-  'Gastos sin cuenta': ['Gasolina', 'Tiendas y súper', 'Papelería', 'Viajes y transporte', 'Gobierno y cuotas', 'Otros'],
+  'Gastos de operación': ['Gasolina', 'Tiendas y súper', 'Papelería', 'Viajes y transporte', 'Gobierno y cuotas', 'Materiales de obra', 'Otros'],
 };
 
 // Un <select> que no trae la opción guardada la pierde al guardar (categorías viejas
@@ -22,6 +24,17 @@ function _asegurarOpcion(sel, valor) {
   o.value = valor;
   o.textContent = valor;
   sel.appendChild(o);
+}
+
+// Regresa el menú a su lista base (la del HTML): quita lo agregado al editar otro
+// proveedor (p. ej. "Gastos de operación" o "Impuestos"), así no queda ofrecido para
+// proveedores nuevos ni para cambiar a otro.
+function _opcionesBase(sel) {
+  if (!sel) return;
+  if (!sel._base) sel._base = new Set([...sel.options].map(o => o.value));
+  for (let i = sel.options.length - 1; i >= 0; i--) {
+    if (!sel._base.has(sel.options[i].value)) sel.remove(i);
+  }
 }
 
 export function toggleSubcat() {
@@ -95,6 +108,7 @@ export function editarProv(id) {
   document.getElementById('p-banco').value = p.banco;
   // Categoría / subcategoría que no estén en la lista: se agregan como opción para que
   // guardar NO las borre.
+  _opcionesBase(document.getElementById('p-cat'));
   _asegurarOpcion(document.getElementById('p-cat'), p.categoria);
   document.getElementById('p-cat').value = p.categoria;
   toggleSubcat();
@@ -117,6 +131,7 @@ function limpiarFormProv() {
   document.getElementById('p-cuenta').value = '';
   document.getElementById('p-clabe').value = '';
   document.getElementById('p-banco').value = '';
+  _opcionesBase(document.getElementById('p-cat'));
   document.getElementById('p-cat').value = 'General';
   document.getElementById('p-subcat').value = '';
   document.getElementById('field-subcat').style.display = 'none';

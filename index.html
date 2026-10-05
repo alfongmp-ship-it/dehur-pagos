@@ -336,7 +336,7 @@
         </select>
         <select class="filter-select" id="f-cat" onchange="renderProveedores()">
           <option value="">Todas las categorías</option>
-          <option>General</option><option>Nomina</option><option>Proveedor</option><option>Obra</option><option>Contratista</option><option>Acreedor</option><option>Socio</option><option>Gastos sin cuenta</option>
+          <option>General</option><option>Nomina</option><option>Proveedor</option><option>Obra</option><option>Contratista</option><option>Acreedor</option><option>Socio</option>
         </select>
         <select class="filter-select" id="f-proy" onchange="renderProveedores()">
           <option value="">Todos los proyectos</option>
@@ -509,6 +509,9 @@
           <option value="directo">Directo de obra</option>
           <option value="indirecto">Indirecto de obra</option>
           <option value="sin">Sin clasificar</option>
+        </select>
+        <select class="filter-select" id="ff-catprov" onchange="renderFacturas()" title="Categoría del proveedor. Ej.: 'Gastos de operación' = compras sin transferencia (gasolina, tiendas, viajes, materiales de mostrador); se puede afinar por subcategoría.">
+          <option value="">Proveedor: todas las categorías</option>
         </select>
         <label id="ff-emp-cruzada-wrap" style="display:none;align-items:center;gap:5px;font-size:12px;color:var(--red);cursor:pointer;white-space:nowrap;" title="Facturas cuya EMPRESA no coincide con la empresa del proyecto (ej. Home Depot a Dehur en un proyecto de Dehur Territorial). No cuentan para el costo fiscal de ese proyecto. Corrige las mal capturadas con 🏢 Cambiar empresa.">
           <input type="checkbox" id="ff-emp-cruzada" onchange="renderFacturas()" style="cursor:pointer;"> ⚠ Empresa cruzada
@@ -1619,7 +1622,7 @@
     <div class="form-grid">
       <div class="field span2"><label>Nombre / Razón Social *</label><input id="p-nombre" placeholder="NOMBRE EN MAYÚSCULAS"></div>
       <div class="field"><label>RFC</label><input id="p-rfc" placeholder="Opcional"></div>
-      <div class="field"><label>Categoría</label><select id="p-cat" onchange="toggleSubcat()"><option>General</option><option>Nomina</option><option>Proveedor</option><option>Obra</option><option>Contratista</option><option>Acreedor</option><option>Socio</option><option>Gastos sin cuenta</option></select></div>
+      <div class="field"><label>Categoría</label><select id="p-cat" onchange="toggleSubcat()"><option>General</option><option>Nomina</option><option>Proveedor</option><option>Obra</option><option>Contratista</option><option>Acreedor</option><option>Socio</option></select></div>
       <div class="field" id="field-subcat" style="display:none;"><label>Subcategoría</label><select id="p-subcat"><option value="">—</option><option>Estructura</option><option>Instalaciones</option><option>Acabados</option><option>Herrería</option><option>Impermeabilización</option><option>Electricidad</option><option>Plomería</option><option>Otros</option></select></div>
       <div class="field span2"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="p-sin-cuenta" onchange="toggleSinCuenta()" style="width:auto;margin:0;"> Sin cuenta bancaria (ej. comisiones, cargos automáticos)</label></div>
       <div class="field" id="field-cuenta"><label>Número de cuenta</label><input id="p-cuenta" placeholder="Opcional" style="font-family:'DM Mono',monospace;"></div>

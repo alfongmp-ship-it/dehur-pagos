@@ -88,6 +88,7 @@ export function renderFacturas() {
 
   refreshFactProyectos();
   _refreshLotesFactura();
+  _refreshCatProvFactura();
   renderFactStats();
 
   if (!state.facturas.length) {
@@ -290,6 +291,31 @@ function _refreshLotesFactura() {
   if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
 }
 
+// Filtro "Categoría del proveedor": opciones a partir de los proveedores que SÍ tienen
+// facturas — la categoría y, si la trae, "categoría · subcategoría" (valor "cat||sub").
+// Sirve para ver juntas, p. ej., todas las facturas de "Gastos de operación".
+function _refreshCatProvFactura() {
+  const sel = document.getElementById('ff-catprov');
+  if (!sel) return;
+  const provPorId = new Map((state.proveedores || []).map(p => [String(p.id), p]));
+  const cuenta = new Map();
+  const suma = k => cuenta.set(k, (cuenta.get(k) || 0) + 1);
+  state.facturas.forEach(f => {
+    const p = provPorId.get(String(f.proveedor_id));
+    if (!p || !p.categoria) return;
+    suma(p.categoria + '||');
+    if (p.subcategoria) suma(p.categoria + '||' + p.subcategoria);
+  });
+  const prev = sel.value;
+  const ops = [...cuenta.entries()].sort((a, b) => a[0].localeCompare(b[0], 'es'));
+  sel.innerHTML = '<option value="">Proveedor: todas las categorías</option>'
+    + ops.map(([k, n]) => {
+      const [c, s] = k.split('||');
+      return `<option value="${escapeHtml(k)}">${escapeHtml(s ? `${c} · ${s}` : c)} (${n})</option>`;
+    }).join('');
+  if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
+}
+
 // ===== EMPRESA CRUZADA =====
 // Factura cuya empresa NO coincide con la empresa del proyecto (ej. Home Depot
 // facturada a "Dehur" en un proyecto de "Dehur Territorial"). El SAT no la
@@ -324,12 +350,19 @@ function getFilteredFacturas() {
   const fl = document.getElementById('ff-lote')?.value || '';
   const fx = document.getElementById('ff-emp-cruzada')?.checked || false;
   const fc = document.getElementById('ff-clase')?.value || '';
+  const fcp = document.getElementById('ff-catprov')?.value || '';
+  const provPorIdF = fcp ? new Map((state.proveedores || []).map(p => [String(p.id), p])) : null;
   const empresaDeProyecto = _empresasProyectosMap();
   const fil = state.facturas.filter(f => {
     if (fx && !_esEmpresaCruzada(f, empresaDeProyecto)) return false;
     if (fc) {
       const c = claseDeFactura(f.factura_id);
       if (fc === 'sin' ? !!c : !c || c.clase !== fc) return false;
+    }
+    if (fcp) {
+      const [cat, sub] = fcp.split('||');
+      const pv = provPorIdF.get(String(f.proveedor_id));
+      if (!pv || pv.categoria !== cat || (sub && pv.subcategoria !== sub)) return false;
     }
     if (q) {
       // Búsqueda por CAMPO elegido → así un número no se confunde entre ID, N° de
@@ -387,7 +420,8 @@ export function exportarFacturasExcel() {
   const headers = ['ID', 'Folio', 'UUID', 'Proveedor', 'Razón social', 'RFC emisor',
     'Fecha factura', 'Vencimiento', 'Subtotal', 'Descuento', 'IVA', 'Ret. IVA', 'Ret. ISR',
     'NC monto', 'NC IVA', 'Total neto', 'Pagado', 'Saldo', 'Estatus pago', 'Estado SAT',
-    'Tipo comprobante', 'Proyecto', 'Empresa facturada', 'Observaciones', 'Clase de costo', 'Cuenta contable', 'Origen de la clase'];
+    'Tipo comprobante', 'Proyecto', 'Empresa facturada', 'Observaciones', 'Clase de costo', 'Cuenta contable', 'Origen de la clase',
+    'Categoría del proveedor', 'Subcategoría del proveedor'];
   const rows = fil.map(f => {
     const prov = state.proveedores.find(p => p.id === f.proveedor_id);
     const provNombre = f.nombre_proveedor || (prov ? prov.nombre : '') || f.razon_social || `ID ${f.proveedor_id}`;
@@ -398,7 +432,8 @@ export function exportarFacturasExcel() {
       f.nc_subtotal || 0, f.nc_iva || 0, f.monto_total || 0, f.monto_pagado || 0, f.saldo_pendiente || 0,
       f.estatus_factura || '', f.estado_sat || 'Vigente', f.tipo_comprobante || 'Factura',
       f.proyecto || '', f.empresa || '', f.observaciones || '',
-      ...(c => [c ? (CLASE_LABEL[c.clase] || c.clase) : 'Sin clasificar', c ? c.cuenta_contable || '' : '', c ? (c.fuente === 'manual' ? 'Manual' : c.lote || '') : ''])(claseDeFactura(f.factura_id))
+      ...(c => [c ? (CLASE_LABEL[c.clase] || c.clase) : 'Sin clasificar', c ? c.cuenta_contable || '' : '', c ? (c.fuente === 'manual' ? 'Manual' : c.lote || '') : ''])(claseDeFactura(f.factura_id)),
+      prov ? prov.categoria || '' : '', prov ? prov.subcategoria || '' : ''
     ];
   });
   const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
