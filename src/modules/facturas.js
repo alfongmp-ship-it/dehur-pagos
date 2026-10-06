@@ -1031,10 +1031,25 @@ export function pagosLigadosDeFactura(facturaId) {
     const ov = asigs.find(a => a.partida_override);
     const otraPartida = ov && (String(ov.partida_override) !== partida || String(ov.sub_partida_override || '') !== sub)
       ? { partida: String(ov.partida_override), sub: String(ov.sub_partida_override || '') } : null;
+    // Casa por casa (suma de sus asignaciones; un pago repartido por partes junta sus partes).
+    const porCasaMap = new Map();
+    asigs.forEach(a => {
+      const k = String(a.unidad_id);
+      const c = porCasaMap.get(k) || { casa: nombreU.get(k) || k, monto: 0, partidas: new Set() };
+      c.monto += Number(a.monto_asignado) || 0;
+      c.partidas.add(_txtPartida(String(a.partida_override || partida), String(a.partida_override ? (a.sub_partida_override || '') : sub)));
+      porCasaMap.set(k, c);
+    });
+    const totalRepartido = [...porCasaMap.values()].reduce((s, c) => s + c.monto, 0);
+    const porCasa = [...porCasaMap.values()]
+      .map(c => ({ casa: c.casa, monto: c.monto, pct: totalRepartido > 0 ? c.monto / totalRepartido * 100 : 0, partidas: [...c.partidas] }))
+      .sort((a, b) => a.casa.localeCompare(b.casa, undefined, { numeric: true }));
+    const metodos = [...new Set(asigs.map(a => String(a.metodo || '')))];
     return {
       pagoId: pid, existe: !!h, fecha: h ? h.fecha : o.fecha, beneficiario: h ? String(h.nombre || '') : '',
       concepto: o.obs || (h ? String(h.concepto || '') : ''), importe: h ? (Number(h.importe) || 0) : 0, aplicado: o.aplicado,
-      partida, sub, reparto: asigs.length ? { metodo: String(asigs[0].metodo || ''), casas } : null, otraPartida,
+      partida, sub, reparto: asigs.length ? { metodo: metodos.length > 1 ? 'por partes' : metodos[0], casas } : null, otraPartida,
+      porCasa, totalRepartido, variasPartidas: new Set(porCasa.flatMap(c => c.partidas)).size > 1,
     };
   }).sort((a, b) => parseFechaHist(a.fecha).localeCompare(parseFechaHist(b.fecha)));
 }
@@ -1045,14 +1060,49 @@ function _txtRepartoPago(p) {
   return `${p.reparto.metodo || '—'} · ${c.length > 8 ? c.length + ' casas' : c.join(', ')}`
     + (p.otraPartida ? ` (con partida ${_txtPartida(p.otraPartida.partida, p.otraPartida.sub)})` : '');
 }
+// "Para repartirla igual": cómo capturar en la factura el mismo reparto del pago (texto copiable).
+function _comoRepartirIgual(p) {
+  const pc = p.porCasa;
+  const iguales = pc.length > 1 && pc.every(c => Math.abs(c.pct - pc[0].pct) < 0.01);
+  if (p.reparto.metodo === 'indiviso') return 'Indiviso (se recalcula con las casas abiertas a la fecha de la factura)';
+  if (pc.length === 1) return `Directo: ${pc[0].casa}`;
+  if (iguales) return `Equitativo con: ${pc.map(c => c.casa).join('/')}`;
+  return `Personalizado con: ${pc.map(c => `${c.casa}:${Math.round(c.pct * 100) / 100}`).join('/')}`;
+}
+// Plegable (cerrado) con el reparto del pago casa por casa y lo que sería en la factura. Solo lectura.
+function _detalleRepartoPagoHTML(p, totalFactura) {
+  if (!p.existe || !p.reparto || !p.porCasa.length) return '';
+  const td = 'padding:2px 6px;';
+  const total = Number(totalFactura) || 0;
+  return `<details style="margin:3px 0 6px;font-size:11px;">
+    <summary style="cursor:pointer;color:var(--accent);">Ver cómo se repartió el pago #${escapeHtml(p.pagoId)} (${escapeHtml(_txtRepartoPago(p))})</summary>
+    <div style="overflow-x:auto;max-height:260px;overflow-y:auto;margin-top:4px;">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr style="color:var(--muted);text-align:left;border-bottom:1px solid var(--border);">
+          <th style="${td}">Casa</th><th style="${td}text-align:right;">%</th><th style="${td}text-align:right;">En el pago</th><th style="${td}text-align:right;">En esta factura sería</th>${p.variasPartidas ? `<th style="${td}">Partida</th>` : ''}</tr></thead>
+        <tbody>${p.porCasa.map(c => `<tr style="border-bottom:1px solid var(--border);">
+          <td style="${td}">${escapeHtml(c.casa)}</td>
+          <td style="${td}text-align:right;font-family:'DM Mono',monospace;">${c.pct.toFixed(2)}%</td>
+          <td style="${td}text-align:right;font-family:'DM Mono',monospace;">${fmt(c.monto)}</td>
+          <td style="${td}text-align:right;font-family:'DM Mono',monospace;color:var(--accent);">${fmt(Math.round(total * c.pct) / 100)}</td>
+          ${p.variasPartidas ? `<td style="${td}color:var(--muted);">${escapeHtml(c.partidas.join(' + '))}</td>` : ''}
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>
+    <div style="margin-top:4px;">Repartido del pago: <span style="font-family:'DM Mono',monospace;">${fmt(p.totalRepartido)}</span> de ${fmt(p.importe)} · <b>Para repartirla igual:</b> <span style="font-family:'DM Mono',monospace;">${escapeHtml(_comoRepartirIgual(p))}</span></div>
+    <div style="color:var(--muted);">Solo referencia: no cambia nada.</div>
+  </details>`;
+}
 // Bloque compacto para el modal de Repartir factura ('' si no tiene pagos ligados).
 export function guiaPagosHTML(facturaId) {
   const ps = pagosLigadosDeFactura(facturaId);
   if (!ps.length) return '';
+  const f = (state.facturas || []).find(x => String(x.factura_id) === String(facturaId));
   return `<div style="margin-top:8px;font-size:11px;border-top:1px solid var(--border);padding-top:6px;">
     <div style="color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">🧭 Guía — pago(s) ligado(s) · solo referencia</div>
     ${ps.map(p => p.existe
       ? `<div style="margin:2px 0;">Pago #${escapeHtml(p.pagoId)} · ${escapeHtml(fmtFecha(p.fecha))} · <span style="font-family:'DM Mono',monospace;">${fmt(p.aplicado != null ? p.aplicado : p.importe)}</span> → <b>${escapeHtml(_txtPartida(p.partida, p.sub))}</b> <span style="color:var(--muted);">· reparto del pago: ${escapeHtml(_txtRepartoPago(p))}</span></div>`
+        + _detalleRepartoPagoHTML(p, f ? f.monto_total : 0)
       : `<div style="margin:2px 0;color:var(--muted);">Pago #${escapeHtml(p.pagoId)} (ya no existe en el historial)</div>`).join('')}
   </div>`;
 }
@@ -1086,6 +1136,7 @@ export function abrirDetalleFactura(id) {
              <td style="${td}color:var(--muted);">${escapeHtml(p.concepto)}</td>
            </tr>`).join('')}</tbody>
        </table></div>
+       ${ps.map(p => _detalleRepartoPagoHTML(p, f.monto_total)).join('')}
        <div style="font-size:11px;color:var(--muted);margin-top:4px;">${ps.length} pago(s) · aplicado ${fmt(fps.reduce((s, fp) => s + (fp.monto_aplicado || 0), 0))} · la partida del pago es solo una guía para repartir la factura</div>`
     : '<div style="font-size:12px;color:var(--muted);padding:6px 0;">Sin pagos ligados a esta factura.</div>';
 
