@@ -6,6 +6,7 @@ import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { gsSaveFacturas, gsSaveFacturaPagos, esPorFila, sbGuardarFila, sbBorrarFila, ensureHistorialIds, gsSaveCostoAsignaciones, purgarAsignacionesDeFactura } from '../services/google-sync.js';
 import { proyectoMatch } from '../config/proyectos.js';
+import { unidadEnIndivisoAFecha, fechaCierreUnidad } from '../config/costos-fiscales.js';
 import { parseFechaHist } from './historial.js';
 import { claseCelda, claseDeFactura, CLASE_LABEL, guardarClases, quitarClases, claseListo, maxIdConClase } from './facturas-clase.js';
 import { sbDeleteRows } from '../services/supabase-data.js';
@@ -1035,14 +1036,14 @@ export function pagosLigadosDeFactura(facturaId) {
     const porCasaMap = new Map();
     asigs.forEach(a => {
       const k = String(a.unidad_id);
-      const c = porCasaMap.get(k) || { casa: nombreU.get(k) || k, monto: 0, partidas: new Set() };
+      const c = porCasaMap.get(k) || { uid: k, casa: nombreU.get(k) || k, monto: 0, partidas: new Set() };
       c.monto += Number(a.monto_asignado) || 0;
       c.partidas.add(_txtPartida(String(a.partida_override || partida), String(a.partida_override ? (a.sub_partida_override || '') : sub)));
       porCasaMap.set(k, c);
     });
     const totalRepartido = [...porCasaMap.values()].reduce((s, c) => s + c.monto, 0);
     const porCasa = [...porCasaMap.values()]
-      .map(c => ({ casa: c.casa, monto: c.monto, pct: totalRepartido > 0 ? c.monto / totalRepartido * 100 : 0, partidas: [...c.partidas] }))
+      .map(c => ({ uid: c.uid, casa: c.casa, monto: c.monto, pct: totalRepartido > 0 ? c.monto / totalRepartido * 100 : 0, partidas: [...c.partidas] }))
       .sort((a, b) => a.casa.localeCompare(b.casa, undefined, { numeric: true }));
     const metodos = [...new Set(asigs.map(a => String(a.metodo || '')))];
     return {
@@ -1060,36 +1061,54 @@ function _txtRepartoPago(p) {
   return `${p.reparto.metodo || '—'} · ${c.length > 8 ? c.length + ' casas' : c.join(', ')}`
     + (p.otraPartida ? ` (con partida ${_txtPartida(p.otraPartida.partida, p.otraPartida.sub)})` : '');
 }
-// "Para repartirla igual": cómo capturar en la factura el mismo reparto del pago (texto copiable).
-function _comoRepartirIgual(p) {
-  const pc = p.porCasa;
-  const iguales = pc.length > 1 && pc.every(c => Math.abs(c.pct - pc[0].pct) < 0.01);
+// "Para repartirla igual": cómo capturar en la factura el mismo reparto del pago, SOLO con las
+// casas que siguen abiertas a la fecha de la factura (% re-escalado a 100). Texto copiable.
+function _comoRepartirIgual(p, abiertas) {
   if (p.reparto.metodo === 'indiviso') return 'Indiviso (se recalcula con las casas abiertas a la fecha de la factura)';
-  if (pc.length === 1) return `Directo: ${pc[0].casa}`;
-  if (iguales) return `Equitativo con: ${pc.map(c => c.casa).join('/')}`;
-  return `Personalizado con: ${pc.map(c => `${c.casa}:${Math.round(c.pct * 100) / 100}`).join('/')}`;
+  if (!abiertas.length) return 'Ninguna de esas casas puede recibir costo de esta factura (ya estaban escrituradas a su fecha)';
+  if (abiertas.length === 1) return `Directo: ${abiertas[0].casa}`;
+  if (abiertas.every(c => Math.abs(c.pctF - abiertas[0].pctF) < 0.01)) return `Equitativo con: ${abiertas.map(c => c.casa).join('/')}`;
+  return `Personalizado con: ${abiertas.map(c => `${c.casa}:${Math.round(c.pctF * 100) / 100}`).join('/')}`;
 }
 // Plegable (cerrado) con el reparto del pago casa por casa y lo que sería en la factura. Solo lectura.
-function _detalleRepartoPagoHTML(p, totalFactura) {
+// Regla de cierre: una casa escriturada a la fecha de la FACTURA no puede recibir su costo → se
+// marca 🔒 y su parte se re-escala entre las demás (la app igual la rechazaría al guardar).
+function _detalleRepartoPagoHTML(p, factura) {
   if (!p.existe || !p.reparto || !p.porCasa.length) return '';
   const td = 'padding:2px 6px;';
-  const total = Number(totalFactura) || 0;
+  const total = Number(factura && factura.monto_total) || 0;
+  const fechaF = factura ? parseFechaHist(factura.fecha_factura) : '';
+  const uById = new Map((state.unidades || []).map(u => [String(u.unidad_id), u]));
+  const filas = p.porCasa.map(c => {
+    const u = uById.get(String(c.uid));
+    return { ...c, uCerr: u && fechaF && !unidadEnIndivisoAFecha(u, fechaF) ? u : null };
+  });
+  const abiertas = filas.filter(c => !c.uCerr);
+  const sumaAb = abiertas.reduce((s, c) => s + c.pct, 0);
+  filas.forEach(c => { c.pctF = !c.uCerr && sumaAb > 0 ? c.pct / sumaAb * 100 : 0; });
+  const cerr = filas.filter(c => c.uCerr);
+  const etiqueta = u => (fechaCierreUnidad(u) ? `escriturada ${fmtFecha(fechaCierreUnidad(u))}` : 'dada de baja');
+  const pl = cerr.length > 1 ? 'n' : '';
+  const notaCierre = cerr.length
+    ? `<div style="color:var(--red);margin-top:2px;">🔒 ${cerr.map(c => `${escapeHtml(c.casa)} (${escapeHtml(etiqueta(c.uCerr))})`).join(', ')}: a la fecha de esta factura (${escapeHtml(fmtFecha(fechaF))}) ya no puede${pl} recibir su costo${abiertas.length ? '; su parte se reparte entre las demás' : ''}.</div>`
+    : '';
   return `<details style="margin:3px 0 6px;font-size:11px;">
-    <summary style="cursor:pointer;color:var(--accent);">Ver cómo se repartió el pago #${escapeHtml(p.pagoId)} (${escapeHtml(_txtRepartoPago(p))})</summary>
+    <summary style="cursor:pointer;color:var(--accent);">Ver cómo se repartió el pago #${escapeHtml(p.pagoId)} (${escapeHtml(_txtRepartoPago(p))})${cerr.length ? ` · 🔒 ${cerr.length} escriturada${cerr.length > 1 ? 's' : ''}` : ''}</summary>
     <div style="overflow-x:auto;max-height:260px;overflow-y:auto;margin-top:4px;">
       <table style="width:100%;border-collapse:collapse;">
         <thead><tr style="color:var(--muted);text-align:left;border-bottom:1px solid var(--border);">
           <th style="${td}">Casa</th><th style="${td}text-align:right;">%</th><th style="${td}text-align:right;">En el pago</th><th style="${td}text-align:right;">En esta factura sería</th>${p.variasPartidas ? `<th style="${td}">Partida</th>` : ''}</tr></thead>
-        <tbody>${p.porCasa.map(c => `<tr style="border-bottom:1px solid var(--border);">
-          <td style="${td}">${escapeHtml(c.casa)}</td>
+        <tbody>${filas.map(c => `<tr style="border-bottom:1px solid var(--border);">
+          <td style="${td}">${escapeHtml(c.casa)}${c.uCerr ? ` <span style="color:var(--red);font-size:10px;">🔒 ${escapeHtml(etiqueta(c.uCerr))}</span>` : ''}</td>
           <td style="${td}text-align:right;font-family:'DM Mono',monospace;">${c.pct.toFixed(2)}%</td>
           <td style="${td}text-align:right;font-family:'DM Mono',monospace;">${fmt(c.monto)}</td>
-          <td style="${td}text-align:right;font-family:'DM Mono',monospace;color:var(--accent);">${fmt(Math.round(total * c.pct) / 100)}</td>
+          <td style="${td}text-align:right;font-family:'DM Mono',monospace;color:var(--accent);">${c.uCerr ? '—' : fmt(Math.round(total * c.pctF) / 100)}</td>
           ${p.variasPartidas ? `<td style="${td}color:var(--muted);">${escapeHtml(c.partidas.join(' + '))}</td>` : ''}
         </tr>`).join('')}</tbody>
       </table>
     </div>
-    <div style="margin-top:4px;">Repartido del pago: <span style="font-family:'DM Mono',monospace;">${fmt(p.totalRepartido)}</span> de ${fmt(p.importe)} · <b>Para repartirla igual:</b> <span style="font-family:'DM Mono',monospace;">${escapeHtml(_comoRepartirIgual(p))}</span></div>
+    ${notaCierre}
+    <div style="margin-top:4px;">Repartido del pago: <span style="font-family:'DM Mono',monospace;">${fmt(p.totalRepartido)}</span> de ${fmt(p.importe)} · <b>Para repartirla igual:</b> <span style="font-family:'DM Mono',monospace;">${escapeHtml(_comoRepartirIgual(p, abiertas))}</span></div>
     <div style="color:var(--muted);">Solo referencia: no cambia nada.</div>
   </details>`;
 }
@@ -1102,7 +1121,7 @@ export function guiaPagosHTML(facturaId) {
     <div style="color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">🧭 Guía — pago(s) ligado(s) · solo referencia</div>
     ${ps.map(p => p.existe
       ? `<div style="margin:2px 0;">Pago #${escapeHtml(p.pagoId)} · ${escapeHtml(fmtFecha(p.fecha))} · <span style="font-family:'DM Mono',monospace;">${fmt(p.aplicado != null ? p.aplicado : p.importe)}</span> → <b>${escapeHtml(_txtPartida(p.partida, p.sub))}</b> <span style="color:var(--muted);">· reparto del pago: ${escapeHtml(_txtRepartoPago(p))}</span></div>`
-        + _detalleRepartoPagoHTML(p, f ? f.monto_total : 0)
+        + _detalleRepartoPagoHTML(p, f)
       : `<div style="margin:2px 0;color:var(--muted);">Pago #${escapeHtml(p.pagoId)} (ya no existe en el historial)</div>`).join('')}
   </div>`;
 }
@@ -1136,7 +1155,7 @@ export function abrirDetalleFactura(id) {
              <td style="${td}color:var(--muted);">${escapeHtml(p.concepto)}</td>
            </tr>`).join('')}</tbody>
        </table></div>
-       ${ps.map(p => _detalleRepartoPagoHTML(p, f.monto_total)).join('')}
+       ${ps.map(p => _detalleRepartoPagoHTML(p, f)).join('')}
        <div style="font-size:11px;color:var(--muted);margin-top:4px;">${ps.length} pago(s) · aplicado ${fmt(fps.reduce((s, fp) => s + (fp.monto_aplicado || 0), 0))} · la partida del pago es solo una guía para repartir la factura</div>`
     : '<div style="font-size:12px;color:var(--muted);padding:6px 0;">Sin pagos ligados a esta factura.</div>';
 
