@@ -475,6 +475,7 @@
         <div style="display:flex;gap:8px;">
           <button class="btn btn-ghost" onclick="exportarFacturasExcel()">📊 Exportar Excel</button>
           <button class="btn btn-ghost req-admin" onclick="subirClaseCosto()" title="Sube el reporte de contabilidad (secciones COSTOS DIRECTOS / INDIRECTOS DE OBRA) o un Excel con columnas UUID y Clase: marca cada factura como Directo o Indirecto de obra. Antes de aplicar descarga una vista previa.">🏷 Subir clase de costo</button>
+          <button class="btn btn-ghost req-admin" onclick="subirRepartosObra()" title="Sube el formato de dispersiones de la obra (Aplicación x Depto. + Reparto): reparte con esas casas SOLO las facturas que aún no tienen reparto. Lo dudoso no se aplica. Antes de aplicar descarga una vista previa.">📥 Repartos de obra</button>
           <button class="btn btn-ghost req-facturas" onclick="abrirImportFacturas()">📥 Importar facturas</button>
           <button class="btn btn-primary req-facturas" onclick="abrirNuevaFactura()">+ Nueva Factura</button>
         </div>
