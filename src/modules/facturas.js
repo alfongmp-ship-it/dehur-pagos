@@ -692,8 +692,25 @@ export function abrirRepartoBulk() {
   const proys = new Set(objetivos.map(f => f.proyecto || ''));
   const total = objetivos.reduce((s, f) => s + (f.monto_total || 0), 0);
   const res = document.getElementById('rb-resumen');
+  // Guía (solo referencia): partida de los pagos ligados, agrupada por facturas.
+  const guia = new Map();
+  let sinPago = 0;
+  objetivos.forEach(f => {
+    const ps = pagosLigadosDeFactura(f.factura_id).filter(p => p.existe);
+    if (!ps.length) { sinPago++; return; }
+    const k = [...new Set(ps.map(p => _txtPartida(p.partida, p.sub)))].join(' + ');
+    guia.set(k, (guia.get(k) || 0) + 1);
+  });
+  const guiaHTML = guia.size
+    ? `<div style="margin-top:8px;padding-top:6px;border-top:1px solid var(--border);font-size:11px;">
+         <div style="text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">🧭 Guía — partida de sus pagos ligados · solo referencia</div>
+         ${[...guia].sort((a, b) => b[1] - a[1]).map(([k, n]) => `<div><b style="color:var(--text);">${escapeHtml(k)}</b> — ${n} de ${objetivos.length} factura(s)</div>`).join('')}
+         ${sinPago ? `<div>Sin pago ligado — ${sinPago}</div>` : ''}
+       </div>`
+    : '';
   if (res) res.innerHTML = `<b>${objetivos.length}</b> factura(s) seleccionada(s) · ${fmt(total)} · proyecto: <b>${[...proys].map(escapeHtml).join(', ') || '—'}</b>`
-    + (proys.size > 1 ? ' <span style="color:var(--red);font-weight:600;">⛔ hay varios proyectos: deselecciona hasta dejar uno</span>' : '');
+    + (proys.size > 1 ? ' <span style="color:var(--red);font-weight:600;">⛔ hay varios proyectos: deselecciona hasta dejar uno</span>' : '')
+    + guiaHTML;
   const selP = document.getElementById('rb-partida');
   if (selP) selP.innerHTML = '<option value="">— Elige la partida —</option>'
     + (state.partidasCatalogo || []).filter(p => p.activa !== false).map(p => `<option>${escapeHtml(p.partida)}</option>`).join('');
@@ -984,6 +1001,62 @@ export function editarFactura(id) {
   document.getElementById('modal-factura').classList.add('open');
 }
 
+// ===== Guía: pagos ligados a una factura (SOLO referencia al ver / repartir) =====
+// Ambas vías de liga (igual que el costo): facturaPagos (aplicación por partes) y el
+// marcador del pago (h.factura_id). Por pago: su partida/sub-partida y su reparto propio,
+// para usarlos de guía al repartir la factura. No cambia ni bloquea nada.
+export function pagosLigadosDeFactura(facturaId) {
+  const fid = String(facturaId);
+  const ligas = new Map();   // pago_id → { aplicado (null = ligado solo por marcador), fecha, obs }
+  (state.facturaPagos || []).forEach(fp => {
+    if (String(fp.factura_id) !== fid || String(fp.pago_id || '') === '') return;
+    const k = String(fp.pago_id);
+    const o = ligas.get(k) || { aplicado: 0, fecha: fp.fecha_pago || '', obs: fp.observaciones || '' };
+    o.aplicado += Number(fp.monto_aplicado) || 0;
+    ligas.set(k, o);
+  });
+  (state.historial || []).forEach(h => {
+    if (h.factura_id == null || String(h.factura_id) !== fid || ligas.has(String(h.id))) return;
+    ligas.set(String(h.id), { aplicado: null, fecha: '', obs: '' });
+  });
+  if (!ligas.size) return [];
+  const nombreU = new Map((state.unidades || []).map(u => [String(u.unidad_id), String(u.nombre)]));
+  return [...ligas.entries()].map(([pid, o]) => {
+    const h = (state.historial || []).find(x => String(x.id) === pid) || null;
+    const asigs = (state.costoAsignaciones || []).filter(a => String(a.pago_id || '') === pid && !a.factura_id);
+    const casas = [...new Set(asigs.map(a => nombreU.get(String(a.unidad_id)) || String(a.unidad_id)))]
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    const partida = h ? String(h.partida || '') : '';
+    const sub = h ? String(h.sub_partida || '') : '';
+    const ov = asigs.find(a => a.partida_override);
+    const otraPartida = ov && (String(ov.partida_override) !== partida || String(ov.sub_partida_override || '') !== sub)
+      ? { partida: String(ov.partida_override), sub: String(ov.sub_partida_override || '') } : null;
+    return {
+      pagoId: pid, existe: !!h, fecha: h ? h.fecha : o.fecha, beneficiario: h ? String(h.nombre || '') : '',
+      concepto: o.obs || (h ? String(h.concepto || '') : ''), importe: h ? (Number(h.importe) || 0) : 0, aplicado: o.aplicado,
+      partida, sub, reparto: asigs.length ? { metodo: String(asigs[0].metodo || ''), casas } : null, otraPartida,
+    };
+  }).sort((a, b) => parseFechaHist(a.fecha).localeCompare(parseFechaHist(b.fecha)));
+}
+const _txtPartida = (partida, sub) => (partida ? partida + (sub ? ' / ' + sub : '') : '(sin partida)');
+function _txtRepartoPago(p) {
+  if (!p.reparto) return 'sin reparto propio';
+  const c = p.reparto.casas;
+  return `${p.reparto.metodo || '—'} · ${c.length > 8 ? c.length + ' casas' : c.join(', ')}`
+    + (p.otraPartida ? ` (con partida ${_txtPartida(p.otraPartida.partida, p.otraPartida.sub)})` : '');
+}
+// Bloque compacto para el modal de Repartir factura ('' si no tiene pagos ligados).
+export function guiaPagosHTML(facturaId) {
+  const ps = pagosLigadosDeFactura(facturaId);
+  if (!ps.length) return '';
+  return `<div style="margin-top:8px;font-size:11px;border-top:1px solid var(--border);padding-top:6px;">
+    <div style="color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">🧭 Guía — pago(s) ligado(s) · solo referencia</div>
+    ${ps.map(p => p.existe
+      ? `<div style="margin:2px 0;">Pago #${escapeHtml(p.pagoId)} · ${escapeHtml(fmtFecha(p.fecha))} · <span style="font-family:'DM Mono',monospace;">${fmt(p.aplicado != null ? p.aplicado : p.importe)}</span> → <b>${escapeHtml(_txtPartida(p.partida, p.sub))}</b> <span style="color:var(--muted);">· reparto del pago: ${escapeHtml(_txtRepartoPago(p))}</span></div>`
+      : `<div style="margin:2px 0;color:var(--muted);">Pago #${escapeHtml(p.pagoId)} (ya no existe en el historial)</div>`).join('')}
+  </div>`;
+}
+
 // Detalle de factura SOLO LECTURA (doble click en la fila). Para roles de solo lectura
 // (p.ej. contabilidad/Ericka) que no ven el botón Editar: ver datos + pagos ligados.
 export function abrirDetalleFactura(id) {
@@ -995,22 +1068,25 @@ export function abrirDetalleFactura(id) {
   const fila = (k, v) => `<div style="display:flex;justify-content:space-between;gap:16px;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px;"><span style="color:var(--muted);">${k}</span><span style="text-align:right;font-weight:500;">${v}</span></div>`;
   const filaMonto = (k, v, color) => fila(k, `<span style="font-family:'DM Mono',monospace;${color ? 'color:' + color + ';' : ''}">${fmt(v)}</span>`);
 
+  // Pagos ligados (por partes y por marcador) con su partida y su reparto: guía para repartir.
   const fps = state.facturaPagos.filter(fp => String(fp.factura_id) === String(id));
-  const pagosHTML = fps.length
-    ? `<table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:6px;">
+  const ps = pagosLigadosDeFactura(id);
+  const td = 'padding:4px 6px;';
+  const pagosHTML = ps.length
+    ? `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:6px;">
          <thead><tr style="color:var(--muted);text-align:left;border-bottom:1px solid var(--border);">
-           <th style="padding:4px 6px;">Fecha</th><th style="padding:4px 6px;text-align:right;">Monto aplicado</th><th style="padding:4px 6px;">Concepto</th></tr></thead>
-         <tbody>${fps.map(fp => {
-           const pago = state.historial.find(p => String(p.id) === String(fp.pago_id));
-           const concepto = fp.observaciones || (pago && pago.concepto) || '';
-           return `<tr style="border-bottom:1px solid var(--border);">
-             <td style="padding:4px 6px;font-family:'DM Mono',monospace;color:var(--muted);">${fmtFecha(fp.fecha_pago)}</td>
-             <td style="padding:4px 6px;text-align:right;font-family:'DM Mono',monospace;color:var(--accent);">${fmt(fp.monto_aplicado)}</td>
-             <td style="padding:4px 6px;color:var(--muted);">${escapeHtml(concepto)}</td>
-           </tr>`;
-         }).join('')}</tbody>
-       </table>
-       <div style="font-size:11px;color:var(--muted);margin-top:4px;">${fps.length} pago(s) · aplicado ${fmt(fps.reduce((s, fp) => s + (fp.monto_aplicado || 0), 0))}</div>`
+           <th style="${td}">Pago</th><th style="${td}">Fecha</th><th style="${td}text-align:right;">Monto aplicado</th><th style="${td}">Partida</th><th style="${td}">Sub-partida</th><th style="${td}">Reparto del pago</th><th style="${td}">Concepto</th></tr></thead>
+         <tbody>${ps.map(p => `<tr style="border-bottom:1px solid var(--border);">
+             <td style="${td}font-family:'DM Mono',monospace;color:var(--muted);">#${escapeHtml(p.pagoId)}</td>
+             <td style="${td}font-family:'DM Mono',monospace;color:var(--muted);">${escapeHtml(fmtFecha(p.fecha))}</td>
+             <td style="${td}text-align:right;font-family:'DM Mono',monospace;color:var(--accent);">${p.aplicado != null ? fmt(p.aplicado) : `<span title="Ligado por el pago (sin monto aplicado por partes): importe del pago">${fmt(p.importe)}</span>`}</td>
+             <td style="${td}font-weight:500;">${p.existe ? escapeHtml(p.partida || '—') : '<span style="color:var(--muted);">pago ya no existe</span>'}</td>
+             <td style="${td}">${escapeHtml(p.sub || '—')}</td>
+             <td style="${td}color:var(--muted);">${p.existe ? escapeHtml(_txtRepartoPago(p)) : ''}</td>
+             <td style="${td}color:var(--muted);">${escapeHtml(p.concepto)}</td>
+           </tr>`).join('')}</tbody>
+       </table></div>
+       <div style="font-size:11px;color:var(--muted);margin-top:4px;">${ps.length} pago(s) · aplicado ${fmt(fps.reduce((s, fp) => s + (fp.monto_aplicado || 0), 0))} · la partida del pago es solo una guía para repartir la factura</div>`
     : '<div style="font-size:12px;color:var(--muted);padding:6px 0;">Sin pagos ligados a esta factura.</div>';
 
   document.getElementById('detalle-factura-body').innerHTML = `

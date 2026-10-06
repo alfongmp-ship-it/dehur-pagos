@@ -14,7 +14,7 @@ import { parseFechaHist } from './historial.js';
 import { gsSaveUnidades, gsSavePresupuestoUnidad, gsSaveCostoAsignaciones, esPorFila, sbGuardarFila, sbBorrarFila } from '../services/google-sync.js';
 import { nuevoAsignacionId, nuevoPresupuestoId, nuevoCambioPresupId } from '../state.js';
 import { auditarRepartos, aplicarReparacionRepartos, auditarRepartosFacturas, aplicarReparacionFacturas, auditarIndivisoAplanado, aplicarCorreccionIndiviso, sumaAsignadaDoc } from './confirmar-pagos.js';
-import { aplicarPagoAFactura, restantePago } from './facturas.js';
+import { aplicarPagoAFactura, restantePago, guiaPagosHTML } from './facturas.js';
 import { montosFiscales, montoFiscalDe, factorFiscalFactura } from '../services/base-fiscal.js';
 
 const PALETA = ['#c8a96e', '#5a9be0', '#4caf7d', '#e07a3a', '#9b7fe8', '#e05a5a', '#27ae60', '#3498db'];
@@ -1775,6 +1775,7 @@ export function abrirRepartirFactura(facturaId) {
         <span>Repartido: <strong style="font-family:'DM Mono',monospace;">${fmt(yaRep)}</strong></span>
         <span>Restante: <strong style="font-family:'DM Mono',monospace;color:${completa ? 'var(--green)' : 'var(--accent)'};">${fmt(restante)}</strong></span>
       </div>
+      ${guiaPagosHTML(facturaId)}
       ${partesHTML}
     </div>
     ${completa
