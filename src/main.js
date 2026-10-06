@@ -40,6 +40,7 @@ import { renderCostosFiscales, abrirNuevaUnidad, editarUnidad, guardarUnidad, to
 import { auditarRepartosTodo, descargarAuditoriaRepartos } from './modules/auditoria-repartos.js';
 import { subirClaseCosto } from './modules/facturas-clase.js';
 import { subirRepartosObra } from './modules/facturas-repartos-obra.js';
+import { copiarRepartoPagos } from './modules/facturas-copiar-reparto.js';
 import { rehacerPorCierre, quitarRepartosDuplicados, restaurarReabiertas, ofrecerRehacerCasa, descargarBitacoraRepartos, rehacerEnCurso, aplicarElegirCopia } from './modules/rehacer-repartos.js';
 import { renderFiscal, fiscalMarcarPago, fiscalMarcarFactura, fiscalFiltrarPagos, fiscalExportar, fisToggleEstimCasa, exportarFiscalPorCasaExcel, fisSinCfdiToggle, exportarSinCfdiExcel, imprimirFichasFiscales, exportarAnexoFiscalExcel, exportarDesgloseExcel, est324SetEjercicio, est324GuardarFactor, est324QuitarFactor, est324Exportar } from './modules/fiscal.js';
 import { renderCreditos, seleccionarCredito, abrirNuevoCredito, editarCredito, guardarCredito, abrirNuevaDisposicion, guardarDisposicion, editarPagare, togglePagare, abrirNuevaFechaPago, editarFechaPago, guardarFechaPago, marcarPagoPagado, eliminarPagoPagare } from './modules/creditos.js';
@@ -174,6 +175,7 @@ window.aplicarClaseBulk = aplicarClaseBulk;
 window.borrarFacturasBulk = borrarFacturasBulk;
 window.subirClaseCosto = subirClaseCosto;
 window.subirRepartosObra = subirRepartosObra;
+window.copiarRepartoPagos = copiarRepartoPagos;
 window.abrirRepartoBulk = abrirRepartoBulk;
 window.aplicarRepartoBulk = aplicarRepartoBulk;
 window.rbMetodoChange = rbMetodoChange;
