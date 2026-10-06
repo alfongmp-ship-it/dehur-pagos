@@ -8,6 +8,7 @@ import { gsSaveFacturas, gsSaveFacturaPagos, esPorFila, sbGuardarFila, sbBorrarF
 import { proyectoMatch } from '../config/proyectos.js';
 import { parseFechaHist } from './historial.js';
 import { claseCelda, claseDeFactura, CLASE_LABEL, guardarClases, quitarClases, claseListo, maxIdConClase } from './facturas-clase.js';
+import { sbDeleteRows } from '../services/supabase-data.js';
 
 // Empresas propias a las que se factura (receptor del CFDI). Lista corta editable:
 // agrega aquí si en el futuro facturan a otra razón social.
@@ -249,6 +250,66 @@ function actualizarBarraSelFact() {
     btnC.style.display = n > 0 ? '' : 'none';
     btnC.textContent = `🏷 Clase de costo (${n})`;
   }
+  const btnB = document.getElementById('fact-bulk-borrar');
+  if (btnB) {
+    btnB.style.display = n > 0 ? '' : 'none';
+    btnB.textContent = `🗑 Borrar (${n})`;
+  }
+}
+
+// ===== Acción en bloque: BORRAR facturas (solo admin) =====
+// Pensada para limpiar cargas duplicadas. Por seguridad SOLO borra facturas SIN reparto
+// y SIN pagos aplicados: las que tengan cualquiera de los dos se saltan (se borran una por
+// una desde Editar, donde se avisa cuánto costo o qué pagos se pierden).
+export async function borrarFacturasBulk() {
+  if (!esAdmin()) { notify('Solo el admin puede borrar facturas en bloque', 'error'); return; }
+  const sel = state.facturas.filter(f => factSel.has(String(f.factura_id)));
+  if (!sel.length) { notify('Selecciona al menos una factura', 'error'); return; }
+  const conRep = new Set(state.costoAsignaciones.filter(a => a.factura_id).map(a => String(a.factura_id)));
+  const conPago = new Set(state.facturaPagos.map(fp => String(fp.factura_id)));
+  const tieneAlgo = f => conRep.has(String(f.factura_id)) || conPago.has(String(f.factura_id));
+  const saltadas = sel.filter(tieneAlgo);
+  const borrar = sel.filter(f => !tieneAlgo(f));
+  if (!borrar.length) {
+    notify(`No se borró nada: las ${sel.length} seleccionada(s) tienen reparto o pagos aplicados (esas se borran una por una desde Editar)`, 'error');
+    return;
+  }
+  const total = borrar.reduce((s, f) => s + (f.monto_total || 0), 0);
+  if (!confirm(`¿Borrar ${borrar.length} factura(s) por ${fmt(total)}?`
+    + (saltadas.length ? `\n\n${saltadas.length} de las seleccionadas tienen reparto o pagos aplicados: esas NO se borran.` : '')
+    + `\n\nSolo se borran facturas SIN reparto y SIN pagos. No se puede deshacer.`)) return;
+  const porFilaF = esPorFila('facturas');
+  const porFilaH = esPorFila('historial');
+  let borradas = 0;
+  try {
+    for (let i = 0; i < borrar.length; i += 50) {
+      const trozo = borrar.slice(i, i + 50);
+      const ids = trozo.map(f => f.factura_id);
+      if (porFilaF) await sbDeleteRows('facturas', 'factura_id', ids);
+      const fuera = new Set(ids.map(String));
+      state.facturas = state.facturas.filter(f => !fuera.has(String(f.factura_id)));
+      // Pagos del historial que apuntaban a estas facturas (marcador viejo): se desligan.
+      state.historial.forEach(h => {
+        if (h.factura_id && fuera.has(String(h.factura_id))) {
+          h.factura_id = '';
+          if (porFilaH) sbGuardarFila('historial', h);
+        }
+      });
+      const conClase = ids.filter(id => claseDeFactura(id));
+      if (conClase.length) await quitarClases(conClase);
+      borradas += ids.length;
+    }
+  } catch (e) {
+    notify(`⚠️ Se borraron ${borradas} de ${borrar.length}; el resto falló (${(e && e.message) || e}). Vuelve a intentarlo con las que queden.`, 'error');
+  }
+  gsSaveFacturas({ porFila: porFilaF });
+  factSel.clear();
+  renderFacturas();
+  const cnt = document.getElementById('cnt-fact');
+  if (cnt) cnt.textContent = state.facturas.length;
+  if (borradas === borrar.length) {
+    notify(`✓ ${borradas} factura(s) borrada(s)${saltadas.length ? ` · ${saltadas.length} con reparto o pagos se dejaron` : ''}`);
+  }
 }
 
 // El maestro queda marcado solo si TODAS las visibles están seleccionadas.
@@ -350,6 +411,8 @@ function getFilteredFacturas() {
   const fl = document.getElementById('ff-lote')?.value || '';
   const fx = document.getElementById('ff-emp-cruzada')?.checked || false;
   const fc = document.getElementById('ff-clase')?.value || '';
+  const frep = document.getElementById('ff-reparto')?.value || '';
+  const conRepF = frep ? new Set(state.costoAsignaciones.filter(a => a.factura_id).map(a => String(a.factura_id))) : null;
   const fcp = document.getElementById('ff-catprov')?.value || '';
   const provPorIdF = fcp ? new Map((state.proveedores || []).map(p => [String(p.id), p])) : null;
   const empresaDeProyecto = _empresasProyectosMap();
@@ -358,6 +421,10 @@ function getFilteredFacturas() {
     if (fc) {
       const c = claseDeFactura(f.factura_id);
       if (fc === 'sin' ? !!c : !c || c.clase !== fc) return false;
+    }
+    if (frep) {
+      const rep = conRepF.has(String(f.factura_id));
+      if (frep === 'con' ? !rep : rep) return false;
     }
     if (fcp) {
       const [cat, sub] = fcp.split('||');

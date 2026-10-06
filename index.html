@@ -513,12 +513,18 @@
         <select class="filter-select" id="ff-catprov" onchange="renderFacturas()" title="Categoría del proveedor. Ej.: 'Gastos de operación' = compras sin transferencia (gasolina, tiendas, viajes, materiales de mostrador); se puede afinar por subcategoría.">
           <option value="">Proveedor: todas las categorías</option>
         </select>
+        <select class="filter-select" id="ff-reparto" onchange="renderFacturas()" title="Facturas con o sin reparto a casas (devengado).">
+          <option value="">Reparto: todas</option>
+          <option value="con">Con reparto</option>
+          <option value="sin">Sin repartir</option>
+        </select>
         <label id="ff-emp-cruzada-wrap" style="display:none;align-items:center;gap:5px;font-size:12px;color:var(--red);cursor:pointer;white-space:nowrap;" title="Facturas cuya EMPRESA no coincide con la empresa del proyecto (ej. Home Depot a Dehur en un proyecto de Dehur Territorial). No cuentan para el costo fiscal de ese proyecto. Corrige las mal capturadas con 🏢 Cambiar empresa.">
           <input type="checkbox" id="ff-emp-cruzada" onchange="renderFacturas()" style="cursor:pointer;"> ⚠ Empresa cruzada
         </label>
         <button id="fact-bulk-empresa" class="btn btn-ghost btn-sm req-admin" onclick="abrirEmpresaBulk()" style="display:none;color:var(--accent);border-color:var(--accent);font-size:11px;padding:3px 10px;margin-left:auto;">🏢 Cambiar empresa (0)</button>
         <button id="fact-bulk-reparto" class="btn btn-ghost btn-sm req-admin" onclick="abrirRepartoBulk()" style="display:none;color:var(--accent);border-color:var(--accent);font-size:11px;padding:3px 10px;">📊 Repartir (0)</button>
         <button id="fact-bulk-clase" class="btn btn-ghost btn-sm req-admin" onclick="abrirClaseBulk()" style="display:none;color:var(--accent);border-color:var(--accent);font-size:11px;padding:3px 10px;">🏷 Clase de costo (0)</button>
+        <button id="fact-bulk-borrar" class="btn btn-ghost btn-sm req-admin" onclick="borrarFacturasBulk()" style="display:none;color:var(--red);border-color:var(--red);font-size:11px;padding:3px 10px;" title="Borra las seleccionadas que NO tengan reparto ni pagos aplicados (las demás se saltan)">🗑 Borrar (0)</button>
       </div>
       <div id="fact-subtitulo" style="font-size:11px;color:var(--muted);margin-bottom:6px;"></div>
       <div class="table-wrap">

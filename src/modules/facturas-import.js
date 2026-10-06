@@ -11,6 +11,7 @@
 
 import { state, nuevoAsignacionId } from '../state.js';
 import { fmt } from '../ui/format.js';
+import { notify } from '../ui/notify.js';
 import { createExcelImporter, normalizarFechaISO, normalizarFechaDDMMYYYY, parseImporte } from '../services/excel-import.js';
 import { gsSaveFacturas, esPorFila, sbGuardarFila, gsSaveCostoAsignaciones } from '../services/google-sync.js';
 import { parseReparto } from './solicitudes.js';
@@ -28,6 +29,7 @@ let _uuidExist, _folioProvExist, _mfpExist;
 let _uuidLote, _folioProvLote, _mfpLote;
 let _repartoErrores;   // si hay reparto mal escrito, se BLOQUEA toda la carga (bloqueoGlobal)
 let _creoAsig = false; // insertar() creó asignaciones → save() las sube con await y avisa si falla
+let _saltadas = 0;     // filas que insertar() no metió porque su UUID ya estaba en la app
 
 export const facturasImporter = createExcelImporter({
   key: 'facturas',
@@ -280,7 +282,14 @@ export const facturasImporter = createExcelImporter({
     const porFila = esPorFila('facturas');
     const hoyISO = new Date().toISOString().slice(0, 10);
     let creoAsig = false;
+    // Red de seguridad: una fila cuyo UUID completo YA está en la app no se vuelve a meter
+    // (doble clic, dos pestañas abiertas o el mismo Excel subido dos veces).
+    const uuidsApp = new Set(state.facturas.map(f => norm(f.uuid)).filter(u => u.length >= 30));
+    let saltadas = 0;
     registros.forEach(r => {
+      const ku = norm(r.uuid);
+      if (state.facturas.includes(r) || (ku.length >= 30 && uuidsApp.has(ku))) { saltadas++; return; }
+      if (ku.length >= 30) uuidsApp.add(ku);
       delete r.monto;                 // alias solo para el total del botón
       const plan = r._reparto; delete r._reparto;  // transitorio
       r.factura_id = nextId++;
@@ -312,6 +321,7 @@ export const facturasImporter = createExcelImporter({
     const cnt = document.getElementById('cnt-fact');
     if (cnt) cnt.textContent = state.facturas.length;
     _creoAsig = creoAsig;   // el guardado de asignaciones va en save(), con await
+    _saltadas = saltadas;
   },
 
   save: async () => {
@@ -331,6 +341,9 @@ export const facturasImporter = createExcelImporter({
 
   postCommit: () => {
     if (window.renderFacturas) window.renderFacturas();
+    // Va al final para que el aviso no lo pise el "✓ Importados".
+    if (_saltadas) notify(`⚠️ ${_saltadas} factura(s) ya estaban en la app (mismo UUID): no se volvieron a meter`, 'error');
+    _saltadas = 0;
   },
 
   // Si alguna fila trae el reparto MAL escrito, se bloquea TODA la carga (como en

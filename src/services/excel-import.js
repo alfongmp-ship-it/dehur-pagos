@@ -10,6 +10,9 @@ import { fmt } from '../ui/format.js';
 // que los handlers de checkbox/confirmar/cerrar sepan a quien le hablan.
 let activeImporter = null;
 let parsedResult = null;
+// Importación en curso: bloquea el doble clic en "Importar" (antes un segundo clic
+// mientras guardaba volvía a meter TODAS las filas).
+let _importando = false;
 
 const norm = s => String(s || '').trim().toLowerCase()
   .normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -366,6 +369,7 @@ export function createExcelImporter(config) {
     const total = v + d;
     const monto = sumarImporte(parsedResult);
     const btn = document.getElementById('excel-import-confirmar');
+    if (_importando) return;   // el botón se queda bloqueado mientras guarda
     if (btn) {
       btn.disabled = total === 0;
       const sufijo = monto > 0 ? ` · ${fmt(monto)}` : '';
@@ -401,27 +405,36 @@ export function createExcelImporter(config) {
       if (document.querySelector(`[data-dup="${i}"]`)?.checked) aImportar.push(it.registro);
     });
     if (!aImportar.length) { notify('No hay filas seleccionadas', 'error'); return; }
-
+    if (_importando) { notify('Ya se está importando: espera a que termine', 'error'); return; }
+    _importando = true;
+    const btnImp = document.getElementById('excel-import-confirmar');
+    if (btnImp) { btnImp.disabled = true; btnImp.textContent = 'Importando… no cierres ni recargues'; }
     try {
-      insertar(aImportar);
-    } catch (e) {
-      console.error(`[excel-import:${key}] insertar() fallo`, e);
-      notify('Error insertando registros: ' + e.message, 'error');
-      return;
-    }
+      try {
+        insertar(aImportar);
+      } catch (e) {
+        console.error(`[excel-import:${key}] insertar() fallo`, e);
+        notify('Error insertando registros: ' + e.message, 'error');
+        return;
+      }
 
-    notify(`Importando ${aImportar.length} registro${aImportar.length === 1 ? '' : 's'}...`);
-    try {
-      if (save) await save(aImportar);
-      notify(`✓ Importados ${aImportar.length} a "${titulo}"`, 'success');
-    } catch (e) {
-      console.error(`[excel-import:${key}] save() fallo`, e);
-      notify('Importacion local OK, pero hubo error al guardar a Sheets: ' + e.message, 'error');
-    }
+      notify(`Importando ${aImportar.length} registro${aImportar.length === 1 ? '' : 's'}...`);
+      try {
+        if (save) await save(aImportar);
+        notify(`✓ Importados ${aImportar.length} a "${titulo}"`, 'success');
+      } catch (e) {
+        console.error(`[excel-import:${key}] save() fallo`, e);
+        notify('Importacion local OK, pero hubo error al guardar a Sheets: ' + e.message, 'error');
+      }
 
-    cerrar();
-    if (postCommit) {
-      try { postCommit(aImportar); } catch (e) { console.error(`[excel-import:${key}] postCommit fallo`, e); }
+      cerrar();
+      if (postCommit) {
+        try { postCommit(aImportar); } catch (e) { console.error(`[excel-import:${key}] postCommit fallo`, e); }
+      }
+    } finally {
+      _importando = false;
+      // Si el modal sigue abierto (falló insertar), el botón vuelve a su estado normal.
+      if (document.getElementById('modal-excel-import')?.classList.contains('open')) refreshTotales();
     }
   }
 
@@ -449,6 +462,7 @@ function countChecked(prefix, max) {
 // Llamado por el onchange de cada checkbox. Re-evalua totales del importer activo.
 export function excelImportRefreshTotales() {
   if (!activeImporter || !parsedResult) return;
+  if (_importando) return;   // el botón se queda bloqueado mientras guarda
   const v = countChecked('val', parsedResult.validos.length);
   const d = countChecked('dup', parsedResult.duplicados.length);
   const total = v + d;
