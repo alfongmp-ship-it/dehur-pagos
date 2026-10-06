@@ -23,6 +23,7 @@ import { parseFechaHist } from './historial.js';
 import { estimados324 } from './rmf-324.js';
 import { montosFiscales, montoFiscalDe, baseFiscalFactura, retencionesFiscales, desgloseFactura } from '../services/base-fiscal.js';
 import { subPartidaObligatoria } from '../config/sub-partidas.js';
+import { estatusLabel } from '../config/costos-fiscales.js';
 import { claseDeFactura, CLASE_LABEL, claseListo } from './facturas-clase.js';
 
 let fisProyecto = '';           // proyecto activo de la página
@@ -671,7 +672,7 @@ export function imprimirFichasFiscales(unidadId) {
       <table class="datos">
         <tr><th>Unidad</th><td class="b">${e(u.nombre)}</td><th>Tipo</th><td>${e(u.tipo || '—')}</td></tr>
         <tr><th>% Indiviso</th><td>${(u.indiviso_pct || 0).toFixed(4)}%</td><th>Superficie</th><td>${u.superficie_m2 ? e(String(u.superficie_m2)) + ' m²' : '—'}</td></tr>
-        <tr><th>Estatus</th><td>${e(u.estatus || '—')}</td><th>Terminación</th><td>${u.fecha_termino ? e(fmtFecha(u.fecha_termino)) : '—'}</td></tr>
+        <tr><th>Estatus</th><td>${e(estatusLabel(u.estatus) || '—')}</td><th>Escrituración</th><td>${u.fecha_termino ? e(fmtFecha(u.fecha_termino)) : '—'}</td></tr>
       </table>
       <h2>Costo por partida</h2>
       <table class="part">

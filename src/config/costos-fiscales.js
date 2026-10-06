@@ -4,6 +4,12 @@ import { state } from '../state.js';
 // Estatus de obra de una unidad (casa).
 export const ESTATUS_UNIDAD = ['En obra', 'Terminada', 'Entregada', 'Vendida'];
 
+// Cómo se MUESTRA cada estatus (el valor guardado NO cambia). La "Terminada" de la app es
+// en realidad la ESCRITURACIÓN: desde esa fecha la casa deja de recibir costo (decisión del
+// dueño, oct-2026; mismo criterio que el despacho fiscal).
+export const ESTATUS_LABEL = { 'Terminada': 'Escriturada' };
+export const estatusLabel = e => ESTATUS_LABEL[e] || e || '';
+
 // Métodos de asignación de un pago a unidades:
 // - directo:    el pago completo va a 1 unidad.
 // - equitativo: el pago se divide en partes iguales entre N unidades.

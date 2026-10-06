@@ -60,7 +60,7 @@ export function descargarAuditoriaRepartos() {
   // --- Resumen ---
   const aoaR = [
     ['🩺 Auditoría de repartos — todos los proyectos'],
-    [`Corte: ${sello.txt} · Solo lectura: no se modificó nada. ERROR = el costo por casa está mal · REVISAR = puede estar mal o ser legítimo · INFO = no afecta el costo hoy.${sinVentas ? ' ⚠ Las ventas no cargaron: el cierre por ESCRITURA no se consideró (solo la terminación).' : ''}`],
+    [`Corte: ${sello.txt} · Solo lectura: no se modificó nada. ERROR = el costo por casa está mal · REVISAR = puede estar mal o ser legítimo · INFO = no afecta el costo hoy.${sinVentas ? ' ⚠ Las ventas no cargaron: solo se consideró la fecha de escrituración de cada casa (no la de las ventas).' : ''}`],
     [],
     ['Categoría', 'Severidad', 'Filas', 'Documentos / casas', '$ afectado', 'Qué hacer'],
   ];
@@ -137,7 +137,7 @@ function _modal() {
         Corte ${escapeHtml(sello.txt)} · todos los proyectos · <strong>solo lectura, no se cambió nada</strong>.
         <span style="color:var(--red);font-weight:600;">${nErr} error(es)</span> · <span style="color:var(--orange);font-weight:600;">${nRev} por revisar</span>.
         El detalle (casa por casa y documento por documento) está en el Excel descargado.
-        ${sinVentas ? '<br><span style="color:var(--orange);">⚠ Las ventas no cargaron: el cierre por escritura no se consideró (solo la terminación).</span>' : ''}
+        ${sinVentas ? '<br><span style="color:var(--orange);">⚠ Las ventas no cargaron: solo se consideró la fecha de escrituración de cada casa (no la de las ventas).</span>' : ''}
       </div>
       ${resumen.length ? `<div class="table-wrap" style="max-height:60vh;overflow:auto;">
         <table>

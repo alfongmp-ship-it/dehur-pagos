@@ -1111,7 +1111,7 @@
         <div style="display:flex;gap:8px;">
           <button class="btn btn-ghost req-admin" onclick="auditarRepartosTodo()" title="Revisa TODOS los repartos de todos los proyectos (casas con costo posterior a su cierre, sobre-repartidos, duplicados, huerfanos, casas dadas de baja, notas de credito, etc.) y descarga un Excel. Solo lectura: no cambia nada.">🩺 Auditar repartos</button>
           <button class="btn btn-ghost req-admin" id="cf-btn-indivisos" onclick="revisarIndivisoAplanado()" title="Detecta repartos por indiviso que quedaron REPARTIDOS PAREJO (huella de un indiviso aplanado) y ofrece recalcularlos con los porcentajes reales. Descarga un Excel de respaldo antes de tocar nada. El total de cada pago o factura no cambia.">🔍 Revisar indivisos</button>
-          <button class="btn btn-ghost req-editor" onclick="revisarRepartos()" title="Detecta repartos hechos antes de capturar fechas de terminación retroactivas y los recoloca entre las casas en obra. Lo editado a mano no se toca.">♻️ Revisar repartos</button>
+          <button class="btn btn-ghost req-editor" onclick="revisarRepartos()" title="Detecta repartos hechos antes de capturar fechas de escrituración retroactivas y los recoloca entre las casas en obra. Lo editado a mano no se toca.">♻️ Revisar repartos</button>
         </div>
       </div>
       <div id="cf-contenido">
@@ -1917,7 +1917,7 @@
       <div class="field"><label>Estatus</label><select id="un-estatus"></select></div>
       <div class="field"><label>% Indiviso</label><input id="un-indiviso" type="number" step="0.0001" placeholder="0.0000" style="font-family:'DM Mono',monospace;"></div>
       <div class="field"><label>Superficie (m²)</label><input id="un-superficie" type="number" step="0.01" placeholder="0.00" style="font-family:'DM Mono',monospace;"></div>
-      <div class="field"><label>Fecha de terminación <span style="color:var(--muted);font-weight:400;font-size:11px;">(sale del indiviso; vacío = sigue en obra)</span></label><input id="un-fecha-termino" type="date"></div>
+      <div class="field"><label>Fecha de escrituración <span style="color:var(--muted);font-weight:400;font-size:11px;">(desde esta fecha deja de recibir costo; vacío = sigue en obra)</span></label><input id="un-fecha-termino" type="date"></div>
     </div>
     <div class="form-actions"><button class="btn btn-ghost" onclick="cerrar('modal-unidad')">Cancelar</button><button class="btn btn-primary" onclick="guardarUnidad()">Guardar</button></div>
   </div>

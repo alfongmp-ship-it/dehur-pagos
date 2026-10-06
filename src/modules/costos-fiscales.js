@@ -7,7 +7,7 @@ import { fmt, fmtFecha, escapeHtml } from '../ui/format.js';
 import { notify } from '../ui/notify.js';
 import { cerrar } from '../ui/modal.js';
 import { proyectoMatch } from '../config/proyectos.js';
-import { ESTATUS_UNIDAD, METODO_LABEL, unidadEnIndivisoAFecha, fechaCierreUnidad, hoyISOLocal } from '../config/costos-fiscales.js';
+import { ESTATUS_UNIDAD, estatusLabel, METODO_LABEL, unidadEnIndivisoAFecha, fechaCierreUnidad, hoyISOLocal } from '../config/costos-fiscales.js';
 import { chartTheme } from '../ui/chart-theme.js';
 import { planoDeProyecto } from '../config/planos.js';
 import { parseFechaHist } from './historial.js';
@@ -778,7 +778,7 @@ function renderUnidadesTab(panel) {
       <table>
         <thead><tr>
           <th>Unidad</th><th>Tipo</th><th style="text-align:right">% Indiviso</th>
-          <th style="text-align:right">Superficie</th><th>Estatus</th><th>Terminación</th>
+          <th style="text-align:right">Superficie</th><th>Estatus</th><th>Escrituración</th>
           <th style="text-align:right">${fisc ? '💼 Costo facturado' : 'Costo real'}</th>${estim ? '<th style="text-align:right">Estimado (por asignar)</th><th style="text-align:right" title="Costo ' + (fisc ? 'facturado' : 'real') + ' + estimado por asignar: lo que costará la casa cuando se reparta todo lo pendiente (si se reparte por indiviso)">Costo proyectado</th>' : ''}<th style="text-align:right">Acciones</th>
         </tr></thead>
         <tbody>${unidades.map(u => {
@@ -791,10 +791,10 @@ function renderUnidadesTab(panel) {
               : `${(u.indiviso_pct || 0).toFixed(4)}%`}</td>
             <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--muted);">${u.superficie_m2 ? u.superficie_m2 + ' m²' : '—'}</td>
             <td>${puedeEditarUnidades()
-              ? `<select id="estatus-u-${u.unidad_id}" onchange="setEstatusUnidad(${u.unidad_id}, this.value)" title="Estatus de la casa" style="font-size:11px;padding:2px 4px;">${ESTATUS_UNIDAD.map(e => `<option${(u.estatus || 'En obra') === e ? ' selected' : ''}>${e}</option>`).join('')}</select>`
-              : `<span id="estatus-u-${u.unidad_id}" style="font-size:11px;color:var(--muted);">${escapeHtml(u.estatus) || '—'}</span>`}</td>
+              ? `<select id="estatus-u-${u.unidad_id}" onchange="setEstatusUnidad(${u.unidad_id}, this.value)" title="Estatus de la casa" style="font-size:11px;padding:2px 4px;">${ESTATUS_UNIDAD.map(e => `<option value="${e}"${(u.estatus || 'En obra') === e ? ' selected' : ''}>${estatusLabel(e)}</option>`).join('')}</select>`
+              : `<span id="estatus-u-${u.unidad_id}" style="font-size:11px;color:var(--muted);">${escapeHtml(estatusLabel(u.estatus)) || '—'}</span>`}</td>
             <td>${puedeEditarUnidades()
-              ? `<input type="date" id="fecha-u-${u.unidad_id}" value="${escapeHtml(u.fecha_termino || '')}" onchange="setFechaTermino(${u.unidad_id}, this.value)" title="Fecha en que la casa salió del indiviso (vacío = sigue en obra)" style="font-size:11px;padding:2px 4px;width:130px;">`
+              ? `<input type="date" id="fecha-u-${u.unidad_id}" value="${escapeHtml(u.fecha_termino || '')}" onchange="setFechaTermino(${u.unidad_id}, this.value)" title="Fecha de escrituración: desde esa fecha la casa deja de recibir costo (vacío = sigue en obra)" style="font-size:11px;padding:2px 4px;width:130px;">`
               : `<span style="font-size:11px;color:var(--muted);">${escapeHtml(u.fecha_termino) || '—'}</span>`}</td>
             <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--accent);">${fmt(real)}</td>
             ${estim ? `<td style="text-align:right;font-family:'DM Mono',monospace;color:var(--muted);">${fmt(estim.porUnidad.get(u.unidad_id) || 0)}</td><td style="text-align:right;font-family:'DM Mono',monospace;font-weight:700;color:var(--green);">${fmt(real + (estim.porUnidad.get(u.unidad_id) || 0))}</td>` : ''}
@@ -826,7 +826,7 @@ export function exportarCostosUnitariosExcel() {
   const estim = cfMostrarEstimado ? (fisc ? estimadoFacturadoPorUnidad() : estimadoIndivisoPorUnidad()) : null;
   const hoyISO = new Date().toISOString().slice(0, 10);
 
-  const enc = ['Casa', 'Tipo', '% Indiviso', 'Superficie m2', 'Estatus', 'Terminación',
+  const enc = ['Casa', 'Tipo', '% Indiviso', 'Superficie m2', 'Estatus', 'Escrituración',
     'Presupuesto', fisc ? 'Costo facturado (fiscal)' : 'Costo real', '% Avance financiero'];
   if (estim) enc.push('Estimado por asignar', 'Costo proyectado');
 
@@ -847,7 +847,7 @@ export function exportarCostosUnitariosExcel() {
     tPres += b.presupuesto; tReal += b.real; tEst += e;
     const fila = [
       u.nombre, u.tipo || '', (u.indiviso_pct || 0) / 100, u.superficie_m2 || '',
-      u.activo === false ? (u.estatus || '') + ' (baja)' : (u.estatus || ''),
+      u.activo === false ? estatusLabel(u.estatus) + ' (baja)' : estatusLabel(u.estatus),
       u.fecha_termino || '', b.presupuesto, b.real, b.avance === null ? '' : b.avance / 100
     ];
     if (estim) fila.push(e, b.real + e);
@@ -889,7 +889,7 @@ export function abrirNuevaUnidad() {
   document.getElementById('un-indiviso').value = '';
   document.getElementById('un-superficie').value = '';
   document.getElementById('un-fecha-termino').value = '';
-  document.getElementById('un-estatus').innerHTML = ESTATUS_UNIDAD.map(e => `<option>${e}</option>`).join('');
+  document.getElementById('un-estatus').innerHTML = ESTATUS_UNIDAD.map(e => `<option value="${e}">${estatusLabel(e)}</option>`).join('');
   document.getElementById('modal-unidad').classList.add('open');
 }
 
@@ -903,7 +903,7 @@ export function editarUnidad(id) {
   document.getElementById('un-indiviso').value = u.indiviso_pct || '';
   document.getElementById('un-superficie').value = u.superficie_m2 || '';
   document.getElementById('un-fecha-termino').value = u.fecha_termino || '';
-  document.getElementById('un-estatus').innerHTML = ESTATUS_UNIDAD.map(e => `<option${e === u.estatus ? ' selected' : ''}>${e}</option>`).join('');
+  document.getElementById('un-estatus').innerHTML = ESTATUS_UNIDAD.map(e => `<option value="${e}"${e === u.estatus ? ' selected' : ''}>${estatusLabel(e)}</option>`).join('');
   document.getElementById('modal-unidad').classList.add('open');
 }
 
@@ -922,7 +922,7 @@ export async function guardarUnidad() {
   };
   // Fuera de obra SIN fecha la casa seguiría absorbiendo costo para siempre.
   if (obj.estatus && obj.estatus !== 'En obra' && !obj.fecha_termino) {
-    notify(`Una casa "${obj.estatus}" necesita su fecha de terminación: desde esa fecha deja de recibir costo`, 'error');
+    notify(`Una casa "${estatusLabel(obj.estatus)}" necesita su fecha de escrituración: desde esa fecha deja de recibir costo`, 'error');
     return;
   }
   let _uEdit = null, _fechaAntes = '';
@@ -950,7 +950,7 @@ export async function guardarUnidad() {
   renderCostosFiscales();
   // Si el modal cambió la fecha de terminación, ofrecer rehacer/restaurar sus repartos.
   if (_uEdit && (_uEdit.fecha_termino || '') !== (_fechaAntes || '') && window.ofrecerRehacerCasa) {
-    window.ofrecerRehacerCasa(_uEdit.unidad_id, _uEdit.fecha_termino ? 'Cambió la fecha de terminación' : 'Se quitó la fecha de terminación');
+    window.ofrecerRehacerCasa(_uEdit.unidad_id, _uEdit.fecha_termino ? 'Cambió la fecha de escrituración' : 'Se quitó la fecha de escrituración');
   }
 }
 
@@ -972,7 +972,7 @@ export async function toggleUnidad(id) {
       `Reportes, y "♻️ Revisar repartos" podría redistribuir sus pagos entre las demás casas.
 
 ` +
-      `Si la casa TERMINÓ, usa la fecha de terminación — NO la baja.
+      `Si la casa se ESCRITURÓ, usa la fecha de escrituración — NO la baja.
 
 ¿Dar de baja de todos modos?`)) return;
   }
@@ -1046,7 +1046,7 @@ ${resumen}
 
 Se descargo un Excel con el detalle y el estado ACTUAL (respaldo).
 
-Al corregir: el TOTAL de cada pago y factura NO cambia; solo se redistribuye entre las mismas casas con los indivisos reales y las fechas de terminacion de cada documento.
+Al corregir: el TOTAL de cada pago y factura NO cambia; solo se redistribuye entre las mismas casas con los indivisos reales y las fechas de escrituración de cada documento.
 
 \u00bfCorregir los ${res.documentos.length} documento(s)?`)) return;
 
@@ -1120,7 +1120,7 @@ export function revisarRepartos() {
   // ---- PAGOS: solo SALEN casas (lo normal tras capturar una fecha de terminación)
   if (res.corregibles.length) {
     tablaPagos(res.corregibles);
-    if (confirm(`♻️ ${res.corregibles.length} reparto(s) de PAGOS por indiviso quedaron con una foto vieja:\n\n${desglosePagos(res.corregibles)}\n\nSale(n) la(s) casa(s) que ya habían terminado a la fecha del pago y su parte se reparte entre las demás de SU proyecto (el total no cambia). Lo dirigido a casas concretas no se toca. Detalle en consola (F12).\n\n¿Recolocarlos?`)) {
+    if (confirm(`♻️ ${res.corregibles.length} reparto(s) de PAGOS por indiviso quedaron con una foto vieja:\n\n${desglosePagos(res.corregibles)}\n\nSale(n) la(s) casa(s) que ya estaban escrituradas a la fecha del pago y su parte se reparte entre las demás de SU proyecto (el total no cambia). Lo dirigido a casas concretas no se toca. Detalle en consola (F12).\n\n¿Recolocarlos?`)) {
       const n = aplicarReparacionRepartos(res.corregibles);
       notify(`♻️ ${n} reparto(s) de pagos recolocados`);
       renderCostosFiscales();
@@ -1149,7 +1149,7 @@ export function revisarRepartos() {
     }));
     const totF = fTodas.reduce((acc, c) => acc + (c.f.monto_total || 0), 0);
     const casasF = [...new Set(resF.conEntrantes.flatMap(c => (c.entran || []).map(f => nombreU(f.unidad_id))))];
-    if (confirm(`📄 ${fTodas.length} FACTURA(S) repartidas por indiviso quedaron con una foto vieja (${fmt(totF)}):\n\n${resF.corregibles.length} con casas que ya habían terminado a la fecha de la factura${casasF.length ? `\n${resF.conEntrantes.length} que además AGREGARÍAN: ${casasF.slice(0, 6).join(', ')}` : ''}\n\nSe recolocan conservando su partida y sub-partida; el total de cada factura no cambia. Detalle en consola (F12).\n\n¿Recolocarlas?`)) {
+    if (confirm(`📄 ${fTodas.length} FACTURA(S) repartidas por indiviso quedaron con una foto vieja (${fmt(totF)}):\n\n${resF.corregibles.length} con casas que ya estaban escrituradas a la fecha de la factura${casasF.length ? `\n${resF.conEntrantes.length} que además AGREGARÍAN: ${casasF.slice(0, 6).join(', ')}` : ''}\n\nSe recolocan conservando su partida y sub-partida; el total de cada factura no cambia. Detalle en consola (F12).\n\n¿Recolocarlas?`)) {
       const n = aplicarReparacionFacturas(fTodas);
       notify(`📄 ${n} factura(s) recolocadas`);
       renderCostosFiscales();
@@ -1158,7 +1158,7 @@ export function revisarRepartos() {
   }
   if (res.manuales.length || resF.manuales.length) {
     const nM = res.manuales.length + resF.manuales.length;
-    notify(`✋ ${nM} reparto(s) por indiviso editados a mano (o con el % de indiviso ya cambiado) incluyen casas ya terminadas — revísalos con "Reasignar" (detalle en consola F12)`, 'error');
+    notify(`✋ ${nM} reparto(s) por indiviso editados a mano (o con el % de indiviso ya cambiado) incluyen casas ya escrituradas — revísalos con "Reasignar" (detalle en consola F12)`, 'error');
     console.table([
       ...res.manuales.map(c => ({ TIPO: 'pago', FECHA: c.h.fecha, IMPORTE: c.h.importe, DETALLE: (c.h.concepto || '').slice(0, 45) })),
       ...resF.manuales.map(c => ({ TIPO: 'factura', FECHA: c.f.fecha_factura, IMPORTE: c.f.monto_total, DETALLE: 'Fac ' + c.f.factura_id })),
@@ -1171,7 +1171,7 @@ export function revisarRepartos() {
 // Estatus de la casa (En obra → Terminada → Entregada → Vendida). Captura de OBRA:
 // se edita en línea, sin abrir el modal de unidad (que tocaría indiviso y nombre).
 export async function setEstatusUnidad(id, value) {
-  if (!puedeEditarUnidades()) { notify('Solo el admin cambia el estatus de la casa (va ligado a la fecha de terminación)', 'error'); return; }
+  if (!puedeEditarUnidades()) { notify('Solo el admin cambia el estatus de la casa (va ligado a la fecha de escrituración)', 'error'); return; }
   const u = unidadById(id);
   if (!u || !ESTATUS_UNIDAD.includes(value)) return;
   const inpFecha = document.getElementById('fecha-u-' + id);
@@ -1185,21 +1185,21 @@ export async function setEstatusUnidad(id, value) {
   let reabierta = false;
   if (value === 'En obra') {
     if (u.fecha_termino) {
-      if (!confirm(`"${u.nombre}" tiene fecha de terminación ${u.fecha_termino}.\n\nRegresarla a "En obra" BORRA esa fecha y la casa vuelve a recibir costos por indiviso.\n\n¿Continuar?`)) {
+      if (!confirm(`"${u.nombre}" tiene fecha de escrituración ${u.fecha_termino}.\n\nRegresarla a "En obra" BORRA esa fecha y la casa vuelve a recibir costos por indiviso.\n\n¿Continuar?`)) {
         const sel = document.getElementById('estatus-u-' + id);
         if (sel) sel.value = estatusAntes;   // revertir el select, no se guarda nada
         return;
       }
       u.fecha_termino = '';
       if (inpFecha) inpFecha.value = '';
-      aviso = ' · se borró su fecha de terminación';
+      aviso = ' · se borró su fecha de escrituración';
       reabierta = true;
     }
   } else if (!u.fecha_termino) {
     // Salir de obra exige la FECHA REAL de terminación: sin ella la casa seguiría
     // absorbiendo costo (y "hoy" callado era casi siempre una fecha equivocada).
     const hoy = hoyISOLocal();
-    const resp = prompt(`¿En qué fecha terminó "${u.nombre}"? (AAAA-MM-DD o DD/MM/AAAA)\n\nDesde esa fecha la casa deja de recibir costo.`, hoy);
+    const resp = prompt(`¿En qué fecha se escrituró "${u.nombre}"? (AAAA-MM-DD o DD/MM/AAAA)\n\nDesde esa fecha la casa deja de recibir costo.`, hoy);
     const iso = _isoFechaCaptura(resp);
     if (!iso) {
       if (resp !== null) notify('Fecha no válida: no se cambió el estatus', 'error');
@@ -1209,22 +1209,22 @@ export async function setEstatusUnidad(id, value) {
     }
     u.fecha_termino = iso;
     if (inpFecha) inpFecha.value = iso;
-    aviso = ` · fecha de terminación ${fmtFecha(iso)}`;
+    aviso = ` · fecha de escrituración ${fmtFecha(iso)}`;
     u.estatus = value;
     const porFila0 = esPorFila('unidades');
     await gsSaveUnidades({ porFila: porFila0 });
     if (porFila0) sbGuardarFila('unidades', u);
-    notify(`${u.nombre}: ${value}${aviso}`);
+    notify(`${u.nombre}: ${estatusLabel(value)}${aviso}`);
     // Igual que al capturar la fecha en su celda: ofrece rehacer sus repartos.
-    if (window.ofrecerRehacerCasa) window.ofrecerRehacerCasa(u.unidad_id, 'Se capturó la terminación');
+    if (window.ofrecerRehacerCasa) window.ofrecerRehacerCasa(u.unidad_id, 'Se capturó la escrituración');
     return;
   }
   u.estatus = value;
   const porFila = esPorFila('unidades');
   await gsSaveUnidades({ porFila });
   if (porFila) sbGuardarFila('unidades', u);
-  notify(`${u.nombre}: ${value}${aviso}`);
-  if (reabierta && window.ofrecerRehacerCasa) window.ofrecerRehacerCasa(u.unidad_id, 'Se quitó la fecha de terminación');
+  notify(`${u.nombre}: ${estatusLabel(value)}${aviso}`);
+  if (reabierta && window.ofrecerRehacerCasa) window.ofrecerRehacerCasa(u.unidad_id, 'Se quitó la fecha de escrituración');
 }
 
 // Fecha capturada a mano → 'AAAA-MM-DD' (acepta DD/MM/AAAA); '' si no es válida.
@@ -1275,7 +1275,7 @@ export async function setIndivisoUnidad(id, value) {
 // Al cambiar la fecha ofrece rehacer (o restaurar) los repartos de esa casa con la
 // regla de cierre (rehacer-repartos.js), con vista previa y confirmación.
 export async function setFechaTermino(id, value) {
-  if (!puedeEditarUnidades()) { notify('Solo el admin captura la fecha de terminación (decide quién sale del indiviso)', 'error'); return; }
+  if (!puedeEditarUnidades()) { notify('Solo el admin captura la fecha de escrituración (decide quién deja de recibir costo)', 'error'); return; }
   // Mientras se teclea el año, el campo de fecha dispara cambios con 0002, 0020, 0202…
   // (o 5+ dígitos): no se guardan; se guarda cuando la fecha queda completa.
   if (value && (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value < '2000-01-01')) return;
@@ -1292,14 +1292,14 @@ export async function setFechaTermino(id, value) {
   const cell = document.getElementById('estatus-u-' + id);
   if (cell) {
     if (cell.tagName === 'SELECT') cell.value = u.estatus || 'En obra';
-    else cell.textContent = u.estatus || '—';
+    else cell.textContent = estatusLabel(u.estatus) || '—';
   }
   const porFila = esPorFila('unidades');
   await gsSaveUnidades({ porFila });
   if (porFila) sbGuardarFila('unidades', u);
-  notify(value ? `Terminación: ${u.nombre} → ${value} · ${u.estatus}` : `${u.nombre}: sin fecha · ${u.estatus}`);
+  notify(value ? `Escrituración: ${u.nombre} → ${value} · ${estatusLabel(u.estatus)}` : `${u.nombre}: sin fecha · ${estatusLabel(u.estatus)}`);
   if ((u.fecha_termino || '') !== (fechaAntes || '') && window.ofrecerRehacerCasa) {
-    window.ofrecerRehacerCasa(u.unidad_id, value ? 'Se capturó la terminación' : 'Se quitó la fecha de terminación');
+    window.ofrecerRehacerCasa(u.unidad_id, value ? 'Se capturó la escrituración' : 'Se quitó la fecha de escrituración');
   }
 }
 
@@ -1872,7 +1872,7 @@ function renderMetodoBody() {
   const fechaDocM = cfFechaObjetivo();
   const cerradaM = u => !unidadEnIndivisoAFecha(u, fechaDocM);
   const candado = u => cerradaM(u)
-    ? ` <span style="color:var(--red);font-size:10px;" title="Cerrada el ${fmtFecha(fechaCierreUnidad(u))} (terminación o escritura): no puede recibir costo de un documento de esa fecha o posterior">🔒 cerrada ${fmtFecha(fechaCierreUnidad(u))}</span>` : '';
+    ? ` <span style="color:var(--red);font-size:10px;" title="Cerrada el ${fmtFecha(fechaCierreUnidad(u))} (escriturada): no puede recibir costo de un documento de esa fecha o posterior">🔒 cerrada ${fmtFecha(fechaCierreUnidad(u))}</span>` : '';
   const dataCerr = u => cerradaM(u) ? ' data-cerrada="1"' : '';
 
   if (!unidades.length) {
@@ -1948,7 +1948,7 @@ function renderMetodoBody() {
     const fechaTxt = fechaDoc ? fmtFecha(fechaDoc) : 'hoy';
     if (!pool.length) {
       body.innerHTML = `<div style="font-size:12px;color:var(--red);background:rgba(224,82,82,.08);border:1px solid rgba(224,82,82,.35);border-radius:8px;padding:10px;">
-        Ninguna casa de ${escapeHtml(cfProyecto)} estaba abierta al <strong>${fechaTxt}</strong> (todas terminadas o escrituradas antes):
+        Ninguna casa de ${escapeHtml(cfProyecto)} estaba abierta al <strong>${fechaTxt}</strong> (todas escrituradas antes):
         este documento no se puede repartir a ninguna casa y queda <strong>pendiente</strong>. Si la fecha del documento está mal, corrígela.
         ${state.costoAsignaciones.some(a => cfEsFactura() ? String(a.factura_id) === String(cfFacturaAsignar) : (!a.factura_id && String(a.pago_id) === String(cfPagoAsignar)))
           ? '<br><strong>Ojo:</strong> ya tiene un reparto guardado a casas cerradas — revísalo con 🩺 Auditar repartos.' : ''}</div>`;
@@ -1956,7 +1956,7 @@ function renderMetodoBody() {
       return;
     }
     const nota = pool.length === unidades.length ? ''
-      : ` (de ${unidades.length} activas; las terminadas antes de esa fecha NO reciben costo)`;
+      : ` (de ${unidades.length} activas; las escrituradas antes de esa fecha NO reciben costo)`;
     body.innerHTML = `
       <div style="font-size:12px;color:var(--muted);background:rgba(155,127,232,.1);border:1px solid rgba(155,127,232,.3);border-radius:8px;padding:10px;">
         El costo se repartirá por indiviso entre las <strong>${pool.length}</strong> casa(s) de ${escapeHtml(cfProyecto)}
@@ -3044,7 +3044,7 @@ export function exportarControlObraExcel() {
     tot0.pres += pres; tot0.ini += ini; tot0.dev += dev; tot0.pag += pag; tot0.real += real;
     tot0.est += est; tot0.spFis += spFis; tot0.sFis += sFis;
     const fin = avancePct(real, pres);
-    const fila = [u.nombre, (u.indiviso_pct || 0) / 100, u.superficie_m2 || '', u.estatus || '',
+    const fila = [u.nombre, (u.indiviso_pct || 0) / 100, u.superficie_m2 || '', estatusLabel(u.estatus),
       pres, ini, dev, pag, real];
     if (estimObra) fila.push(est);
     fila.push(pres - real - est, fin === null ? '' : fin / 100, sFis > 0 ? (spFis / sFis) / 100 : '');
@@ -3989,7 +3989,7 @@ function abrirPopupForma(uid, refEl) {
   const esZona = u.plano_w > 0 && u.plano_h > 0;
   const nombre = escapeHtml(u.nombre || '—');
   const tipo = escapeHtml(u.tipo || '');
-  const estatus = escapeHtml(u.estatus || '—');
+  const estatus = escapeHtml(estatusLabel(u.estatus) || '—');
 
   const popup = document.createElement('div');
   popup.id = 'cf-plano-popup';
@@ -4066,7 +4066,7 @@ function mostrarTooltipPin(uid, pin) {
   tip.innerHTML = `<strong>${escapeHtml(u.nombre)}</strong><br>`
     + `Costo real: ${fmt(real)}<br>`
     + (presu > 0 ? `Presupuesto: ${fmt(presu)}<br>Avance: ${av.toFixed(1)}%<br>` : 'Sin presupuesto<br>')
-    + `Estatus: ${escapeHtml(u.estatus) || '—'}`
+    + `Estatus: ${escapeHtml(estatusLabel(u.estatus)) || '—'}`
     + lineaPartida;
   const pinRect = pin.getBoundingClientRect();
   const contRect = cont.getBoundingClientRect();
@@ -4084,7 +4084,7 @@ function renderLeyendaPlano() {
   const el = document.getElementById('cf-plano-leyenda');
   if (!el) return;
   const items = cfPlanoColor === 'estatus'
-    ? ESTATUS_UNIDAD.map(e => [e, ESTATUS_COLOR[e] || '#888'])
+    ? ESTATUS_UNIDAD.map(e => [estatusLabel(e), ESTATUS_COLOR[e] || '#888'])
     : cfPlanoColor === 'partida'
       ? [['Terminada (100%)', '#4caf7d'], ['Avanzada (≥50%)', '#5a9be0'], ['Iniciada (<50%)', '#e07a3a'], ['Sin avance / sin dato', '#7a7570']]
       : [['En presupuesto', '#4caf7d'], ['Cerca del límite', '#e07a3a'], ['Sobre presupuesto', '#e05a5a'], ['Sin presupuesto', 'var(--muted)']];

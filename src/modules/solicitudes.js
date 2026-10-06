@@ -146,7 +146,7 @@ export function parseReparto(repartoRaw, unidadesRaw, proyecto, fechaISO) {
     if (u && !unidadEnIndivisoAFecha(u, fechaISO)) cerradas.push(`${u.nombre} (cerrada ${iso2txt(fechaCierreUnidad(u))})`);
   });
   if (cerradas.length) {
-    r.errores.push(`${cerradas.join(', ')}: ya estaba${cerradas.length > 1 ? 'n' : ''} cerrada${cerradas.length > 1 ? 's' : ''} (terminación o escritura) a la fecha del documento${fechaISO ? ' ' + iso2txt(fechaISO) : ''} — no puede${cerradas.length > 1 ? 'n' : ''} recibir costo.`);
+    r.errores.push(`${cerradas.join(', ')}: ya estaba${cerradas.length > 1 ? 'n' : ''} cerrada${cerradas.length > 1 ? 's' : ''} (escriturada) a la fecha del documento${fechaISO ? ' ' + iso2txt(fechaISO) : ''} — no puede${cerradas.length > 1 ? 'n' : ''} recibir costo.`);
     return { ...r, asignaciones: [] };
   }
   return r;

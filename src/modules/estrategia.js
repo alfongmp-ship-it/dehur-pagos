@@ -405,7 +405,7 @@ export function renderEstrategiaTablero() {
     const proys = [...new Set(state.unidades.filter(u => u.activo !== false).map(u => u.proyecto).filter(Boolean))];
     const filtro = `<div class="toolbar"><select class="filter-select" id="est-tab-proy" onchange="renderEstrategiaTablero()">
       <option value="">Todos los proyectos</option>${proys.map(p => `<option value="${escapeHtml(p)}"${p === filtroProy ? ' selected' : ''}>${escapeHtml(p)}</option>`).join('')}
-    </select><div style="font-size:11px;color:var(--muted);">${rank.activas.length} unidades en ranking · ${rank.bloqueadas.length} bloqueadas · ${rank.excluidas.length} terminadas y cobradas</div></div>`;
+    </select><div style="font-size:11px;color:var(--muted);">${rank.activas.length} unidades en ranking · ${rank.bloqueadas.length} bloqueadas · ${rank.excluidas.length} escrituradas y cobradas</div></div>`;
 
     // ---- Ranking ----
     const filas = rank.activas.map((s, i) => {

@@ -12,9 +12,9 @@
 // ser legítimo · INFO = no afecta el costo hoy pero conviene saberlo.
 export const CATEGORIAS = [
   { key: 'posterior_cierre', titulo: 'Costo posterior al CIERRE de la casa',
-    accion: 'Quitar esa casa del reparto del documento (la casa ya estaba terminada o escriturada a la fecha del documento).' },
-  { key: 'terminada_sin_fecha', titulo: 'Casa fuera de obra SIN fecha de terminación',
-    accion: 'Capturar su fecha real de terminación: sin ella sigue absorbiendo costo por indiviso.' },
+    accion: 'Quitar esa casa del reparto del documento (la casa ya estaba escriturada a la fecha del documento).' },
+  { key: 'terminada_sin_fecha', titulo: 'Casa fuera de obra SIN fecha de escrituración',
+    accion: 'Capturar su fecha real de escrituración: sin ella sigue absorbiendo costo por indiviso.' },
   { key: 'sobre_repartido', titulo: 'Documento SOBRE-repartido (reparto > total)',
     accion: 'Limpiar el reparto del documento y repartirlo de nuevo (típico de ♻️/🔍 o de editar el total en facturas por partes).' },
   { key: 'pago_sub_repartido', titulo: 'Pago repartido de MENOS (reparto < importe)',
@@ -245,8 +245,8 @@ export function auditarRepartosMotor(datos, reglas) {
       proyecto: u.proyecto || '', proyectoCasa: u.proyecto || '', casa: u.nombre, unidadId: String(u.unidad_id), cierre: cierreEsc, metodo: '',
       partida: '', sub: '', monto: 0, factor: 0, asignacionId: '',
       detalle: cierreEsc
-        ? `Estatus "${u.estatus}" sin fecha de terminación; ya está cerrada por escritura (${cierreEsc}), falta capturar la terminación`
-        : `Estatus "${u.estatus}" sin fecha de terminación: sigue recibiendo costo por indiviso` });
+        ? `Estatus "${u.estatus === 'Terminada' ? 'Escriturada' : u.estatus}" sin fecha de escrituración; la venta ya trae su escritura (${cierreEsc}): falta capturarla en la casa`
+        : `Estatus "${u.estatus === 'Terminada' ? 'Escriturada' : u.estatus}" sin fecha de escrituración: sigue recibiendo costo por indiviso` });
   });
 
   out.sort((a, b) => (_CAT.get(a.cat).orden - _CAT.get(b.cat).orden) || String(a.proyecto).localeCompare(String(b.proyecto)) || (b.monto - a.monto));
