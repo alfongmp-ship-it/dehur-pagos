@@ -712,6 +712,10 @@ export function imprimirFichasFiscales(unidadId) {
       .datos td { padding: 3px 4px; width: 33%; }
       .part th { font-family: Arial, Helvetica, sans-serif; font-size: 8.5pt; text-align: left; border-bottom: 1px solid #111; padding: 4px; }
       .part td { padding: 4px; border-bottom: 1px solid #ddd; font-size: 10pt; }
+      /* Columnas de dinero: título alineado a la derecha, igual que sus números, y ancho fijo
+         para que título y cifra queden juntos (antes el título caía a la izquierda de la celda). */
+      .part th.n { text-align: right; }
+      .part th.n, .part td.n { width: 17%; }
       .part thead { display: table-header-group; }   /* se repite si la ficha ocupa 2 hojas */
       .part tr { page-break-inside: avoid; break-inside: avoid; }
       .part tr.rp td { font-weight: bold; border-top: 1px solid #999; }
