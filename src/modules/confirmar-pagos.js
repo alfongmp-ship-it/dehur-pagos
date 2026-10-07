@@ -4,7 +4,7 @@ import { notify } from '../ui/notify.js';
 import { proyTag } from '../ui/badges.js';
 import { saveData, gsSaveHistorial, gsSavePendientes, gsSaveProyectos, gsSaveCuentasPropias, gsSaveFacturas, gsSaveFacturaPagos, gsSaveCostoAsignaciones, ensureHistorialIds, esPorFila, sbGuardarFila } from '../services/google-sync.js';
 import { saveProy } from '../config/proyectos.js';
-import { unidadEnIndivisoAFecha, hoyISOLocal } from '../config/costos-fiscales.js';
+import { unidadEnIndivisoAFecha, hoyISOLocal, METODO_LABEL } from '../config/costos-fiscales.js';
 
 // DD/MM/YYYY (o ISO) → ISO 'YYYY-MM-DD'. Inline para no depender de historial.js (evita ciclo).
 const _isoFecha = f => {
@@ -183,6 +183,33 @@ export function esRepartoAutoIntactoDePago(h) {
   if (_cubiertoPorFactura(h)) return false;
   const asigs = _asigsDePago(h);
   return asigs.length > 0 && _esRepartoAutoIntacto(h, asigs);
+}
+
+// Por qué ♻️ NO recolocaría un documento ('' = sí puede). Mismas reglas que
+// auditarRepartos / auditarRepartosFacturas; solo lectura (📤 Exportar repartos).
+function _motivoNoAuto(asigs, revisaPartida) {
+  const dirigidos = [...new Set(asigs.map(a => a.metodo || '').filter(m => !_AUTO.includes(m)))];
+  if (dirigidos.length) return 'Dirigido: ' + dirigidos.map(m => METODO_LABEL[m] || m || 'sin método').join(', ');
+  if (esRepartoPorPartes(asigs)) return 'Por partes (varias partidas o varias filas por casa)';
+  if (revisaPartida && asigs.some(a => (a.partida_override || '') !== '')) return 'Partida cambiada en el reparto';
+  if (asigs.some(a => !state.unidades.some(u => String(u.unidad_id) === String(a.unidad_id)))) return 'Tiene casas que ya no existen';
+  return 'Editado a mano (no cuadra con los indivisos)';
+}
+export function motivoNoRecolocaPago(h) {
+  if (!h || !h.id) return 'El pago ya no existe';
+  if (!h.proyecto) return 'Pago sin proyecto';
+  if (_cubiertoPorFactura(h)) return 'Su costo lo lleva la factura ligada';
+  const asigs = _asigsDePago(h);
+  if (!asigs.length) return 'Sin reparto';
+  return _esRepartoAutoIntacto(h, asigs) ? '' : _motivoNoAuto(asigs, true);
+}
+export function motivoNoRecolocaFactura(f) {
+  if (!f) return 'La factura ya no existe';
+  if (!f.proyecto) return 'Factura sin proyecto';
+  if (f.estado_sat === 'Cancelada' || f.estatus_factura === 'cancelada') return 'Factura cancelada';
+  const asigs = _asigsDeFactura(f.factura_id);
+  if (!asigs.length) return 'Sin reparto';
+  return _esRepartoAutoIntactoFactura(f, asigs) ? '' : _motivoNoAuto(asigs, false);
 }
 
 // Recoloca el reparto de UN pago con el pool correcto de su fecha, EN SITIO:

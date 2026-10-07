@@ -29,6 +29,7 @@ let cfMostrarEstimado = false; // toggle: ver estimado por indiviso de pagos sin
 let cfSoloFacturado = false;   // toggle 💼 (admin+contabilidad): costo por casa SOLO con facturas
                                // elegibles fiscalmente (devengado SAT) — pagos ignorados, display puro
 let cfCustomModo = 'pct';   // método Personalizado: 'pct' (%) | 'monto' ($). Default %.
+export const proyectoCostosActivo = () => cfProyecto;   // para 📤 Exportar repartos
 let cfChartUnidad = null;
 let cfPlanoModo = 'vista';      // 'vista' | 'editor'
 let cfPlanoColor = 'avance';     // 'avance' | 'estatus' | 'partida'

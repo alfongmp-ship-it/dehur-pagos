@@ -38,6 +38,7 @@ import { renderFlujoSalida, fsAbrirDetalle, fsCerrarDetalle } from './modules/fl
 import { renderResumenEjecutivo } from './modules/resumen-ejecutivo.js';
 import { renderCostosFiscales, abrirNuevaUnidad, editarUnidad, guardarUnidad, toggleUnidad, setFechaTermino, setEstatusUnidad, setIndivisoUnidad, abrirLoteUnidades, guardarLoteUnidades, cfLimpiarHuerfanas, abrirAsignarCosto, reasignarCosto, eliminarAsignacionCosto, cfCambiarMetodo, cfPreviewReparto, cfRepartirResto, cfRepartirRestoIndiviso, cfCustomSetModo, cfFiltrarUnidades, cfSelTodas, cfFiltrarPendientes, cfFiltrarAsignados, guardarAsignacionCosto, cfAgregarPartidaPresup, guardarPresupuestoUnidad, cfPresupPartidaChange, cfObraSetMetrica, cfObraAvanceCell, exportarControlObraExcel, cfVerUnidad, abrirRepartirFactura, cfLimpiarRepartoFactura, cfFacturaPartidaChange, cfToggleEstimado, cfToggleSoloFacturado, revisarRepartos, revisarIndivisoAplanado, abrirLigarFactura, lfAplicar, exportarPendientesExcel, cfAvNav, cfToggleVariaciones, cfVarFiltrar, exportarVariacionesExcel, cfObraToggleSoloVisibles, cfToggleSinRegistro, exportarCostosUnitariosExcel, cfObraToggleEstimado } from './modules/costos-fiscales.js';
 import { auditarRepartosTodo, descargarAuditoriaRepartos } from './modules/auditoria-repartos.js';
+import { exportarRepartosProyecto } from './modules/exportar-repartos.js';
 import { subirClaseCosto } from './modules/facturas-clase.js';
 import { subirRepartosObra } from './modules/facturas-repartos-obra.js';
 import { copiarRepartoPagos } from './modules/facturas-copiar-reparto.js';
@@ -316,6 +317,7 @@ window.setEstatusUnidad = setEstatusUnidad;
 window.revisarRepartos = revisarRepartos;
 window.revisarIndivisoAplanado = revisarIndivisoAplanado;
 window.auditarRepartosTodo = auditarRepartosTodo;
+window.exportarRepartosProyecto = exportarRepartosProyecto;
 window.descargarAuditoriaRepartos = descargarAuditoriaRepartos;
 window.rehacerPorCierre = rehacerPorCierre;
 window.quitarRepartosDuplicados = quitarRepartosDuplicados;
