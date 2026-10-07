@@ -162,5 +162,19 @@ ck('sin pista → CONSTRUCCION / CONSTRUCCION por defecto', p.partida === 'CONST
 p = elegirPartida({ concepto: 'ANTICIPO', catalogo: [{ partida: 'Otra', subpartidas: [] }] });
 ck('sin CONSTRUCCION en el catálogo → error (no se aplica)', !!p.error);
 
+// --- 8. columnas opcionales Partida / Sub-partida ---
+const encP = [...enc, 'Partida', 'Sub-partida', 'Qué cambié'];
+const lp = leerFormatoDispersion([{ archivo: 'P.xlsx', nombre: 'H', filas: [encP,
+  ['1', 46027, 'FACTURA', 'PROV', 'ADHESIVO', 'DEPTOS', 100, '', '101, 102', 'EQUITATIVO', 'CONSTRUCCION', 'Acabados', 'nota'],
+  ['2', 46027, 'FACTURA', 'PROV', 'ADHESIVO', 'DEPTOS', 200, '', '101, 102', 'EQUITATIVO', '', '', '']] }]);
+ck('lee Partida y Sub-partida opcionales (y "Descripción Particular" sigue aparte)', lp.filas[0].partida === 'CONSTRUCCION' && lp.filas[0].subpartida === 'Acabados' && lp.filas[1].partida === '' && lp.filas[0].particular === '', lp.filas[0]);
+ck('sin columnas de partida: quedan vacías', lect.filas.every(f => f.partida === '' && f.subpartida === ''));
+p = elegirPartida({ indicada: { partida: 'construccion', sub: 'acabados' }, dePago: [{ partida: 'Supervision', sub: '' }], concepto: 'CARPINTERIA', catalogo: cat });
+ck('partida indicada en el archivo MANDA sobre pago/historial/concepto (nombre del catálogo)', p.partida === 'CONSTRUCCION' && p.sub === 'Acabados' && p.fuente === 'indicada en el archivo', p);
+p = elegirPartida({ indicada: { partida: 'CONSTRUCCION', sub: 'Pisos' }, dePago: [{ partida: 'Supervision', sub: '' }], catalogo: cat });
+ck('partida indicada que no existe → error (no se cae en silencio a la automática)', !!p.error && /no está en el catálogo/.test(p.error), p);
+p = elegirPartida({ indicada: { partida: '', sub: '' }, dePago: [{ partida: 'Supervision', sub: '' }], catalogo: cat });
+ck('partida indicada vacía → sigue la regla de siempre', p.partida === 'Supervision' && p.fuente === 'pago ligado');
+
 console.log(`\n${ok} ok · ${fail} fallas`);
 process.exit(fail ? 1 : 0);

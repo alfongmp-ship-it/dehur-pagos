@@ -61,6 +61,9 @@ const COLS = [
   { key: 'importe', test: t => t.startsWith('importe'), obligatoria: true },
   { key: 'aplicacion', test: t => t.startsWith('aplicacion'), obligatoria: true },
   { key: 'reparto', test: t => t.startsWith('reparto'), obligatoria: true },
+  // Opcionales: si vienen llenas mandan sobre la partida automática (deben existir en el catálogo).
+  { key: 'partida', test: t => t.startsWith('partida') },
+  { key: 'subpartida', test: t => /^sub[\s-]?partida/.test(t) },
 ];
 
 function _encabezado(fila) {
@@ -106,6 +109,7 @@ export function leerFormatoDispersion(hojas) {
         proveedor, concepto: txt(cel('concepto')), categoria: txt(cel('categoria')),
         importe: _importe(impCel), particular: txt(cel('particular')),
         aplicacion: txt(cel('aplicacion')), reparto: txt(cel('reparto')),
+        partida: txt(cel('partida')), subpartida: txt(cel('subpartida')),
       });
     }
     hojasLeidas.push({ archivo: h.archivo, hoja: h.nombre, renglones: n });
@@ -315,8 +319,15 @@ export function partidaValida(catalogo, partida, sub) {
   return s ? { partida: cat.partida, sub: s } : null;
 }
 
+// indicada: { partida, sub } escrita en el archivo (columnas opcionales). Si viene, MANDA: si no existe en el
+// catálogo es error (no se cae a la automática en silencio).
 // dePago / historial: [{ partida, sub }] (uno por documento). → { partida, sub, fuente } | { error }
-export function elegirPartida({ dePago = [], historial = [], concepto = '', catalogo = [] }) {
+export function elegirPartida({ indicada = null, dePago = [], historial = [], concepto = '', catalogo = [] }) {
+  if (indicada && txt(indicada.partida)) {
+    const v = partidaValida(catalogo, indicada.partida, indicada.sub);
+    if (!v) return { error: `La partida indicada en el archivo "${txt(indicada.partida)}${txt(indicada.sub) ? ' / ' + txt(indicada.sub) : ''}" no está en el catálogo (o le falta la sub-partida)` };
+    return { ...v, fuente: 'indicada en el archivo' };
+  }
   const validas = l => l.map(x => partidaValida(catalogo, x.partida, x.sub)).filter(Boolean);
   const k = x => x.partida + '|' + x.sub;
   const vp = validas(dePago);

@@ -168,8 +168,8 @@ function _armarPlan(lect) {
 
     const pids = [...(pagosDeFact.get(fid) || [])];
     const dePago = pids.map(partidaDePago).filter(Boolean);
-    const par = elegirPartida({ dePago, historial: historialProveedor(f.proveedor_id, S(f.proyecto)), concepto: [fila.concepto, fila.particular], catalogo: state.partidasCatalogo || [] });
-    if (par.error) { aRevisar(r, par.error, 'Revisa el catálogo de partidas', { f }); return; }
+    const par = elegirPartida({ indicada: { partida: fila.partida, sub: fila.subpartida }, dePago, historial: historialProveedor(f.proveedor_id, S(f.proyecto)), concepto: [fila.concepto, fila.particular], catalogo: state.partidasCatalogo || [] });
+    if (par.error) { aRevisar(r, par.error, fila.partida ? 'Corrige la Partida / Sub-partida del renglón (nombre exacto del catálogo) y vuelve a subirlo' : 'Revisa el catálogo de partidas', { f }); return; }
 
     const casasNuevas = new Set(asigs.map(a => S(a.unidad_id)));
     const pagos = pids.map(pid => {
