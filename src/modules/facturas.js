@@ -511,6 +511,44 @@ export function exportarFacturasExcel() {
   notify(`Reporte exportado (${fil.length} factura${fil.length !== 1 ? 's' : ''})`);
 }
 
+// Pagos ligados a las facturas visibles (respeta los filtros): una fila por cada liga
+// factura ↔ pago, por las dos vías (aplicación por partes y marcador del pago).
+// Un pago que paga varias facturas sale en varias filas. Solo lectura.
+export function exportarPagosDeFacturasExcel() {
+  const fil = getFilteredFacturas();
+  if (!fil.length) { notify('No hay facturas con los filtros actuales', 'error'); return; }
+  const headers = ['Factura (ID)', 'Folio', 'UUID', 'Proveedor', 'Fecha factura', 'Total neto factura', 'Pagado (factura)', 'Saldo (factura)', 'Proyecto factura',
+    'Pago (ID)', 'Fecha pago', 'Beneficiario', 'Importe del pago', 'Aplicado a esta factura', 'Cómo está ligado', 'Proyecto del pago', 'Cuenta origen', 'Partida del pago', 'Sub-partida del pago', 'Concepto'];
+  const hById = new Map((state.historial || []).map(h => [String(h.id), h]));
+  const rows = [];
+  let conPago = 0;
+  fil.forEach(f => {
+    const ps = pagosLigadosDeFactura(f.factura_id);
+    if (!ps.length) return;
+    conPago++;
+    const base = [f.factura_id, f.numero_factura || '', f.uuid || '', f.nombre_proveedor || f.razon_social || '', fmtFecha(f.fecha_factura),
+      f.monto_total || 0, f.monto_pagado || 0, f.saldo_pendiente || 0, f.proyecto || ''];
+    ps.forEach(p => {
+      const h = hById.get(p.pagoId) || {};
+      const como = !p.existe ? 'El pago ya no existe' : p.aplicado != null ? 'Aplicado a la factura' : 'Marcado en el pago';
+      rows.push([...base, p.pagoId, fmtFecha(p.fecha), p.beneficiario, p.existe ? p.importe : '',
+        p.aplicado != null ? p.aplicado : (p.existe ? p.importe : ''), como, h.proyecto || '', h.cuenta_origen || '', p.partida, p.sub, p.concepto]);
+    });
+  });
+  if (!rows.length) { notify('Ninguna de las facturas filtradas tiene pagos ligados', 'error'); return; }
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  for (let r = 1; r <= rows.length; r++) [5, 6, 7, 12, 13].forEach(c => {
+    const ref = XLSX.utils.encode_cell({ r, c });
+    if (ws[ref] && typeof ws[ref].v === 'number') ws[ref].z = '"$"#,##0.00';
+  });
+  ws['!cols'] = [10, 14, 38, 32, 12, 15, 15, 14, 20, 10, 12, 32, 15, 18, 20, 20, 20, 18, 26, 40].map(w => ({ wch: w }));
+  ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rows.length, c: headers.length - 1 } }) };
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Pagos de facturas');
+  XLSX.writeFile(wb, `pagos_de_facturas_dehur_${hoyFecha().replace(/\//g, '-')}.xlsx`);
+  notify(`Exportado: ${rows.length} pago(s) ligado(s) en ${conPago} factura(s) · ${fil.length - conPago} sin pago`);
+}
+
 // ===== Acción en bloque: Empresa facturada (solo admin) =====
 // Pensada para cargas masivas que entraron sin empresa (el importador no la trae).
 // Solo toca el campo `empresa`: ningún motor de costos ni el fiscal lo usan.
