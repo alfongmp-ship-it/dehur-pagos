@@ -1,5 +1,4 @@
 // Catálogos para el módulo de Costos Fiscales por unidad.
-import { state } from '../state.js';
 
 // Estatus de obra de una unidad (casa).
 export const ESTATUS_UNIDAD = ['En obra', 'Terminada', 'Entregada', 'Vendida'];
@@ -47,43 +46,18 @@ function _iso(s) {
   return '';
 }
 
-// CIERRE de una casa (regla del dueño, 2026-09-30): la fecha MÁS TEMPRANA entre su
-// terminación de obra (`fecha_termino`) y su ESCRITURA real (ventas.fecha_escritura_real de
-// una venta activa y no cancelada). A partir de esa fecha la casa NO puede recibir costo.
-// '' = abierta (sin terminación ni escritura).
-// Escritura real más temprana por casa. Caché corto (1 s): los pools se evalúan miles
-// de veces por render/auditoría y recorrer todas las ventas cada vez es caro; un cambio
-// de venta se ve en el siguiente segundo.
-let _escCache = null, _escRef = null, _escT = 0;
-function _escrituraMin(uid) {
-  const v = state.ventas || [];
-  const now = Date.now();
-  if (!_escCache || _escRef !== v || now - _escT > 1000) {
-    _escCache = new Map();
-    v.forEach(x => {
-      if (x.activo === false || x.estatus_comercial === 'cancelada') return;
-      const fe = _iso(x.fecha_escritura_real);
-      if (!fe) return;
-      const k = String(x.unidad_id);
-      const prev = _escCache.get(k);
-      if (!prev || fe < prev) _escCache.set(k, fe);
-    });
-    _escRef = v; _escT = now;
-  }
-  return _escCache.get(String(uid)) || '';
-}
-
-// Tras capturar/cambiar una venta en esta sesión: las ventas se mutan EN SITIO
-// (mismo arreglo), así que el caché de 1 s podría no ver el cambio recién hecho.
-export function invalidarCierres() { _escCache = null; }
-
+// CIERRE de una casa = su fecha de ESCRITURACIÓN capturada en la pestaña Unidades
+// (`fecha_termino`). A partir de esa fecha la casa NO puede recibir costo. '' = abierta.
+// Regla del dueño (2026-10-07): lo capturado en Ingresos (ventas.fecha_escritura_real)
+// NO cierra casas — Ingresos todavía no se usa y una fecha tentativa ahí cerraba la casa.
 export function fechaCierreUnidad(u) {
   if (!u) return '';
-  const ft = _iso(u.fecha_termino);
-  const fe = _escrituraMin(u.unidad_id);
-  if (ft && fe) return ft < fe ? ft : fe;
-  return ft || fe || '';
+  return _iso(u.fecha_termino);
 }
+
+// Se conserva para los llamadores de Ingresos/rehacer (antes vaciaba el caché de
+// escrituras de ventas); el cierre ya no depende de ventas, así que no hace nada.
+export function invalidarCierres() {}
 
 // ¿La casa está ABIERTA (puede recibir costo) a una fecha dada? Sí, si sigue activa y su
 // cierre es POSTERIOR a esa fecha. Sin cierre = abierta siempre. Sin fechaISO se usa hoy
