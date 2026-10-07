@@ -12,3 +12,6 @@ index_real.html
 
 # Documentación maestra: se conserva LOCAL, no se sube (el repo es público).
 docs/documentacion-completa.md
+
+# Documentos internos (reglas de clasificación, datos de proveedores…): solo LOCAL, jamás al repo público.
+docs/privado/
