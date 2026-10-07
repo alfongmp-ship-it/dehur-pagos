@@ -768,6 +768,7 @@ function renderUnidadesTab(panel) {
           <input type="checkbox" ${cfMostrarEstimado ? 'checked' : ''} onchange="cfToggleEstimado(this.checked)" style="cursor:pointer;"> Estimado por asignar
         </label>
         <button class="btn btn-ghost btn-sm" onclick="exportarCostosUnitariosExcel()" title="Exporta el costo de cada casa (presupuesto, costo real y avance). Con el checkbox de estimado prendido, incluye además el estimado por asignar y el costo proyectado.">⬇ Excel</button>
+        <button class="btn btn-ghost req-admin" onclick="importarUnidadesExcel()" title="Da de alta casas desde un Excel (columnas: Casa, Tipo, Indiviso %, Superficie m², Escrituración). Solo crea casas nuevas: no cambia las existentes ni ningún reparto.">📥 Importar unidades</button>
         <button class="btn btn-ghost req-admin" onclick="abrirLoteUnidades()">+ Crear en lote</button>
         <button class="btn btn-primary req-admin" onclick="abrirNuevaUnidad()">+ Nueva Unidad</button>
       </div>
