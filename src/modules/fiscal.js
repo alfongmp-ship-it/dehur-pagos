@@ -21,10 +21,11 @@ import {
 } from './costos-fiscales.js';
 import { parseFechaHist } from './historial.js';
 import { estimados324 } from './rmf-324.js';
-import { montosFiscales, montoFiscalDe, baseFiscalFactura, retencionesFiscales, desgloseFactura } from '../services/base-fiscal.js';
+import { montosFiscales, montoFiscalDe, baseFiscalFactura, retencionesFiscales, desgloseFactura, factorFiscalFactura } from '../services/base-fiscal.js';
 import { subPartidaObligatoria } from '../config/sub-partidas.js';
 import { estatusLabel } from '../config/costos-fiscales.js';
 import { claseDeFactura, CLASE_LABEL, claseListo } from './facturas-clase.js';
+import { claseEfectiva } from '../services/clase-efectiva.js';
 
 let fisProyecto = '';           // proyecto activo de la página
 let fisTab = 'deducibilidad';   // pestaña activa
@@ -77,7 +78,7 @@ function renderFisTabs() {
   if (!cont) return;
   const tabs = [
     { id: 'deducibilidad', label: '✅ Deducibilidad' },
-    { id: 'porcasa', label: '🏠 Por casa (facturado)' },
+    { id: 'porcasa', label: '🏠 Por casa (directos)' },
     { id: 'sincfdi', label: '🧮 Sin CFDI' },
     { id: 'desglose', label: '🔎 Desglose de facturas' },
     { id: 'estimados', label: '📅 Estimados 3.2.4' },
@@ -298,10 +299,13 @@ function _pagosAprobadosSinRepartir(proyecto) {
 }
 // conDetalle → además `detalle: Map(unidad_id → [{ ref, factor, monto }])`: qué
 // parte de cada documento pendiente le toca a cada casa (renglón del anexo).
-function _estimadoPorCasa(proyecto, conDetalle = false) {
+// esDirecta(f) (🏠 Por casa "solo directos") → solo se simulan las facturas directas
+// y los pagos aprobados de partida directa; sin ella, todo (fichas y anexo).
+function _estimadoPorCasa(proyecto, conDetalle = false, esDirecta = null) {
   const opts = { detalle: conDetalle };
-  const fac = estimadoFacturadoPorUnidad(proyecto, { ...opts, fiscal: true });
+  const fac = estimadoFacturadoPorUnidad(proyecto, { ...opts, fiscal: true, ...(esDirecta ? { filtroFactura: esDirecta } : {}) });
   const pag = simularIndivisoDocs(_pagosAprobadosSinRepartir(proyecto)
+    .filter(h => !esDirecta || claseEfectiva(null, h.partida).clase === 'directo')
     .map(h => ({ importe: h.importe || 0, fechaIso: parseFechaHist(h.fecha) || '',
       ref: { tipo: 'pago', id: h.id, pend: h.importe || 0, repartido: 0 } })), proyecto, opts);
   const porUnidad = new Map(fac.porUnidad);
@@ -315,71 +319,197 @@ function _estimadoPorCasa(proyecto, conDetalle = false) {
     sinPoolTotal: (fac.sinPoolTotal || 0) + (pag.sinPoolTotal || 0), sinPoolCount: (fac.sinPoolCount || 0) + (pag.sinPoolCount || 0) };
 }
 
+// 🏠 Por casa "SOLO DIRECTOS" (regla del dueño 2026-10-07): a las casas se suma solo
+// lo directo; lo indirecto (y lo que aún no se sabe) va a la tarjeta "Indirectos por
+// distribuir" hasta que se decida cómo repartirlo. La clase sale de
+// services/clase-efectiva.js: manda la de contabilidad; sin ella, la partida (solo
+// CONSTRUCCION / Supervision / Terreno = directo; provisional). Nada se borra: los
+// repartos de indirectos siguen ahí, solo no se suman a las casas en esta vista.
+// Una pasada. Control: directo + indirecto + sin dato = lo facturado de siempre.
+function _porClaseFiscal(proyecto, bat) {
+  const fisc = costoFacturadoPorUnidad(proyecto, { fiscal: true });
+  const mf = montosFiscales(state.costoAsignaciones, state.facturas);
+  const partidaDe = new Map();   // factura_id → partida de su primera fila con partida
+  state.costoAsignaciones.forEach(a => {
+    const fid = String(a.factura_id || '');
+    if (fid && a.partida_override && !partidaDe.has(fid)) partidaDe.set(fid, a.partida_override);
+  });
+  // Factura SIN reparto (aún sin partida): la de su pago ligado (aplicación o bandera).
+  const hById = new Map((state.historial || []).map(h => [String(h.id), h]));
+  const partidaPago = new Map();
+  (state.facturaPagos || []).forEach(fp => { const h = hById.get(String(fp.pago_id)); const k = String(fp.factura_id); if (h && h.partida && !partidaPago.has(k)) partidaPago.set(k, h.partida); });
+  (state.historial || []).forEach(h => { const k = String(h.factura_id || ''); if (k && h.partida && !partidaPago.has(k)) partidaPago.set(k, h.partida); });
+  const partidaFact = fid => partidaDe.get(fid) || partidaPago.get(fid) || '';
+  const clC = fid => { const c = claseDeFactura(fid); return c ? c.clase : null; };
+  // Clase de una factura completa (para lo que falta por repartir de ella).
+  const claseFactura = f => claseEfectiva(clC(String(f.factura_id)), partidaFact(String(f.factura_id)));
+  const esDirecta = f => claseFactura(f).clase === 'directo';
+
+  const dirPorUnidad = new Map();
+  const docs = new Map();
+  const addDoc = (k, base, campo, monto) => {
+    let d = docs.get(k);
+    if (!d) { d = { ...base, repartido: 0, porRepartir: 0 }; docs.set(k, d); }
+    d[campo] += monto;
+  };
+  const baseF = (f, clase, provisional, partida) => ({ tipo: 'Factura', id: String(f.factura_id), fecha: f.fecha_factura || '',
+    quien: f.nombre_proveedor || f.razon_social || '', partida: partida || '', clase, provisional });
+  let totDir = 0, totOtro = 0, nDirProv = 0, montoDirProv = 0;
+  const provVistas = new Set();
+
+  // 1) Lo facturado YA repartido: fila por fila (una factura por partes puede tener
+  //    una parte directa y otra indirecta si contabilidad aún no la clasifica).
+  state.costoAsignaciones.forEach(a => {
+    const fid = String(a.factura_id || '');
+    if (!fid || !fisc.elegibles.has(fid)) return;
+    const ce = claseEfectiva(clC(fid), a.partida_override);
+    const m = montoFiscalDe(mf, a);
+    if (ce.clase === 'directo') {
+      dirPorUnidad.set(a.unidad_id, (dirPorUnidad.get(a.unidad_id) || 0) + m);
+      totDir += m;
+      if (ce.provisional) { montoDirProv += m; if (!provVistas.has(fid)) { provVistas.add(fid); nDirProv++; } }
+      return;
+    }
+    totOtro += m;
+    const f = facturaById(fid) || { factura_id: fid };
+    addDoc('F' + fid + ce.clase + (a.partida_override || ''), baseF(f, ce.clase, ce.provisional, a.partida_override), 'repartido', m);
+  });
+  if (Math.abs(totDir + totOtro - fisc.total) > 0.05) console.warn(`[Por casa] directo + indirecto (${totDir + totOtro}) ≠ facturado (${fisc.total})`);
+
+  // 2) Lo facturado que FALTA por repartir (sin reparto o a medias): lo directo va al
+  //    estimado de las casas (_estimadoPorCasa con esDirecta); lo demás, a la tarjeta.
+  const rep = repartidoPorFactura();
+  (state.facturas || []).forEach(f => {
+    const k = String(f.factura_id);
+    if (!fisc.elegibles.has(k)) return;
+    const pendNeto = (f.monto_total || 0) - (rep.get(k) || 0);
+    if (pendNeto <= 0.5) return;
+    const ce = claseFactura(f);
+    if (ce.clase === 'directo') return;
+    addDoc('F' + k + ce.clase + partidaFact(k), baseF(f, ce.clase, ce.provisional, partidaFact(k)), 'porRepartir', pendNeto * factorFiscalFactura(f));
+  });
+
+  // 3) Pagos sin CFDI aprobados: repartidos (de fiscalBatch, ya partidos por clase) y
+  //    aprobados aún sin repartir. Sin clase de contabilidad: decide su partida.
+  const baseP = (h, clase) => ({ tipo: 'Pago', id: String(h.id), fecha: h.fecha || '', quien: h.nombre || '', partida: h.partida || '', clase, provisional: true });
+  bat.pagosCand.forEach((reg, pid) => {
+    if (!reg.aprobado || !reg.porClase || !reg.h) return;
+    Object.entries(reg.porClase).forEach(([clase, m]) => { if (clase !== 'directo' && m) addDoc('P' + pid + clase, baseP(reg.h, clase), 'repartido', m); });
+  });
+  _pagosAprobadosSinRepartir(proyecto).forEach(h => {
+    const clase = claseEfectiva(null, h.partida).clase;
+    if (clase !== 'directo') addDoc('P' + h.id + clase, baseP(h, clase), 'porRepartir', h.importe || 0);
+  });
+
+  const lista = [...docs.values()].map(d => ({ ...d, total: d.repartido + d.porRepartir })).filter(d => d.total > 0.005);
+  const ind = lista.filter(d => d.clase === 'indirecto'), sinDato = lista.filter(d => d.clase === 'sinDato');
+  const suma = (l, k = 'total') => l.reduce((s, d) => s + d[k], 0);
+  const porPartida = new Map();
+  ind.forEach(d => {
+    const p = d.partida || '(sin partida: factura sin reparto ni pago ligado)';
+    const x = porPartida.get(p) || { repartido: 0, porRepartir: 0, total: 0, n: 0 };
+    x.repartido += d.repartido; x.porRepartir += d.porRepartir; x.total += d.total; x.n++;
+    porPartida.set(p, x);
+  });
+  const porAnio = new Map();
+  ind.forEach(d => { const y = (parseFechaHist(d.fecha) || '').slice(0, 4) || 's/f'; porAnio.set(y, (porAnio.get(y) || 0) + d.total); });
+  const esInteres = p => /inter[eé]s/i.test(p);
+  return {
+    fisc, dirPorUnidad, totDir, esDirecta, nDirProv, montoDirProv,
+    ind, sinDato, totInd: suma(ind), totIndRep: suma(ind, 'repartido'), totIndPend: suma(ind, 'porRepartir'),
+    totSinDato: suma(sinDato), totIndProv: suma(ind.filter(d => d.provisional)),
+    intereses: [...porPartida.entries()].filter(([p]) => esInteres(p)).reduce((s, [, x]) => s + x.total, 0),
+    porPartida: [...porPartida.entries()].sort((a, z) => (esInteres(z[0]) - esInteres(a[0])) || z[1].total - a[1].total),
+    porAnio: [...porAnio.entries()].sort(),
+  };
+}
+
 function renderPorCasaTab(panel) {
   const unidades = unidadesDeProyecto(false, fisProyecto);
   if (!unidades.length) {
     panel.innerHTML = `<div class="empty-state"><div style="font-size:32px;margin-bottom:10px;opacity:.4">🏠</div><div>Sin unidades en ${escapeHtml(fisProyecto)}.</div></div>`;
     return;
   }
-  const fisc = costoFacturadoPorUnidad(fisProyecto, { fiscal: true });
-  const estim = fisEstimCasa ? _estimadoPorCasa(fisProyecto) : null;
-  const tEst = estim ? estim.total : 0;
-  // Sin CFDI aprobado por casa (pagos marcados deducibles en 🧮 / ✅): con eso la
-  // fila dice el costo FISCAL CONCILIADO = facturado + sin CFDI aprobado.
   const bat = fiscalBatch(fisProyecto);
-  const scDe = u => (bat.porUnidad.get(String(u.unidad_id)) || {}).sinCfdi || 0;
+  const pc = _porClaseFiscal(fisProyecto, bat);
+  const fisc = pc.fisc;
+  const estim = fisEstimCasa ? _estimadoPorCasa(fisProyecto, false, pc.esDirecta) : null;
+  const tEst = estim ? estim.total : 0;
+  // Sin CFDI aprobado DIRECTO por casa (pagos marcados deducibles cuya partida es directa).
+  const scDe = u => (bat.porUnidad.get(String(u.unidad_id)) || {}).sinCfdiDir || 0;
+  const dirDe = u => pc.dirPorUnidad.get(u.unidad_id) || 0;
+  const tDir = unidades.reduce((s, u) => s + dirDe(u), 0);
   const tSC = unidades.reduce((s, u) => s + scDe(u), 0);
-  const tConc = fisc.total + tSC;
+  const tConc = tDir + tSC;
+  const td = 'text-align:right;font-family:\'DM Mono\',monospace;';
 
   panel.innerHTML = `
     ${_avisoImpAprob(bat)}
     <div style="margin-bottom:14px;padding:9px 12px;border:1px solid var(--accent);border-radius:8px;font-size:12px;background:color-mix(in srgb, var(--accent) 8%, transparent);">
-      <strong>💼 Solo facturado (devengado)</strong> — cuenta únicamente facturas vigentes, pagadas o no; los pagos no cuentan aquí.
-      Cada factura cuenta a su <strong>subtotal + IVA</strong>, <strong>sin descontar retenciones</strong>${fisc.retenciones > 0.005 ? ` (${fmt(fisc.retenciones)} más que lo pagado a proveedores)` : ''}.
+      <strong>🏠 Solo DIRECTOS a las casas</strong> — facturas vigentes (pagadas o no) a su <strong>subtotal + IVA</strong>, sin descontar retenciones.
+      Directo = clase de contabilidad; si aún no tiene, por su partida (CONSTRUCCION, Supervisión o Terreno — <em>provisional</em>).
+      Los <strong>indirectos no se suman a las casas</strong>: van a la tarjeta de abajo hasta decidir cómo repartirlos (sus repartos no se borran).
+      ${pc.nDirProv ? ` · <span style="color:var(--orange);">${pc.nDirProv} factura(s) directas por partida, sin clase de contabilidad (${fmt(pc.montoDirProv)})</span>` : ''}
       ${fisc.nCruzadas ? ` · <span style="color:var(--red);font-weight:600;">${fisc.nCruzadas} factura(s) de EMPRESA CRUZADA excluidas</span>` : ''}
       ${fisc.nExcluidas ? ` · ${fisc.nExcluidas} excluida(s) a mano en ✅ Deducibilidad` : ''}
       ${fisc.sinEmpresaProyecto ? ` · <span style="color:var(--orange);">⚠ Este proyecto no tiene EMPRESA capturada (Configuración → Proyectos): sin eso no se filtran las facturas de empresa cruzada.</span>` : ''}
     </div>
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
-      <div class="stat-card"><div class="stat-label">Facturado repartido</div><div class="stat-value" style="color:var(--green);">${fmt(fisc.total)}</div><div class="stat-sub">ya asignado a casas</div></div>
-      <div class="stat-card" title="Pagos sin factura marcados deducibles (pestaña 🧮 Sin CFDI), repartidos a casas."><div class="stat-label">✅ Sin CFDI aprobado</div><div class="stat-value">${fmt(tSC)}</div><div class="stat-sub">nómina y otros deducibles</div></div>
-      <div class="stat-card" title="Facturas elegibles SIN reparto y pagos sin CFDI aprobados SIN reparto, simulados por indiviso con el pool a la fecha de cada uno. Es el tamaño del pendiente de reparto."><div class="stat-label">⚠ Por repartir (estimado)</div><div class="stat-value" style="color:var(--orange);">${estim ? fmt(tEst) : '—'}</div><div class="stat-sub">${estim ? `${estim.nSin} sin reparto${estim.nParc ? ` + ${estim.nParc} a medias` : ''}${estim.nPagos ? ` + ${estim.nPagos} pago(s) aprobado(s)` : ''}${estim.sinPoolCount ? ` · ${estim.sinPoolCount} sin casas abiertas (${fmt(estim.sinPoolTotal)}, no se simulan)` : ''}` : 'prende el estimado'}</div></div>
-      <div class="stat-card" title="Facturado + Sin CFDI aprobado${estim ? ' + estimado por repartir' : ''}"><div class="stat-label">Costo fiscal ${estim ? 'proyectado' : 'conciliado'}</div><div class="stat-value" style="color:var(--accent);">${fmt(tConc + tEst)}</div><div class="stat-sub">${estim ? 'conciliado + por repartir' : 'facturado + sin CFDI'}</div></div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px;">
+      <div class="stat-card"><div class="stat-label">Directo repartido</div><div class="stat-value" style="color:var(--green);">${fmt(tDir)}</div><div class="stat-sub">facturas directas ya en las casas</div></div>
+      <div class="stat-card" title="Pagos sin factura marcados deducibles (pestaña 🧮 Sin CFDI) de partida directa, repartidos a casas."><div class="stat-label">✅ Sin CFDI aprobado</div><div class="stat-value">${fmt(tSC)}</div><div class="stat-sub">de partidas directas</div></div>
+      <div class="stat-card" title="Facturas DIRECTAS sin reparto (o a medias) y pagos aprobados de partida directa sin reparto, simulados por indiviso con el pool a la fecha de cada uno."><div class="stat-label">⚠ Directo por repartir (estimado)</div><div class="stat-value" style="color:var(--orange);">${estim ? fmt(tEst) : '—'}</div><div class="stat-sub">${estim ? `${estim.nSin} sin reparto${estim.nParc ? ` + ${estim.nParc} a medias` : ''}${estim.nPagos ? ` + ${estim.nPagos} pago(s) aprobado(s)` : ''}${estim.sinPoolCount ? ` · ${estim.sinPoolCount} sin casas abiertas (${fmt(estim.sinPoolTotal)}, no se simulan)` : ''}` : 'prende el estimado'}</div></div>
+      <div class="stat-card" title="Directo repartido + Sin CFDI aprobado directo${estim ? ' + directo por repartir' : ''}"><div class="stat-label">Costo directo ${estim ? 'proyectado' : 'conciliado'}</div><div class="stat-value" style="color:var(--accent);">${fmt(tConc + tEst)}</div><div class="stat-sub">${estim ? 'conciliado + por repartir' : 'directo + sin CFDI'}</div></div>
+    </div>
+    <div class="stat-card" style="margin-bottom:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;">
+        <div><div class="stat-label">🧾 Indirectos por distribuir (no se suman a las casas)</div>
+          <div class="stat-value" style="color:var(--orange);">${fmt(pc.totInd)}</div>
+          <div class="stat-sub">${fmt(pc.totIndRep)} con reparto hoy · ${fmt(pc.totIndPend)} sin repartir${pc.totIndProv > 0.005 ? ` · ${fmt(pc.totIndProv)} provisional (por partida, sin clase de contabilidad)` : ''}</div></div>
+        <div style="text-align:right;"><div class="stat-label">de ello, intereses</div><div class="stat-value" style="font-size:20px;">${fmt(pc.intereses)}</div>
+          <div class="stat-sub">${pc.porAnio.map(([y, t]) => `${escapeHtml(y)}: ${fmt(t)}`).join(' · ')}</div></div>
+      </div>
+      ${pc.porPartida.length ? `<div class="table-wrap" style="margin-top:10px;"><table>
+        <thead><tr><th>Partida</th><th style="text-align:right">Documentos</th><th style="text-align:right">Con reparto hoy</th><th style="text-align:right">Sin repartir</th><th style="text-align:right">Total</th></tr></thead>
+        <tbody>${pc.porPartida.map(([p, x]) => `<tr${/inter[eé]s/i.test(p) ? ' style="font-weight:700;"' : ''}>
+          <td>${escapeHtml(p)}</td><td style="${td}">${x.n}</td><td style="${td}">${fmt(x.repartido)}</td><td style="${td}">${fmt(x.porRepartir)}</td><td style="${td}">${fmt(x.total)}</td></tr>`).join('')}</tbody>
+      </table></div>` : ''}
+      ${pc.totSinDato > 0.005 ? `<div style="margin-top:8px;font-size:12px;color:var(--orange);">⚠ Además ${fmt(pc.totSinDato)} en ${pc.sinDato.length} factura(s) SIN clase de contabilidad y SIN reparto: todavía no se sabe si son directas (no están ni en las casas ni en este total). Clasifícalas (🏷) o repártelas.</div>` : ''}
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
-      <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;">Costo facturado por casa</div>
+      <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;">Costo directo por casa</div>
       <div style="display:flex;gap:10px;align-items:center;">
-        <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);cursor:pointer;" title="Simula repartir por indiviso (pool a la fecha de cada factura) lo facturado que aún no repartes. Solo para ver: no crea asignaciones.">
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);cursor:pointer;" title="Simula repartir por indiviso (pool a la fecha de cada factura) lo DIRECTO que aún no repartes. Solo para ver: no crea asignaciones.">
           <input type="checkbox" ${fisEstimCasa ? 'checked' : ''} onchange="fisToggleEstimCasa(this.checked)" style="cursor:pointer;"> Estimado por asignar
         </label>
-        <button class="btn btn-ghost btn-sm" onclick="exportarFiscalPorCasaExcel()" title="Excel: costo facturado por casa (y el estimado si está prendido)">⬇ Excel</button>
-        <button class="btn btn-ghost btn-sm" onclick="exportarAnexoFiscalExcel()" title="Anexo auditable para fiscalistas: Excel con + / − por casa y partida; cada factura con UUID, proveedor, RFC y la proporción que le tocó a la casa">📎 Anexo Excel</button>
-        <button class="btn btn-primary btn-sm" onclick="imprimirFichasFiscales()" title="Una ficha por casa (hoja carta). En la ventana de impresión elige 'Guardar como PDF'.">🖨 Fichas (todas)</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportarFiscalPorCasaExcel()" title="Excel: costo directo por casa (y el estimado si está prendido) + hoja de indirectos por distribuir">⬇ Excel</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportarAnexoFiscalExcel()" title="Anexo auditable para fiscalistas. OJO: todavía suma directo + indirecto (se ajusta en la siguiente fase)">📎 Anexo Excel</button>
+        <button class="btn btn-primary btn-sm" onclick="imprimirFichasFiscales()" title="Una ficha por casa. OJO: todavía suma directo + indirecto (se ajusta en la siguiente fase)">🖨 Fichas (todas)</button>
       </div>
     </div>
+    <div style="font-size:11px;color:var(--muted);margin:-4px 0 8px;">🖨 Fichas y 📎 Anexo todavía suman directo + indirecto; se ajustan en la siguiente fase.</div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Casa</th><th style="text-align:right">% Indiviso</th><th style="text-align:right">💼 Facturado</th><th style="text-align:right">✅ Sin CFDI</th><th style="text-align:right" title="Facturado + Sin CFDI aprobado">Fiscal conciliado</th>${estim ? '<th style="text-align:right">Estimado (por asignar)</th><th style="text-align:right">Proyectado</th>' : ''}<th></th></tr></thead>
+        <thead><tr><th>Casa</th><th style="text-align:right">% Indiviso</th><th style="text-align:right">💼 Directo facturado</th><th style="text-align:right">✅ Sin CFDI</th><th style="text-align:right" title="Directo facturado + Sin CFDI aprobado directo">Directo conciliado</th>${estim ? '<th style="text-align:right">Estimado (por asignar)</th><th style="text-align:right">Proyectado</th>' : ''}<th></th></tr></thead>
         <tbody>${unidades.map(u => {
-          const cf = fisc.porUnidad.get(u.unidad_id) || 0;
+          const cf = dirDe(u);
           const sc = scDe(u);
           const e = estim ? (estim.porUnidad.get(u.unidad_id) || 0) : 0;
           return `<tr>
             <td style="font-weight:600;">${escapeHtml(u.nombre)}</td>
-            <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--muted);">${(u.indiviso_pct || 0).toFixed(4)}%</td>
-            <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--green);">${fmt(cf)}</td>
-            <td style="text-align:right;font-family:'DM Mono',monospace;">${sc ? fmt(sc) : '—'}</td>
-            <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--accent);font-weight:600;">${fmt(cf + sc)}</td>
-            ${estim ? `<td style="text-align:right;font-family:'DM Mono',monospace;color:var(--orange);">${fmt(e)}</td><td style="text-align:right;font-family:'DM Mono',monospace;font-weight:600;">${fmt(cf + sc + e)}</td>` : ''}
-            <td style="text-align:right;"><button class="btn btn-ghost btn-sm" onclick="imprimirFichasFiscales('${escapeHtml(String(u.unidad_id))}')" title="Ficha de ${escapeHtml(u.nombre)} (Guardar como PDF)">🖨</button></td>
+            <td style="${td}color:var(--muted);">${(u.indiviso_pct || 0).toFixed(4)}%</td>
+            <td style="${td}color:var(--green);">${fmt(cf)}</td>
+            <td style="${td}">${sc ? fmt(sc) : '—'}</td>
+            <td style="${td}color:var(--accent);font-weight:600;">${fmt(cf + sc)}</td>
+            ${estim ? `<td style="${td}color:var(--orange);">${fmt(e)}</td><td style="${td}font-weight:600;">${fmt(cf + sc + e)}</td>` : ''}
+            <td style="text-align:right;"><button class="btn btn-ghost btn-sm" onclick="imprimirFichasFiscales('${escapeHtml(String(u.unidad_id))}')" title="Ficha de ${escapeHtml(u.nombre)} (todavía con directo + indirecto)">🖨</button></td>
           </tr>`;
         }).join('')}
         <tr style="border-top:2px solid var(--border);font-weight:700;">
           <td>TOTAL</td><td></td>
-          <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--green);">${fmt(fisc.total)}</td>
-          <td style="text-align:right;font-family:'DM Mono',monospace;">${fmt(tSC)}</td>
-          <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--accent);">${fmt(tConc)}</td>
-          ${estim ? `<td style="text-align:right;font-family:'DM Mono',monospace;color:var(--orange);">${fmt(tEst)}</td><td style="text-align:right;font-family:'DM Mono',monospace;">${fmt(tConc + tEst)}</td>` : ''}
+          <td style="${td}color:var(--green);">${fmt(tDir)}</td>
+          <td style="${td}">${fmt(tSC)}</td>
+          <td style="${td}color:var(--accent);">${fmt(tConc)}</td>
+          ${estim ? `<td style="${td}color:var(--orange);">${fmt(tEst)}</td><td style="${td}">${fmt(tConc + tEst)}</td>` : ''}
           <td></td>
         </tr></tbody>
       </table>
@@ -390,41 +520,57 @@ export function exportarFiscalPorCasaExcel() {
   if (!window.XLSX) { notify('Cargando la librería de Excel, intenta de nuevo en 2 segundos', 'error'); return; }
   const unidades = unidadesDeProyecto(false, fisProyecto);
   if (!unidades.length) { notify('No hay unidades en este proyecto', 'error'); return; }
-  const fisc = costoFacturadoPorUnidad(fisProyecto, { fiscal: true });
-  const estim = fisEstimCasa ? _estimadoPorCasa(fisProyecto) : null;
   const bat = fiscalBatch(fisProyecto);
-  const scDe = u => (bat.porUnidad.get(String(u.unidad_id)) || {}).sinCfdi || 0;
+  const pc = _porClaseFiscal(fisProyecto, bat);
+  const estim = fisEstimCasa ? _estimadoPorCasa(fisProyecto, false, pc.esDirecta) : null;
+  const scDe = u => (bat.porUnidad.get(String(u.unidad_id)) || {}).sinCfdiDir || 0;
   const sello = _sello();
-  const enc = ['Casa', '% Indiviso', 'Facturado', 'Sin CFDI aprobado', 'Fiscal conciliado'];
-  if (estim) enc.push('Estimado por asignar', 'Proyectado');
+  const money = (ws, r0, cols, n) => { for (let r = r0; r < n; r++) cols.forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (ws[ref] && typeof ws[ref].v === 'number') ws[ref].z = '"$"#,##0.00'; }); };
+  const enc = ['Casa', '% Indiviso', 'Directo facturado', 'Sin CFDI aprobado (directo)', 'Directo conciliado'];
+  if (estim) enc.push('Estimado directo por asignar', 'Proyectado');
   const aoa = [
-    [`FISCAL — Por casa (solo facturado) — ${fisProyecto}`],
-    [`Generado: ${sello.txt} · Facturas vigentes (pagadas o no) a su subtotal + IVA, sin descontar retenciones${fisc.retenciones > 0.005 ? ` (${fmt(fisc.retenciones)})` : ''}; pagos NO cuentan${fisc.nCruzadas ? ` · ${fisc.nCruzadas} factura(s) de empresa cruzada excluidas` : ''}${fisc.nExcluidas ? ` · ${fisc.nExcluidas} excluida(s) en Deducibilidad` : ''}${estim ? ` · Estimado: ${fmt(estim.total)} = ${estim.nFact} factura(s) con saldo por repartir — ${estim.nSin} sin reparto y ${estim.nParc} a medias — (${fmt(estim.totFact)})${estim.nPagos ? ` + ${estim.nPagos} pago(s) sin CFDI aprobados sin repartir (${fmt(estim.totPagos)})` : ''}, por indiviso (NO es reparto real)` : ''}`],
+    [`FISCAL — Costo DIRECTO por casa — ${fisProyecto}`],
+    [`Generado: ${sello.txt} · Solo lo DIRECTO se suma a las casas (clase de contabilidad; sin clase, por partida CONSTRUCCION/Supervisión/Terreno, provisional). Facturas vigentes a subtotal + IVA, sin descontar retenciones${pc.fisc.nCruzadas ? ` · ${pc.fisc.nCruzadas} factura(s) de empresa cruzada excluidas` : ''}${pc.fisc.nExcluidas ? ` · ${pc.fisc.nExcluidas} excluida(s) en Deducibilidad` : ''} · Indirectos por distribuir (no incluidos): ${fmt(pc.totInd)} — hoja "Indirectos"${estim ? ` · Estimado: ${fmt(estim.total)} por indiviso (NO es reparto real)` : ''}`],
     [], enc];
-  let tEst = 0, tSC = 0;
+  let tDir = 0, tEst = 0, tSC = 0;
   unidades.forEach(u => {
-    const cf = fisc.porUnidad.get(u.unidad_id) || 0;
+    const cf = pc.dirPorUnidad.get(u.unidad_id) || 0;
     const sc = scDe(u);
     const e = estim ? (estim.porUnidad.get(u.unidad_id) || 0) : 0;
-    tEst += e; tSC += sc;
+    tDir += cf; tEst += e; tSC += sc;
     const fila = [u.nombre, (u.indiviso_pct || 0) / 100, cf, sc, cf + sc];
     if (estim) fila.push(e, cf + sc + e);
     aoa.push(fila);
   });
-  const tot = ['TOTAL', '', fisc.total, tSC, fisc.total + tSC];
-  if (estim) tot.push(tEst, fisc.total + tSC + tEst);
+  const tot = ['TOTAL', '', tDir, tSC, tDir + tSC];
+  if (estim) tot.push(tEst, tDir + tSC + tEst);
   aoa.push([], tot);
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [{ wch: 18 }, { wch: 11 }, { wch: 16 }, { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 16 }];
-  for (let r = 4; r < aoa.length; r++) {
-    const refI = XLSX.utils.encode_cell({ r, c: 1 });
-    if (ws[refI] && typeof ws[refI].v === 'number') ws[refI].z = '0.0000%';
-    [2, 3, 4, 5, 6].forEach(c => { const ref = XLSX.utils.encode_cell({ r, c }); if (ws[ref] && typeof ws[ref].v === 'number') ws[ref].z = '"$"#,##0.00'; });
-  }
+  ws['!cols'] = [{ wch: 18 }, { wch: 11 }, { wch: 18 }, { wch: 24 }, { wch: 18 }, { wch: 24 }, { wch: 16 }];
+  for (let r = 4; r < aoa.length; r++) { const refI = XLSX.utils.encode_cell({ r, c: 1 }); if (ws[refI] && typeof ws[refI].v === 'number') ws[refI].z = '0.0000%'; }
+  money(ws, 4, [2, 3, 4, 5, 6], aoa.length);
+
+  // Indirectos por distribuir: por partida y por documento.
+  const aoaI = [[`Indirectos por distribuir — ${fisProyecto} (no se suman a las casas)`],
+    [`Generado: ${sello.txt} · Total ${fmt(pc.totInd)} = ${fmt(pc.totIndRep)} con reparto hoy + ${fmt(pc.totIndPend)} sin repartir · de ello intereses ${fmt(pc.intereses)}${pc.totSinDato > 0.005 ? ` · Aparte: ${fmt(pc.totSinDato)} en facturas sin clase ni reparto (no se sabe aún)` : ''}`],
+    [], ['Partida', 'Documentos', 'Con reparto hoy', 'Sin repartir', 'Total']];
+  pc.porPartida.forEach(([p, x]) => aoaI.push([p, x.n, x.repartido, x.porRepartir, x.total]));
+  aoaI.push(['TOTAL', pc.ind.length, pc.totIndRep, pc.totIndPend, pc.totInd], [], ['Por año', '', '', '', 'Total']);
+  pc.porAnio.forEach(([y, t]) => aoaI.push([y, '', '', '', t]));
+  const r0 = aoaI.length + 1;
+  aoaI.push([], ['Tipo', 'ID', 'Fecha', 'Proveedor / Beneficiario', 'Partida', 'Clase', 'Cómo se decidió', 'Con reparto hoy', 'Sin repartir', 'Total']);
+  [...pc.ind, ...pc.sinDato].sort((a, z) => z.total - a.total).forEach(d => aoaI.push([d.tipo, d.tipo === 'Factura' ? (Number(d.id) || d.id) : d.id, fmtFecha(d.fecha), d.quien, d.partida,
+    d.clase === 'sinDato' ? 'Sin clase ni partida' : 'Indirecto', d.provisional ? (d.tipo === 'Pago' ? 'Por partida (pago sin CFDI)' : 'Por partida (provisional)') : 'Contabilidad', d.repartido, d.porRepartir, d.total]));
+  const wsI = XLSX.utils.aoa_to_sheet(aoaI);
+  wsI['!cols'] = [12, 11, 12, 34, 28, 18, 26, 16, 16, 16].map(wch => ({ wch }));
+  money(wsI, 4, [2, 3, 4], r0);
+  money(wsI, r0 + 1, [7, 8, 9], aoaI.length);
+
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Por casa');
+  XLSX.utils.book_append_sheet(wb, ws, 'Por casa (directo)');
+  XLSX.utils.book_append_sheet(wb, wsI, 'Indirectos');
   XLSX.writeFile(wb, `Fiscal_por_casa_${String(fisProyecto).replace(/[\\/:*?"<>|\s]+/g, '_')}_${sello.archivo}.xlsx`);
-  notify('⬇ Excel fiscal por casa descargado');
+  notify('⬇ Excel fiscal por casa (directos + indirectos por distribuir) descargado');
 }
 
 // Pagos ligados (bandera h.factura_id o aplicación por partes) a una factura que SÍ
@@ -1174,6 +1320,12 @@ export function fiscalBatch(proyecto) {
       reg.monto += monto;
       if (reg.aprobado) {
         esFiscal = true; totPagosAprob += monto; fila.sinCfdi += monto;
+        // Aditivo para 🏠 Por casa "solo directos" (no cambia ningún total de arriba):
+        // un pago sin CFDI no tiene clase de contabilidad → decide su partida.
+        const ce = claseEfectiva(null, a.partida_override || (hh && hh.partida)).clase;
+        if (ce === 'directo') fila.sinCfdiDir = (fila.sinCfdiDir || 0) + monto;
+        reg.porClase = reg.porClase || {};
+        reg.porClase[ce] = (reg.porClase[ce] || 0) + monto;
         if (_esPagoImpuestos(hh, provImp)) { totImpAprob += monto; impAprob.add(pid); }
       } else { totPagosNoAprob += monto; }
     }

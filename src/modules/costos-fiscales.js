@@ -617,6 +617,7 @@ export function estimadoFacturadoPorUnidad(proyecto = cfProyecto, opts = {}) {
   (state.facturas || []).forEach(f => {
     const k = String(f.factura_id);
     if (!info.elegibles.has(k)) return;
+    if (opts.filtroFactura && !opts.filtroFactura(f)) return;   // 🧾 Por casa: solo las directas
     const r = rep.get(k) || 0;
     const pendNeto = (f.monto_total || 0) - r;
     if (pendNeto <= 0.5) return;
