@@ -59,25 +59,13 @@ async function init() {
   // 1. Cargar proyectos desde localStorage (o seed)
   state.proyectos = loadProyectos();
 
-  // 2. Fetch datos JSON en paralelo
-  try {
-    const [nomRes] = await Promise.all([
-      fetch('./data/nomina-seed.json')
-    ]);
-    const nomina = await nomRes.json();
-
-    // 3. Proveedores: vacío hasta conectar Google Sheets
-    state.proveedores = [];
-    state.nextId = Math.max(...nomina.map(e => e.id || 0)) + 1;
-
-    // 4. Empleados
-    state.empleados = nomina;
-
-    console.log(`✅ Datos cargados: ${state.proveedores.length} proveedores, ${state.empleados.length} empleados, ${state.proyectos.length} proyectos`);
-  } catch (err) {
-    console.error('Error cargando datos:', err);
-    notify('Error cargando datos iniciales', 'error');
-  }
+  // 2-4. Proveedores y empleados llegan de Supabase (sbLoadAll); finalizarCarga
+  // recalibra state.nextId con lo cargado. Antes se sembraba la nómina desde
+  // data/nomina-seed.json, pero ese archivo se publicaba en GitHub Pages (repo
+  // público) con CLABEs y RFC reales: se quitó del repo el 2026-10-09.
+  // ⚠️ NUNCA volver a poner datos reales en archivos del repo.
+  state.proveedores = [];
+  state.empleados = [];
 
   // 5. Fecha dispersión = hoy
   const fechaDisp = document.getElementById('fecha-disp');

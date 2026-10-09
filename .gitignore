@@ -15,3 +15,7 @@ docs/documentacion-completa.md
 
 # Documentos internos (reglas de clasificación, datos de proveedores…): solo LOCAL, jamás al repo público.
 docs/privado/
+
+# Semillas JSON con datos reales (CLABEs, RFC) se publicaban en GitHub Pages: quitadas el 2026-10-09.
+# Los datos viven en Supabase; esta carpeta no debe volver al repo.
+data/
